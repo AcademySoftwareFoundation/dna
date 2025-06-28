@@ -1,0 +1,9 @@
+pandas
+tqdm
+openai>=1.0.0
+anthropic
+requests
+openai-whisper
+google-generativeai
+dotenv
+
