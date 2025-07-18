@@ -4,6 +4,9 @@
 
 Test getting an audio stream from Chrome and sending it through Whisper for a transcription.
 
+## Chrome extension
+This project includes a Chrome extension that captures audio from the current tab and sends it to a Whisper server for transcription. The extension provides a simple user interface to start and stop audio capture, and it logs the transcription results in the console.
+
 ### Installing the Chrome Extension
 1. Open Chrome and navigate to `chrome://extensions/`.
 2. Enable "Developer mode" in the top-right corner.
