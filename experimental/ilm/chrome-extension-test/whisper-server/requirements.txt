@@ -1,0 +1,4 @@
+flask
+torch
+torchaudio
+openai-whisper
