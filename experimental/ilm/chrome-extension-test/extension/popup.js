@@ -11,7 +11,7 @@ document.getElementById('start').addEventListener('click', () => {
       return;
     }
 
-    console.log('Got stream ID:', streamId);
+    console.log('Got stream IDs:', streamId);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
