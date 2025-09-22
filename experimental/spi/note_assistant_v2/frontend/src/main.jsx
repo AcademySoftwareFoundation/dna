@@ -19,12 +19,12 @@ function App() {
   const [isPollingTranscripts, setIsPollingTranscripts] = useState(false);
   const [joinedMeetId, setJoinedMeetId] = useState("");
   const [lastSegmentIndex, setLastSegmentIndex] = useState(-1); // Track last received segment
-  const [webhookEvents, setWebhookEvents] = useState([]); // Store webhook events
-  const [botStatus, setBotStatus] = useState(""); // Current bot status
+  const [botIsActive, setBotIsActive] = useState(false);
+  const [waitingForActive, setWaitingForActive] = useState(false);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
-  const eventSourceRef = useRef(null); // SSE connection reference
+  const botStatusIntervalRef = useRef(null);
 
   // Update the ref whenever currentIndex changes
   useEffect(() => {
@@ -35,84 +35,6 @@ function App() {
   useEffect(() => {
     lastSegmentIndexRef.current = lastSegmentIndex;
   }, [lastSegmentIndex]);
-
-  // SSE connection management
-  const connectToWebhookEvents = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    console.log('🔗 Connecting to webhook events...');
-    const eventSource = new EventSource('http://localhost:8000/webhook-events');
-    eventSourceRef.current = eventSource;
-
-    eventSource.onopen = () => {
-      console.log('✅ Connected to webhook stream');
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const webhookData = JSON.parse(event.data);
-        console.log('📡 Webhook event received:', webhookData);
-        
-        // Update webhook events list
-        setWebhookEvents(prev => [...prev.slice(-9), webhookData]); // Keep last 10 events
-        
-        // Update bot status based on event type
-        if (webhookData.event_type === 'bot_status' || webhookData.event_type === 'bot_joined' || webhookData.event_type === 'bot_ready') {
-          setBotStatus(webhookData.status || webhookData.event_type);
-        }
-        
-        // Handle specific event types
-        switch (webhookData.event_type) {
-          case 'bot_joined':
-            setBotStatus('🤖 Bot joined the meeting');
-            break;
-          case 'bot_ready':
-            setBotStatus('✅ Bot ready - transcription starting');
-            break;
-          case 'bot_disconnected':
-            setBotStatus('❌ Bot disconnected');
-            break;
-          case 'error':
-            setBotStatus(`❌ Error: ${webhookData.message || 'Unknown error'}`);
-            break;
-          case 'connection':
-            setBotStatus('🔗 Webhook connection established');
-            break;
-          case 'keepalive':
-            // Ignore keepalive messages
-            break;
-          default:
-            setBotStatus(`📡 ${webhookData.event_type}: ${webhookData.status || 'Processing'}`);
-        }
-      } catch (error) {
-        console.error('Error parsing webhook event:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('❌ Webhook connection error:', error);
-      setBotStatus('❌ Webhook connection lost');
-      
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => {
-        if (isPollingTranscripts) {
-          console.log('🔄 Attempting to reconnect to webhook stream...');
-          connectToWebhookEvents();
-        }
-      }, 5000);
-    };
-  };
-
-  const disconnectFromWebhookEvents = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    setBotStatus('');
-    setWebhookEvents([]);
-  };
 
   // Function to fetch and update transcripts
   const fetchTranscripts = async (meetingId) => {
@@ -180,27 +102,52 @@ function App() {
     }
   };
 
-  // Start transcript polling
+  // Poll bot status from backend
+  const pollBotStatus = (meetingId) => {
+    fetch(`http://localhost:8000/bot-status/google_meet/${meetingId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status) {
+          setStatus({ msg: `Bot Status: ${data.status}`, type: 'info' });
+          setBotIsActive(data.status === 'active');
+          if (waitingForActive && data.status === 'active') {
+            setWaitingForActive(false);
+          }
+          // Start transcript polling only when status is 'active'
+          if (data.status === 'active' && !isPollingTranscripts) {
+            startTranscriptPolling(meetingId);
+          }
+          // Stop transcript polling when status is 'completed'
+          if (data.status === 'completed' && isPollingTranscripts) {
+            stopTranscriptPolling();
+            setBotIsActive(false);
+          }
+        } else {
+          setStatus({ msg: 'Bot Status: unknown', type: 'info' });
+          setBotIsActive(false);
+        }
+      })
+      .catch(() => {
+        setStatus({ msg: 'Bot Status: error', type: 'error' });
+        setBotIsActive(false);
+      });
+  };
+
+  // Start transcript polling (only called internally)
   const startTranscriptPolling = (meetingId) => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
-    
     setIsPollingTranscripts(true);
     setJoinedMeetId(meetingId);
     setLastSegmentIndex(-1); // Reset segment index for new meeting
     lastSegmentIndexRef.current = -1; // Reset ref as well
-    
-    // Connect to webhook events
-    connectToWebhookEvents();
-    
-    // Poll every second
     pollingIntervalRef.current = setInterval(() => {
       fetchTranscripts(meetingId);
     }, 2000);
   };
 
-  // Stop transcript polling
+  // Stop transcript polling (only called internally)
   const stopTranscriptPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -210,9 +157,7 @@ function App() {
     setJoinedMeetId("");
     setLastSegmentIndex(-1); // Reset segment index
     lastSegmentIndexRef.current = -1; // Reset ref as well
-    
-    // Disconnect from webhook events
-    disconnectFromWebhookEvents();
+    setStatus({ msg: '', type: 'info' });
   };
 
   // Cleanup polling on component unmount
@@ -221,8 +166,8 @@ function App() {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (botStatusIntervalRef.current) {
+        clearInterval(botStatusIntervalRef.current);
       }
     };
   }, []);
@@ -231,11 +176,9 @@ function App() {
     e.preventDefault();
     if (!meetId.trim()) return;
     setSubmitting(true);
+    setWaitingForActive(true);
     setStatus({ msg: "Submitting meet id...", type: "info" });
-    
-    // Stop any existing polling
     stopTranscriptPolling();
-    
     try {
       const res = await fetch("http://localhost:8000/submit-meet-id", {
         method: "POST",
@@ -244,14 +187,23 @@ function App() {
       });
       const data = await res.json();
       if (res.ok && data.status === "success") {
-        setStatus({ msg: `Successfully joined meeting: ${data.meet_id}`, type: "success" });
-        // Start polling for transcripts after successful join
-        startTranscriptPolling(meetId.trim());
+        setStatus({ msg: `Requested to join meeting: ${data.meet_id}`, type: "success" });
+        // Start polling bot status after successful join
+        if (botStatusIntervalRef.current) {
+          clearInterval(botStatusIntervalRef.current);
+        }
+        botStatusIntervalRef.current = setInterval(() => {
+          pollBotStatus(meetId.trim());
+        }, 2000);
+        // Initial bot status fetch
+        pollBotStatus(meetId.trim());
       } else {
         setStatus({ msg: "Server returned an error", type: "error" });
+        setWaitingForActive(false);
       }
     } catch (err) {
       setStatus({ msg: "Network error while sending Meet ID", type: "error" });
+      setWaitingForActive(false);
     } finally {
       setSubmitting(false);
     }
@@ -320,16 +272,35 @@ function App() {
     setRows(r => r.map((row, i) => i === index ? { ...row, [key]: value } : row));
   };
 
+  // Exit bot handler
+  const handleExitBot = async () => {
+    setSubmitting(true);
+    setStatus({ msg: "Exiting bot...", type: "info" });
+    try {
+      const res = await fetch(`http://localhost:8000/stop-bot/google_meet/${joinedMeetId}`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setStatus({ msg: "Bot exited successfully.", type: "success" });
+        setBotIsActive(false);
+        setJoinedMeetId("");
+        setMeetId("");
+      } else {
+        setStatus({ msg: "Failed to exit bot.", type: "error" });
+      }
+    } catch (err) {
+      setStatus({ msg: "Network error while exiting bot", type: "error" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <header className="app-header">
         <h1 className="app-title">Dailies Note Assistant (v2)</h1>
         <p className="app-subtitle">AI Assistant to join a Google meet based review session to capture the audio transcription and generate summaries for specific shots as guided by the user</p>
-        {botStatus && (
-          <div className={`bot-status status-${botStatus.toLowerCase().replace(/\s+/g, '-')}`}>
-            Bot Status: {botStatus}
-          </div>
-        )}
       </header>
 
       <main className="app-main">
@@ -348,28 +319,20 @@ function App() {
                 autoComplete="off"
                 required
                 aria-required="true"
+                disabled={botIsActive}
               />
-              <button type="submit" className="btn primary" disabled={!meetId.trim() || submitting}>
-                {submitting ? "Joining..." : "Join"}
-              </button>
-              {isPollingTranscripts && (
-                <button 
-                  type="button" 
-                  className="btn secondary" 
-                  onClick={stopTranscriptPolling}
-                  style={{ marginLeft: '8px' }}
-                >
-                  Stop Polling
+              {botIsActive ? (
+                <button type="button" className="btn danger" onClick={handleExitBot} disabled={submitting}>
+                  {submitting ? "Exiting..." : "Exit"}
+                </button>
+              ) : (
+                <button type="submit" className="btn primary" disabled={!meetId.trim() || submitting || waitingForActive}>
+                  {submitting ? "Joining..." : "Join"}
                 </button>
               )}
             </div>
             <div className="status-row">
               <StatusBadge type={status.type}>{status.msg}</StatusBadge>
-              {isPollingTranscripts && (
-                <StatusBadge type="info">
-                  🎙️ Polling transcripts for: {joinedMeetId} (incremental updates)
-                </StatusBadge>
-              )}
             </div>
           </form>
         </section>
