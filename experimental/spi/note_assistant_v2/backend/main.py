@@ -225,5 +225,35 @@ async def webhook_events_stream():
         }
     )
 
+@app.get("/bot-status/{platform}/{meeting_id}")
+async def get_bot_status(platform: str, meeting_id: str):
+    """
+    Returns the current status of the bot for a given meeting.
+    """
+    try:
+        meeting = vexa_client.get_meeting_by_id(platform, meeting_id)
+        if meeting is None:
+            return {"status": "unknown"}
+        return {"status": meeting.get("status", "unknown")}
+    except Exception as e:
+        print(f"Error fetching bot status: {e}")
+        return {"status": "error", "detail": str(e)}
+
+@app.post("/stop-bot/{platform}/{meeting_id}")
+async def stop_bot(platform: str, meeting_id: str):
+    """
+    Stops the bot for a given meeting.
+    
+    Args:
+        platform: Meeting platform (e.g., 'google_meet')
+        meeting_id: Platform-specific meeting ID
+    """
+    try:
+        result = vexa_client.stop_bot(platform, meeting_id)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        print(f"Error stopping bot: {e}")
+        return {"status": "error", "detail": str(e)}
+
 # Register playlist router
 app.include_router(playlist_router)
