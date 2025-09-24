@@ -575,6 +575,19 @@ class VexaClient:
         path = f"/admin/users/email/{email}"
         return self._request("GET", path, api_type='admin')
 
+    def get_user_by_id(self, id: int) -> Dict[str, Any]:
+        """
+        Retrieves a specific user by their id address (Admin Only).
+
+        Args:
+            Id: The numeric ID of the user to retrieve.
+
+        Returns:
+            Dictionary representing the User object.
+        """
+        path = f"/admin/users/{id}"
+        return self._request("GET", path, api_type='admin')
+
     # --- Admin: Token Management ---
 
     def create_token(self, user_id: int) -> Dict[str, Any]:
@@ -590,17 +603,25 @@ class VexaClient:
         return self._request("POST", f"/admin/users/{user_id}/tokens", api_type='admin')
 
 if __name__ == "__main__":
-    # Simple webhook testing with local HTTP server
-    client = VexaClient(api_key=os.getenv('VEXA_API_KEY'))
 
-    try:
+    admin = VexaClient(admin_key='token')
+    for u in admin.list_users():
+        user_token = admin.get_user_by_id(u['id'])['api_tokens'][0]['token']
+        client = VexaClient(api_key=user_token)
         bots = client.get_running_bots_status()
-        for i, bot in enumerate(bots):
-            print(f"[{(i+1)*5}s] Bot status: {bot.get('status')}")
-            #ret = client.stop_bot(bot.get('platform'), bot.get('native_meeting_id'))
-            #print(ret)
-    except Exception as e:
-        print(f"[{(i+1)*5}s] Status check error: {e}")
+        print(f"client {u['id']} has {bots} (token: {user_token})")
+
+    # # Simple webhook testing with local HTTP server
+    # client = VexaClient(api_key=os.getenv('VEXA_API_KEY'))
+
+    # try:
+    #     bots = client.get_running_bots_status()
+    #     for i, bot in enumerate(bots):
+    #         print(f"[{(i+1)*5}s] Bot status: {bot.get('status')}")
+    #         #ret = client.stop_bot(bot.get('platform'), bot.get('native_meeting_id'))
+    #         #print(ret)
+    # except Exception as e:
+    #     print(f"[{(i+1)*5}s] Status check error: {e}")
     
     # print("=" * 60)
     # print("WEBHOOK TESTING WITH LOCAL SERVER")
