@@ -39,66 +39,41 @@ function App() {
   // Function to fetch and update transcripts
   const fetchTranscripts = async (meetingId) => {
     try {
-      // Use ref to get current lastSegmentIndex value
       const currentLastSegmentIndex = lastSegmentIndexRef.current;
-      
-      // Add last_segment_index parameter for incremental updates
       const url = currentLastSegmentIndex >= 0 
         ? `http://localhost:8000/transcripts/google_meet/${meetingId}?last_segment_index=${currentLastSegmentIndex}`
         : `http://localhost:8000/transcripts/google_meet/${meetingId}`;
-      
       console.log(`Calling URL: ${url}`);
       const res = await fetch(url);
       if (res.ok) {
-        const data = await res.json();
-        const segments = data.segments || [];
-        
-        console.log(`Response data:`, data);
-        
-        // If no new segments, return early
-        if (segments.length === 0) {
+        const transcriptArray = await res.json(); // Now an array of strings
+        console.log(`Response data:`, transcriptArray);
+        if (!Array.isArray(transcriptArray) || transcriptArray.length === 0) {
           console.log('No new segments received');
           return;
         }
-        
-        // Update last segment index from response
-        if (data.last_segment_index !== undefined) {
-          console.log(`Updating lastSegmentIndex from ${currentLastSegmentIndex} to ${data.last_segment_index}`);
-          setLastSegmentIndex(data.last_segment_index);
-        }
-        
-        // Concatenate speaker + text for new segments
-        const newTranscriptText = segments
-          .map(segment => `${segment.speaker}: ${segment.text}`)
-          .join('\n');
-        
-        // Update the transcription field of the current row if rows exist
+        // Update last segment index
+        setLastSegmentIndex(currentLastSegmentIndex + transcriptArray.length);
+        // Concatenate all transcript strings
+        const newTranscriptText = transcriptArray.join('\n');
         if (rows.length > 0 && newTranscriptText.trim()) {
           setRows(prevRows => {
             const activeIndex = currentIndexRef.current;
             return prevRows.map((row, index) => {
               if (index === activeIndex) {
-                // Always append new content to existing transcription
                 const existingTranscription = row.transcription || '';
                 const updatedTranscription = existingTranscription
                   ? `${existingTranscription}\n${newTranscriptText}`
                   : newTranscriptText;
-                
                 return { ...row, transcription: updatedTranscription };
               }
               return row;
             });
           });
         }
-        
-        // Log incremental update info
-        if (data.new_segments_count !== undefined) {
-          console.log(`Received ${data.new_segments_count} new segments -> Row ${currentIndexRef.current}`);
-        }
       }
     } catch (err) {
       console.error('Error fetching transcripts:', err);
-      // Don't show error to user for polling failures, just log them
     }
   };
 
@@ -115,6 +90,11 @@ function App() {
           }
           // Start transcript polling only when status is 'active'
           if (data.status === 'active' && !isPollingTranscripts) {
+            // Stop bot status polling
+            if (botStatusIntervalRef.current) {
+              clearInterval(botStatusIntervalRef.current);
+              botStatusIntervalRef.current = null;
+            }
             startTranscriptPolling(meetingId);
           }
           // Stop transcript polling when status is 'completed'
@@ -137,6 +117,11 @@ function App() {
   const startTranscriptPolling = (meetingId) => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
+    }
+    // Stop bot status polling when transcript polling starts
+    if (botStatusIntervalRef.current) {
+      clearInterval(botStatusIntervalRef.current);
+      botStatusIntervalRef.current = null;
     }
     setIsPollingTranscripts(true);
     setJoinedMeetId(meetingId);
@@ -187,7 +172,7 @@ function App() {
       });
       const data = await res.json();
       if (res.ok && data.status === "success") {
-        setStatus({ msg: `Requested to join meeting: ${data.meet_id}`, type: "success" });
+        setStatus({ msg: `Requested to join meeting: ${data.meet_id}`, type: "info" });
         // Start polling bot status after successful join
         if (botStatusIntervalRef.current) {
           clearInterval(botStatusIntervalRef.current);

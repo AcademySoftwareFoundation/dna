@@ -85,6 +85,7 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
     """
     Proxy endpoint to fetch transcripts from Vexa API.
     This keeps the API key secure on the backend.
+    Returns only an array of audio transcripts (segment['text']), ignoring the last segment.
     
     Args:
         platform: Meeting platform (e.g., 'google_meet')
@@ -93,42 +94,19 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
                           only returns segments after this index for incremental updates.
     """
     try:
-        # Get full transcript data from Vexa API
         transcript_data = vexa_client.get_transcript(platform, meeting_id)
-        
+        segments = transcript_data.get('segments', [])
+        # Ignore the last segment
+        if len(segments) > 1:
+            segments = segments[:-1]
+        elif len(segments) == 1:
+            segments = []
         # If last_segment_index is provided, filter to return only new segments
-        if last_segment_index is not None and 'segments' in transcript_data:
-            original_segments = transcript_data['segments']
-            
-            # Filter segments to only include those after the last_segment_index
-            new_segments = [
-                segment for i, segment in enumerate(original_segments) 
-                if i > last_segment_index
-            ]
-            
-            # Create response with only new segments
-            filtered_response = {
-                **transcript_data,  # Keep all other fields (meeting info, etc.)
-                'segments': new_segments,
-                'total_segments': len(original_segments),  # Total count for reference
-                'new_segments_count': len(new_segments),   # Count of new segments
-                'last_segment_index': len(original_segments) - 1 if original_segments else -1
-            }
-            
-            print(f"Incremental transcript request: returned {len(new_segments)} new segments "
-                  f"(total: {len(original_segments)}, last_index: {last_segment_index})")
-            
-            return filtered_response
-        else:
-            # Return full transcript for initial request
-            if 'segments' in transcript_data:
-                transcript_data['last_segment_index'] = len(transcript_data['segments']) - 1
-                transcript_data['total_segments'] = len(transcript_data['segments'])
-                transcript_data['new_segments_count'] = len(transcript_data['segments'])
-            
-            print(f"Full transcript request: returned {transcript_data.get('total_segments', 0)} segments")
-            return transcript_data
-            
+        if last_segment_index is not None and segments:
+            segments = [segment for i, segment in enumerate(segments) if i > last_segment_index]
+        # Return only the array of transcript texts in 'speaker: text' format
+        transcript_texts = [f"{segment['speaker']}: {segment['text']}" for segment in segments if 'text' in segment and 'speaker' in segment]
+        return transcript_texts
     except VexaClientError as e:
         print(f"Error fetching transcript: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to fetch transcript: {str(e)}")
