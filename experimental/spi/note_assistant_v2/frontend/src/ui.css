@@ -18,15 +18,33 @@
 html, body, #root { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); }
 
-.app-shell { display: flex; flex-direction: column; min-height: 100%; }
+.app-shell { 
+  display: flex; 
+  flex-direction: column; 
+  min-height: 100%; 
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
 .app-header { padding: 32px 28px 8px; }
 .app-title { margin: 0 0 4px; font-size: 28px; letter-spacing: .5px; }
 .app-subtitle { margin: 0; font-size: 15px; color: var(--text-muted); }
 
-.app-main { width: 100%; max-width: 960px; margin: 0 auto; padding: 8px 28px 48px; display: grid; gap: 28px; grid-template-columns: repeat(auto-fit,minmax(340px,1fr)); }
+.app-main { width: 100%; margin: 0 auto; padding: 8px 28px 48px; display: grid; gap: 28px; grid-template-columns: repeat(auto-fit,minmax(340px,1fr)); }
 .full-span { grid-column: 1 / -1; }
 
-.panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: var(--radius); padding: 22px 22px 26px; display: flex; flex-direction: column; gap: 12px; position: relative; box-shadow: 0 4px 12px -2px rgba(0,0,0,.4); }
+.panel { 
+  background: var(--panel); 
+  border: 1px solid var(--panel-border); 
+  border-radius: var(--radius); 
+  padding: 22px 22px 26px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+  position: relative; 
+  box-shadow: 0 4px 12px -2px rgba(0,0,0,.4); 
+  margin-left: 5px !important;
+  margin-right: 5px !important;
+}
 .panel-title { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: .5px; }
 
 .form-grid { display: flex; flex-direction: column; gap: 12px; }
@@ -74,6 +92,19 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .table-textarea { width: 100%; resize: vertical; min-height: 88px; background: #1b2129; border: 1px solid #2d3641; border-radius: 6px; padding: 8px 10px; color: var(--text); font: 13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; outline: none; transition: border-color .18s, background .18s; display: block; box-sizing: border-box; }
 .table-textarea:focus { border-color: var(--accent); background: #212a33; box-shadow: 0 0 0 2px rgba(61,130,246,.25); }
 .table-textarea::placeholder { color: #56616d; }
+
+/* Remove max-width constraints and ensure full width */
+.app-shell, .app-main, .panel, .table-wrapper, .data-table {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+
+/* Optionally, remove padding/margin if needed for edge-to-edge layout */
+.app-shell, .app-main {
+  padding: 0;
+  margin: 0;
+}
 
 /* Column width helpers */
 .col-shot { width: 18%; }

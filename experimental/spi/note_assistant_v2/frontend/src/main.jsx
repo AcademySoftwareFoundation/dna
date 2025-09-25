@@ -359,20 +359,21 @@ function App() {
           <h2 className="panel-title">Shot Notes</h2>
           {rows.length === 0 && <p className="help-text">Upload a playlist CSV to populate shot notes.</p>}
           {rows.length > 0 && (
-            <div className="table-wrapper">
-              <table className="data-table">
+            <div className="table-wrapper" style={{ width: '100%' }}>
+              <table className="data-table" style={{ width: '100%', tableLayout: 'fixed' }}>
                 <thead>
                   <tr>
-                    <th className="col-current">Current</th>
-                    <th className="col-shot">Shot/Version</th>
-                    <th className="col-transcription">Transcription</th>
-                    <th className="col-summary">Summary</th>
+                    <th className="col-current" style={{ width: '6%' }}>Current</th>
+                    <th className="col-shot" style={{ width: '18%' }}>Shot/Version</th>
+                    <th className="col-notes" style={{ width: '20%' }}>Notes</th>
+                    <th className="col-transcription" style={{ width: '28%' }}>Transcription</th>
+                    <th className="col-summary" style={{ width: '28%' }}>Summary</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, idx) => (
                     <tr key={idx} className={idx === currentIndex ? 'current-row' : ''}>
-                      <td className="current-cell" style={{ textAlign: 'center' }}>
+                      <td className="current-cell" style={{ textAlign: 'center', width: '6%' }}>
                         <input
                           type="radio"
                           name="current-shot"
@@ -382,7 +383,16 @@ function App() {
                         />
                       </td>
                       <td className="readonly-cell" style={{ width: '18%' }}>{row.shot}</td>
-                      <td style={{ width: '41%' }}>
+                      <td style={{ width: '20%' }}>
+                        <textarea
+                          value={row.notes || ''}
+                          onChange={(e) => updateCell(idx, 'notes', e.target.value)}
+                          className="table-textarea"
+                          placeholder="Enter notes..."
+                          rows={3}
+                        />
+                      </td>
+                      <td style={{ width: '28%' }}>
                         <textarea
                           value={row.transcription}
                           onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
@@ -391,7 +401,7 @@ function App() {
                           rows={3}
                         />
                       </td>
-                      <td style={{ width: '41%' }}>
+                      <td style={{ width: '28%' }}>
                         <textarea
                           value={row.summary}
                           onChange={(e) => updateCell(idx, 'summary', e.target.value)}
