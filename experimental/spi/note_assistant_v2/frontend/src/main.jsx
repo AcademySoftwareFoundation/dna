@@ -363,9 +363,9 @@ function App() {
               <table className="data-table" style={{ width: '100%', tableLayout: 'fixed' }}>
                 <thead>
                   <tr>
-                    <th className="col-current" style={{ width: '6%' }}>Current</th>
-                    <th className="col-shot" style={{ width: '18%' }}>Shot/Version</th>
-                    <th className="col-notes" style={{ width: '20%' }}>Notes</th>
+                    {/* Remove Current column header */}
+                    <th className="col-shot" style={{ width: '10%' }}>Shot/Version</th>
+                    <th className="col-notes" style={{ width: '28%' }}>Notes</th>
                     <th className="col-transcription" style={{ width: '28%' }}>Transcription</th>
                     <th className="col-summary" style={{ width: '28%' }}>Summary</th>
                   </tr>
@@ -373,19 +373,12 @@ function App() {
                 <tbody>
                   {rows.map((row, idx) => (
                     <tr key={idx} className={idx === currentIndex ? 'current-row' : ''}>
-                      <td className="current-cell" style={{ textAlign: 'center', width: '6%' }}>
-                        <input
-                          type="radio"
-                          name="current-shot"
-                          checked={idx === currentIndex}
-                          onChange={() => setCurrentIndex(idx)}
-                          aria-label={`Set current row to ${row.shot}`}
-                        />
-                      </td>
-                      <td className="readonly-cell" style={{ width: '18%' }}>{row.shot}</td>
-                      <td style={{ width: '20%' }}>
+                      {/* Remove Current radio button cell */}
+                      <td className="readonly-cell" style={{ width: '10%' }}>{row.shot}</td>
+                      <td style={{ width: '28%' }}>
                         <textarea
                           value={row.notes || ''}
+                          onFocus={() => setCurrentIndex(idx)}
                           onChange={(e) => updateCell(idx, 'notes', e.target.value)}
                           className="table-textarea"
                           placeholder="Enter notes..."
@@ -395,6 +388,7 @@ function App() {
                       <td style={{ width: '28%' }}>
                         <textarea
                           value={row.transcription}
+                          onFocus={() => setCurrentIndex(idx)}
                           onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
                           className="table-textarea"
                           placeholder="Enter transcription..."
@@ -404,6 +398,7 @@ function App() {
                       <td style={{ width: '28%' }}>
                         <textarea
                           value={row.summary}
+                          onFocus={() => setCurrentIndex(idx)}
                           onChange={(e) => updateCell(idx, 'summary', e.target.value)}
                           className="table-textarea"
                           placeholder="Enter summary..."
