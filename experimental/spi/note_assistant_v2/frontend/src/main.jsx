@@ -21,6 +21,7 @@ function App() {
   const [lastSegmentIndex, setLastSegmentIndex] = useState(-1); // Track last received segment
   const [botIsActive, setBotIsActive] = useState(false);
   const [waitingForActive, setWaitingForActive] = useState(false);
+  const [pinnedIndex, setPinnedIndex] = useState(null);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
@@ -371,49 +372,69 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, idx) => (
-                    <tr key={idx} className={idx === currentIndex ? 'current-row' : ''}>
-                      {/* Remove Current radio button cell */}
-                      <td className="readonly-cell" style={{ width: '10%' }}>{row.shot}</td>
-                      <td style={{ width: '28%' }}>
-                        <textarea
-                          value={row.notes || ''}
-                          onFocus={() => setCurrentIndex(idx)}
-                          onChange={(e) => updateCell(idx, 'notes', e.target.value)}
-                          className="table-textarea"
-                          placeholder="Enter notes..."
-                          rows={3}
-                        />
-                      </td>
-                      <td style={{ width: '28%' }}>
-                        <textarea
-                          value={row.transcription}
-                          onFocus={() => setCurrentIndex(idx)}
-                          onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
-                          className="table-textarea"
-                          placeholder="Enter transcription..."
-                          rows={3}
-                        />
-                      </td>
-                      <td style={{ width: '28%', position: 'relative' }}>
-                        <textarea
-                          value={row.summary}
-                          onFocus={() => setCurrentIndex(idx)}
-                          onChange={(e) => updateCell(idx, 'summary', e.target.value)}
-                          className="table-textarea"
-                          placeholder="Enter summary..."
-                          rows={3}
-                          style={{ paddingRight: '36px' }}
-                        />
-                        <button type="button" className="btn" style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Refresh">
-                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M9 3a6 6 0 1 1-6 6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M3 3v6h6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((row, idx) => {
+                    const isPinned = pinnedIndex === idx;
+                    const isCurrent = pinnedIndex !== null ? isPinned : idx === currentIndex;
+                    return (
+                      <tr key={idx} className={isCurrent ? 'current-row' : ''}>
+                        {/* Remove Current radio button cell */}
+                        <td className="readonly-cell" style={{ width: '10%', position: 'relative' }}>
+                          {row.shot}
+                          <button
+                            type="button"
+                            className={`btn${isPinned ? ' pinned' : ''}`}
+                            style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isPinned ? '#e0f2fe' : undefined, borderColor: isPinned ? '#3d82f6' : undefined }}
+                            aria-label="Pin"
+                            onClick={() => setPinnedIndex(isPinned ? null : idx)}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                              {/* Larger half-circle head */}
+                              <path d="M3 8 A6 6 0 0 1 15 8 Z" fill="#3d82f6" stroke="#1e40af" strokeWidth="0.8"/>
+                              {/* Wider tapered pin */}
+                              <path d="M7 8 L11 8 L9 15 Z" fill="#3d82f6" stroke="#1e40af" strokeWidth="0.8"/>
+                            </svg>
+                          </button>
+                        </td>
+                        <td style={{ width: '28%' }}>
+                          <textarea
+                            value={row.notes || ''}
+                            onFocus={() => { if (!isPinned) setCurrentIndex(idx); }}
+                            onChange={(e) => updateCell(idx, 'notes', e.target.value)}
+                            className="table-textarea"
+                            placeholder="Enter notes..."
+                            rows={3}
+                          />
+                        </td>
+                        <td style={{ width: '28%' }}>
+                          <textarea
+                            value={row.transcription}
+                            onFocus={() => { if (!isPinned) setCurrentIndex(idx); }}
+                            onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
+                            className="table-textarea"
+                            placeholder="Enter transcription..."
+                            rows={3}
+                          />
+                        </td>
+                        <td style={{ width: '28%', position: 'relative' }}>
+                          <textarea
+                            value={row.summary}
+                            onFocus={() => { if (!isPinned) setCurrentIndex(idx); }}
+                            onChange={(e) => updateCell(idx, 'summary', e.target.value)}
+                            className="table-textarea"
+                            placeholder="Enter summary..."
+                            rows={3}
+                            style={{ paddingRight: '36px' }}
+                          />
+                          <button type="button" className="btn" style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Refresh">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M9 3a6 6 0 1 1-6 6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 3v6h6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
