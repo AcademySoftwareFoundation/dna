@@ -57,9 +57,13 @@ function App() {
         setLastSegmentIndex(currentLastSegmentIndex + transcriptArray.length);
         // Concatenate all transcript strings
         const newTranscriptText = transcriptArray.join('\n');
+        console.log('Current rows:', rows);
         if (rows.length > 0 && newTranscriptText.trim()) {
           setRows(prevRows => {
-            const activeIndex = currentIndexRef.current;
+            // Always use pinnedIndex if set, otherwise use currentIndexRef, fallback to first row
+            let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+            if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
+            console.log('Appending transcript to row', activeIndex, newTranscriptText);
             return prevRows.map((row, index) => {
               if (index === activeIndex) {
                 const existingTranscription = row.transcription || '';
@@ -71,6 +75,8 @@ function App() {
               return row;
             });
           });
+        } else {
+          console.log('No rows to update or transcript is empty');
         }
       }
     } catch (err) {
@@ -272,6 +278,7 @@ function App() {
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
+        stopTranscriptPolling();
       } else {
         setStatus({ msg: "Failed to exit bot.", type: "error" });
       }
@@ -398,7 +405,7 @@ function App() {
                         <td style={{ width: '28%' }}>
                           <textarea
                             value={row.notes || ''}
-                            onFocus={() => { if (!isPinned) setCurrentIndex(idx); }}
+                            onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
                             onChange={(e) => updateCell(idx, 'notes', e.target.value)}
                             className="table-textarea"
                             placeholder="Enter notes..."
@@ -408,7 +415,7 @@ function App() {
                         <td style={{ width: '28%' }}>
                           <textarea
                             value={row.transcription}
-                            onFocus={() => { if (!isPinned) setCurrentIndex(idx); }}
+                            onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
                             onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
                             className="table-textarea"
                             placeholder="Enter transcription..."
@@ -418,7 +425,7 @@ function App() {
                         <td style={{ width: '28%', position: 'relative' }}>
                           <textarea
                             value={row.summary}
-                            onFocus={() => { if (!isPinned) setCurrentIndex(idx); }}
+                            onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
                             onChange={(e) => updateCell(idx, 'summary', e.target.value)}
                             className="table-textarea"
                             placeholder="Enter summary..."

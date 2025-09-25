@@ -10,6 +10,7 @@ from collections import deque
 from datetime import datetime
 from playlist import router as playlist_router
 from vexa_client import VexaClient, VexaClientError
+import random
 
 # Load environment variables from .env file (optional)
 try:
@@ -93,10 +94,29 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
         last_segment_index: Optional index of last received segment. If provided,
                           only returns segments after this index for incremental updates.
     """
+    # # For testing, return a random string
+    # random_texts = [
+    #     "Speaker1: This is a test transcript.",
+    #     "Speaker2: Another random transcript line.",
+    #     "Speaker3: Yet another transcript entry.",
+    #     "Speaker4: Randomized transcript for testing.",
+    #     "Speaker5: Final test transcript string.",
+    #     "Speaker6: The quick brown fox jumps over the lazy dog.",
+    #     "Speaker7: Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    #     "Speaker8: Testing, one, two, three.",
+    #     "Speaker9: This is a longer transcript example for robustness.",
+    #     "Speaker10: Can you hear me now? Yes, I can hear you.",
+    #     "Speaker11: Let's try a different sentence for variety.",
+    #     "Speaker12: Randomized input for frontend testing.",
+    #     "Speaker13: Another example of a transcript line.",
+    #     "Speaker14: This should appear randomly in your app.",
+    #     "Speaker15: End of the random transcript list."
+    # ]
+    # return [random.choice(random_texts)]
     try:
         transcript_data = vexa_client.get_transcript(platform, meeting_id)
         segments = transcript_data.get('segments', [])
-        # Ignore the last segment
+        # Ignore the last segment, it may be incomplete or re-processed by Vexa
         if len(segments) > 1:
             segments = segments[:-1]
         elif len(segments) == 1:
