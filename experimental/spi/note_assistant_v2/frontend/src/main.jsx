@@ -395,7 +395,7 @@ function App() {
                           rows={3}
                         />
                       </td>
-                      <td style={{ width: '28%' }}>
+                      <td style={{ width: '28%', position: 'relative' }}>
                         <textarea
                           value={row.summary}
                           onFocus={() => setCurrentIndex(idx)}
@@ -403,7 +403,14 @@ function App() {
                           className="table-textarea"
                           placeholder="Enter summary..."
                           rows={3}
+                          style={{ paddingRight: '36px' }}
                         />
+                        <button type="button" className="btn" style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Refresh">
+                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 3a6 6 0 1 1-6 6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M3 3v6h6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
                       </td>
                     </tr>
                   ))}
