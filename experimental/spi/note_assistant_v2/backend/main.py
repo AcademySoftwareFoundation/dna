@@ -23,6 +23,7 @@ except ImportError:
     pass
 
 DISABLE_VEXA = True
+DISABLE_LLM = True
 
 # Global webhook event storage
 webhook_events = deque(maxlen=100)  # Store last 100 events
@@ -295,6 +296,19 @@ async def llm_summary(data: LLMSummaryRequest):
     """
     Generate a summary using Gemini LLM for the given text.
     """
+    if DISABLE_LLM:
+        # Return a random summary for testing
+        random_summaries = [
+            "The team discussed lighting and animation improvements.",
+            "Minor tweaks needed for character animation; background approved.",
+            "Action items: soften shadows, adjust highlight gain, improve hand motion.",
+            "Most notes addressed; only a few minor issues remain.",
+            "Ready for final review after next round of changes.",
+            "Feedback: color grade is close, but highlights too hot.",
+            "Artist to be notified about animation and lighting feedback.",
+            "Overall progress is good; next steps communicated to the team."
+        ]
+        return {"summary": random.choice(random_summaries)}
     try:
         if not gemini_client:
             raise HTTPException(status_code=500, detail="Gemini client not initialized.")
