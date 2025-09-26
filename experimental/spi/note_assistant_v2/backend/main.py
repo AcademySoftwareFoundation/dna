@@ -20,6 +20,8 @@ except ImportError:
     # python-dotenv not installed, environment variables should be set manually
     pass
 
+DISABLE_VEXA = True
+
 # Global webhook event storage
 webhook_events = deque(maxlen=100)  # Store last 100 events
 webhook_subscribers = []  # List of active SSE connections
@@ -42,6 +44,15 @@ class MeetID(BaseModel):
 
 @app.post("/submit-meet-id")
 async def submit_meet_id(data: MeetID, request: Request):
+    if DISABLE_VEXA:
+        # Return a mock response for testing
+        return {
+            "status": "success",
+            "meet_id": data.meet_id,
+            "message": "(TEST MODE) Bot has been requested to join the meeting",
+            "bot_result": {"test": True},
+            "webhook_configured": True
+        }
     try:
         print(f"Received Google Meet ID: {data.meet_id}")
         
@@ -94,25 +105,27 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
         last_segment_index: Optional index of last received segment. If provided,
                           only returns segments after this index for incremental updates.
     """
-    # # For testing, return a random string
-    # random_texts = [
-    #     "Speaker1: This is a test transcript.",
-    #     "Speaker2: Another random transcript line.",
-    #     "Speaker3: Yet another transcript entry.",
-    #     "Speaker4: Randomized transcript for testing.",
-    #     "Speaker5: Final test transcript string.",
-    #     "Speaker6: The quick brown fox jumps over the lazy dog.",
-    #     "Speaker7: Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-    #     "Speaker8: Testing, one, two, three.",
-    #     "Speaker9: This is a longer transcript example for robustness.",
-    #     "Speaker10: Can you hear me now? Yes, I can hear you.",
-    #     "Speaker11: Let's try a different sentence for variety.",
-    #     "Speaker12: Randomized input for frontend testing.",
-    #     "Speaker13: Another example of a transcript line.",
-    #     "Speaker14: This should appear randomly in your app.",
-    #     "Speaker15: End of the random transcript list."
-    # ]
-    # return [random.choice(random_texts)]
+    if DISABLE_VEXA:
+        # For testing, return a random string
+        random_texts = [
+            "Speaker1: This is a test transcript.",
+            "Speaker2: Another random transcript line.",
+            "Speaker3: Yet another transcript entry.",
+            "Speaker4: Randomized transcript for testing.",
+            "Speaker5: Final test transcript string.",
+            "Speaker6: The quick brown fox jumps over the lazy dog.",
+            "Speaker7: Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+            "Speaker8: Testing, one, two, three.",
+            "Speaker9: This is a longer transcript example for robustness.",
+            "Speaker10: Can you hear me now? Yes, I can hear you.",
+            "Speaker11: Let's try a different sentence for variety.",
+            "Speaker12: Randomized input for frontend testing.",
+            "Speaker13: Another example of a transcript line.",
+            "Speaker14: This should appear randomly in your app.",
+            "Speaker15: End of the random transcript list."
+        ]
+        return [random.choice(random_texts)]
+    
     try:
         transcript_data = vexa_client.get_transcript(platform, meeting_id)
         segments = transcript_data.get('segments', [])
@@ -228,6 +241,9 @@ async def get_bot_status(platform: str, meeting_id: str):
     """
     Returns the current status of the bot for a given meeting.
     """
+    if DISABLE_VEXA:
+        # Return a mock status for testing
+        return {"status": "test-mode-running"}
     try:
         meeting = vexa_client.get_meeting_by_id(platform, meeting_id)
         if meeting is None:
@@ -246,6 +262,9 @@ async def stop_bot(platform: str, meeting_id: str):
         platform: Meeting platform (e.g., 'google_meet')
         meeting_id: Platform-specific meeting ID
     """
+    if DISABLE_VEXA:
+        # Return a mock stop result for testing
+        return {"status": "success", "result": "(TEST MODE) Bot stopped."}
     try:
         result = vexa_client.stop_bot(platform, meeting_id)
         return {"status": "success", "result": result}
