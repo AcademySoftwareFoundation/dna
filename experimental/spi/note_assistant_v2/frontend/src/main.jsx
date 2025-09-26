@@ -265,6 +265,26 @@ function App() {
     setRows(r => r.map((row, i) => i === index ? { ...row, [key]: value } : row));
   };
 
+  // Function to get LLM summary from backend
+  const getLLMSummary = async (text) => {
+    try {
+      const res = await fetch('http://localhost:8000/llm-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (res.ok && data.summary) {
+        return data.summary;
+      } else {
+        return '';
+      }
+    } catch (err) {
+      console.error('Error fetching LLM summary:', err);
+      return '';
+    }
+  };
+
   // Exit bot handler
   const handleExitBot = async () => {
     setSubmitting(true);
@@ -433,7 +453,20 @@ function App() {
                             rows={3}
                             style={{ paddingRight: '36px' }}
                           />
-                          <button type="button" className="btn" style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Refresh">
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            aria-label="Refresh"
+                            onClick={async () => {
+                              // Use transcription as input for summary
+                              const inputText = row.transcription || row.notes || '';
+                              if (!inputText.trim()) return;
+                              updateCell(idx, 'summary', '...'); // Show loading
+                              const summary = await getLLMSummary(inputText);
+                              updateCell(idx, 'summary', summary || '[No summary returned]');
+                            }}
+                          >
                             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M9 3a6 6 0 1 1-6 6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                               <path d="M3 3v6h6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
