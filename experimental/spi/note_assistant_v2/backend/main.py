@@ -11,6 +11,8 @@ from datetime import datetime
 from playlist import router as playlist_router
 from vexa_client import VexaClient, VexaClientError
 import random
+from note_assistant import summarize_gemini, DEFAULT_MODELS, create_llm_client
+import google.generativeai as genai
 
 # Load environment variables from .env file (optional)
 try:
@@ -108,21 +110,21 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
     if DISABLE_VEXA:
         # For testing, return a random string
         random_texts = [
-            "Speaker1: This is a test transcript.",
-            "Speaker2: Another random transcript line.",
-            "Speaker3: Yet another transcript entry.",
-            "Speaker4: Randomized transcript for testing.",
-            "Speaker5: Final test transcript string.",
-            "Speaker6: The quick brown fox jumps over the lazy dog.",
-            "Speaker7: Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-            "Speaker8: Testing, one, two, three.",
-            "Speaker9: This is a longer transcript example for robustness.",
-            "Speaker10: Can you hear me now? Yes, I can hear you.",
-            "Speaker11: Let's try a different sentence for variety.",
-            "Speaker12: Randomized input for frontend testing.",
-            "Speaker13: Another example of a transcript line.",
-            "Speaker14: This should appear randomly in your app.",
-            "Speaker15: End of the random transcript list."
+            "KJ: The lighting on this shot looks great, but I think the shadows could be softer.",
+            "BH: Agreed, maybe the artist can try a different falloff on the key light?",
+            "CR: I'll make a note to ask for a softer shadow pass.",
+            "KJ: The character's expression is much improved from the last version.",
+            "BH: Yes, but the hand movement still feels a bit stiff.",
+            "CR: Should we suggest a reference for more natural hand motion?",
+            "KJ: Let's approve the background, but request tweaks on the character animation.",
+            "BH: I'll mark the background as finalled in ShotGrid.",
+            "CR: I'll send the artist a note about the animation feedback.",
+            "KJ: The color grade is close, but the highlights are a bit too hot.",
+            "BH: Maybe ask the artist to bring down the highlight gain by 10%.",
+            "CR: Noted, I'll include that in the feedback summary.",
+            "KJ: Great progress overall, just a few minor notes for the next version.",
+            "BH: Let's target final for the next review if these are addressed.",
+            "CR: I'll communicate the action items and next steps to the artist."
         ]
         return [random.choice(random_texts)]
     
@@ -274,3 +276,30 @@ async def stop_bot(platform: str, meeting_id: str):
 
 # Register playlist router
 app.include_router(playlist_router)
+
+class LLMSummaryRequest(BaseModel):
+    text: str
+
+# --- Gemini LLM client cache ---
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+gemini_model = DEFAULT_MODELS["gemini"]
+gemini_client = None
+if gemini_api_key:
+    try:
+        gemini_client = create_llm_client("gemini", api_key=gemini_api_key, model=gemini_model)
+    except Exception as e:
+        print(f"Error initializing Gemini client: {e}")
+
+@app.post("/llm-summary")
+async def llm_summary(data: LLMSummaryRequest):
+    """
+    Generate a summary using Gemini LLM for the given text.
+    """
+    try:
+        if not gemini_client:
+            raise HTTPException(status_code=500, detail="Gemini client not initialized.")
+        summary = summarize_gemini(data.text, gemini_model, gemini_client)
+        return {"summary": summary}
+    except Exception as e:
+        print(f"Error in /llm-summary: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM summary error: {str(e)}")
