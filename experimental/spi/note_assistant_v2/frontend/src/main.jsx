@@ -91,12 +91,13 @@ function App() {
       .then(data => {
         if (data.status) {
           setStatus({ msg: `Bot Status: ${data.status}`, type: 'info' });
-          setBotIsActive(data.status === 'active');
-          if (waitingForActive && data.status === 'active') {
+          const isActiveStatus = data.status === 'active' || data.status === 'test-mode-running';
+          setBotIsActive(isActiveStatus);
+          if (waitingForActive && isActiveStatus) {
             setWaitingForActive(false);
           }
-          // Start transcript polling only when status is 'active'
-          if (data.status === 'active' && !isPollingTranscripts) {
+          // Start transcript polling only when status is 'active' or 'test-mode-running'
+          if (isActiveStatus && !isPollingTranscripts) {
             // Stop bot status polling
             if (botStatusIntervalRef.current) {
               clearInterval(botStatusIntervalRef.current);
