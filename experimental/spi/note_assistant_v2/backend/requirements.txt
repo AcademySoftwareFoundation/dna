@@ -4,3 +4,8 @@ python-multipart
 pydantic
 requests
 python-dotenv
+#grpcio==1.48.2
+grpcio
+openai
+anthropic
+google-generativeai
