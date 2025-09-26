@@ -26,6 +26,7 @@ function App() {
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
   const botStatusIntervalRef = useRef(null);
+  const prevIndexRef = useRef(currentIndex);
 
   // Update the ref whenever currentIndex changes
   useEffect(() => {
@@ -309,6 +310,30 @@ function App() {
       setSubmitting(false);
     }
   };
+
+  // Auto-refresh summary if empty when switching rows
+  useEffect(() => {
+    if (pinnedIndex === null && prevIndexRef.current !== currentIndex) {
+      const prevIdx = prevIndexRef.current;
+      if (
+        prevIdx != null &&
+        prevIdx >= 0 &&
+        prevIdx < rows.length &&
+        (!rows[prevIdx].summary || !rows[prevIdx].summary.trim())
+      ) {
+        const inputText = rows[prevIdx].transcription || rows[prevIdx].notes || '';
+        if (inputText.trim()) {
+          // Show loading
+          updateCell(prevIdx, 'summary', '...');
+          getLLMSummary(inputText).then(summary => {
+            updateCell(prevIdx, 'summary', summary || '[No summary returned]');
+          });
+        }
+      }
+    }
+    prevIndexRef.current = currentIndex;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
 
   return (
     <div className="app-shell">
