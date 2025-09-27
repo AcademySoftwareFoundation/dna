@@ -48,7 +48,7 @@ function App() {
       console.log(`Calling URL: ${url}`);
       const res = await fetch(url);
       if (res.ok) {
-        const transcriptArray = await res.json(); // Now an array of strings
+        const transcriptArray = await res.json(); // Now an array of objects {speaker, start, text}
         console.log(`Response data:`, transcriptArray);
         if (!Array.isArray(transcriptArray) || transcriptArray.length === 0) {
           console.log('No new segments received');
@@ -56,25 +56,122 @@ function App() {
         }
         // Update last segment index
         setLastSegmentIndex(currentLastSegmentIndex + transcriptArray.length);
-        // Concatenate all transcript strings
-        const newTranscriptText = transcriptArray.join('\n');
+        // Concatenate all transcript strings (group by speaker, merge with existing transcription)
+        let newTranscriptText = '';
+        let lastSpeaker = null;
+        // Find the last speaker in the existing transcription (if any)
+        let existingTranscription = '';
+        if (rows.length > 0) {
+          let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+          if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
+          existingTranscription = rows[activeIndex]?.transcription || '';
+          const match = existingTranscription.match(/^(?:.|\n)*?([A-Za-z0-9_\-]+):[^\n]*$/m);
+          if (match) {
+            // Try to get the last speaker from the last non-empty line
+            const lines = existingTranscription.trim().split(/\n/).filter(Boolean);
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
+              if (m) { lastSpeaker = m[1]; break; }
+            }
+          }
+        }
+        transcriptArray.forEach((seg, idx) => {
+          if (!seg.text) return;
+          if (seg.speaker && seg.speaker === lastSpeaker && (newTranscriptText || existingTranscription)) {
+            // Same speaker as previous, append to last line
+            if (newTranscriptText) {
+              // If already building newTranscriptText, append to last line
+              const lastNewline = newTranscriptText.lastIndexOf('\n');
+              if (lastNewline === -1) {
+                newTranscriptText += ` ${seg.text}`;
+              } else {
+                newTranscriptText = newTranscriptText.slice(0, lastNewline) + newTranscriptText.slice(lastNewline) + ` ${seg.text}`;
+              }
+            } else if (existingTranscription) {
+              // If appending to existing transcription, just add to last line
+              newTranscriptText = ` ${seg.text}`;
+            } else {
+              newTranscriptText = `${seg.speaker}: ${seg.text}`;
+            }
+          } else if (seg.speaker) {
+            // New speaker, start new line
+            if (newTranscriptText) newTranscriptText += '\n';
+            newTranscriptText += `${seg.speaker}: ${seg.text}`;
+            lastSpeaker = seg.speaker;
+          } else {
+            // No speaker info, just append
+            if (newTranscriptText) newTranscriptText += '\n';
+            newTranscriptText += seg.text;
+            lastSpeaker = null;
+          }
+        });
+        // Merge with existing transcription, handling speaker grouping
+        let updatedTranscription = '';
+        if (rows.length > 0) {
+          let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+          if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
+          const existingTranscription = rows[activeIndex]?.transcription || '';
+          let lines = existingTranscription.split(/\n/).filter(Boolean);
+          // Find last speaker from last non-empty line
+          let lastSpeaker = null;
+          if (lines.length > 0) {
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
+              if (m) { lastSpeaker = m[1]; break; }
+            }
+          }
+          // Merge new segments
+          transcriptArray.forEach(seg => {
+            if (!seg.text) return;
+            if (seg.speaker) {
+              if (seg.speaker === lastSpeaker && lines.length > 0) {
+                // Append to last line
+                lines[lines.length - 1] += ` ${seg.text}`;
+              } else {
+                // New speaker
+                lines.push(`${seg.speaker}: ${seg.text}`);
+                lastSpeaker = seg.speaker;
+              }
+            } else {
+              // No speaker info
+              lines.push(seg.text);
+              lastSpeaker = null;
+            }
+          });
+          updatedTranscription = lines.join('\n');
+        }
         console.log('Current rows:', rows);
-        if (rows.length > 0 && newTranscriptText.trim()) {
+        if (rows.length > 0 && transcriptArray.length > 0) {
           setRows(prevRows => {
-            // Always use pinnedIndex if set, otherwise use currentIndexRef, fallback to first row
             let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
             if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
-            console.log('Appending transcript to row', activeIndex, newTranscriptText);
-            return prevRows.map((row, index) => {
-              if (index === activeIndex) {
-                const existingTranscription = row.transcription || '';
-                const updatedTranscription = existingTranscription
-                  ? `${existingTranscription}\n${newTranscriptText}`
-                  : newTranscriptText;
-                return { ...row, transcription: updatedTranscription };
+            const row = prevRows[activeIndex];
+            let lines = (row.transcription || '').split(/\n/).filter(Boolean);
+            // Find last speaker from last non-empty line
+            let lastSpeaker = null;
+            if (lines.length > 0) {
+              for (let i = lines.length - 1; i >= 0; i--) {
+                const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
+                if (m) { lastSpeaker = m[1]; break; }
               }
-              return row;
+            }
+            // Merge new segments
+            transcriptArray.forEach(seg => {
+              if (!seg.text) return;
+              if (seg.speaker) {
+                if (seg.speaker === lastSpeaker && lines.length > 0) {
+                  lines[lines.length - 1] += ` ${seg.text}`;
+                } else {
+                  lines.push(`${seg.speaker}: ${seg.text}`);
+                  lastSpeaker = seg.speaker;
+                }
+              } else {
+                lines.push(seg.text);
+                lastSpeaker = null;
+              }
             });
+            const updatedTranscription = lines.join('\n');
+            return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
           });
         } else {
           console.log('No rows to update or transcript is empty');

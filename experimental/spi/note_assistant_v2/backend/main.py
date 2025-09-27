@@ -100,35 +100,28 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
     """
     Proxy endpoint to fetch transcripts from Vexa API.
     This keeps the API key secure on the backend.
-    Returns only an array of audio transcripts (segment['text']), ignoring the last segment.
-    
-    Args:
-        platform: Meeting platform (e.g., 'google_meet')
-        meeting_id: Platform-specific meeting ID
-        last_segment_index: Optional index of last received segment. If provided,
-                          only returns segments after this index for incremental updates.
+    Returns an array of transcript segments with 'speaker', 'start', and 'text'.
     """
     if DISABLE_VEXA:
-        # For testing, return a random string
+        # For testing, return a random segment
         random_texts = [
-            "KJ: The lighting on this shot looks great, but I think the shadows could be softer.",
-            "BH: Agreed, maybe the artist can try a different falloff on the key light?",
-            "CR: I'll make a note to ask for a softer shadow pass.",
-            "KJ: The character's expression is much improved from the last version.",
-            "BH: Yes, but the hand movement still feels a bit stiff.",
-            "CR: Should we suggest a reference for more natural hand motion?",
-            "KJ: Let's approve the background, but request tweaks on the character animation.",
-            "BH: I'll mark the background as finalled in ShotGrid.",
-            "CR: I'll send the artist a note about the animation feedback.",
-            "KJ: The color grade is close, but the highlights are a bit too hot.",
-            "BH: Maybe ask the artist to bring down the highlight gain by 10%.",
-            "CR: Noted, I'll include that in the feedback summary.",
-            "KJ: Great progress overall, just a few minor notes for the next version.",
-            "BH: Let's target final for the next review if these are addressed.",
-            "CR: I'll communicate the action items and next steps to the artist."
+            {"speaker": "KJ", "start": 0.0, "text": "The lighting on this shot looks great, but I think the shadows could be softer."},
+            {"speaker": "BH", "start": 5.2, "text": "Agreed, maybe the artist can try a different falloff on the key light?"},
+            {"speaker": "CR", "start": 10.1, "text": "I'll make a note to ask for a softer shadow pass."},
+            {"speaker": "KJ", "start": 15.0, "text": "The character's expression is much improved from the last version."},
+            {"speaker": "BH", "start": 20.3, "text": "Yes, but the hand movement still feels a bit stiff."},
+            {"speaker": "CR", "start": 25.7, "text": "Should we suggest a reference for more natural hand motion?"},
+            {"speaker": "KJ", "start": 30.0, "text": "Let's approve the background, but request tweaks on the character animation."},
+            {"speaker": "BH", "start": 35.2, "text": "I'll mark the background as finalled in ShotGrid."},
+            {"speaker": "CR", "start": 40.1, "text": "I'll send the artist a note about the animation feedback."},
+            {"speaker": "KJ", "start": 45.0, "text": "The color grade is close, but the highlights are a bit too hot."},
+            {"speaker": "BH", "start": 50.3, "text": "Maybe ask the artist to bring down the highlight gain by 10%."},
+            {"speaker": "CR", "start": 55.7, "text": "Noted, I'll include that in the feedback summary."},
+            {"speaker": "KJ", "start": 60.0, "text": "Great progress overall, just a few minor notes for the next version."},
+            {"speaker": "BH", "start": 65.2, "text": "Let's target final for the next review if these are addressed."},
+            {"speaker": "CR", "start": 70.1, "text": "I'll communicate the action items and next steps to the artist."}
         ]
         return [random.choice(random_texts)]
-    
     try:
         transcript_data = vexa_client.get_transcript(platform, meeting_id)
         segments = transcript_data.get('segments', [])
@@ -140,9 +133,12 @@ async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Op
         # If last_segment_index is provided, filter to return only new segments
         if last_segment_index is not None and segments:
             segments = [segment for i, segment in enumerate(segments) if i > last_segment_index]
-        # Return only the array of transcript texts in 'speaker: text' format
-        transcript_texts = [f"{segment['speaker']}: {segment['text']}" for segment in segments if 'text' in segment and 'speaker' in segment]
-        return transcript_texts
+        # Return only the array of dicts with 'speaker', 'start', 'text'
+        transcript_segments = [
+            {"speaker": segment.get("speaker", ""), "start": segment.get("start", 0.0), "text": segment.get("text", "")}
+            for segment in segments if 'text' in segment and 'speaker' in segment
+        ]
+        return transcript_segments
     except VexaClientError as e:
         print(f"Error fetching transcript: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to fetch transcript: {str(e)}")
