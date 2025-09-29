@@ -22,6 +22,9 @@ function App() {
   const [botIsActive, setBotIsActive] = useState(false);
   const [waitingForActive, setWaitingForActive] = useState(false);
   const [pinnedIndex, setPinnedIndex] = useState(null);
+  const [email, setEmail] = useState("");
+  const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
+  const [sendingEmail, setSendingEmail] = useState(false);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
@@ -636,15 +639,57 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <button
-            className="btn primary"
-            style={{ minWidth: 180, marginBottom: 8 }}
-            onClick={downloadCSV}
-            disabled={rows.length === 0}
-          >
-            Download Notes
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+            <button
+              className="btn primary"
+              style={{ minWidth: 180, height: 36, padding: '0 16px' }}
+              onClick={downloadCSV}
+              disabled={rows.length === 0}
+            >
+              Download Notes
+            </button>
+            <input
+              type="email"
+              className="text-input"
+              style={{ minWidth: 220, height: 36, padding: '0 12px', boxSizing: 'border-box' }}
+              placeholder="Enter email address"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              disabled={sendingEmail}
+              aria-label="Recipient email address"
+              required
+            />
+            <button
+              className="btn primary"
+              style={{ minWidth: 120, height: 36, padding: '0 16px' }}
+              disabled={!email || sendingEmail || rows.length === 0}
+              onClick={async () => {
+                setSendingEmail(true);
+                setEmailStatus({ msg: "Sending notes...", type: "info" });
+                try {
+                  const res = await fetch("http://localhost:8000/email-notes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, notes: rows }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.status === "success") {
+                    setEmailStatus({ msg: data.message, type: "success" });
+                  } else {
+                    setEmailStatus({ msg: data.message || "Failed to send email", type: "error" });
+                  }
+                } catch (err) {
+                  setEmailStatus({ msg: "Network error while sending email", type: "error" });
+                } finally {
+                  setSendingEmail(false);
+                }
+              }}
+            >
+              {sendingEmail ? "Sending..." : "Email Notes"}
+            </button>
+          </div>
+          <StatusBadge type={emailStatus.type}>{emailStatus.msg}</StatusBadge>
           <span>© {new Date().getFullYear()} Dailies Note Assistant</span>
         </div>
       </footer>
