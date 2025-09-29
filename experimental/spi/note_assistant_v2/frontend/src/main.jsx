@@ -432,6 +432,36 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
 
+  // --- CSV Download Helper ---
+  const downloadCSV = () => {
+    if (!rows.length) return;
+    // CSV header
+    const header = ['shot/jts', 'notes', 'transcription', 'summary'];
+    // Escape CSV values
+    const escape = (val = '') => '"' + String(val).replace(/"/g, '""') + '"';
+    // Build CSV rows
+    const csvRows = [header.join(',')];
+    rows.forEach(row => {
+      csvRows.push([
+        escape(row.shot),
+        escape(row.notes),
+        escape(row.transcription),
+        escape(row.summary)
+      ].join(','));
+    });
+    const csvContent = csvRows.join('\n');
+    // Create blob and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'shot_notes.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -605,7 +635,19 @@ function App() {
         </section>
       </main>
 
-      <footer className="app-footer">© {new Date().getFullYear()} Dailies Note Assistant</footer>
+      <footer className="app-footer">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <button
+            className="btn primary"
+            style={{ minWidth: 180, marginBottom: 8 }}
+            onClick={downloadCSV}
+            disabled={rows.length === 0}
+          >
+            Download Notes
+          </button>
+          <span>© {new Date().getFullYear()} Dailies Note Assistant</span>
+        </div>
+      </footer>
     </div>
   );
 }
