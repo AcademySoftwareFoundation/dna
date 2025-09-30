@@ -519,28 +519,6 @@ function App() {
                 </button>
               )}
             </div>
-            <div className="status-row">
-              <StatusBadge type={status.type}>{status.msg}</StatusBadge>
-            </div>
-            {botIsActive && (
-              <>
-                <div className="field-row">
-                  <button 
-                    type="button" 
-                    className={`btn ${isPollingTranscripts ? 'danger' : 'primary'}`}
-                    onClick={handleTranscriptPollingToggle}
-                    disabled={!joinedMeetId}
-                  >
-                    {isPollingTranscripts ? 'Pause Transcripts' : 'Get Transcripts'}
-                  </button>
-                </div>
-                {isPollingTranscripts && (
-                  <div className="status-row">
-                    <StatusBadge type="info">Polling for transcripts...</StatusBadge>
-                  </div>
-                )}
-              </>
-            )}
           </form>
         </section>
 
@@ -675,6 +653,27 @@ function App() {
           )}
         </section>
       </main>
+
+      {/* Floating Bot Status and Transcript Control */}
+      {(botIsActive || status.msg) && (
+        <div className="floating-controls">
+          <div className="bot-status-display">
+            <StatusBadge type={status.type}>{status.msg}</StatusBadge>
+          </div>
+          {botIsActive && (
+            <div className="transcript-controls">
+              <button 
+                type="button" 
+                className={`btn ${isPollingTranscripts ? 'danger' : 'primary'}`}
+                onClick={handleTranscriptPollingToggle}
+                disabled={!joinedMeetId}
+              >
+                {isPollingTranscripts ? 'Pause Transcripts' : 'Get Transcripts'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <footer className="app-footer">
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
