@@ -7,6 +7,18 @@ function StatusBadge({ type = "info", children }) {
   return <span className={`badge badge-${type}`}>{children}</span>;
 }
 
+// Helper to extract Google Meet ID from URL or raw input
+function extractMeetId(input) {
+  // Match meet ID in URL or raw string (e.g. abc-defg-hij)
+  const urlPattern = /https?:\/\/meet\.google\.com\/(?:lookup\/)?([a-zA-Z0-9\-]+)/;
+  const idPattern = /^[a-zA-Z0-9\-]{10,}$/;
+  if (!input) return '';
+  const urlMatch = input.match(urlPattern);
+  if (urlMatch) return urlMatch[1];
+  if (idPattern.test(input.trim())) return input.trim();
+  return '';
+}
+
 function App() {
   const [meetId, setMeetId] = useState("");
   const [status, setStatus] = useState({ msg: "", type: "info" });
@@ -285,7 +297,8 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!meetId.trim()) return;
+    const id = extractMeetId(meetId);
+    if (!id) return;
     setSubmitting(true);
     setWaitingForActive(true);
     setStatus({ msg: "Submitting meet id...", type: "info" });
@@ -294,7 +307,7 @@ function App() {
       const res = await fetch("http://localhost:8000/submit-meet-id", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ meet_id: meetId.trim() }),
+        body: JSON.stringify({ meet_id: id }),
       });
       const data = await res.json();
       if (res.ok && data.status === "success") {
@@ -502,8 +515,13 @@ function App() {
                 type="text"
                 className="text-input"
                 value={meetId}
-                onChange={(e) => setMeetId(e.target.value)}
-                placeholder="e.g. abc-defg-hij"
+                onChange={(e) => {
+                  // Try to extract meet ID from input
+                  const val = e.target.value;
+                  const extracted = extractMeetId(val);
+                  setMeetId(extracted || val); // If not a valid ID, keep raw value
+                }}
+                placeholder="e.g. abc-defg-hij or https://meet.google.com/abc-defg-hij"
                 autoComplete="off"
                 required
                 aria-required="true"
