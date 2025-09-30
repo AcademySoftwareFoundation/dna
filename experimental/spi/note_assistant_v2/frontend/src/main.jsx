@@ -25,6 +25,7 @@ function App() {
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [manualTranscriptPolling, setManualTranscriptPolling] = useState(false);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
@@ -191,25 +192,24 @@ function App() {
       .then(res => res.json())
       .then(data => {
         if (data.status) {
-          setStatus({ msg: `Bot Status: ${data.status}`, type: 'info' });
           const isActiveStatus = data.status === 'active' || data.status === 'test-mode-running';
+          if (isActiveStatus) {
+            setStatus({ msg: `Bot Status: ${data.status}`, type: 'success' });
+          }
+          else {
+            setStatus({ msg: `Bot Status: ${data.status}`, type: 'info' });
+          }
           setBotIsActive(isActiveStatus);
           if (waitingForActive && isActiveStatus) {
             setWaitingForActive(false);
           }
-          // Start transcript polling only when status is 'active' or 'test-mode-running'
-          if (isActiveStatus && !isPollingTranscripts) {
-            // Stop bot status polling
-            if (botStatusIntervalRef.current) {
-              clearInterval(botStatusIntervalRef.current);
-              botStatusIntervalRef.current = null;
-            }
-            startTranscriptPolling(meetingId);
-          }
+          // Don't automatically start transcript polling anymore - user will control it manually
+          
           // Stop transcript polling when status is 'completed'
           if (data.status === 'completed' && isPollingTranscripts) {
             stopTranscriptPolling();
             setBotIsActive(false);
+            setManualTranscriptPolling(false);
           }
         } else {
           setStatus({ msg: 'Bot Status: unknown', type: 'info' });
@@ -248,10 +248,27 @@ function App() {
       pollingIntervalRef.current = null;
     }
     setIsPollingTranscripts(false);
-    setJoinedMeetId("");
     setLastSegmentIndex(-1); // Reset segment index
     lastSegmentIndexRef.current = -1; // Reset ref as well
-    setStatus({ msg: '', type: 'info' });
+  };
+
+  // Manual transcript polling control
+  const handleTranscriptPollingToggle = () => {
+    if (isPollingTranscripts) {
+      // Stop polling
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      setIsPollingTranscripts(false);
+      setManualTranscriptPolling(false);
+    } else {
+      // Start polling
+      if (joinedMeetId) {
+        startTranscriptPolling(joinedMeetId);
+        setManualTranscriptPolling(true);
+      }
+    }
   };
 
   // Cleanup polling on component unmount
@@ -282,6 +299,7 @@ function App() {
       const data = await res.json();
       if (res.ok && data.status === "success") {
         setStatus({ msg: `Requested to join meeting: ${data.meet_id}`, type: "info" });
+        setJoinedMeetId(meetId.trim());
         // Start polling bot status after successful join
         if (botStatusIntervalRef.current) {
           clearInterval(botStatusIntervalRef.current);
@@ -400,6 +418,7 @@ function App() {
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
+        setManualTranscriptPolling(false);
         stopTranscriptPolling();
       } else {
         setStatus({ msg: "Failed to exit bot.", type: "error" });
@@ -503,6 +522,25 @@ function App() {
             <div className="status-row">
               <StatusBadge type={status.type}>{status.msg}</StatusBadge>
             </div>
+            {botIsActive && (
+              <>
+                <div className="field-row">
+                  <button 
+                    type="button" 
+                    className={`btn ${isPollingTranscripts ? 'danger' : 'primary'}`}
+                    onClick={handleTranscriptPollingToggle}
+                    disabled={!joinedMeetId}
+                  >
+                    {isPollingTranscripts ? 'Pause Transcripts' : 'Get Transcripts'}
+                  </button>
+                </div>
+                {isPollingTranscripts && (
+                  <div className="status-row">
+                    <StatusBadge type="info">Polling for transcripts...</StatusBadge>
+                  </div>
+                )}
+              </>
+            )}
           </form>
         </section>
 
