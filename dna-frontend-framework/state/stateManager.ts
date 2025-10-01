@@ -28,7 +28,7 @@ export class StateManager {
             version = {
                 id: versionId,
                 context: context || {},
-                transcriptions: []
+                transcriptions: {}
             };
             this.state.versions.push(version);
         } else if (context) {
@@ -73,6 +73,14 @@ export class StateManager {
      */
     getActiveVersionId(): number {
         return this.state.activeVersion;
+    }
+
+    addTranscription(transcription: Transcription): void {
+        const key = `${transcription.timestampStart}-${transcription.timestampEnd}-${transcription.speaker}`;
+        const version = this.getActiveVersion();
+        if (version) {
+            version.transcriptions[key] = transcription;
+        }
     }
 }
 

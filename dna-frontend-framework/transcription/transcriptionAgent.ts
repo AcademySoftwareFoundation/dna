@@ -1,5 +1,5 @@
 import { StateManager } from '../state';
-import { ConnectionStatus } from '../types';
+import { ConnectionStatus, Transcription } from '../types';
 
 export abstract class TranscriptionAgent {
   private stateManager: StateManager;
@@ -8,7 +8,16 @@ export abstract class TranscriptionAgent {
     this.stateManager = stateManager;
   }
 
-  public async joinMeeting(meetingId: string): Promise<void> {
+  /**
+   * Join a meeting
+   * 
+   * Dispatches a bot to join the provided meeting. In cases such 
+   * as vexa where a platform is needed, the platform is provided by 
+   * environment variables.
+   * 
+   * @param meetingId - The ID of the meeting to join
+   */
+  public async joinMeeting(meetingId: string, callback?: (transcript: Transcription) => void): Promise<void> {
     throw new Error('Not implemented');
   }
 

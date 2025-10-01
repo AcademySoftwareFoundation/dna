@@ -1,6 +1,6 @@
 import { StateManager } from '../../state';
 import { TranscriptionAgent } from '../index';
-import { ConnectionStatus } from '../../types';
+import { ConnectionStatus, Transcription } from '../../types';
 import { WebSocketEvent } from './types';
 
 export class VexaTranscriptionAgent extends TranscriptionAgent {
@@ -11,6 +11,8 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
   private _botId: string | null = null;
   private _ws: WebSocket | null = null;
   private _wsUrl: string | undefined;
+  private _callback?: (transcript: Transcription) => void;
+  private _stateManager: StateManager;
 
   constructor(stateManager: StateManager) {
     super(stateManager);
@@ -18,10 +20,13 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     this._baseUrl = process.env.VEXA_URL;
     this._apiKey = process.env.VEXA_API_KEY;
     this._platform = process.env.PLATFORM;
+    this._callback = undefined;
     this._setupWebSocketUrl();
+    this._stateManager = stateManager;
+  
   }
 
-  public async joinMeeting(meetingId: string): Promise<void> {
+  public async joinMeeting(meetingId: string, callback?: (transcript: Transcription) => void): Promise<void> {
     if (!this._baseUrl) {
       throw new Error('VEXA_URL environment variable is not set');
     }
@@ -31,7 +36,7 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     }
 
     this._meetingId = meetingId;
-
+    this._callback = callback;
 
     // Check if the bot already exists
     const bot = await this._getBotInfo();
@@ -287,6 +292,24 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     console.log('🔌 [WEBSOCKET] Subscribing to meeting:', message);
     this._ws.send(JSON.stringify(message));
   }
+  
+  private async onTranscriptCallback(transcript: Transcription): Promise<void> {
+    console.log('🔄 [CALLBACK] Processing transcript:', transcript);
+    
+    if (this._callback) {
+      console.log('🔄 [CALLBACK] Calling user callback');
+      this._callback(transcript);
+    } else {
+      console.log('🔄 [CALLBACK] No user callback provided');
+    }
+    
+    console.log('🔄 [CALLBACK] Adding to stateManager...');
+    this._stateManager.addTranscription(transcript);
+    
+    // Verify it was added
+    const state = this._stateManager.getState();
+    console.log('🔄 [CALLBACK] Current state after adding:', JSON.stringify(state, null, 2));
+  }
 
   private _handleWebSocketMessage(data: WebSocketEvent): void {
     console.log('📨 [WEBSOCKET] Received event:', data.type || 'NO_TYPE');
@@ -294,16 +317,32 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
 
     switch (data.type) {
       case 'transcript.mutable':
-        console.log('🟢 [WEBSOCKET] Processing transcript.mutable event');
-        console.log('🟢 [WEBSOCKET] Payload:', data.payload);
-        break;
-      
       case 'transcript.finalized':
-        console.log('🔵 [WEBSOCKET] Processing transcript.finalized event');
-        console.log('🔵 [WEBSOCKET] Payload:', data.payload);
+        console.log('🟢 [WEBSOCKET] Processing transcript.mutable/finalized event');
+        console.log('🟢 [WEBSOCKET] Payload:', data.payload);
+        
+        // Handle both single segment and segments array
+        const segments = data.payload.segments || (data.payload.segment ? [data.payload.segment] : []);
+        
+        for (const segment of segments) {
+          try {
+            const transcript: Transcription = {
+              text: segment.text || '',
+              timestampStart: segment.absolute_start_time || new Date().toISOString(),
+              timestampEnd: segment.absolute_end_time || new Date().toISOString(),
+              speaker: segment.speaker || 'Unknown',
+            };
+            
+            console.log('🔄 [WEBSOCKET] Created transcript:', transcript);
+            this.onTranscriptCallback(transcript);
+          } catch (error) {
+            console.error('❌ [WEBSOCKET] Error creating transcript from segment:', error);
+            console.error('❌ [WEBSOCKET] Segment data:', segment);
+          }
+        }
         break;
       
-      case 'meeting.status':
+        case 'meeting.status':
         console.log('🟡 [WEBSOCKET] Processing meeting.status event');
         console.log('🟡 [WEBSOCKET] Status:', data.payload?.status);
         break;

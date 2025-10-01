@@ -6,7 +6,7 @@ export interface State {
 export interface Version {
     id: string;
     context: Record<string, any>;
-    transcriptions: Transcription[];
+    transcriptions: Record<string, Transcription>;
 }
 
 export interface Transcription {
