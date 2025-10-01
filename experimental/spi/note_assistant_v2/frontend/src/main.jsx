@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
 import { startTranscription } from '../lib/transcription-service'
+import { getWebSocketService } from '../lib/websocket-service';
 
 function StatusBadge({ type = "info", children }) {
   if (!children) return null;
@@ -30,7 +31,6 @@ function App() {
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
-  const botStatusIntervalRef = useRef(null);
   const prevIndexRef = useRef(currentIndex);
 
   // Update the ref whenever currentIndex changes
@@ -187,51 +187,10 @@ function App() {
     }
   };
 
-  // Poll bot status from backend
-  const pollBotStatus = (meetingId) => {
-    fetch(`http://localhost:8000/bot-status/google_meet/${meetingId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.status) {
-          const isActiveStatus = data.status === 'active' || data.status === 'test-mode-running';
-          if (isActiveStatus) {
-            setStatus({ msg: `Bot Status: ${data.status}`, type: 'success' });
-          }
-          else {
-            setStatus({ msg: `Bot Status: ${data.status}`, type: 'info' });
-          }
-          setBotIsActive(isActiveStatus);
-          if (waitingForActive && isActiveStatus) {
-            setWaitingForActive(false);
-          }
-          // Don't automatically start transcript polling anymore - user will control it manually
-          
-          // Stop transcript polling when status is 'completed'
-          if (data.status === 'completed' && isPollingTranscripts) {
-            stopTranscriptPolling();
-            setBotIsActive(false);
-            setManualTranscriptPolling(false);
-          }
-        } else {
-          setStatus({ msg: 'Bot Status: unknown', type: 'info' });
-          setBotIsActive(false);
-        }
-      })
-      .catch(() => {
-        setStatus({ msg: 'Bot Status: error', type: 'error' });
-        setBotIsActive(false);
-      });
-  };
-
   // Start transcript polling (only called internally)
   const startTranscriptPolling = (meetingId) => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
-    }
-    // Stop bot status polling when transcript polling starts
-    if (botStatusIntervalRef.current) {
-      clearInterval(botStatusIntervalRef.current);
-      botStatusIntervalRef.current = null;
     }
     setIsPollingTranscripts(true);
     setJoinedMeetId(meetingId);
@@ -278,9 +237,6 @@ function App() {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
-      if (botStatusIntervalRef.current) {
-        clearInterval(botStatusIntervalRef.current);
-      }
     };
   }, []);
 
@@ -317,14 +273,48 @@ function App() {
       console.log('startTranscription result:', response);
       setStatus({ msg: `Requested to join meeting: ${fullUrl}`, type: "info" });
       setJoinedMeetId(fullUrl);
-      // Optionally start polling bot status after successful join
-      if (botStatusIntervalRef.current) {
-        clearInterval(botStatusIntervalRef.current);
+
+      // Subscribe to WebSocket events for this meeting
+      const wsService = getWebSocketService();
+      wsService.setOnTranscriptMutable((event) => {
+        console.log('Transcript Mutable Event:', event);
+      });
+      wsService.setOnTranscriptFinalized((event) => {
+        console.log('Transcript Finalized Event:', event);
+      });
+      wsService.setOnMeetingStatus((event) => {
+        // Update bot status in UI using setStatus
+        const statusValue = event?.payload?.status || 'unknown';
+        const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
+        setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
+        setBotIsActive(isActiveStatus);
+        if (waitingForActive && isActiveStatus) {
+          setWaitingForActive(false);
+        }
+        // Stop transcript polling when status is 'completed'
+        if (statusValue === 'completed' && isPollingTranscripts) {
+          stopTranscriptPolling();
+          setBotIsActive(false);
+          setManualTranscriptPolling(false);
+        }
+      });
+      wsService.setOnError((event) => {
+        console.error('WebSocket Error Event:', event);
+      });
+      wsService.setOnConnected(() => {
+        console.log('WebSocket Connected');
+      });
+      wsService.setOnDisconnected(() => {
+        console.log('WebSocket Disconnected');
+      });
+      // Use the meetingId from the response (not the fullUrl)
+      if (response.meetingId) {
+        const parts = response.meetingId.split('/');
+        wsService.subscribeToMeeting({
+          platform: parts[0],
+          native_id: parts[1]
+        });
       }
-      botStatusIntervalRef.current = setInterval(() => {
-        pollBotStatus(fullUrl);
-      }, 2000);
-      pollBotStatus(fullUrl);
     } catch (err) {
       setStatus({ msg: "Error calling startTranscription", type: "error" });
       console.error('startTranscription error:', err);
