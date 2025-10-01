@@ -12,8 +12,14 @@
 import { DNAFrontendFramework, ConnectionStatus } from './index';
 
 // Set up environment variables
-process.env.VEXA_URL = 'http://pe-vexa-sf-01v/';
-process.env.VEXA_API_KEY = 'KEY';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+console.log('🔧 Environment variables loaded:');
+console.log(`- VEXA_URL: ${process.env.VEXA_URL}`);
+console.log(`- VEXA_API_KEY: ${process.env.VEXA_API_KEY ? '***' + process.env.VEXA_API_KEY.slice(-4) : 'Not set'}`);
+console.log(`- PLATFORM: ${process.env.PLATFORM}`);
+console.log('');
 
 // Initialize the framework
 const framework = new DNAFrontendFramework();
@@ -36,10 +42,21 @@ console.log('');
 console.log('Type "exit" or press Ctrl+C to quit');
 console.log('');
 
+// Add a test function for debugging bot requests
+async function testBotRequest(meetingId: string = 'test-meeting') {
+    console.log('Testing bot request...');
+    try {
+        await framework.joinMeeting(meetingId);
+    } catch (error) {
+        console.error('Bot request failed:', error);
+    }
+}
+
 // Make objects available in the global scope
 (global as any).framework = framework;
 (global as any).stateManager = stateManager;
 (global as any).ConnectionStatus = ConnectionStatus;
+(global as any).testBotRequest = testBotRequest;
 
 // Start the REPL
 import { createInterface } from 'readline';
@@ -70,6 +87,7 @@ rl.on('line', async (line) => {
         console.log('- stateManager.getState()');
         console.log('- stateManager.getActiveVersion()');
         console.log('- stateManager.getVersions()');
+        console.log('- testBotRequest("meeting-id") - Test bot request');
         console.log('- ConnectionStatus.CONNECTED');
         console.log('- help: Show this help');
         console.log('- exit: Quit the shell');

@@ -2,15 +2,16 @@
  * Example usage of DNAFrontendFramework
  * 
  * This example demonstrates how to use the DNAFrontendFramework
- * to join a meeting, receive WebSocket events, and leave the meeting.
+ * to join a meeting and leave the meeting.
  */
 
 import { DNAFrontendFramework, ConnectionStatus } from '../index';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 async function exampleUsage() {
-    // Set up environment variables (normally done via .env file or system environment)
-    process.env.VEXA_URL = 'http://pe-vexa-sf-01v/';
-    process.env.VEXA_API_KEY = 'KEY';
     
     // Initialize the DNA Frontend Framework
     const framework = new DNAFrontendFramework();
@@ -32,8 +33,8 @@ async function exampleUsage() {
         console.log(`Current active version: ${stateManager.getActiveVersionId()}`);
         console.log(`Number of versions: ${stateManager.getVersions().length}`);
         
-        // Simulate some time for receiving WebSocket events
-        console.log('Listening for WebSocket events for 10 seconds...');
+        // Simulate some time for meeting activity
+        console.log('Simulating meeting activity for 10 seconds...');
         await new Promise(resolve => setTimeout(resolve, 10000));
         
         // Leave the meeting
@@ -55,9 +56,6 @@ async function exampleUsage() {
  * Advanced example showing state management features
  */
 async function advancedExample() {
-    // Set up environment variables
-    process.env.VEXA_URL = 'http://pe-vexa-sf-01v/';
-    process.env.VEXA_API_KEY = 'KEY';
     
     const framework = new DNAFrontendFramework();
     const stateManager = framework.getStateManager();
@@ -92,8 +90,8 @@ async function advancedExample() {
         console.log(`Connection status: ${status}`);
         
         if (status === ConnectionStatus.CONNECTED) {
-            console.log('Successfully connected! WebSocket events will be printed below:');
-            console.log('(In a real scenario, you would see transcription data here)');
+            console.log('Successfully connected to meeting!');
+            console.log('(In a real scenario, you would process meeting data here)');
         }
         
         // Simulate receiving some events

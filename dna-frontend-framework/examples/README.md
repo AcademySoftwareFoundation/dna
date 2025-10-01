@@ -48,15 +48,17 @@ This provides a Python-like interactive environment where you can test the frame
 Before running the examples, set up your environment variables:
 
 ```bash
-export VEXA_URL="wss://your-vexa-server.com"
+export VEXA_URL="http://your-vexa-server.com"
 export VEXA_API_KEY="your-api-key-here"
+export PLATFORM="meet"
 ```
 
 Or create a `.env` file in the project root:
 
 ```
-VEXA_URL=wss://your-vexa-server.com
+VEXA_URL=http://your-vexa-server.com
 VEXA_API_KEY=your-api-key-here
+PLATFORM=meet
 ```
 
 #### Expected Output
@@ -65,7 +67,7 @@ The examples will:
 1. Initialize the framework
 2. Join a meeting (if environment variables are set)
 3. Print connection status
-4. Simulate receiving WebSocket events
+4. Simulate meeting activity
 5. Leave the meeting
 6. Show final state information
 

@@ -20,7 +20,4 @@ export abstract class TranscriptionAgent {
         throw new Error("Not implemented");
     }
 
-    protected async onWebsocketEvent(): Promise<void> {
-        throw new Error("Not implemented");
-    }
 }

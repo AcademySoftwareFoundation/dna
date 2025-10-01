@@ -51,7 +51,7 @@ ConnectionStatus.CONNECTING
 ## Environment Setup
 
 The shell is pre-configured with:
-- `VEXA_URL`: `http://pe-vexa-sf-01v/`
+- `VEXA_URL`: `http://pe-vexa-sf-01v`
 - `VEXA_API_KEY`: `KEY`
 
 To use a real Vexa server, update these environment variables before running the shell.
@@ -65,7 +65,7 @@ Type `help` in the shell to see available commands and examples.
 1. **Use async/await** for meeting operations
 2. **Check connection status** before trying to join meetings
 3. **State management** works independently of meeting connections
-4. **WebSocket errors are expected** when using placeholder server URLs
+4. **Connection errors are expected** when using placeholder server URLs
 5. **Type `exit`** to quit the shell
 
 ## Troubleshooting
