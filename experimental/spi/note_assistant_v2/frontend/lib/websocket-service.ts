@@ -114,18 +114,17 @@ export class TranscriptionWebSocketService {
       if (typeof window !== 'undefined') {
         const match = document.cookie.match(/(^|;)\s*vexa_api_url\s*=\s*([^;]+)/);
         const cookieValue = match ? decodeURIComponent(match[2]) : '';
-        
         if (cookieValue) {
           return cookieValue;
         }
       }
-      
-      // Environment variable fallback
-      const envUrl = process.env.NEXT_PUBLIC_VEXA_API_URL || '';
+      // Vite environment variable fallback
+      const envUrl = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_VEXA_API_URL
+        ? import.meta.env.VITE_VEXA_API_URL
+        : '';
       if (envUrl) {
         return envUrl;
       }
-      
       // Default URL
       return "https://devapi.dev.vexa.ai";
     } catch (error) {
