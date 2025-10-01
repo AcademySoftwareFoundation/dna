@@ -57,10 +57,10 @@ npm install
 npm test
 
 # Run tests in watch mode (for development)
-npm run test:watch
+npm run test -- --watch
 
 # Run tests with coverage report
-npm run test:coverage
+npm run test -- --coverage
 ```
 
 ### Test Structure
