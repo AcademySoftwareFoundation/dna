@@ -15,7 +15,7 @@ describe('State Management', () => {
       expect(state.versions).toHaveLength(1);
       expect(state.versions[0].id).toBe('1');
       expect(state.versions[0].context).toEqual({ name: 'Test Version' });
-      expect(state.versions[0].transcriptions).toEqual([]);
+      expect(state.versions[0].transcriptions).toEqual({});
     });
   
     it('should update existing version context when setting an existing version', () => {
@@ -45,5 +45,94 @@ describe('State Management', () => {
       const versions = stateManager.getVersions();
       expect(versions).toHaveLength(3);
       expect(versions.map(v => v.id)).toEqual(['1', '2', '3']);
+    });
+
+    it('should add transcription to active version', () => {
+      stateManager.setVersion(1, { name: 'Test Version' });
+      
+      const transcription = {
+        text: 'Hello world',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:05.000Z',
+        speaker: 'John Doe'
+      };
+      
+      stateManager.addTranscription(transcription);
+      
+      const version = stateManager.getActiveVersion();
+      expect(version).toBeDefined();
+      const expectedKey = '2025-01-01T10:00:00.000Z-2025-01-01T10:00:05.000Z-John Doe';
+      expect(version!.transcriptions[expectedKey]).toBeDefined();
+      expect(version!.transcriptions[expectedKey]).toEqual(transcription);
+    });
+
+    it('should not add transcription when no active version', () => {
+      const transcription = {
+        text: 'Hello world',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:05.000Z',
+        speaker: 'John Doe'
+      };
+      
+      stateManager.addTranscription(transcription);
+      
+      const state = stateManager.getState();
+      expect(state.versions).toHaveLength(0);
+    });
+
+    it('should handle multiple transcriptions with same speaker and overlapping times', () => {
+      stateManager.setVersion(1, { name: 'Test Version' });
+      
+      const transcription1 = {
+        text: 'First message',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:05.000Z',
+        speaker: 'John Doe'
+      };
+      
+      const transcription2 = {
+        text: 'Second message',
+        timestampStart: '2025-01-01T10:00:03.000Z',
+        timestampEnd: '2025-01-01T10:00:08.000Z',
+        speaker: 'John Doe'
+      };
+      
+      stateManager.addTranscription(transcription1);
+      stateManager.addTranscription(transcription2);
+      
+      const version = stateManager.getActiveVersion();
+      expect(Object.keys(version!.transcriptions)).toHaveLength(2);
+      const key1 = '2025-01-01T10:00:00.000Z-2025-01-01T10:00:05.000Z-John Doe';
+      const key2 = '2025-01-01T10:00:03.000Z-2025-01-01T10:00:08.000Z-John Doe';
+      expect(version!.transcriptions[key1]).toBeDefined();
+      expect(version!.transcriptions[key2]).toBeDefined();
+    });
+
+    it('should handle transcriptions from different speakers', () => {
+      stateManager.setVersion(1, { name: 'Test Version' });
+      
+      const transcription1 = {
+        text: 'Hello from John',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:05.000Z',
+        speaker: 'John Doe'
+      };
+      
+      const transcription2 = {
+        text: 'Hello from Jane',
+        timestampStart: '2025-01-01T10:00:05.000Z',
+        timestampEnd: '2025-01-01T10:00:10.000Z',
+        speaker: 'Jane Smith'
+      };
+      
+      stateManager.addTranscription(transcription1);
+      stateManager.addTranscription(transcription2);
+      
+      const version = stateManager.getActiveVersion();
+      expect(Object.keys(version!.transcriptions)).toHaveLength(2);
+      const key1 = '2025-01-01T10:00:00.000Z-2025-01-01T10:00:05.000Z-John Doe';
+      const key2 = '2025-01-01T10:00:05.000Z-2025-01-01T10:00:10.000Z-Jane Smith';
+      expect(version!.transcriptions[key1]).toBeDefined();
+      expect(version!.transcriptions[key2]).toBeDefined();
     });
   });
