@@ -172,7 +172,7 @@ async function handleApiResponse<T>(response: Response): Promise<T> {
   return response.json()
 }
 
-// Function to get the API key - simplified approach
+// Function to get the API key - Vite style
 export function getApiKey(): string {
   try {
     // Only attempt to get from cookies on client side
@@ -180,16 +180,17 @@ export function getApiKey(): string {
       // Direct approach to get a specific cookie
       const match = document.cookie.match(/(^|;)\s*vexa_api_key\s*=\s*([^;]+)/);
       const cookieValue = match ? decodeURIComponent(match[2]) : '';
-      
       if (cookieValue) {
         console.log("Found API key in cookies");
         return cookieValue;
       }
     }
-    
-    // If we couldn't get from cookies, try environment variable
-    const envKey = process.env.NEXT_PUBLIC_VEXA_API_KEY || '';
-    return envKey;
+    // Use Vite environment variable
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_VEXA_API_KEY) {
+      const envKey = import.meta.env.VITE_VEXA_API_KEY;
+      return envKey;
+    }
+    return '';
   } catch (error) {
     console.error("Error getting API key:", error);
     return '';
@@ -231,7 +232,7 @@ export function clearApiKey(): void {
   }
 }
 
-// Function to get the API URL from cookies
+// Function to get the API URL from cookies or Vite env
 export function getApiUrl(): string {
   try {
     // Only attempt to get from cookies on client side
@@ -239,20 +240,19 @@ export function getApiUrl(): string {
       // Direct approach to get a specific cookie
       const match = document.cookie.match(/(^|;)\s*vexa_api_url\s*=\s*([^;]+)/);
       const cookieValue = match ? decodeURIComponent(match[2]) : '';
-
       if (cookieValue) {
         console.log("Found API URL in cookies:", cookieValue);
         return cookieValue;
       }
     }
-
-    // If we couldn't get from cookies, try environment variable
-    const envUrl = process.env.NEXT_PUBLIC_VEXA_API_URL || '';
-    if (envUrl) {
-      console.log("Using API URL from environment:", envUrl);
-      return envUrl;
+    // Use Vite environment variable
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_VEXA_API_URL) {
+      const envUrl = import.meta.env.VITE_VEXA_API_URL;
+      if (envUrl) {
+        console.log("Using API URL from Vite env:", envUrl);
+        return envUrl;
+      }
     }
-
     // Final fallback to default URL
     const defaultUrl = "https://devapi.dev.vexa.ai";
     console.log("Using default API URL:", defaultUrl);

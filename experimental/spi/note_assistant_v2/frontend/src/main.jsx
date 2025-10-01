@@ -1,22 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
+import { startTranscription } from '../lib/transcription-service'
 
 function StatusBadge({ type = "info", children }) {
   if (!children) return null;
   return <span className={`badge badge-${type}`}>{children}</span>;
-}
-
-// Helper to extract Google Meet ID from URL or raw input
-function extractMeetId(input) {
-  // Match meet ID in URL or raw string (e.g. abc-defg-hij)
-  const urlPattern = /https?:\/\/meet\.google\.com\/(?:lookup\/)?([a-zA-Z0-9\-]+)/;
-  const idPattern = /^[a-zA-Z0-9\-]{10,}$/;
-  if (!input) return '';
-  const urlMatch = input.match(urlPattern);
-  if (urlMatch) return urlMatch[1];
-  if (idPattern.test(input.trim())) return input.trim();
-  return '';
 }
 
 function App() {
@@ -295,39 +284,50 @@ function App() {
     };
   }, []);
 
+  // Function to get full Google Meet URL from input (URL or Meet ID)
+  const getFullMeetUrl = (input) => {
+    const urlPattern = /^https?:\/\/meet\.google\.com\/([a-zA-Z0-9\-]+)$/;
+    const idPattern = /^[a-zA-Z0-9\-]{10,}$/;
+    if (!input) return '';
+    const urlMatch = input.match(urlPattern);
+    if (urlMatch) return input;
+    if (idPattern.test(input.trim())) {
+      // Convert meet ID to full URL
+      return `https://meet.google.com/${input.trim()}`;
+    }
+    return '';
+  };
+
+  // Replace the handleSubmit function to call startTranscription for testing
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const id = extractMeetId(meetId);
-    if (!id) return;
+    const rawInput = meetId.trim();
+    const fullUrl = getFullMeetUrl(rawInput);
+    if (!fullUrl) {
+      setStatus({ msg: "Please enter a valid Google Meet URL or Meet ID (e.g. https://meet.google.com/abc-defg-hij or abc-defg-hij)", type: "error" });
+      return;
+    }
     setSubmitting(true);
     setWaitingForActive(true);
-    setStatus({ msg: "Submitting meet id...", type: "info" });
+    setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
     stopTranscriptPolling();
     try {
-      const res = await fetch("http://localhost:8000/submit-meet-id", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ meet_id: id }),
-      });
-      const data = await res.json();
-      if (res.ok && data.status === "success") {
-        setStatus({ msg: `Requested to join meeting: ${data.meet_id}`, type: "info" });
-        setJoinedMeetId(meetId.trim());
-        // Start polling bot status after successful join
-        if (botStatusIntervalRef.current) {
-          clearInterval(botStatusIntervalRef.current);
-        }
-        botStatusIntervalRef.current = setInterval(() => {
-          pollBotStatus(meetId.trim());
-        }, 2000);
-        // Initial bot status fetch
-        pollBotStatus(meetId.trim());
-      } else {
-        setStatus({ msg: "Server returned an error", type: "error" });
-        setWaitingForActive(false);
+      // Call startTranscription for test
+      const response = await startTranscription(fullUrl, 'en', 'Vexa');
+      console.log('startTranscription result:', response);
+      setStatus({ msg: `Requested to join meeting: ${fullUrl}`, type: "info" });
+      setJoinedMeetId(fullUrl);
+      // Optionally start polling bot status after successful join
+      if (botStatusIntervalRef.current) {
+        clearInterval(botStatusIntervalRef.current);
       }
+      botStatusIntervalRef.current = setInterval(() => {
+        pollBotStatus(fullUrl);
+      }, 2000);
+      pollBotStatus(fullUrl);
     } catch (err) {
-      setStatus({ msg: "Network error while sending Meet ID", type: "error" });
+      setStatus({ msg: "Error calling startTranscription", type: "error" });
+      console.error('startTranscription error:', err);
       setWaitingForActive(false);
     } finally {
       setSubmitting(false);
@@ -506,22 +506,17 @@ function App() {
 
       <main className="app-main">
         <section className="panel">
-          <h2 className="panel-title">Enter Google Meet ID</h2>
-          <form onSubmit={handleSubmit} className="form-grid" aria-label="Submit Google Meet ID">
-            <label htmlFor="meet-id" className="field-label">Meet ID</label>
+          <h2 className="panel-title">Enter Google Meet URL/ID</h2>
+          <form onSubmit={handleSubmit} className="form-grid" aria-label="Submit Google Meet URL or ID">
+            <label htmlFor="meet-id" className="field-label">Google Meet URL or ID</label>
             <div className="field-row">
               <input
                 id="meet-id"
                 type="text"
                 className="text-input"
                 value={meetId}
-                onChange={(e) => {
-                  // Try to extract meet ID from input
-                  const val = e.target.value;
-                  const extracted = extractMeetId(val);
-                  setMeetId(extracted || val); // If not a valid ID, keep raw value
-                }}
-                placeholder="e.g. abc-defg-hij or https://meet.google.com/abc-defg-hij"
+                onChange={(e) => setMeetId(e.target.value)}
+                placeholder="e.g. https://meet.google.com/abc-defg-hij or abc-defg-hij"
                 autoComplete="off"
                 required
                 aria-required="true"
