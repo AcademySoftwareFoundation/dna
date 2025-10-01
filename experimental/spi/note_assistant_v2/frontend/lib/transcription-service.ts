@@ -1168,3 +1168,5 @@ export function getWebSocketStatus(): { connected: boolean; subscribedMeetings: 
     subscribedMeetings: wsService.getSubscribedMeetings()
   }
 }
+
+export { parseMeetingUrl };

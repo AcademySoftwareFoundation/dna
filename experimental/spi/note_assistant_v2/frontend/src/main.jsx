@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
-import { startTranscription } from '../lib/transcription-service'
+import { startTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
 import { getWebSocketService } from '../lib/websocket-service';
 
 function StatusBadge({ type = "info", children }) {
@@ -271,7 +271,7 @@ function App() {
       // Call startTranscription for test
       const response = await startTranscription(fullUrl, 'en', 'Vexa');
       console.log('startTranscription result:', response);
-      setStatus({ msg: `Requested to join meeting: ${fullUrl}`, type: "info" });
+      setStatus({ msg: `Requested to join meeting`, type: "info" });
       setJoinedMeetId(fullUrl);
 
       // Subscribe to WebSocket events for this meeting
@@ -412,11 +412,11 @@ function App() {
     setSubmitting(true);
     setStatus({ msg: "Exiting bot...", type: "info" });
     try {
-      const res = await fetch(`http://localhost:8000/stop-bot/google_meet/${joinedMeetId}`, {
-        method: "POST"
-      });
-      const data = await res.json();
-      if (res.ok && data.status === "success") {
+      // Parse joinedMeetId to get platform/nativeMeetingId
+      const { platform, nativeMeetingId } = parseMeetingUrl(joinedMeetId);
+      const meetingIdForStop = `${platform}/${nativeMeetingId}`;
+      const res = await stopTranscription(meetingIdForStop);
+      if (res.success) {
         setStatus({ msg: "Bot exited successfully.", type: "success" });
         setBotIsActive(false);
         setJoinedMeetId("");
@@ -496,9 +496,10 @@ function App() {
 
       <main className="app-main">
         <section className="panel">
-          <h2 className="panel-title">Enter Google Meet URL/ID</h2>
-          <form onSubmit={handleSubmit} className="form-grid" aria-label="Submit Google Meet URL or ID">
-            <label htmlFor="meet-id" className="field-label">Google Meet URL or ID</label>
+          <h2 className="panel-title">Google Meet</h2>
+          <form onSubmit={handleSubmit} className="form-grid" aria-label="Enter Google Meet URL or ID">
+            {/* <label htmlFor="meet-id" className="field-label">Enter Google Meet URL or ID</label> */}
+            <p className="help-text">Enter Google Meet URL or ID (e.g abc-defg-hij)</p>
             <div className="field-row">
               <input
                 id="meet-id"
