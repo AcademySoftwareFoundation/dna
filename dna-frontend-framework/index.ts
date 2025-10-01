@@ -16,7 +16,10 @@ export class DNAFrontendFramework {
     return this.stateManager;
   }
 
-  public async joinMeeting(meetingId: string): Promise<void> {
+  public async joinMeeting(
+    meetingId: string, 
+    transcriptCallback?: (transcript: string, version: number, context: Record<string, any>) => void
+  ): Promise<void> {
     await this.transcriptionAgent.joinMeeting(meetingId);
   }
 
@@ -26,6 +29,10 @@ export class DNAFrontendFramework {
 
   public async getConnectionStatus(): Promise<ConnectionStatus> {
     return this.transcriptionAgent.getConnectionStatus();
+  }
+
+  public async setVersion(version: number, context?: Record<string, any>): Promise<void> {
+    this.stateManager.setVersion(version, context);
   }
 }
 

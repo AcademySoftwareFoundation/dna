@@ -48,7 +48,7 @@ describe('VexaTranscriptionAgent', () => {
   });
 });
 
-describe('VexaTranscriptionAgent - getBotStatus', () => {
+describe('VexaTranscriptionAgent - getConnectionStatus', () => {
   let stateManager: StateManager;
   let vexaAgent: VexaTranscriptionAgent;
   let mockFetch: jest.MockedFunction<typeof fetch>;
@@ -96,8 +96,8 @@ describe('VexaTranscriptionAgent - getBotStatus', () => {
       text: () => Promise.resolve(JSON.stringify(mockResponse)),
     } as Response);
 
-    // Call the private method
-    const result = await (vexaAgent as any).getBotStatus();
+    // Call the public method
+    const result = await vexaAgent.getConnectionStatus();
 
     expect(result).toBe('active');
     expect(mockFetch).toHaveBeenCalledWith('https://api.vexa.com/meetings', {
@@ -134,8 +134,8 @@ describe('VexaTranscriptionAgent - getBotStatus', () => {
       text: () => Promise.resolve(JSON.stringify(mockResponse)),
     } as Response);
 
-    // Call the private method
-    const result = await (vexaAgent as any).getBotStatus();
+    // Call the public method
+    const result = await vexaAgent.getConnectionStatus();
 
     expect(result).toBe(ConnectionStatus.UNKNOWN);
   });
@@ -154,8 +154,8 @@ describe('VexaTranscriptionAgent - getBotStatus', () => {
       text: () => Promise.resolve(JSON.stringify(mockResponse)),
     } as Response);
 
-    // Call the private method
-    const result = await (vexaAgent as any).getBotStatus();
+    // Call the public method
+    const result = await vexaAgent.getConnectionStatus();
 
     expect(result).toBe(ConnectionStatus.UNKNOWN);
   });
@@ -185,8 +185,8 @@ describe('VexaTranscriptionAgent - getBotStatus', () => {
       text: () => Promise.resolve(JSON.stringify(mockResponse)),
     } as Response);
 
-    // Call the private method
-    const result = await (vexaAgent as any).getBotStatus();
+    // Call the public method
+    const result = await vexaAgent.getConnectionStatus();
 
     expect(result).toBe('joining');
   });
@@ -198,8 +198,8 @@ describe('VexaTranscriptionAgent - getBotStatus', () => {
     // Mock fetch to throw an error
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-    // Call the private method and expect it to throw
-    await expect((vexaAgent as any).getBotStatus()).rejects.toThrow(
+    // Call the public method and expect it to throw
+    await expect(vexaAgent.getConnectionStatus()).rejects.toThrow(
       'Network error'
     );
   });
@@ -214,7 +214,7 @@ describe('VexaTranscriptionAgent - getBotStatus', () => {
       text: () => Promise.resolve('invalid json'),
     } as Response);
 
-    // Call the private method and expect it to throw
-    await expect((vexaAgent as any).getBotStatus()).rejects.toThrow();
+    // Call the public method and expect it to throw
+    await expect(vexaAgent.getConnectionStatus()).rejects.toThrow();
   });
 });

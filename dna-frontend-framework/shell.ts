@@ -9,6 +9,12 @@
  * the framework functions in real-time.
  */
 
+// WebSocket polyfill for Node.js environment
+import { WebSocket as WS } from 'ws';
+if (typeof global !== 'undefined' && typeof global.WebSocket === 'undefined') {
+  (global as any).WebSocket = WS;
+}
+
 import { DNAFrontendFramework, ConnectionStatus } from './index';
 
 // Set up environment variables
