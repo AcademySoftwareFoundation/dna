@@ -11,9 +11,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from urllib.parse import urlparse
 
-# Default Base URL (can be overridden)
-DEFAULT_BASE_URL = "http://localhost:18056" 
-
 # Load environment variables from .env file (optional)
 try:
     from dotenv import load_dotenv
@@ -21,6 +18,11 @@ try:
 except ImportError:
     # python-dotenv not installed, environment variables should be set manually
     pass
+
+# Default Base URL (can be overridden by environment variable)
+DEFAULT_BASE_URL = os.getenv("VEXA_BASE_URL", "http://localhost:18056")
+# Webhook URL can be set via environment variable
+WEBHOOK_BASE_URL = os.getenv("WEBHOOK_BASE_URL", "ws://localhost:18056/ws")
 
 class WebhookHandler(BaseHTTPRequestHandler):
     """Simple HTTP handler for receiving webhook notifications"""
@@ -609,6 +611,8 @@ if __name__ == "__main__":
         user_token = admin.get_user_by_id(u['id'])['api_tokens'][0]['token']
         client = VexaClient(api_key=user_token)
         bots = client.get_running_bots_status()
+        for bot in bots:
+            client.stop_bot(bot.get('platform'), bot.get('native_meeting_id'))
         print(f"client {u['id']} has {bots} (token: {user_token})")
 
     # # Simple webhook testing with local HTTP server
