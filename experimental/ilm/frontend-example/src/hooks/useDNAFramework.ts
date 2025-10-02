@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { DNAFrontendFramework, ConnectionStatus } from "../../../dna-frontend-framework";
 import type { State } from "../../../dna-frontend-framework";
 
@@ -78,10 +78,25 @@ export const useDNAFramework = () => {
     return await framework.generateNotes(versionId);
   };
 
+  const setUserNotes = (versionId: number, notes: string) => {
+    framework.getStateManager().setUserNotes(versionId, notes);
+  };
+
+  const setAiNotes = (versionId: number, notes: string) => {
+    framework.getStateManager().setAiNotes(versionId, notes);
+  };
+
+  const addVersions = useCallback((versions: Array<{ id: number; context?: Record<string, any> }>) => {
+    framework.addVersions(versions);
+  }, [framework]);
+
   return { 
     framework, 
     connectionStatus, 
-    setVersion, 
+    setVersion,
+    setUserNotes,
+    setAiNotes,
+    addVersions,
     state, 
     getTranscriptText, 
     getVersionsWithTranscripts,

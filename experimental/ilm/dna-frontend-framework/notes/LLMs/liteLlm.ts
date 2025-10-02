@@ -15,7 +15,15 @@ export class LiteLlmInterface extends LLMInterface {
                 "x-litellm-api-key": this._key,
             },
         });
-        console.log(response);
-        return response.text() || "";
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('LiteLLM response:', data);
+        
+        // Extract only the content from the first choice's message
+        return data.choices?.[0]?.message?.content || "";
     }
 }

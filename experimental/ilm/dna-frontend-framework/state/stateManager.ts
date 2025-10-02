@@ -126,6 +126,19 @@ export class StateManager {
         version.aiNotes = notes;
         this.notifyListeners();
     }
+
+    /**
+     * Adds multiple versions to the state
+     * @param versions - Array of version data to add
+     */
+    public addVersions(versions: Array<{ id: number; context?: Record<string, any> }>): void {
+        versions.forEach(({ id, context }) => {
+            if (!this.getVersion(id)) {
+                this.createNewVersion(id, context);
+            }
+        });
+        this.notifyListeners();
+    }
 }
 
 // Export a default instance

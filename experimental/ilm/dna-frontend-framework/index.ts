@@ -50,7 +50,9 @@ export class DNAFrontendFramework {
   }
 
   public async generateNotes(versionId: number): Promise<string> {
-    return await this.noteGenerator.generateNotes(versionId);
+    const notes = await this.noteGenerator.generateNotes(versionId);
+    this.stateManager.setAiNotes(versionId, notes);
+    return notes;
   }
 
   public setUserNotes(versionId: number, notes: string): void {
@@ -59,6 +61,10 @@ export class DNAFrontendFramework {
 
   public setAiNotes(versionId: number, notes: string): void {
     this.stateManager.setAiNotes(versionId, notes);
+  }
+
+  public addVersions(versions: Array<{ id: number; context?: Record<string, any> }>): void {
+    this.stateManager.addVersions(versions);
   }
 }
 

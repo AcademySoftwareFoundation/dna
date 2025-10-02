@@ -1,13 +1,36 @@
 import { Flex, Text, Button, Card, Badge, TextArea, Box } from "@radix-ui/themes";
 import { useDNAFramework } from "./hooks/useDNAFramework";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConnectionStatus } from "../../dna-frontend-framework";
 import { useGetVersions } from "./hooks/useGetVersions";
 
 export default function App() {
-	const { framework, connectionStatus, setVersion, getTranscriptText, generateNotes } = useDNAFramework();
+
+	const toreviewversions = useGetVersions();
+
+	const { 
+		framework, 
+		connectionStatus, 
+		setVersion, 
+		setUserNotes, 
+		setAiNotes, 
+		addVersions,
+		getTranscriptText, 
+		generateNotes, 
+		state } = useDNAFramework();
 	const [meetingId, setMeetingId] = useState("");
-	const [notesState, setNotesState] = useState<Record<string, string>>({});
+	const [generatingNotesId, setGeneratingNotesId] = useState<string | null>(null);
+	// Populate framework with versions from useGetVersions on mount
+	useEffect(() => {
+		const versionData = Object.entries(toreviewversions).map(([id, version]) => ({
+			id: Number(id),
+			context: {
+				...version,
+				description: version.description || `Version ${id}`
+			}
+		}));
+		addVersions(versionData);
+	}, []);
 
 	const handleJoinMeeting = () => {
 		if (meetingId.trim()) {
@@ -36,7 +59,8 @@ export default function App() {
 	};
 
 
-	const versions = useGetVersions();
+	// Get versions from the framework state
+	const versions = state.versions;
 	
 	return (
 		<Flex direction="column" gap="4" p="4">
@@ -88,38 +112,59 @@ export default function App() {
 				</Flex>
 			</Card>
 
-		{Object.entries(versions).map(([id, version]) => (
-			<Card key={id} size="2" style={{ maxWidth: 400, marginTop: 16 }}>
+		{versions.map((version) => (
+			<Card key={version.id} size="2" style={{ maxWidth: 400, marginTop: 16 }}>
 				<Flex direction="column" gap="2" p="4">
-					<Text size="3" weight="bold">Version ID: {id}</Text>
+					<Text size="3" weight="bold">Version ID: {version.id}</Text>
 					<Text size="2">
-						{version.description ? version.description : <em>No description</em>}
+						{version.context.description ? version.context.description : <em>No description</em>}
 					</Text>
 					<Box mt="2">
-						<label htmlFor={`notes-${id}`}>Notes</label>
+						<label htmlFor={`user-notes-${version.id}`}>User Notes</label>
 						<TextArea
-							onFocus={() => setVersion(Number(id), { ...version  })}
-							id={`notes-${id}`}
-							value={notesState[id] || ''}
-							onChange={e => setNotesState(prev => ({ ...prev, [id]: e.target.value }))}
-							placeholder="Enter notes for this version"
+							onFocus={() => setVersion(Number(version.id), { ...version.context  })}
+							id={`user-notes-${version.id}`}
+							value={version.userNotes || ''}
+							onChange={e => setUserNotes(Number(version.id), e.target.value)}
+							placeholder="Enter your notes for this version"
 							style={{ width: '100%', minHeight: 60, marginTop: 4 }}
 						/>
 					</Box>
 					<Box mt="2">
-						<label htmlFor={`transcript-${id}`}>Transcript</label>
+						<label htmlFor={`ai-notes-${version.id}`}>AI Generated Notes</label>
 						<TextArea
-							id={`transcript-${id}`}
-							value={getTranscriptText(id)}
+							id={`ai-notes-${version.id}`}
+							value={version.aiNotes || ''}
+							placeholder="AI generated notes will appear here..."
+							readOnly
+							style={{ width: '100%', minHeight: 60, marginTop: 4 }}						/>
+					</Box>
+					<Box mt="2">
+						<label htmlFor={`transcript-${version.id}`}>Transcript</label>
+						<TextArea
+							id={`transcript-${version.id}`}
+							value={getTranscriptText(version.id)}
 							placeholder="Transcript will appear here as it's received..."
 							readOnly
 							style={{ width: '100%', minHeight: 60, marginTop: 4 }}
 						/>
 					</Box>
-					<Button onClick={async () =>  {
-						const notes = await generateNotes(Number(id));
-						console.log(notes);
-						}}>Generate Notes</Button>
+						<Button
+							onClick={async () =>  {
+								setGeneratingNotesId(version.id);
+								try {
+									const notes = await generateNotes(Number(version.id));
+									setAiNotes(Number(version.id), notes);
+								} catch (error) {
+									console.error('Error generating notes:', error);
+								} finally {
+									setGeneratingNotesId(null);
+								}
+							}}
+							disabled={generatingNotesId === version.id}
+						>
+							{generatingNotesId === version.id ? "Generating..." : "Generate AI Notes"}
+						</Button>
 				</Flex>
 			</Card>
 		))}
