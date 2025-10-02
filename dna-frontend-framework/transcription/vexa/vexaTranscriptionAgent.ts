@@ -4,14 +4,27 @@ import { ConnectionStatus, Transcription } from '../../types';
 import { WebSocketEvent } from './types';
 
 export class VexaTranscriptionAgent extends TranscriptionAgent {
+
+  // Base URL + API for the Vexa API Gateway
   private _baseUrl: string | undefined;
   private _apiKey: string | undefined;
+  
+  // Information about the meeting the bot will be joining
   private _meetingId: string | null = null;
   private _platform: string | undefined;
+
+  // Information about the bot
   private _botId: string | null = null;
+
+  // WebSocket for the transcription service
   private _ws: WebSocket | null = null;
   private _wsUrl: string | undefined;
+
+  // Call back that a frontend application to use to receive transcriptions
+  // or trigger other actions when a transcription is received
   private _callback?: (transcript: Transcription) => void;
+
+  // State manager for the transcription agent
   private _stateManager: StateManager;
 
   constructor(stateManager: StateManager) {
@@ -26,6 +39,15 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
   
   }
 
+  /**
+   * Given the provided meeting ID, join the meeting and subscribe to the transcription service.
+   * 
+   * This will check to see if there is a bot already in the meeting, if not it will request a bot from the Vexa API.
+   * It will then connect to the WebSocket for the transcription service and subscribe to the meeting.
+   * 
+   * @param meetingId  - The ID of the meeting to join
+   * @param callback  - A optional callback function to receive transcriptions
+   */
   public async joinMeeting(meetingId: string, callback?: (transcript: Transcription) => void): Promise<void> {
     if (!this._baseUrl) {
       throw new Error('VEXA_URL environment variable is not set');
@@ -55,7 +77,6 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
 
   public async leaveMeeting(): Promise<void> {
     if (!this._meetingId) {
-      console.log('No active meeting to leave');
       return;
     }
 
@@ -83,12 +104,17 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
   }
 
   /**
-   * Get the current meeting ID
+   * Get the current meeting ID.
    */
   public getCurrentMeetingId(): string | null {
     return this._meetingId;
   }
 
+  /**
+   * Check if the transcription agent is connected to the meeting.
+   * 
+   * This is done via the Vexa api gateway.
+   */
   public async isConnected(): Promise<boolean> {
     return (
       this._meetingId !== null &&
@@ -96,10 +122,19 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     );
   }
 
+  /**
+   * Access the ID of the bot.
+   *  
+  */
   public getBotId(): string | null {
     return this._botId;
   }
 
+  /**
+   * Setup the WebSocket URL for the transcription service.
+   * 
+   * This is based on the VEXA_URL environment variable.
+   */
   private _setupWebSocketUrl(): void {
     if (!this._baseUrl) return;
     
@@ -112,9 +147,13 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
       this._wsUrl = 'wss://devapi.dev.vexa.ai/ws';
     }
     
-    console.log('WebSocket URL configured:', this._wsUrl);
   }
 
+  /**
+   * Get the information about the bot in the meeting.
+   * 
+   * This is done via the Vexa api gateway.
+   */
   private async _getBotInfo(): Promise<Record<string, any> | null> {
     if (!this._meetingId) {
       return null;
@@ -131,7 +170,6 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
 
     const responseData = await response.text();
     const meetingData = JSON.parse(responseData);
-    console.log(meetingData);
     // TODO: We currently need to iterate over all the meetings to find the one that matches the meeting ID.
     // This is not efficient and we should update vexa to return the meeting info directly.
     for (const meeting of meetingData.meetings) {
@@ -141,6 +179,12 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     }
     return null;
   }
+
+  /**
+   * Get the connection status of the transcription agent.
+   * 
+   * This is done via the Vexa api gateway.
+   */
   public async getConnectionStatus(): Promise<ConnectionStatus> {
     if (!this._meetingId) {
       return ConnectionStatus.DISCONNECTED;
@@ -154,6 +198,11 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     }
   }
 
+  /**
+   * Request a bot from the Vexa api gateway.
+   * 
+   * This will spin up a new docker container with a bot to join the meet.
+   */
   private async requestBot(meetingId: string): Promise<void> {
     const payload = {
       platform: this._platform,
@@ -185,9 +234,6 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
       // Store the bot ID
       if (botData && botData.id) {
         this._botId = botData.id;
-        console.log(`🤖 Bot created with ID: ${this._botId}`);
-      } else {
-        console.warn('⚠️ No bot ID received in response');
       }
 
       return botData;
@@ -218,6 +264,11 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     }
   }
 
+  /**
+   * Connect to the WebSocket for the transcription service.
+   * 
+   * This will subscribe to the meeting and start receiving transcriptions.
+   */
   private async _connectWebSocket(): Promise<void> {
     if (!this._wsUrl || !this._apiKey) {
       console.error('WebSocket URL or API key not available');
@@ -230,7 +281,6 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     }
 
     const wsUrl = `${this._wsUrl}?api_key=${encodeURIComponent(this._apiKey)}`;
-    console.log('Connecting to WebSocket:', wsUrl.replace(this._apiKey, '***'));
 
     return new Promise((resolve, reject) => {
       try {
@@ -268,12 +318,16 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
 
   private _disconnectWebSocket(): void {
     if (this._ws) {
-      console.log('Disconnecting WebSocket...');
       this._ws.close();
       this._ws = null;
     }
   }
 
+  /**
+   * Subscribe to the meeting.
+   * 
+   * This will subscribe to the meeting and start receiving transcriptions.
+   */
   private async _subscribeToMeeting(): Promise<void> {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN || !this._meetingId || !this._platform) {
       console.error('Cannot subscribe: WebSocket not ready or missing meeting info');
@@ -293,34 +347,26 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     this._ws.send(JSON.stringify(message));
   }
   
+  /**
+   * Callback for when a transcription is received.
+   * 
+   * Update the state manager with the new transcription segment and
+   * call the callback function if it is set.
+   */
   private async onTranscriptCallback(transcript: Transcription): Promise<void> {
-    console.log('🔄 [CALLBACK] Processing transcript:', transcript);
     
     if (this._callback) {
-      console.log('🔄 [CALLBACK] Calling user callback');
       this._callback(transcript);
-    } else {
-      console.log('🔄 [CALLBACK] No user callback provided');
     }
-    
-    console.log('🔄 [CALLBACK] Adding to stateManager...');
     this._stateManager.addTranscription(transcript);
-    
-    // Verify it was added
     const state = this._stateManager.getState();
-    console.log('🔄 [CALLBACK] Current state after adding:', JSON.stringify(state, null, 2));
   }
 
   private _handleWebSocketMessage(data: WebSocketEvent): void {
-    console.log('📨 [WEBSOCKET] Received event:', data.type || 'NO_TYPE');
-    console.log('📨 [WEBSOCKET] Full message:', JSON.stringify(data, null, 2));
 
     switch (data.type) {
       case 'transcript.mutable':
-      case 'transcript.finalized':
-        console.log('🟢 [WEBSOCKET] Processing transcript.mutable/finalized event');
-        console.log('🟢 [WEBSOCKET] Payload:', data.payload);
-        
+      case 'transcript.finalized':        
         // Handle both single segment and segments array
         const segments = data.payload.segments || (data.payload.segment ? [data.payload.segment] : []);
         
@@ -333,7 +379,6 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
               speaker: segment.speaker || 'Unknown',
             };
             
-            console.log('🔄 [WEBSOCKET] Created transcript:', transcript);
             this.onTranscriptCallback(transcript);
           } catch (error) {
             console.error('❌ [WEBSOCKET] Error creating transcript from segment:', error);
@@ -359,10 +404,7 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
       case 'unsubscribed':
         console.log('🔌 [WEBSOCKET] Unsubscription confirmed for meetings:', (data as any).meetings);
         break;
-      
-      case 'pong':
-        console.log('🏓 [WEBSOCKET] Received pong from server');
-        break;
+    
       
       default:
         console.log('❓ [WEBSOCKET] Unknown event type:', data.type);
