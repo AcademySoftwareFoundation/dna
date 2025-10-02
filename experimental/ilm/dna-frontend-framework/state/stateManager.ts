@@ -1,7 +1,10 @@
 import { State, Version, Transcription } from '../types';
 
+type StateChangeListener = (state: State) => void;
+
 export class StateManager {
     private state: State;
+    private listeners: Set<StateChangeListener> = new Set();
 
     constructor(initialState?: Partial<State>) {
         this.state = {
@@ -38,6 +41,9 @@ export class StateManager {
         
         // Set as active version
         this.state.activeVersion = id;
+        
+        // Notify listeners of state change
+        this.notifyListeners();
     }
 
     /**
@@ -80,7 +86,24 @@ export class StateManager {
         const version = this.getActiveVersion();
         if (version) {
             version.transcriptions[key] = transcription;
+            this.notifyListeners();
         }
+    }
+
+    /**
+     * Subscribe to state changes
+     */
+    subscribe(listener: StateChangeListener): () => void {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    }
+
+    /**
+     * Notify all listeners of state changes
+     */
+    private notifyListeners(): void {
+        const currentState = this.getState();
+        this.listeners.forEach(listener => listener(currentState));
     }
 }
 

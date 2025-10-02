@@ -1,16 +1,19 @@
 import { StateManager } from './state';
 import { TranscriptionAgent } from './transcription';
 import { VexaTranscriptionAgent } from './transcription/vexa';
-import { ConnectionStatus, Transcription } from './types';
+import { Configuration, ConnectionStatus, Transcription, State } from './types';
 
 export class DNAFrontendFramework {
   private stateManager: StateManager;
   private transcriptionAgent: TranscriptionAgent;
+  private configuration: Configuration;
 
-  constructor() {
+  constructor(configuration: Configuration) {
     this.stateManager = new StateManager();
+    this.configuration = configuration;
     // TODO: Make this configurable
-    this.transcriptionAgent = new VexaTranscriptionAgent(this.stateManager);
+    this.transcriptionAgent = new VexaTranscriptionAgent(this.stateManager, this.configuration);
+    
   }
 
   public getStateManager(): StateManager {
@@ -34,6 +37,10 @@ export class DNAFrontendFramework {
 
   public async setVersion(version: number, context?: Record<string, any>): Promise<void> {
     this.stateManager.setVersion(version, context);
+  }
+
+  public subscribeToStateChanges(listener: (state: State) => void): () => void {
+    return this.stateManager.subscribe(listener);
   }
 }
 

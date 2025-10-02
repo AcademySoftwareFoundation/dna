@@ -1,6 +1,6 @@
 import { StateManager } from '../../state';
 import { TranscriptionAgent } from '../index';
-import { ConnectionStatus, Transcription } from '../../types';
+import { Configuration, ConnectionStatus, Transcription } from '../../types';
 import { WebSocketEvent } from './types';
 
 export class VexaTranscriptionAgent extends TranscriptionAgent {
@@ -27,12 +27,13 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
   // State manager for the transcription agent
   private _stateManager: StateManager;
 
-  constructor(stateManager: StateManager) {
+  constructor(stateManager: StateManager, configuration: Configuration) {
     super(stateManager);
 
-    this._baseUrl = process.env.VEXA_URL;
-    this._apiKey = process.env.VEXA_API_KEY;
-    this._platform = process.env.PLATFORM;
+    this._baseUrl = configuration.vexaUrl;
+    this._apiKey = configuration.vexaApiKey;
+    this._platform = configuration.platform;
+
     this._callback = undefined;
     this._setupWebSocketUrl();
     this._stateManager = stateManager;
@@ -189,10 +190,26 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     if (!this._meetingId) {
       return ConnectionStatus.DISCONNECTED;
     }
-  
+    
+    const vexaStatusMap = {
+      "active": ConnectionStatus.CONNECTED,
+      "joining": ConnectionStatus.CONNECTING,
+      "error": ConnectionStatus.ERROR,
+      "closed": ConnectionStatus.CLOSED,
+      "unknown": ConnectionStatus.UNKNOWN,
+      "disconnected": ConnectionStatus.DISCONNECTED,
+      "requested": ConnectionStatus.CONNECTING,
+      "awaiting_admission": ConnectionStatus.CONNECTING,
+    }
+
     const botInfo = await this._getBotInfo();
     if (botInfo) {
-      return botInfo.status;
+      try {
+      return vexaStatusMap[botInfo.status.toLowerCase() as keyof typeof vexaStatusMap];
+      } catch (error) {
+        console.error('Error getting connection status for:', botInfo.status.toLowerCase());
+        return ConnectionStatus.UNKNOWN;
+      }
     } else {
       return ConnectionStatus.UNKNOWN;
     }

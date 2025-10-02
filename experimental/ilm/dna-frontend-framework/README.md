@@ -23,16 +23,18 @@ The state manager allows you to store the currently in review shot, its transcri
 
 ### env setup
 
-The following environment variables are required:
+The following configuration variables are required:
 
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `VEXA_API_KEY` | The API key for the Vexa API | Yes |
 | `VEXA_URL` | The URL for the Vexa API | Yes |
+| `PLATFORM` | The platform to use for the Vexa API | Yes |
 | `GOOGLE_API_KEY` | The API key for the Google API | No, unless using Gemini |
 | `GOOGLE_MODEL` | The model to use for the Google API | No, unless using Gemini |
 | `GOOGLE_PROXY` | The proxy to use for the Google API | No, unless using Gemini |
 
+When working with a frontend application, you can pass the configuration to the framework constructor.
 
 ### Usage
 

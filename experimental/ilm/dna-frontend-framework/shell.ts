@@ -15,7 +15,7 @@ if (typeof global !== 'undefined' && typeof global.WebSocket === 'undefined') {
   (global as any).WebSocket = WS;
 }
 
-import { DNAFrontendFramework, ConnectionStatus } from './index';
+import { DNAFrontendFramework, ConnectionStatus } from './dist/index.cjs';
 
 // Set up environment variables
 import * as dotenv from 'dotenv';
@@ -28,7 +28,11 @@ console.log(`- PLATFORM: ${process.env.PLATFORM}`);
 console.log('');
 
 // Initialize the framework
-const framework = new DNAFrontendFramework();
+const framework = new DNAFrontendFramework({
+    vexaUrl: process.env.VEXA_URL!,
+    vexaApiKey: process.env.VEXA_API_KEY!,
+    platform: process.env.PLATFORM!,
+});
 const stateManager = framework.getStateManager();
 
 console.log('🧬 DNA Frontend Framework Interactive Shell');

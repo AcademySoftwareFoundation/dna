@@ -25,7 +25,19 @@ export abstract class TranscriptionAgent {
     throw new Error('Not implemented');
   }
 
+  public getCurrentMeetingId(): string | null {
+    throw new Error('Not implemented');
+  }
+
   public async getConnectionStatus(): Promise<ConnectionStatus> {
+    throw new Error('Not implemented');
+  }
+
+  public async isConnected(): Promise<boolean> {
+    throw new Error('Not implemented');
+  }
+
+  public getBotId(): string | null {
     throw new Error('Not implemented');
   }
 }

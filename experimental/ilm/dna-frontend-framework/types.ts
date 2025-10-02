@@ -24,3 +24,9 @@ export enum ConnectionStatus {
     CLOSED = "closed",
     UNKNOWN = "unknown",
 }
+
+export interface Configuration {
+    vexaUrl: string;
+    vexaApiKey: string;
+    platform: string;
+}

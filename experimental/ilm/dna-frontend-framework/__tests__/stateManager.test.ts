@@ -135,4 +135,31 @@ describe('State Management', () => {
       expect(version!.transcriptions[key1]).toBeDefined();
       expect(version!.transcriptions[key2]).toBeDefined();
     });
+
+    it('should notify listeners when state changes', () => {
+      const listener = jest.fn();
+      const unsubscribe = stateManager.subscribe(listener);
+      
+      // Initial state should be called
+      expect(listener).toHaveBeenCalledTimes(0);
+      
+      // Set version should trigger notification
+      stateManager.setVersion(1, { name: 'Test Version' });
+      expect(listener).toHaveBeenCalledTimes(1);
+      
+      // Add transcription should trigger notification
+      const transcription = {
+        text: 'Hello world',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:05.000Z',
+        speaker: 'John Doe'
+      };
+      stateManager.addTranscription(transcription);
+      expect(listener).toHaveBeenCalledTimes(2);
+      
+      // Unsubscribe should stop notifications
+      unsubscribe();
+      stateManager.setVersion(2, { name: 'Another Version' });
+      expect(listener).toHaveBeenCalledTimes(2);
+    });
   });
