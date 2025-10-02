@@ -14,6 +14,19 @@ export class StateManager {
         };
     }
 
+
+
+    private createNewVersion(id: number, context?: Record<string, any>): Version {
+        const newVersion = {
+            id: id.toString(),
+            context: context || {},
+            transcriptions: {},
+            userNotes: "",
+            aiNotes: ""
+        };
+        this.state.versions.push(newVersion);
+        return newVersion;
+    }
     /**
      * Sets the current version to the provided version ID.
      * If the version doesn't exist, a new version object is created.
@@ -24,16 +37,10 @@ export class StateManager {
         const versionId = id.toString();
         
         // Find existing version
-        let version = this.state.versions.find((v: Version) => v.id === versionId);
+        let version = this.getVersion(id);
         
         if (!version) {
-            // Create new version if it doesn't exist
-            version = {
-                id: versionId,
-                context: context || {},
-                transcriptions: {}
-            };
-            this.state.versions.push(version);
+            version = this.createNewVersion(id, context);
         } else if (context) {
             // Update context if provided
             version.context = { ...version.context, ...context };
@@ -104,6 +111,20 @@ export class StateManager {
     private notifyListeners(): void {
         const currentState = this.getState();
         this.listeners.forEach(listener => listener(currentState));
+    }
+
+    public setUserNotes(versionId: number, notes: string): void {
+        let version = this.getVersion(versionId) || this.createNewVersion(versionId);
+
+        version.userNotes = notes;
+        this.notifyListeners();
+    }
+
+    public setAiNotes(versionId: number, notes: string): void {
+        let version = this.getVersion(versionId) || this.createNewVersion(versionId);
+
+        version.aiNotes = notes;
+        this.notifyListeners();
     }
 }
 

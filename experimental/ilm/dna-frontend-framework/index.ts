@@ -52,6 +52,14 @@ export class DNAFrontendFramework {
   public async generateNotes(versionId: number): Promise<string> {
     return await this.noteGenerator.generateNotes(versionId);
   }
+
+  public setUserNotes(versionId: number, notes: string): void {
+    this.stateManager.setUserNotes(versionId, notes);
+  }
+
+  public setAiNotes(versionId: number, notes: string): void {
+    this.stateManager.setAiNotes(versionId, notes);
+  }
 }
 
 // Export all types and classes

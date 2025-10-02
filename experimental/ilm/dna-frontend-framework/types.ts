@@ -7,6 +7,8 @@ export interface Version {
     id: string;
     context: Record<string, any>;
     transcriptions: Record<string, Transcription>;
+    userNotes: string;
+    aiNotes: string;
 }
 
 export interface Transcription {
