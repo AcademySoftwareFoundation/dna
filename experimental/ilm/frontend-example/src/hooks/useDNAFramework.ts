@@ -12,6 +12,10 @@ export const useDNAFramework = () => {
         vexaApiKey: import.meta.env.VITE_VEXA_API_KEY,
         vexaUrl: import.meta.env.VITE_VEXA_URL,
         platform: import.meta.env.VITE_PLATFORM,
+        llmInterface: import.meta.env.VITE_LLM_INTERFACE,
+        llmModel: import.meta.env.VITE_LLM_MODEL || "gpt-3.5-turbo",
+        llmApiKey: import.meta.env.VITE_LLM_API_KEY || "",
+        llmBaseURL: import.meta.env.VITE_LLM_BASEURL || "",
     }
   ), []);
 
@@ -70,12 +74,17 @@ export const useDNAFramework = () => {
     }));
   };
 
+  const generateNotes = async (versionId: number) => {
+    return await framework.generateNotes(versionId);
+  };
+
   return { 
     framework, 
     connectionStatus, 
     setVersion, 
     state, 
     getTranscriptText, 
-    getVersionsWithTranscripts 
+    getVersionsWithTranscripts,
+    generateNotes
   };
 };

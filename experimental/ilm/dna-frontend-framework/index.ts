@@ -1,3 +1,4 @@
+import { NoteGenerator } from './notes/noteGenerator';
 import { StateManager } from './state';
 import { TranscriptionAgent } from './transcription';
 import { VexaTranscriptionAgent } from './transcription/vexa';
@@ -6,18 +7,23 @@ import { Configuration, ConnectionStatus, Transcription, State } from './types';
 export class DNAFrontendFramework {
   private stateManager: StateManager;
   private transcriptionAgent: TranscriptionAgent;
+  private noteGenerator: NoteGenerator;
   private configuration: Configuration;
-
+    
   constructor(configuration: Configuration) {
     this.stateManager = new StateManager();
     this.configuration = configuration;
     // TODO: Make this configurable
     this.transcriptionAgent = new VexaTranscriptionAgent(this.stateManager, this.configuration);
-    
+    this.noteGenerator = new NoteGenerator(this.stateManager, this.configuration);
   }
 
   public getStateManager(): StateManager {
     return this.stateManager;
+  }
+
+  public getNoteGenerator(): NoteGenerator {
+    return this.noteGenerator;
   }
 
   public async joinMeeting(
@@ -41,6 +47,10 @@ export class DNAFrontendFramework {
 
   public subscribeToStateChanges(listener: (state: State) => void): () => void {
     return this.stateManager.subscribe(listener);
+  }
+
+  public async generateNotes(versionId: number): Promise<string> {
+    return await this.noteGenerator.generateNotes(versionId);
   }
 }
 

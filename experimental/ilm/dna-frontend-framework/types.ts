@@ -29,4 +29,8 @@ export interface Configuration {
     vexaUrl: string;
     vexaApiKey: string;
     platform: string;
+    llmInterface: "openai" | "litellm";
+    llmModel: string;
+    llmApiKey: string;
+    llmBaseURL: string;
 }

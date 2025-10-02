@@ -5,7 +5,7 @@ import { ConnectionStatus } from "../../dna-frontend-framework";
 import { useGetVersions } from "./hooks/useGetVersions";
 
 export default function App() {
-	const { framework, connectionStatus, setVersion, getTranscriptText } = useDNAFramework();
+	const { framework, connectionStatus, setVersion, getTranscriptText, generateNotes } = useDNAFramework();
 	const [meetingId, setMeetingId] = useState("");
 	const [notesState, setNotesState] = useState<Record<string, string>>({});
 
@@ -116,6 +116,10 @@ export default function App() {
 							style={{ width: '100%', minHeight: 60, marginTop: 4 }}
 						/>
 					</Box>
+					<Button onClick={async () =>  {
+						const notes = await generateNotes(Number(id));
+						console.log(notes);
+						}}>Generate Notes</Button>
 				</Flex>
 			</Card>
 		))}
