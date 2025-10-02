@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
-import { startTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
+import { startTranscription, startWebSocketTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
 import { getWebSocketService } from '../lib/websocket-service';
 
 function StatusBadge({ type = "info", children }) {
@@ -254,7 +254,7 @@ function App() {
     return '';
   };
 
-  // Replace the handleSubmit function to call startTranscription for testing
+  // Replace the handleSubmit function to call startWebSocketTranscription for testing
   const handleSubmit = async (e) => {
     e.preventDefault();
     const rawInput = meetId.trim();
@@ -268,56 +268,53 @@ function App() {
     setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
     stopTranscriptPolling();
     try {
-      // Call startTranscription for test
-      const response = await startTranscription(fullUrl, 'en', 'Vexa');
-      console.log('startTranscription result:', response);
-      setStatus({ msg: `Requested to join meeting`, type: "info" });
-      setJoinedMeetId(fullUrl);
-
-      // Subscribe to WebSocket events for this meeting
-      const wsService = getWebSocketService();
-      wsService.setOnTranscriptMutable((event) => {
-        console.log('Transcript Mutable Event:', event);
-      });
-      wsService.setOnTranscriptFinalized((event) => {
-        console.log('Transcript Finalized Event:', event);
-      });
-      wsService.setOnMeetingStatus((event) => {
-        // Update bot status in UI using setStatus
-        const statusValue = event?.payload?.status || 'unknown';
-        const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
-        setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
-        setBotIsActive(isActiveStatus);
-        if (waitingForActive && isActiveStatus) {
-          setWaitingForActive(false);
-        }
-        // Stop transcript polling when status is 'completed'
-        if (statusValue === 'completed' && isPollingTranscripts) {
-          stopTranscriptPolling();
-          setBotIsActive(false);
-          setManualTranscriptPolling(false);
-        }
-      });
-      wsService.setOnError((event) => {
-        console.error('WebSocket Error Event:', event);
-      });
-      wsService.setOnConnected(() => {
-        console.log('WebSocket Connected');
-      });
-      wsService.setOnDisconnected(() => {
-        console.log('WebSocket Disconnected');
-      });
-      // Use the meetingId from the response (not the fullUrl)
-      if (response.meetingId) {
-        const parts = response.meetingId.split('/');
-        wsService.subscribeToMeeting({
-          platform: parts[0],
-          native_id: parts[1]
-        });
+      // Add bot to meeting first
+      const startResult = await startTranscription(fullUrl);
+      if (!startResult.success) {
+        setStatus({ msg: "Failed to add bot to meeting.", type: "error" });
+        setSubmitting(false);
+        return;
       }
+      const meetingIdForWS = startResult.meetingId;
+      console.log('[DEBUG] Meeting ID from startTranscription:', meetingIdForWS);
+      setJoinedMeetId(fullUrl);
+      // Subscribe to WebSocket events for this meeting
+      await startWebSocketTranscription(
+        meetingIdForWS,
+        (segments) => {
+          console.log('Transcript Mutable Event:', segments);
+        },
+        (segments) => {
+          console.log('Transcript Finalized Event:', segments);
+        },
+        (statusValue) => {
+          // Update bot status in UI using setStatus
+          const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
+          setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
+          setBotIsActive(isActiveStatus);
+          if (waitingForActive && isActiveStatus) {
+            setWaitingForActive(false);
+          }
+          // Stop transcript polling when status is 'completed'
+          if (statusValue === 'completed' && isPollingTranscripts) {
+            stopTranscriptPolling();
+            setBotIsActive(false);
+            setManualTranscriptPolling(false);
+          }
+        },
+        (error) => {
+          console.error('WebSocket Error Event:', error);
+        },
+        () => {
+          console.log('WebSocket Connected');
+        },
+        () => {
+          console.log('WebSocket Disconnected');
+        }
+      );
     } catch (err) {
-      setStatus({ msg: "Error calling startTranscription", type: "error" });
-      console.error('startTranscription error:', err);
+      setStatus({ msg: "Error connecting to WebSocket for transcript updates", type: "error" });
+      console.error('startWebSocketTranscription error:', err);
       setWaitingForActive(false);
     } finally {
       setSubmitting(false);
