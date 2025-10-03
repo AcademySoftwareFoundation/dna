@@ -5,12 +5,17 @@ import { LLMInterface } from "./LLMs/llmInterface";
 import { OpenAILLMInterface } from "./LLMs/openAiInterface";
 import { prompt } from "./prompt";
 
+/**
+ * NoteGenerator class for generating notes using LLM interfaces.
+ */
 export class NoteGenerator {
     private llmInterface: LLMInterface;
 
     constructor(private stateManager: StateManager, configuration: Configuration) {
 
         this.stateManager = stateManager;
+
+        // When adding a new LLM interface, add it here.
         switch (configuration.llmInterface) {
             case "openai":
                 this.llmInterface = new OpenAILLMInterface(configuration);
@@ -23,13 +28,21 @@ export class NoteGenerator {
         }
     }
 
+    /**
+     * Generate notes using the LLM interface.
+     * 
+     * In addition to using the LLM interface, a prompt is generated that 
+     * includes the transcript and version context.
+     * 
+     * @param versionId - The ID of the version to generate notes for
+     * @returns The generated notes as a single string.
+     */
     public async generateNotes(versionId: number): Promise<string> {
         const version = this.stateManager.getVersion(versionId);
         if (!version) {
             throw new Error(`Version ${versionId} not found`);
         }
 
-        // version.transcriptions is a Record<string, Transcription>, not an array, so we need to use Object.values to get an array of Transcription objects.
         const conversation = Object.values(version.transcriptions)
             .map((transcription: Transcription) => `${transcription.speaker}: ${transcription.text}`)
             .join("\n");

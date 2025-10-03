@@ -2,6 +2,12 @@ import { State, Version, Transcription } from '../types';
 
 type StateChangeListener = (state: State) => void;
 
+/**
+ * StateManager class for managing the state of the framework.
+ * 
+ * The state manager is responsable to storing transcripts, versions, user notes, and ai notes.
+ * It also allows for subscribing to state changes and notifying listeners of state changes.
+ */
 export class StateManager {
     private state: State;
     private listeners: Set<StateChangeListener> = new Set();
@@ -14,8 +20,13 @@ export class StateManager {
         };
     }
 
-
-
+    /**
+     * Creates a new version object and adds it to the state.
+     * 
+     * @param id - The version ID
+     * @param context - The context of the version
+     * @returns The new version object
+     */
     private createNewVersion(id: number, context?: Record<string, any>): Version {
         const newVersion = {
             id: id.toString(),
@@ -29,6 +40,9 @@ export class StateManager {
     }
     /**
      * Sets the current version to the provided version ID.
+     * 
+     * When set, transcriptions will automatically be added to the active version.
+     * 
      * If the version doesn't exist, a new version object is created.
      * @param id - The version ID (will be converted to string for internal storage)
      * @param context - Optional context object to store with the version
@@ -61,7 +75,9 @@ export class StateManager {
     }
 
     /**
-     * Gets the currently active version
+     * Gets the currently active version.
+     * 
+     * @returns The active version or undefined if no version is active
      */
     getActiveVersion(): Version | undefined {
         return this.state.versions.find((v: Version) => v.id === this.state.activeVersion.toString());
@@ -69,13 +85,18 @@ export class StateManager {
 
     /**
      * Gets a specific version by ID
+     * 
+     * @param id - The version ID
+     * @returns The version or undefined if no version is found
      */
     getVersion(id: number): Version | undefined {
         return this.state.versions.find((v: Version) => v.id === id.toString());
     }
 
     /**
-     * Gets all versions
+     * Gets all versions.
+     * 
+     * @returns All versions
      */
     getVersions(): Version[] {
         return [...this.state.versions];
@@ -88,6 +109,11 @@ export class StateManager {
         return this.state.activeVersion;
     }
 
+    /**
+     * Adds a transcription to the active version.
+     * 
+     * @param transcription - The transcription to add
+     */
     addTranscription(transcription: Transcription): void {
         const key = `${transcription.timestampStart}-${transcription.speaker}`;
         const version = this.getActiveVersion();
@@ -98,7 +124,10 @@ export class StateManager {
     }
 
     /**
-     * Subscribe to state changes
+     * Subscribe to state changes.
+     * 
+     * @param listener - The listener to subscribe to
+     * @returns A function to unsubscribe from the listener
      */
     subscribe(listener: StateChangeListener): () => void {
         this.listeners.add(listener);
@@ -106,13 +135,18 @@ export class StateManager {
     }
 
     /**
-     * Notify all listeners of state changes
+     * Notify all listeners of state changes.
      */
     private notifyListeners(): void {
         const currentState = this.getState();
         this.listeners.forEach(listener => listener(currentState));
     }
-
+    /**
+     * Sets the user notes for a specific version.
+     * 
+     * @param versionId - The version ID
+     * @param notes - The user notes to set
+     */
     public setUserNotes(versionId: number, notes: string): void {
         let version = this.getVersion(versionId) || this.createNewVersion(versionId);
 
@@ -120,6 +154,12 @@ export class StateManager {
         this.notifyListeners();
     }
 
+    /**
+     * Sets the ai notes for a specific version.
+     * 
+     * @param versionId - The version ID
+     * @param notes - The ai notes to set
+     */
     public setAiNotes(versionId: number, notes: string): void {
         let version = this.getVersion(versionId) || this.createNewVersion(versionId);
 
@@ -129,6 +169,7 @@ export class StateManager {
 
     /**
      * Adds multiple versions to the state
+     * 
      * @param versions - Array of version data to add
      */
     public addVersions(versions: Array<{ id: number; context?: Record<string, any> }>): void {
@@ -141,5 +182,5 @@ export class StateManager {
     }
 }
 
-// Export a default instance
+// Export a default instance of the StateManager
 export const stateManager = new StateManager();

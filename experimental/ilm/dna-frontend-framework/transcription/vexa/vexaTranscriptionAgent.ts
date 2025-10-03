@@ -27,6 +27,12 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
   // State manager for the transcription agent
   private _stateManager: StateManager;
 
+  /**
+   * Constructor for the VexaTranscriptionAgent
+   * 
+   * @param stateManager - The state manager to use
+   * @param configuration - The configuration to use
+   */
   constructor(stateManager: StateManager, configuration: Configuration) {
     super(stateManager);
 
@@ -379,6 +385,11 @@ export class VexaTranscriptionAgent extends TranscriptionAgent {
     const state = this._stateManager.getState();
   }
 
+  /**
+   * Handle the WebSocket message.
+   * 
+   * @param data - The WebSocket event data
+   */
   private _handleWebSocketMessage(data: WebSocketEvent): void {
 
     switch (data.type) {
