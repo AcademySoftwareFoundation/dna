@@ -987,6 +987,40 @@ export async function startWebSocketTranscription(
   onConnected: () => void,
   onDisconnected: () => void
 ): Promise<void> {
+  if (MOCK_MODE) {
+    // Simulate connection
+    setTimeout(() => {
+      onConnected();
+      onMeetingStatus('active');
+    }, 500);
+    // Simulate transcript events every 2 seconds
+    let count = 0;
+    const speakers = ['John', 'Sarah', 'Michael', 'Alice', 'Bob'];
+    const interval = setInterval(() => {
+      const segment: TranscriptionSegment = {
+        id: `mock-${Date.now()}`,
+        text: `Mock transcript segment #${++count}: ${Math.random().toString(36).substring(2, 15)}`,
+        timestamp: new Date().toISOString(),
+        speaker: speakers[Math.floor(Math.random() * speakers.length)],
+        language: 'en',
+      };
+      onTranscriptMutable([segment]);
+      // Simulate finalized every 3 segments
+      if (count % 3 === 0) {
+        onTranscriptFinalized([segment]);
+      }
+      // Simulate meeting completion after 10 segments
+      if (count === 10) {
+        onMeetingStatus('completed');
+        clearInterval(interval);
+        setTimeout(() => {
+          onDisconnected();
+        }, 500);
+      }
+    }, 2000);
+    return;
+  }
+
   const wsService = getWebSocketService()
 
   // Convert meetingId to the format needed for segment conversion

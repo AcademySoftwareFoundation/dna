@@ -1,5 +1,5 @@
 // Enable mock mode to bypass authentication and use mock data
-export const MOCK_MODE = false
+export const MOCK_MODE = true
 
 // Mock user data for when mock mode is enabled
 export const MOCK_USER = {
