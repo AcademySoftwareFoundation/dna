@@ -162,4 +162,29 @@ describe('State Management', () => {
       stateManager.setVersion(2, { name: 'Another Version' });
       expect(listener).toHaveBeenCalledTimes(2);
     });
+
+    it('should update an existing transcription segment', () => {
+      stateManager.setVersion(1, { name: 'Test Version' });
+      const transcription = {
+        text: 'Hello world',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:08.000Z',
+        speaker: 'John Doe'
+      };
+      stateManager.addTranscription(transcription);
+      const updatedTranscription = {
+        text: 'Hello world updated',
+        timestampStart: '2025-01-01T10:00:00.000Z',
+        timestampEnd: '2025-01-01T10:00:05.000Z',
+        speaker: 'John Doe'
+      };
+      stateManager.addTranscription(updatedTranscription);
+      const version = stateManager.getActiveVersion();
+
+      const transcriptions = Object.values(version!.transcriptions);
+      expect(transcriptions).toHaveLength(1);
+
+      expect(transcriptions[0]).toBeDefined();
+      expect(transcriptions[0]).toEqual(updatedTranscription);
+    });
   });

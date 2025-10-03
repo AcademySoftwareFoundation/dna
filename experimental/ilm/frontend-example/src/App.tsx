@@ -7,7 +7,6 @@ import { useGetVersions } from "./hooks/useGetVersions";
 export default function App() {
 
 	const toreviewversions = useGetVersions();
-
 	const { 
 		framework, 
 		connectionStatus, 
@@ -61,13 +60,12 @@ export default function App() {
 
 	// Get versions from the framework state
 	const versions = state.versions;
-	
 	return (
 		<Flex direction="column" gap="4" p="4">
 			<Flex direction="row" gap="3" align="center">
 				<Text size="5" weight="bold">DNA Example Application</Text>
 				<Badge color={getStatusColor(connectionStatus)}>
-					{connectionStatus.toUpperCase()}
+					{connectionStatus ? connectionStatus.toUpperCase() : "Unknown"}
 				</Badge>
 			</Flex>
 			
@@ -113,42 +111,13 @@ export default function App() {
 			</Card>
 
 		{versions.map((version) => (
-			<Card key={version.id} size="2" style={{ maxWidth: 400, marginTop: 16 }}>
-				<Flex direction="column" gap="2" p="4">
-					<Text size="3" weight="bold">Version ID: {version.id}</Text>
-					<Text size="2">
-						{version.context.description ? version.context.description : <em>No description</em>}
-					</Text>
-					<Box mt="2">
-						<label htmlFor={`user-notes-${version.id}`}>User Notes</label>
-						<TextArea
-							onFocus={() => setVersion(Number(version.id), { ...version.context  })}
-							id={`user-notes-${version.id}`}
-							value={version.userNotes || ''}
-							onChange={e => setUserNotes(Number(version.id), e.target.value)}
-							placeholder="Enter your notes for this version"
-							style={{ width: '100%', minHeight: 60, marginTop: 4 }}
-						/>
-					</Box>
-					<Box mt="2">
-						<label htmlFor={`ai-notes-${version.id}`}>AI Generated Notes</label>
-						<TextArea
-							id={`ai-notes-${version.id}`}
-							value={version.aiNotes || ''}
-							placeholder="AI generated notes will appear here..."
-							readOnly
-							style={{ width: '100%', minHeight: 60, marginTop: 4 }}						/>
-					</Box>
-					<Box mt="2">
-						<label htmlFor={`transcript-${version.id}`}>Transcript</label>
-						<TextArea
-							id={`transcript-${version.id}`}
-							value={getTranscriptText(version.id)}
-							placeholder="Transcript will appear here as it's received..."
-							readOnly
-							style={{ width: '100%', minHeight: 60, marginTop: 4 }}
-						/>
-					</Box>
+			<Card key={version.id} size="2" style={{ marginTop: 16 }}>
+				<Flex direction="row" gap="4" p="4">
+					<Flex direction="column" gap="2">
+						<Text size="3" weight="bold">Version ID: {version.id}</Text>
+						<Text size="2">
+							{version.context.description ? version.context.description : <em>No description</em>}
+						</Text>
 						<Button
 							onClick={async () =>  {
 								setGeneratingNotesId(version.id);
@@ -165,6 +134,38 @@ export default function App() {
 						>
 							{generatingNotesId === version.id ? "Generating..." : "Generate AI Notes"}
 						</Button>
+					</Flex>
+					<Box mt="2">
+						<label htmlFor={`user-notes-${version.id}`}>User Notes</label>
+						<TextArea
+							onFocus={() => setVersion(Number(version.id), { ...version.context  })}
+							id={`user-notes-${version.id}`}
+							value={version.userNotes || ''}
+							onChange={e => setUserNotes(Number(version.id), e.target.value)}
+							placeholder="Enter your notes for this version"
+							style={{ minWidth: 250, minHeight: 200, marginTop: 4 }}
+						/>
+					</Box>
+					<Box mt="2">
+						<label htmlFor={`ai-notes-${version.id}`}>AI Generated Notes</label>
+						<TextArea
+							id={`ai-notes-${version.id}`}
+							value={version.aiNotes || ''}
+							placeholder="AI generated notes will appear here..."
+							readOnly
+							style={{ minWidth: 250, minHeight: 200, marginTop: 4 }}						/>
+					</Box>
+					<Box mt="2">
+						<label htmlFor={`transcript-${version.id}`}>Transcript</label>
+						<TextArea
+							id={`transcript-${version.id}`}
+							value={getTranscriptText(version.id)}
+							placeholder="Transcript will appear here as it's received..."
+							readOnly
+							style={{ minWidth: 500, minHeight: 200, marginTop: 4 }}
+						/>
+					</Box>
+						
 				</Flex>
 			</Card>
 		))}

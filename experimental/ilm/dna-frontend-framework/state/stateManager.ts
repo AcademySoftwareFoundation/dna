@@ -89,7 +89,7 @@ export class StateManager {
     }
 
     addTranscription(transcription: Transcription): void {
-        const key = `${transcription.timestampStart}-${transcription.timestampEnd}-${transcription.speaker}`;
+        const key = `${transcription.timestampStart}-${transcription.speaker}`;
         const version = this.getActiveVersion();
         if (version) {
             version.transcriptions[key] = transcription;

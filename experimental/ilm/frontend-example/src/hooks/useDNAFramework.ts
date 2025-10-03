@@ -5,7 +5,7 @@ import type { State } from "../../../dna-frontend-framework";
 export const useDNAFramework = () => {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(ConnectionStatus.UNKNOWN);
   const [state, setState] = useState<State>({ activeVersion: 0, versions: [] });
-
+  console.log(state);
   // Memoize the framework instance so it's not recreated on every render
   const framework = useMemo(() => new DNAFrontendFramework(
     {
