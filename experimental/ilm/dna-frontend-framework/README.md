@@ -1,23 +1,20 @@
-# Frontend Framework
+# 🧬 DNA Frontend Framework
+
+**This framework is currently in development and is not yet ready for production use.**
+
+#### Add AI Assisted note taking to facilitate collaboration between artists and supervisors easily!
 
 The frontend framework is a collection of tools and libraries that are used to connect to transcription agents and LLMs to 
 to provide a unified interface for the user to interact with the transcription and LLM with the goal of creating note suggestions for dailies.
 
 
-## Components
 
-### Transcription Agent
+## Dependencies
 
-The interface for the transcription agents provides methods to have an agent join a meeting and get the transcriptions of the meeting.
+For call transcription, the current framework depends on the Vexa transcription agent. This can be replaced with any transcription agent that implements the TranscriptionAgent interface. More information about vexa can be found here: https://github.com/Vexa-ai/vexa/tree/main
 
-### Note Generator
-
-The interface for the Note Generator provides methods to have an agent call an LLM and get the response.
-
-### State manager
-
-  The state manager allows you to store the currently in review shot, its transcriptions, context about the version, the notes the LLM generated, and the notes the user has added.
-
+For note generation, the current framework implements OpenAI and LiteLLM. This can be replaced with any LLM that implements the LLMInterface interface. More information about OpenAI and LiteLLM can be found here: https://openai.com/api/ https://docs.litellm.ai/docs/
+To replace the LLM interface, you can pass the llmInterface parameter to the framework constructor. and update the `NoteGenerator` class to use the new LLM interface.
 
 ## Usage
 
@@ -87,12 +84,19 @@ framework.generateNotes(versionId);
 
 When working with react, you can use the useDNAFramework example hook to get the framework, state, and methods. This example can be found in the experimental/ilm/frontend-example directory.
 
-## Dependencies
+## Components
 
-For call transcription, the current framework depends on the Vexa transcription agent. This can be replaced with any transcription agent that implements the TranscriptionAgent interface. More information about vexa can be found here: https://github.com/Vexa-ai/vexa/tree/main
+### Transcription Agent
 
-For note generation, the current framework implements OpenAI and LiteLLM. This can be replaced with any LLM that implements the LLMInterface interface. More information about OpenAI and LiteLLM can be found here: https://openai.com/api/ https://docs.litellm.ai/docs/
-To replace the LLM interface, you can pass the llmInterface parameter to the framework constructor. and update the `NoteGenerator` class to use the new LLM interface.
+The interface for the transcription agents provides methods to have an agent join a meeting and get the transcriptions of the meeting.
+
+### Note Generator
+
+The interface for the Note Generator provides methods to have an agent call an LLM and get the response.
+
+### State manager
+
+  The state manager allows you to store the currently in review shot, its transcriptions, context about the version, the notes the LLM generated, and the notes the user has added.
 
 ## Stack
 
