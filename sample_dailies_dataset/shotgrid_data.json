@@ -1,0 +1,106 @@
+{
+  "Project": {
+    "type": "Project",
+    "id": 85,
+    "name": "Hyperspace Mini",
+    "code": null
+  },
+  "Shots": [
+    {
+      "type": "Shot",
+      "id": 1162,
+      "code": "HSM_SATL_0010",
+      "sg_sequence": "SATL",
+      "sg_cut_in": 1004,
+      "sg_cut_out": 1017,
+      "sg_cut_duration": 14,
+      "sg_status_list": "ip",
+      "sg_task_reviewed": "Light",
+      "sg_task_status": "ip",
+      "project": {
+        "type": "Project",
+        "id": 85
+      }
+    },
+    {
+      "type": "Shot",
+      "id": 1163,
+      "code": "HSM_SATL_0015",
+      "sg_sequence": "SATL",
+      "sg_cut_in": 1004,
+      "sg_cut_out": 1016,
+      "sg_cut_duration": 13,
+      "sg_status_list": "ip",
+      "sg_task_reviewed": "Comp",
+      "sg_task_status": "ip",
+      "project": {
+        "type": "Project",
+        "id": 85
+      }
+    },
+    {
+      "type": "Shot",
+      "id": 1164,
+      "code": "HSM_SATL_0020",
+      "sg_sequence": "SATL",
+      "sg_cut_in": 1003,
+      "sg_cut_out": 1014,
+      "sg_cut_duration": 12,
+      "sg_status_list": "ip",
+      "sg_task_reviewed": "FX",
+      "sg_task_status": "ip",
+      "project": {
+        "type": "Project",
+        "id": 85
+      }
+    },
+    {
+      "type": "Shot",
+      "id": 1166,
+      "code": "HSM_SATL_0040",
+      "sg_sequence": "SATL",
+      "sg_cut_in": 1004,
+      "sg_cut_out": 1020,
+      "sg_cut_duration": 17,
+      "sg_status_list": "ip",
+      "sg_task_reviewed": "Animation",
+      "sg_task_status": "ip",
+      "project": {
+        "type": "Project",
+        "id": 85
+      }
+    },
+    {
+      "type": "Shot",
+      "id": 1167,
+      "code": "HSM_SATL_0060",
+      "sg_sequence": "SATL",
+      "sg_cut_in": 1001,
+      "sg_cut_out": 1014,
+      "sg_cut_duration": 14,
+      "sg_status_list": "ip",
+      "sg_task_reviewed": "Comp",
+      "sg_task_status": "ip",
+      "project": {
+        "type": "Project",
+        "id": 85
+      }
+    },
+    {
+      "type": "Shot",
+      "id": 1168,
+      "code": "HSM_SATL_0050",
+      "sg_sequence": "SATL",
+      "sg_cut_in": 1005,
+      "sg_cut_out": 1029,
+      "sg_cut_duration": 25,
+      "sg_status_list": "ip",
+      "sg_task_reviewed": "FX",
+      "sg_task_status": "ip",
+      "project": {
+        "type": "Project",
+        "id": 85
+      }
+    }
+  ]
+}
