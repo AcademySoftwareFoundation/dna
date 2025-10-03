@@ -1,26 +1,16 @@
-"use client"
-
-import {
-  stopTranscription,
-  updateTranscriptionLanguage,
-  startWebSocketTranscription,
-  stopWebSocketTranscription,
-} from "./transcription-service"
-import { useEffect, useRef, useState, useCallback } from "react"
-
 // Utility: Clean text
-const cleanText = (text) => {
+export const cleanText = (text) => {
   if (!text) return ""
   return text.trim().replace(/\s+/g, " ")
 }
 
 // Utility: Key by absolute_start_time
-const getAbsKey = (segment) => {
+export const getAbsKey = (segment) => {
   return segment.absolute_start_time || segment.timestamp || segment.created_at || `no-utc-${segment.id || ''}`
 }
 
 // Utility: Merge segments by absolute UTC
-const mergeByAbsoluteUtc = (prev, incoming) => {
+export const mergeByAbsoluteUtc = (prev, incoming) => {
   const map = new Map()
   for (const s of prev) {
     const key = getAbsKey(s)
@@ -162,104 +152,4 @@ export function groupSegmentsBySpeaker(
     }
   }
   return splitGroups
-}
-
-// Custom hook for real-time transcription via WebSocket
-export function useTranscriptionWebSocket({ meetingId, isLive = true }) {
-  const [segments, setSegments] = useState([])
-  const [meetingStatus, setMeetingStatus] = useState(isLive ? "connecting" : null)
-  const [error, setError] = useState(null)
-  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false)
-  const internalMeetingId = useRef(null)
-
-  // WebSocket callbacks
-  const handleWebSocketTranscriptMutable = useCallback((newSegments) => {
-    const validSegments = newSegments
-      .filter(segment => segment.text && segment.text.trim().length > 0)
-      .filter(segment => segment.absolute_start_time)
-      .map(s => ({ ...s, text: cleanText(s.text) }))
-    if (validSegments.length === 0) return
-    setSegments(prev => mergeByAbsoluteUtc(prev, validSegments))
-  }, [])
-
-  const handleWebSocketTranscriptFinalized = useCallback((newSegments) => {
-    const validSegments = newSegments
-      .filter(segment => segment.text && segment.text.trim().length > 0)
-      .filter(segment => segment.absolute_start_time)
-      .map(s => ({ ...s, text: cleanText(s.text) }))
-    if (validSegments.length === 0) return
-    setSegments(prev => mergeByAbsoluteUtc(prev, validSegments))
-  }, [])
-
-  const handleWebSocketMeetingStatus = useCallback((status) => {
-    setMeetingStatus(status)
-    if (["completed", "failed", "error"].includes(status)) {
-      if (internalMeetingId.current) {
-        stopWebSocketTranscription(internalMeetingId.current)
-        setIsWebSocketConnected(false)
-      }
-    }
-  }, [])
-
-  const handleWebSocketError = useCallback((err) => {
-    setError(err)
-    setIsWebSocketConnected(false)
-  }, [])
-
-  const handleWebSocketConnected = useCallback(() => {
-    setIsWebSocketConnected(true)
-    setError(null)
-    setMeetingStatus("connected")
-  }, [])
-
-  const handleWebSocketDisconnected = useCallback(() => {
-    setIsWebSocketConnected(false)
-  }, [])
-
-  // Start/stop logic
-  useEffect(() => {
-    if (!meetingId || !isLive) return
-    // Clean up previous connection
-    if (internalMeetingId.current) {
-      stopWebSocketTranscription(internalMeetingId.current)
-      internalMeetingId.current = null
-    }
-    setSegments([])
-    setError(null)
-    setIsWebSocketConnected(false)
-    setMeetingStatus("connecting")
-    // Start new connection
-    const parts = meetingId.split('/')
-    const platform = parts[0] || 'google_meet'
-    const nativeId = parts[1] || meetingId
-    startWebSocketTranscription(
-      { platform, native_id: nativeId },
-      handleWebSocketTranscriptMutable,
-      handleWebSocketTranscriptFinalized,
-      handleWebSocketMeetingStatus,
-      handleWebSocketError,
-      handleWebSocketConnected,
-      handleWebSocketDisconnected
-    )
-    internalMeetingId.current = `${platform}/${nativeId}`
-    return () => {
-      if (internalMeetingId.current) {
-        stopWebSocketTranscription(internalMeetingId.current)
-      }
-    }
-  }, [meetingId, isLive, handleWebSocketTranscriptMutable, handleWebSocketTranscriptFinalized, handleWebSocketMeetingStatus, handleWebSocketError, handleWebSocketConnected, handleWebSocketDisconnected])
-
-  // Expose state and helpers
-  return {
-    segments,
-    meetingStatus,
-    error,
-    isWebSocketConnected,
-    stop: () => {
-      if (meetingId) stopTranscription(meetingId)
-    },
-    updateLanguage: (lang) => {
-      if (meetingId) updateTranscriptionLanguage(meetingId, lang)
-    },
-  }
 }

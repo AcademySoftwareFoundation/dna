@@ -20,7 +20,7 @@ except ImportError:
     # python-dotenv not installed, environment variables should be set manually
     pass
 
-DISABLE_VEXA = True
+DISABLE_VEXA = False
 DISABLE_LLM = True
 
 app = FastAPI()
