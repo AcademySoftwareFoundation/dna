@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "./ui.css";
 import { startTranscription, startWebSocketTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
 import { getWebSocketService } from '../lib/websocket-service';
+import { useTranscriptionWebSocket, groupSegmentsBySpeaker } from '../lib/transcription-display';
 
 function StatusBadge({ type = "info", children }) {
   if (!children) return null;
@@ -517,6 +518,29 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Add a demo transcription field using the new hook
+  const [transcriptionText, setTranscriptionText] = useState("");
+  const meetingId = joinedMeetId; // or use meetId if appropriate
+  const {
+    segments,
+    meetingStatus,
+    error,
+    isWebSocketConnected,
+    stop,
+    updateLanguage,
+  } = useTranscriptionWebSocket({ meetingId, isLive: true });
+
+  useEffect(() => {
+    // Update transcriptionText whenever segments change
+    if (segments && segments.length > 0) {
+      const grouped = groupSegmentsBySpeaker(segments);
+      const text = grouped.map(g => `${g.speaker}: ${g.combinedText}`).join('\n');
+      setTranscriptionText(text);
+    } else {
+      setTranscriptionText("");
+    }
+  }, [segments]);
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -686,6 +710,14 @@ function App() {
             </div>
           )}
         </section>
+
+        {/* Live Transcription Display (WebSocket) */}
+        <div style={{ margin: '16px 0', padding: '12px', border: '1px solid #eee', borderRadius: 6 }}>
+          <h3>Live Transcription (WebSocket)</h3>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{transcriptionText || 'No transcription yet.'}</pre>
+          {meetingStatus && <div>Status: {meetingStatus}</div>}
+          {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+        </div>
       </main>
 
       {/* Floating Bot Status and Transcript Control */}
