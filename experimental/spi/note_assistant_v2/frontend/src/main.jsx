@@ -282,10 +282,43 @@ function App() {
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
+          // Transcript Mutable Event: can be used for live preview if desired
           console.log('Transcript Mutable Event:', segments);
         },
         (segments) => {
+          // Transcript Finalized Event: update UI transcription
           console.log('Transcript Finalized Event:', segments);
+          if (segments && segments.length > 0) {
+            setRows(prevRows => {
+              let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+              if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
+              const row = prevRows[activeIndex];
+              let lines = (row.transcription || '').split(/\n/).filter(Boolean);
+              let lastSpeaker = null;
+              if (lines.length > 0) {
+                for (let i = lines.length - 1; i >= 0; i--) {
+                  const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
+                  if (m) { lastSpeaker = m[1]; break; }
+                }
+              }
+              segments.forEach(seg => {
+                if (!seg.text) return;
+                if (seg.speaker) {
+                  if (seg.speaker === lastSpeaker && lines.length > 0) {
+                    lines[lines.length - 1] += ` ${seg.text}`;
+                  } else {
+                    lines.push(`${seg.speaker}: ${seg.text}`);
+                    lastSpeaker = seg.speaker;
+                  }
+                } else {
+                  lines.push(seg.text);
+                  lastSpeaker = null;
+                }
+              });
+              const updatedTranscription = lines.join('\n');
+              return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
+            });
+          }
         },
         (statusValue) => {
           // Update bot status in UI using setStatus

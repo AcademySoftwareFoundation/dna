@@ -1009,8 +1009,8 @@ export async function startWebSocketTranscription(
       if (count % 3 === 0) {
         onTranscriptFinalized([segment]);
       }
-      // Simulate meeting completion after 10 segments
-      if (count === 10) {
+      // Simulate meeting completion after 100 segments
+      if (count === 100) {
         onMeetingStatus('completed');
         clearInterval(interval);
         setTimeout(() => {
