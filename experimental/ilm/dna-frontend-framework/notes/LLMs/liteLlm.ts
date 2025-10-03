@@ -1,6 +1,4 @@
-import { Configuration } from "../../types";
 import { LLMInterface } from "./llmInterface";
-import OpenAI from 'openai';
 
 export class LiteLlmInterface extends LLMInterface {
 
