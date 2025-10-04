@@ -20,6 +20,7 @@ function App() {
   const [rows, setRows] = useState([]); // [{shot, transcription, summary}]
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPollingTranscripts, setIsPollingTranscripts] = useState(false);
+  const isPollingTranscriptsRef = useRef(isPollingTranscripts);
   const [joinedMeetId, setJoinedMeetId] = useState("");
   const [lastSegmentIndex, setLastSegmentIndex] = useState(-1); // Track last received segment
   const [botIsActive, setBotIsActive] = useState(false);
@@ -28,7 +29,6 @@ function App() {
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [manualTranscriptPolling, setManualTranscriptPolling] = useState(false);
   const [mutableSegments, setMutableSegments] = useState([]);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
@@ -44,6 +44,11 @@ function App() {
   useEffect(() => {
     lastSegmentIndexRef.current = lastSegmentIndex;
   }, [lastSegmentIndex]);
+
+  // Update the ref whenever isPollingTranscripts changes
+  useEffect(() => {
+    isPollingTranscriptsRef.current = isPollingTranscripts;
+  }, [isPollingTranscripts]);
 
   // Function to fetch and update transcripts
   const fetchTranscripts = async (meetingId) => {
@@ -191,6 +196,7 @@ function App() {
 
   // Start transcript polling (only called internally)
   const startTranscriptPolling = (meetingId) => {
+    console.log('startTranscriptPolling called, isPollingTranscripts:', isPollingTranscripts);
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
@@ -198,9 +204,9 @@ function App() {
     setJoinedMeetId(meetingId);
     setLastSegmentIndex(-1); // Reset segment index for new meeting
     lastSegmentIndexRef.current = -1; // Reset ref as well
-    pollingIntervalRef.current = setInterval(() => {
+/*     pollingIntervalRef.current = setInterval(() => {
       fetchTranscripts(meetingId);
-    }, 2000);
+    }, 2000); */
   };
 
   // Stop transcript polling (only called internally)
@@ -216,6 +222,7 @@ function App() {
 
   // Manual transcript polling control
   const handleTranscriptPollingToggle = () => {
+    console.log('handleTranscriptPollingToggle called, isPollingTranscripts:', isPollingTranscripts);
     if (isPollingTranscripts) {
       // Stop polling
       if (pollingIntervalRef.current) {
@@ -223,12 +230,10 @@ function App() {
         pollingIntervalRef.current = null;
       }
       setIsPollingTranscripts(false);
-      setManualTranscriptPolling(false);
     } else {
       // Start polling
       if (joinedMeetId) {
         startTranscriptPolling(joinedMeetId);
-        setManualTranscriptPolling(true);
       }
     }
   };
@@ -284,43 +289,15 @@ function App() {
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
-          // Transcript Mutable Event: can be used for live preview if desired
-          setMutableSegments(prev => mergeByAbsoluteUtc(prev, segments));
-          console.log('Transcript Mutable Event:', segments);
+          console.log('Transcript Mutable Event:', segments, isPollingTranscriptsRef.current);
+          if(!isPollingTranscriptsRef.current) return;
+          setRows(prevRows => appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef));
         },
         (segments) => {
           // Transcript Finalized Event: update UI transcription
-          console.log('Transcript Finalized Event:', segments);
+          if(!isPollingTranscriptsRef.current) return;
           if (segments && segments.length > 0) {
-            setRows(prevRows => {
-              let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
-              if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
-              const row = prevRows[activeIndex];
-              let lines = (row.transcription || '').split(/\n/).filter(Boolean);
-              let lastSpeaker = null;
-              if (lines.length > 0) {
-                for (let i = lines.length - 1; i >= 0; i--) {
-                  const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
-                  if (m) { lastSpeaker = m[1]; break; }
-                }
-              }
-              segments.forEach(seg => {
-                if (!seg.text) return;
-                if (seg.speaker) {
-                  if (seg.speaker === lastSpeaker && lines.length > 0) {
-                    lines[lines.length - 1] += ` ${seg.text}`;
-                  } else {
-                    lines.push(`${seg.speaker}: ${seg.text}`);
-                    lastSpeaker = seg.speaker;
-                  }
-                } else {
-                  lines.push(seg.text);
-                  lastSpeaker = null;
-                }
-              });
-              const updatedTranscription = lines.join('\n');
-              return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
-            });
+            setRows(prevRows => appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef));
           }
         },
         (statusValue) => {
@@ -332,10 +309,9 @@ function App() {
             setWaitingForActive(false);
           }
           // Stop transcript polling when status is 'completed'
-          if (statusValue === 'completed' && isPollingTranscripts) {
+          if (statusValue === 'completed' && isPollingTranscriptsRef.current) {
             stopTranscriptPolling();
             setBotIsActive(false);
-            setManualTranscriptPolling(false);
           }
         },
         (error) => {
@@ -454,7 +430,6 @@ function App() {
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
-        setManualTranscriptPolling(false);
         stopTranscriptPolling();
       } else {
         setStatus({ msg: "Failed to exit bot.", type: "error" });
@@ -519,6 +494,36 @@ function App() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  function appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef) {
+    let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+    if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
+    const row = prevRows[activeIndex];
+    let lines = (row.transcription || '').split(/\n/).filter(Boolean);
+    let lastSpeaker = null;
+    if (lines.length > 0) {
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
+        if (m) { lastSpeaker = m[1]; break; }
+      }
+    }
+    segments.forEach(seg => {
+      if (!seg.text) return;
+      if (seg.speaker) {
+        if (seg.speaker === lastSpeaker && lines.length > 0) {
+          lines[lines.length - 1] += ` ${seg.text}`;
+        } else {
+          lines.push(`${seg.speaker}: ${seg.text}`);
+          lastSpeaker = seg.speaker;
+        }
+      } else {
+        lines.push(seg.text);
+        lastSpeaker = null;
+      }
+    });
+    const updatedTranscription = lines.join('\n');
+    return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
+  }
 
   return (
     <div className="app-shell">
