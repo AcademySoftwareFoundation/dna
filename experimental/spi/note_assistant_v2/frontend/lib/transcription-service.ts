@@ -995,20 +995,38 @@ export async function startWebSocketTranscription(
     }, 500);
     // Simulate transcript events every 2 seconds
     let count = 0;
-    const speakers = ['John', 'Sarah', 'Michael', 'Alice', 'Bob'];
+    const creativeFeedbacks = [
+      { speaker: "KJ", text: "The lighting on this shot looks great, but I think the shadows could be softer." },
+      { speaker: "BH", text: "Agreed, maybe the artist can try a different falloff on the key light?" },
+      { speaker: "CR", text: "I'll make a note to ask for a softer shadow pass." },
+      { speaker: "KJ", text: "The character's expression is much improved from the last version." },
+      { speaker: "BH", text: "Yes, but the hand movement still feels a bit stiff." },
+      { speaker: "CR", text: "Should we suggest a reference for more natural hand motion?" },
+      { speaker: "KJ", text: "Let's approve the background, but request tweaks on the character animation." },
+      { speaker: "BH", text: "I'll mark the background as finalled in ShotGrid." },
+      { speaker: "CR", text: "I'll send the artist a note about the animation feedback." },
+      { speaker: "KJ", text: "The color grade is close, but the highlights are a bit too hot." },
+      { speaker: "BH", text: "Maybe ask the artist to bring down the highlight gain by 10%." },
+      { speaker: "CR", text: "Noted, I'll include that in the feedback summary." },
+      { speaker: "KJ", text: "Great progress overall, just a few minor notes for the next version." },
+      { speaker: "BH", text: "Let's target final for the next review if these are addressed." },
+      { speaker: "CR", text: "I'll communicate the action items and next steps to the artist." }
+    ];
     const interval = setInterval(() => {
+      const feedback = creativeFeedbacks[count % creativeFeedbacks.length];
       const segment: TranscriptionSegment = {
         id: `mock-${Date.now()}`,
-        text: `Mock transcript segment #${++count}: ${Math.random().toString(36).substring(2, 15)}`,
+        text: feedback.text,
         timestamp: new Date().toISOString(),
-        speaker: speakers[Math.floor(Math.random() * speakers.length)],
+        speaker: feedback.speaker,
         language: 'en',
       };
       onTranscriptMutable([segment]);
       // Simulate finalized every 3 segments
-      if (count % 3 === 0) {
+      if ((count + 1) % 3 === 0) {
         onTranscriptFinalized([segment]);
       }
+      count++;
       // Simulate meeting completion after 100 segments
       if (count === 100) {
         onMeetingStatus('completed');
