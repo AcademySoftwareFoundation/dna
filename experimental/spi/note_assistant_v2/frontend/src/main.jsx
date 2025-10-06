@@ -495,34 +495,60 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // --- Algorithmic transcript upsert and grouping (from ws_realtime_transcription.py) ---
   function appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef) {
     let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
     if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
     const row = prevRows[activeIndex];
-    let lines = (row.transcription || '').split(/\n/).filter(Boolean);
-    let lastSpeaker = null;
-    if (lines.length > 0) {
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
-        if (m) { lastSpeaker = m[1]; break; }
-      }
-    }
+    // Use a persistent map to store segments by absolute_start_time
+    if (!row._transcriptByAbsStart) row._transcriptByAbsStart = {};
+    // Upsert new segments (deduplicate by absolute_start_time, keep latest by updated_at)
     segments.forEach(seg => {
-      if (!seg.text) return;
-      if (seg.speaker) {
-        if (seg.speaker === lastSpeaker && lines.length > 0) {
-          lines[lines.length - 1] += ` ${seg.text}`;
-        } else {
-          lines.push(`${seg.speaker}: ${seg.text}`);
-          lastSpeaker = seg.speaker;
-        }
+      const absStart = seg.absolute_start_time;
+      if (!absStart || !seg.text || !seg.text.trim()) return;
+      const existing = row._transcriptByAbsStart[absStart];
+      if (existing && existing.updated_at && seg.updated_at) {
+        if (seg.updated_at < existing.updated_at) return; // keep newer
+      }
+      row._transcriptByAbsStart[absStart] = seg;
+    });
+    // Sort segments by absolute_start_time
+    const sortedSegments = Object.values(row._transcriptByAbsStart)
+      .filter(s => s.absolute_start_time)
+      .sort((a, b) => (a.absolute_start_time < b.absolute_start_time ? -1 : 1));
+    // Group consecutive segments by speaker
+    const groups = [];
+    let currentGroup = null;
+    const cleanText = t => (t || '').replace(/\s+/g, ' ').trim();
+    sortedSegments.forEach(seg => {
+      const speaker = seg.speaker || 'Unknown';
+      const text = cleanText(seg.text);
+      if (!text) return;
+      if (currentGroup && currentGroup.speaker === speaker) {
+        currentGroup.text += ' ' + text;
+        currentGroup.end_time = seg.absolute_end_time || seg.absolute_start_time;
       } else {
-        lines.push(seg.text);
-        lastSpeaker = null;
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = {
+          speaker,
+          text,
+          start_time: seg.absolute_start_time,
+          end_time: seg.absolute_end_time || seg.absolute_start_time
+        };
       }
     });
+    if (currentGroup) groups.push(currentGroup);
+    // Render grouped transcript as lines
+    const lines = groups.map(g => `${g.speaker}: ${g.text}`);
     const updatedTranscription = lines.join('\n');
-    return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
+    // Store the updated map for future calls
+    const updatedRows = prevRows.map((r, idx) => {
+      if (idx === activeIndex) {
+        return { ...r, transcription: updatedTranscription, _transcriptByAbsStart: row._transcriptByAbsStart };
+      }
+      return r;
+    });
+    return updatedRows;
   }
 
   return (
