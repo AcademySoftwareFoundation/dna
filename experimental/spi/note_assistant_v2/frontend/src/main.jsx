@@ -495,7 +495,7 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  // --- Algorithmic transcript upsert and grouping (from ws_realtime_transcription.py) ---
+  // --- Algorithmic transcript upsert and grouping (from ws_realtime_transcription.py, append-only mode) ---
   function appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef) {
     let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
     if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
@@ -540,7 +540,17 @@ function App() {
     if (currentGroup) groups.push(currentGroup);
     // Render grouped transcript as lines
     const lines = groups.map(g => `${g.speaker}: ${g.text}`);
-    const updatedTranscription = lines.join('\n');
+    // Only append new lines to the current transcription
+    const currentLines = (row.transcription || '').split(/\n/).filter(Boolean);
+    let firstDiffIdx = 0;
+    while (firstDiffIdx < currentLines.length && firstDiffIdx < lines.length && currentLines[firstDiffIdx] === lines[firstDiffIdx]) {
+      firstDiffIdx++;
+    }
+    // If user has edited, preserve their edits and only append new lines
+    const updatedTranscription = [
+      ...currentLines,
+      ...lines.slice(currentLines.length)
+    ].join('\n');
     // Store the updated map for future calls
     const updatedRows = prevRows.map((r, idx) => {
       if (idx === activeIndex) {
