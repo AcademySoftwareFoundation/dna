@@ -14,13 +14,10 @@ This is the list of timestamps and versions for what was reviewed when.
 ### shotgrid_data.json
 This is the data directly from SG for the 6 versions reviewed.
 
-## Full Audio Recording
-
-[Demo Review Session Recording .MP3](https://bucket.camerontarget.com/ASWF/demo_review_session_recording.mp3)
-
-[Demo Review Session Recording .WAV](https://bucket.camerontarget.com/ASWF/demo_review_session_recording.wav)
-
 ## Shots Used
+
+[SyncSketch Link](https://syncsketch.com/sketch/SzhAcknFZag4/)
+
 [HSM_SATL_0010](https://bucket.camerontarget.com/ASWF/HSM_SATL_0010_TD.mov)
 [HSM_SATL_0015](https://bucket.camerontarget.com/ASWF/HSM_SATL_0015_TD.mov)
 [HSM_SATL_0020](https://bucket.camerontarget.com/ASWF/HSM_SATL_0020_TD.mov)
