@@ -1012,6 +1012,8 @@ export async function startWebSocketTranscription(
       { speaker: "BH", text: "Let's target final for the next review if these are addressed." },
       { speaker: "CR", text: "I'll communicate the action items and next steps to the artist." }
     ];
+    // Accumulate all segments as in real WebSocket
+    const allSegments: TranscriptionSegment[] = [];
     const interval = setInterval(() => {
       const feedback = creativeFeedbacks[count % creativeFeedbacks.length];
       const segment: TranscriptionSegment = {
@@ -1021,10 +1023,11 @@ export async function startWebSocketTranscription(
         speaker: feedback.speaker,
         language: 'en',
       };
-      onTranscriptMutable([segment]);
+      allSegments.push(segment);
+      onTranscriptMutable([...allSegments]);
       // Simulate finalized every 3 segments
       if ((count + 1) % 3 === 0) {
-        onTranscriptFinalized([segment]);
+        onTranscriptFinalized([...allSegments]);
       }
       count++;
       // Simulate meeting completion after 100 segments
@@ -1066,7 +1069,7 @@ export async function startWebSocketTranscription(
       }
       
       // Try different possible locations for single segment data
-      let segmentData = null;
+      let segmentData: any = null;
       
       if (event.payload?.segment) {
         segmentData = event.payload.segment;
@@ -1114,7 +1117,7 @@ export async function startWebSocketTranscription(
       }
       
       // Try different possible locations for single segment data
-      let segmentData = null;
+      let segmentData: any = null;
       
       if (event.payload?.segment) {
         segmentData = event.payload.segment;
