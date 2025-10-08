@@ -1049,108 +1049,92 @@ export async function startWebSocketTranscription(
 
   // Set up event handlers
   wsService.setOnTranscriptMutable((event: TranscriptMutableEvent) => {
-    console.log("🟢 [TRANSCRIPTION SERVICE] Received transcript.mutable:", event);
-    console.log("🟢 [TRANSCRIPTION SERVICE] Event payload:", event.payload);
-    console.log("🟢 [TRANSCRIPTION SERVICE] Event payload keys:", event.payload ? Object.keys(event.payload) : "null");
-    
+    // console.log("🟢 [TRANSCRIPTION SERVICE] Received transcript.mutable:", event);
+    // console.log("🟢 [TRANSCRIPTION SERVICE] Event payload:", event.payload);
+    // console.log("🟢 [TRANSCRIPTION SERVICE] Event payload keys:", event.payload ? Object.keys(event.payload) : "null");
     try {
       // Check if payload contains segments array
       if (event.payload?.segments && Array.isArray(event.payload.segments)) {
-        console.log("🟢 [TRANSCRIPTION SERVICE] Found segments array with", event.payload.segments.length, "segments");
-        
+        // console.log("🟢 [TRANSCRIPTION SERVICE] Found segments array with", event.payload.segments.length, "segments");
         // Convert each segment in the array
         const convertedSegments = event.payload.segments.map((segmentData: any) => {
           return convertWebSocketSegment(segmentData, meetingIdString);
         });
-        
-        console.log("🟢 [TRANSCRIPTION SERVICE] Converted", convertedSegments.length, "segments");
+        // console.log("🟢 [TRANSCRIPTION SERVICE] Converted", convertedSegments.length, "segments");
         onTranscriptMutable(convertedSegments);
         return;
       }
-      
       // Try different possible locations for single segment data
       let segmentData: any = null;
-      
       if (event.payload?.segment) {
         segmentData = event.payload.segment;
-        console.log("🟢 [TRANSCRIPTION SERVICE] Found single segment in payload.segment");
+        // console.log("🟢 [TRANSCRIPTION SERVICE] Found single segment in payload.segment");
       } else if (event.payload) {
-        // Maybe the segment data is directly in payload
         segmentData = event.payload;
-        console.log("🟢 [TRANSCRIPTION SERVICE] Using payload as single segment data");
+        // console.log("🟢 [TRANSCRIPTION SERVICE] Using payload as single segment data");
       } else if ((event as any).segment) {
-        // Maybe segment is directly in event
         segmentData = (event as any).segment;
-        console.log("🟢 [TRANSCRIPTION SERVICE] Found single segment directly in event");
+        // console.log("🟢 [TRANSCRIPTION SERVICE] Found single segment directly in event");
       } else {
-        console.error("🟢 [TRANSCRIPTION SERVICE] No segment data found in event");
-        console.log("🟢 [TRANSCRIPTION SERVICE] Full event structure:", JSON.stringify(event, null, 2));
+        // console.error("🟢 [TRANSCRIPTION SERVICE] No segment data found in event");
+        // console.log("🟢 [TRANSCRIPTION SERVICE] Full event structure:", JSON.stringify(event, null, 2));
         return;
       }
-      
       const segment = convertWebSocketSegment(segmentData, meetingId.toString())
       onTranscriptMutable([segment])
     } catch (error) {
-      console.error("🟢 [TRANSCRIPTION SERVICE] Error processing transcript.mutable:", error);
-      console.error("🟢 [TRANSCRIPTION SERVICE] Event structure:", event);
+      // console.error("🟢 [TRANSCRIPTION SERVICE] Error processing transcript.mutable:", error);
+      // console.error("🟢 [TRANSCRIPTION SERVICE] Event structure:", event);
     }
   })
 
   wsService.setOnTranscriptFinalized((event: TranscriptFinalizedEvent) => {
-    console.log("🔵 [TRANSCRIPTION SERVICE] Received transcript.finalized:", event);
-    console.log("🔵 [TRANSCRIPTION SERVICE] Event payload:", event.payload);
-    console.log("🔵 [TRANSCRIPTION SERVICE] Event payload keys:", event.payload ? Object.keys(event.payload) : "null");
-    
+    // console.log("🔵 [TRANSCRIPTION SERVICE] Received transcript.finalized:", event);
+    // console.log("🔵 [TRANSCRIPTION SERVICE] Event payload:", event.payload);
+    // console.log("🔵 [TRANSCRIPTION SERVICE] Event payload keys:", event.payload ? Object.keys(event.payload) : "null");
     try {
       // Check if payload contains segments array
       if (event.payload?.segments && Array.isArray(event.payload.segments)) {
-        console.log("🔵 [TRANSCRIPTION SERVICE] Found segments array with", event.payload.segments.length, "segments");
-        
+        // console.log("🔵 [TRANSCRIPTION SERVICE] Found segments array with", event.payload.segments.length, "segments");
         // Convert each segment in the array
         const convertedSegments = event.payload.segments.map((segmentData: any) => {
           return convertWebSocketSegment(segmentData, meetingId.toString());
         });
-        
-        console.log("🔵 [TRANSCRIPTION SERVICE] Converted", convertedSegments.length, "segments");
+        // console.log("🔵 [TRANSCRIPTION SERVICE] Converted", convertedSegments.length, "segments");
         onTranscriptFinalized(convertedSegments);
         return;
       }
-      
       // Try different possible locations for single segment data
       let segmentData: any = null;
-      
       if (event.payload?.segment) {
         segmentData = event.payload.segment;
-        console.log("🔵 [TRANSCRIPTION SERVICE] Found single segment in payload.segment");
+        // console.log("🔵 [TRANSCRIPTION SERVICE] Found single segment in payload.segment");
       } else if (event.payload) {
-        // Maybe the segment data is directly in payload
         segmentData = event.payload;
-        console.log("🔵 [TRANSCRIPTION SERVICE] Using payload as single segment data");
+        // console.log("🔵 [TRANSCRIPTION SERVICE] Using payload as single segment data");
       } else if ((event as any).segment) {
-        // Maybe segment is directly in event
         segmentData = (event as any).segment;
-        console.log("🔵 [TRANSCRIPTION SERVICE] Found single segment directly in event");
+        // console.log("🔵 [TRANSCRIPTION SERVICE] Found single segment directly in event");
       } else {
-        console.error("🔵 [TRANSCRIPTION SERVICE] No segment data found in event");
-        console.log("🔵 [TRANSCRIPTION SERVICE] Full event structure:", JSON.stringify(event, null, 2));
+        // console.error("🔵 [TRANSCRIPTION SERVICE] No segment data found in event");
+        // console.log("🔵 [TRANSCRIPTION SERVICE] Full event structure:", JSON.stringify(event, null, 2));
         return;
       }
-      
       const segment = convertWebSocketSegment(segmentData, meetingId.toString())
       onTranscriptFinalized([segment])
     } catch (error) {
-      console.error("🔵 [TRANSCRIPTION SERVICE] Error processing transcript.finalized:", error);
-      console.error("🔵 [TRANSCRIPTION SERVICE] Event structure:", event);
+      // console.error("🔵 [TRANSCRIPTION SERVICE] Error processing transcript.finalized:", error);
+      // console.error("🔵 [TRANSCRIPTION SERVICE] Event structure:", event);
     }
   })
 
   wsService.setOnMeetingStatus((event: MeetingStatusEvent) => {
-    console.log("🟡 [TRANSCRIPTION SERVICE] Received meeting.status:", event);
+    // console.log("🟡 [TRANSCRIPTION SERVICE] Received meeting.status:", event);
     try {
       onMeetingStatus(event.payload?.status || "unknown")
     } catch (error) {
-      console.error("🟡 [TRANSCRIPTION SERVICE] Error processing meeting.status:", error);
-      console.error("🟡 [TRANSCRIPTION SERVICE] Event structure:", event);
+      // console.error("🟡 [TRANSCRIPTION SERVICE] Error processing meeting.status:", error);
+      // console.error("🟡 [TRANSCRIPTION SERVICE] Event structure:", event);
     }
   })
 
