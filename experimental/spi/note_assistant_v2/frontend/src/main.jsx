@@ -244,6 +244,9 @@ function App() {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
+      if (statusPollingIntervalRef.current) {
+        clearInterval(statusPollingIntervalRef.current);
+      }
     };
   }, []);
 
@@ -261,7 +264,56 @@ function App() {
     return '';
   };
 
-  // Replace the handleSubmit function to call startWebSocketTranscription for testing
+  // Bot status polling
+  const statusPollingIntervalRef = useRef(null);
+  
+  const startBotStatusPolling = (meetingIdForStatus) => {
+    if (statusPollingIntervalRef.current) {
+      clearInterval(statusPollingIntervalRef.current);
+    }
+    
+    const pollBotStatus = async () => {
+      try {
+        const { platform, nativeMeetingId } = parseMeetingUrl(meetingIdForStatus);
+        const res = await fetch(`http://localhost:8000/bot-status/${platform}/${nativeMeetingId}`);
+        const data = await res.json();
+        
+        if (res.ok) {
+          const statusValue = data.status;
+          const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
+          setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
+          setBotIsActive(isActiveStatus);
+          
+          if (waitingForActive && isActiveStatus) {
+            setWaitingForActive(false);
+          }
+          
+          // Stop polling when status is 'completed' or 'error'
+          if (statusValue === 'completed' || statusValue === 'error') {
+            stopBotStatusPolling();
+            if (statusValue === 'completed') {
+              stopTranscriptPolling();
+              setBotIsActive(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error polling bot status:', err);
+      }
+    };
+    
+    // Poll immediately and then every 2 seconds
+    pollBotStatus();
+    statusPollingIntervalRef.current = setInterval(pollBotStatus, 2000);
+  };
+  
+  const stopBotStatusPolling = () => {
+    if (statusPollingIntervalRef.current) {
+      clearInterval(statusPollingIntervalRef.current);
+      statusPollingIntervalRef.current = null;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const rawInput = meetId.trim();
@@ -274,59 +326,34 @@ function App() {
     setWaitingForActive(true);
     setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
     stopTranscriptPolling();
+    stopBotStatusPolling();
+    
     try {
-      // Add bot to meeting first
-      const startResult = await startTranscription(fullUrl);
-      if (!startResult.success) {
+      // Call backend API to submit meeting ID
+      const { platform, nativeMeetingId } = parseMeetingUrl(fullUrl);
+      const res = await fetch('http://localhost:8000/submit-meet-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meet_id: nativeMeetingId }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success') {
         setStatus({ msg: "Failed to add bot to meeting.", type: "error" });
         setSubmitting(false);
+        setWaitingForActive(false);
         return;
       }
-      const meetingIdForWS = startResult.meetingId;
-      console.log('[DEBUG] Meeting ID from startTranscription:', meetingIdForWS);
+      
+      console.log('[DEBUG] Bot request successful:', data);
       setJoinedMeetId(fullUrl);
-      // Subscribe to WebSocket events for this meeting
-      await startWebSocketTranscription(
-        meetingIdForWS,
-        (segments) => {
-          console.log('Transcript Mutable Event:', segments, isPollingTranscriptsRef.current);
-          if(!isPollingTranscriptsRef.current) return;
-          setRows(prevRows => appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef));
-        },
-        (segments) => {
-          // Transcript Finalized Event: update UI transcription
-          if(!isPollingTranscriptsRef.current) return;
-          if (segments && segments.length > 0) {
-            setRows(prevRows => appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef));
-          }
-        },
-        (statusValue) => {
-          // Update bot status in UI using setStatus
-          const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
-          setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
-          setBotIsActive(isActiveStatus);
-          if (waitingForActive && isActiveStatus) {
-            setWaitingForActive(false);
-          }
-          // Stop transcript polling when status is 'completed'
-          if (statusValue === 'completed' && isPollingTranscriptsRef.current) {
-            stopTranscriptPolling();
-            setBotIsActive(false);
-          }
-        },
-        (error) => {
-          console.error('WebSocket Error Event:', error);
-        },
-        () => {
-          console.log('WebSocket Connected');
-        },
-        () => {
-          console.log('WebSocket Disconnected');
-        }
-      );
+      
+      // Start polling for bot status instead of using WebSocket
+      startBotStatusPolling(fullUrl);
+      
     } catch (err) {
-      setStatus({ msg: "Error connecting to WebSocket for transcript updates", type: "error" });
-      console.error('startWebSocketTranscription error:', err);
+      setStatus({ msg: "Error starting transcription", type: "error" });
+      console.error('Error submitting meet ID:', err);
       setWaitingForActive(false);
     } finally {
       setSubmitting(false);
@@ -423,14 +450,18 @@ function App() {
     try {
       // Parse joinedMeetId to get platform/nativeMeetingId
       const { platform, nativeMeetingId } = parseMeetingUrl(joinedMeetId);
-      const meetingIdForStop = `${platform}/${nativeMeetingId}`;
-      const res = await stopTranscription(meetingIdForStop);
-      if (res.success) {
+      const res = await fetch(`http://localhost:8000/stop-bot/${platform}/${nativeMeetingId}`, {
+        method: 'POST',
+      });
+      
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
         setStatus({ msg: "Bot exited successfully.", type: "success" });
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
         stopTranscriptPolling();
+        stopBotStatusPolling();
       } else {
         setStatus({ msg: "Failed to exit bot.", type: "error" });
       }
