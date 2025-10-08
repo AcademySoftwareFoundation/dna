@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
-import { startTranscription, startWebSocketTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
+import { startTranscription, startWebSocketTranscription, stopWebSocketTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
 import { getWebSocketService } from '../lib/websocket-service';
 import { groupSegmentsBySpeaker, mergeByAbsoluteUtc } from '../lib/transcription-display';
 
@@ -195,7 +195,7 @@ function App() {
   };
 
   // Start transcript polling (only called internally)
-  const startTranscriptPolling = (meetingId) => {
+  const startTranscriptPolling = async (meetingId) => {
     console.log('startTranscriptPolling called, isPollingTranscripts:', isPollingTranscripts);
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -203,14 +203,52 @@ function App() {
     setIsPollingTranscripts(true);
     setJoinedMeetId(meetingId);
     setLastSegmentIndex(-1); // Reset segment index for new meeting
-    lastSegmentIndexRef.current = -1; // Reset ref as well
-/*     pollingIntervalRef.current = setInterval(() => {
-      fetchTranscripts(meetingId);
-    }, 2000); */
+    lastSegmentIndexRef.current = -1;
+    
+    try {
+      // Parse meeting ID to get the format needed for WebSocket
+      const { platform, nativeMeetingId } = parseMeetingUrl(meetingId);
+      const meetingIdForWS = `${platform}/${nativeMeetingId}`;
+      
+      // Start WebSocket transcription for real-time updates
+      await startWebSocketTranscription(
+        meetingIdForWS,
+        (segments) => {
+          // Transcript Mutable Event: print to console for now
+          console.log('🟢 WebSocket Transcript Mutable Event:', segments);
+          if (!isPollingTranscriptsRef.current) return;
+          // TODO: Update UI with mutable segments
+        },
+        (segments) => {
+          // Transcript Finalized Event: print to console for now
+          console.log('🔵 WebSocket Transcript Finalized Event:', segments);
+          if (!isPollingTranscriptsRef.current) return;
+          // TODO: Update UI with finalized segments
+        },
+        (statusValue) => {
+          // Meeting Status Event: print to console for now
+          console.log('🟡 WebSocket Meeting Status Event:', statusValue);
+        },
+        (error) => {
+          // Error Event: print to console
+          console.error('🔴 WebSocket Error Event:', error);
+        },
+        () => {
+          // Connected Event: print to console
+          console.log('✅ WebSocket Connected');
+        },
+        () => {
+          // Disconnected Event: print to console
+          console.log('❌ WebSocket Disconnected');
+        }
+      );
+    } catch (err) {
+      console.error('Error starting WebSocket transcription:', err);
+    }
   };
 
   // Stop transcript polling (only called internally)
-  const stopTranscriptPolling = () => {
+  const stopTranscriptPolling = async () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
@@ -218,6 +256,18 @@ function App() {
     setIsPollingTranscripts(false);
     setLastSegmentIndex(-1); // Reset segment index
     lastSegmentIndexRef.current = -1; // Reset ref as well
+    
+    // Stop WebSocket connection if active
+    if (joinedMeetId) {
+      try {
+        const { platform, nativeMeetingId } = parseMeetingUrl(joinedMeetId);
+        const meetingIdForWS = `${platform}/${nativeMeetingId}`;
+        await stopWebSocketTranscription(meetingIdForWS);
+        console.log('WebSocket transcription stopped');
+      } catch (err) {
+        console.error('Error stopping WebSocket transcription:', err);
+      }
+    }
   };
 
   // Manual transcript polling control
@@ -225,11 +275,7 @@ function App() {
     console.log('handleTranscriptPollingToggle called, isPollingTranscripts:', isPollingTranscripts);
     if (isPollingTranscripts) {
       // Stop polling
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      setIsPollingTranscripts(false);
+      stopTranscriptPolling();
     } else {
       // Start polling
       if (joinedMeetId) {

@@ -106,7 +106,7 @@ export class TranscriptionWebSocketService {
       this.url = 'wss://devapi.dev.vexa.ai/ws'
     }
     
-    console.log("WebSocket URL derived:", this.url)
+    // console.log("WebSocket URL derived:", this.url)
   }
 
   private getApiBaseUrl(): string {
@@ -135,7 +135,7 @@ export class TranscriptionWebSocketService {
 
   public async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log("WebSocket already connected")
+      // console.log("WebSocket already connected")
       return
     }
 
@@ -146,7 +146,7 @@ export class TranscriptionWebSocketService {
     }
 
     const wsUrl = `${this.url}?api_key=${encodeURIComponent(this.apiKey)}`
-    console.log("Connecting to WebSocket:", wsUrl.replace(this.apiKey, '***'))
+    // console.log("Connecting to WebSocket:", wsUrl.replace(this.apiKey, '***'))
 
     return new Promise((resolve, reject) => {
       try {
@@ -161,7 +161,7 @@ export class TranscriptionWebSocketService {
         }, 10000) // 10 second timeout
 
         this.ws.onopen = () => {
-          console.log("✅ [WEBSOCKET SERVICE] Connected to:", this.url.replace(this.apiKey, '***'))
+          // console.log("✅ [WEBSOCKET SERVICE] Connected to:", this.url.replace(this.apiKey, '***'))
           if (this.connectionTimeout) {
             clearTimeout(this.connectionTimeout)
             this.connectionTimeout = null
@@ -174,22 +174,22 @@ export class TranscriptionWebSocketService {
         this.ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data)
-            console.log("📨 [WEBSOCKET SERVICE] Message received:", data.type || "NO_TYPE")
-            console.log("📨 [WEBSOCKET SERVICE] Full message structure:", JSON.stringify(data, null, 2))
+            // console.log("📨 [WEBSOCKET SERVICE] Message received:", data.type || "NO_TYPE")
+            // console.log("📨 [WEBSOCKET SERVICE] Full message structure:", JSON.stringify(data, null, 2))
             
             // Special debugging for transcript.mutable messages
             if (data.type === 'transcript.mutable') {
-              console.log("🔍 [DEBUG] transcript.mutable payload:", data.payload)
-              console.log("🔍 [DEBUG] payload keys:", data.payload ? Object.keys(data.payload) : "null")
+              // console.log("🔍 [DEBUG] transcript.mutable payload:", data.payload)
+              // console.log("🔍 [DEBUG] payload keys:", data.payload ? Object.keys(data.payload) : "null")
               if (data.payload && data.payload.segment) {
-                console.log("🔍 [DEBUG] segment data:", data.payload.segment)
-                console.log("🔍 [DEBUG] segment text:", data.payload.segment.text)
+                // console.log("🔍 [DEBUG] segment data:", data.payload.segment)
+                // console.log("🔍 [DEBUG] segment text:", data.payload.segment.text)
               }
             }
             
             // Handle messages that might not have the expected structure
             if (!data.type && data.segments && Array.isArray(data.segments)) {
-              console.log("🔄 [WEBSOCKET SERVICE] Detected segments array without type, treating as transcript.mutable");
+              // console.log("🔄 [WEBSOCKET SERVICE] Detected segments array without type, treating as transcript.mutable");
               // Convert this to the expected format
               const transcriptEvent = {
                 type: 'transcript.mutable',
@@ -208,7 +208,7 @@ export class TranscriptionWebSocketService {
         }
 
         this.ws.onclose = (event) => {
-          console.log("❌ [WEBSOCKET SERVICE] Disconnected with code:", event.code)
+          // console.log("❌ [WEBSOCKET SERVICE] Disconnected with code:", event.code)
           if (this.connectionTimeout) {
             clearTimeout(this.connectionTimeout)
             this.connectionTimeout = null
@@ -235,7 +235,7 @@ export class TranscriptionWebSocketService {
   private scheduleReconnect(): void {
     this.reconnectAttempts++
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // Exponential backoff
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+    // console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     
     setTimeout(() => {
       this.connect().catch(error => {
@@ -247,37 +247,37 @@ export class TranscriptionWebSocketService {
   private handleMessage(data: WebSocketEvent): void {
     switch (data.type) {
       case 'transcript.initial':
-        console.log("🟣 [WEBSOCKET SERVICE] Processing transcript.initial event");
+        // console.log("🟣 [WEBSOCKET SERVICE] Processing transcript.initial event");
         // Treat initial same as mutable for merge/upsert flow
         this.onTranscriptMutable?.(data as unknown as TranscriptMutableEvent)
         break
       case 'transcript.mutable':
-        console.log("🟢 [WEBSOCKET SERVICE] Processing transcript.mutable event");
+        // console.log("🟢 [WEBSOCKET SERVICE] Processing transcript.mutable event");
         this.onTranscriptMutable?.(data as TranscriptMutableEvent)
         break
       case 'transcript.finalized':
-        console.log("🔵 [WEBSOCKET SERVICE] Processing transcript.finalized event");
+        // console.log("🔵 [WEBSOCKET SERVICE] Processing transcript.finalized event");
         this.onTranscriptFinalized?.(data as TranscriptFinalizedEvent)
         break
       case 'meeting.status':
-        console.log("🟡 [WEBSOCKET SERVICE] Processing meeting.status event");
+        // console.log("🟡 [WEBSOCKET SERVICE] Processing meeting.status event");
         this.onMeetingStatus?.(data as MeetingStatusEvent)
         break
       case 'subscribed':
-        console.log("🔌 [WEBSOCKET SERVICE] Subscription confirmed for meetings:", (data as any).meetings)
+        // console.log("🔌 [WEBSOCKET SERVICE] Subscription confirmed for meetings:", (data as any).meetings)
         break
       case 'unsubscribed':
-        console.log("🔌 [WEBSOCKET SERVICE] Unsubscription confirmed for meetings:", (data as any).meetings)
+        // console.log("🔌 [WEBSOCKET SERVICE] Unsubscription confirmed for meetings:", (data as any).meetings)
         break
       case 'pong':
-        console.log("🏓 [WEBSOCKET SERVICE] Received pong from server")
+        // console.log("🏓 [WEBSOCKET SERVICE] Received pong from server")
         break
       case 'error':
-        console.log("🔴 [WEBSOCKET SERVICE] Processing error event");
+        // console.log("🔴 [WEBSOCKET SERVICE] Processing error event");
         this.handleError(data as WebSocketErrorEvent)
         break
       default:
-        console.log("❓ [WEBSOCKET SERVICE] Unknown WebSocket message type:", data.type, data)
+        // console.log("❓ [WEBSOCKET SERVICE] Unknown WebSocket message type:", data.type, data)
     }
   }
 
@@ -296,13 +296,13 @@ export class TranscriptionWebSocketService {
 
   public async subscribeToMeeting(meeting: { platform: string; native_id: string }): Promise<void> {
     if (!this.isConnected()) {
-      console.log("🔌 [WEBSOCKET SERVICE] WebSocket not connected, connecting...")
+      // console.log("🔌 [WEBSOCKET SERVICE] WebSocket not connected, connecting...")
       await this.connect()
     }
 
     // Double-check that WebSocket is ready
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      console.log("🔌 [WEBSOCKET SERVICE] WebSocket still not ready, waiting...")
+      // console.log("🔌 [WEBSOCKET SERVICE] WebSocket still not ready, waiting...")
       // Wait for WebSocket to be fully ready
       await new Promise<void>((resolve, reject) => {
         const checkReady = () => {
@@ -330,9 +330,9 @@ export class TranscriptionWebSocketService {
       meetings: meetingsPayload
     }
 
-    console.log("🔌 [WEBSOCKET SERVICE] WebSocket ready, sending subscription message")
+    // console.log("🔌 [WEBSOCKET SERVICE] WebSocket ready, sending subscription message")
     this.ws?.send(JSON.stringify(message))
-    console.log("🔌 [WEBSOCKET SERVICE] Subscribed to meeting:", meetingsPayload)
+    // console.log("🔌 [WEBSOCKET SERVICE] Subscribed to meeting:", meetingsPayload)
 
     // Wait a moment for subscription confirmation
     await new Promise(resolve => setTimeout(resolve, 1000))
@@ -351,10 +351,10 @@ export class TranscriptionWebSocketService {
         meetings: meetingsPayload
       }
 
-      console.log("🔌 [WEBSOCKET SERVICE] Sending unsubscribe message:", JSON.stringify(message))
+      // console.log("🔌 [WEBSOCKET SERVICE] Sending unsubscribe message:", JSON.stringify(message))
       try {
         this.ws?.send(JSON.stringify(message))
-        console.log("🔌 [WEBSOCKET SERVICE] Unsubscribed from meeting:", meetingsPayload)
+        // console.log("🔌 [WEBSOCKET SERVICE] Unsubscribed from meeting:", meetingsPayload)
       } catch (error) {
         console.error("🔴 [WEBSOCKET SERVICE] Error sending unsubscribe message:", error)
         this.handleError({ type: 'error', error: `Failed to unsubscribe: ${error}` })
@@ -371,7 +371,7 @@ export class TranscriptionWebSocketService {
     this.subscribedMeetings.clear()
     this.ws?.close()
     this.ws = null
-    console.log("WebSocket disconnected")
+    // console.log("WebSocket disconnected")
   }
 
   public isConnected(): boolean {
@@ -420,10 +420,10 @@ export function getWebSocketService(): TranscriptionWebSocketService {
 
 // Helper function to convert WebSocket segments to our format
 export function convertWebSocketSegment(segment: any, meetingId: string): any {
-  console.log("🔄 [WEBSOCKET SERVICE] Converting segment:", segment);
-  console.log("🔄 [WEBSOCKET SERVICE] Segment type:", typeof segment);
-  console.log("🔄 [WEBSOCKET SERVICE] Segment keys:", segment ? Object.keys(segment) : "null/undefined");
-  console.log("🔄 [WEBSOCKET SERVICE] Full segment JSON:", JSON.stringify(segment, null, 2));
+  // console.log("🔄 [WEBSOCKET SERVICE] Converting segment:", segment);
+  // console.log("🔄 [WEBSOCKET SERVICE] Segment type:", typeof segment);
+  // console.log("🔄 [WEBSOCKET SERVICE] Segment keys:", segment ? Object.keys(segment) : "null/undefined");
+  // console.log("🔄 [WEBSOCKET SERVICE] Full segment JSON:", JSON.stringify(segment, null, 2));
   
   // Handle case where segment might be null/undefined
   if (!segment) {
@@ -439,27 +439,27 @@ export function convertWebSocketSegment(segment: any, meetingId: string): any {
   
   // Try to find text in different possible locations
   let text = "";
-  console.log("🔍 [DEBUG] Looking for text in segment...");
-  console.log("🔍 [DEBUG] segment.text:", segment.text);
-  console.log("🔍 [DEBUG] segment.content:", segment.content);
-  console.log("🔍 [DEBUG] segment.transcript:", segment.transcript);
-  console.log("🔍 [DEBUG] segment.message:", segment.message);
+  // console.log("🔍 [DEBUG] Looking for text in segment...");
+  // console.log("🔍 [DEBUG] segment.text:", segment.text);
+  // console.log("🔍 [DEBUG] segment.content:", segment.content);
+  // console.log("🔍 [DEBUG] segment.transcript:", segment.transcript);
+  // console.log("🔍 [DEBUG] segment.message:", segment.message);
   
   if (segment.text) {
     text = segment.text;
-    console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.text:", text);
+    // console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.text:", text);
   } else if (segment.content) {
     text = segment.content;
-    console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.content:", text);
+    // console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.content:", text);
   } else if (segment.transcript) {
     text = segment.transcript;
-    console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.transcript:", text);
+    // console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.transcript:", text);
   } else if (segment.message) {
     text = segment.message;
-    console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.message:", text);
+    // console.log("🔄 [WEBSOCKET SERVICE] Found text in segment.message:", text);
   } else {
-    console.warn("🔄 [WEBSOCKET SERVICE] No text found in segment, using empty string");
-    console.log("🔍 [DEBUG] All possible text fields are empty or undefined");
+    // console.warn("🔄 [WEBSOCKET SERVICE] No text found in segment, using empty string");
+    // console.log("🔍 [DEBUG] All possible text fields are empty or undefined");
     text = "";
   }
   
@@ -469,11 +469,11 @@ export function convertWebSocketSegment(segment: any, meetingId: string): any {
 
   if (segment.absolute_start_time) {
     timestamp = segment.absolute_start_time;
-    console.log("🔄 [WEBSOCKET SERVICE] Using absolute_start_time:", timestamp);
+    // console.log("🔄 [WEBSOCKET SERVICE] Using absolute_start_time:", timestamp);
   } else if (segment.updated_at) {
     // Keep as fallback timestamp for UI if absolute is missing, but mark as non-absolute
     timestamp = segment.updated_at;
-    console.log("🔄 [WEBSOCKET SERVICE] Using updated_at timestamp (no absolute_start_time):", timestamp);
+    // console.log("🔄 [WEBSOCKET SERVICE] Using updated_at timestamp (no absolute_start_time):", timestamp);
   }
   
   // Generate ID from session_uid and start time if available
@@ -497,7 +497,7 @@ export function convertWebSocketSegment(segment: any, meetingId: string): any {
   if (segment.absolute_end_time) convertedSegment.absolute_end_time = segment.absolute_end_time
   if (segment.updated_at) convertedSegment.updated_at = segment.updated_at
   
-  console.log("🔄 [WEBSOCKET SERVICE] Converted segment:", convertedSegment);
-  console.log("🔄 [WEBSOCKET SERVICE] Text length:", text.length);
+  // console.log("🔄 [WEBSOCKET SERVICE] Converted segment:", convertedSegment);
+  // console.log("🔄 [WEBSOCKET SERVICE] Text length:", text.length);
   return convertedSegment;
 }
