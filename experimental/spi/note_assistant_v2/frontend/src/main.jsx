@@ -220,23 +220,16 @@ function App() {
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
-          // Transcript Mutable Event: process and print to console for now
           console.log('🟢 WebSocket Segments:', segments);
-          const speakerGroups = processSegments(segments);
-          // Print array of "speaker:text" from each group
-          const combinedSpeakerTexts = speakerGroups.map(g => `${g.speaker}:${g.combinedText}`);
-          console.log('🟢 combinedSpeakerText array:', combinedSpeakerTexts);
-          if (!isPollingTranscriptsRef.current) return;
-          // TODO: Update UI with mutable segments
+          updateTranscriptionFromSegments(segments);
         },
         // (segments) => {
         //   // Transcript Finalized Event: print to console for now
         //   console.log('🔵 WebSocket Transcript Finalized Event:', segments);
-        //   if (!isPollingTranscriptsRef.current) return;
-        //   // TODO: Update UI with finalized segments
+        //   updateTranscriptionFromSegments(segments);
         // },
         // (statusValue) => {
-        //   // Meeting Status Event: print to console for now
+        //   // Meeting Status Event: print to console
         //   console.log('🟡 WebSocket Meeting Status Event:', statusValue);
         // },
         // (error) => {
@@ -612,6 +605,32 @@ function App() {
     return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
   }
 
+  // Helper to process segments and update the UI transcription field
+  function updateTranscriptionFromSegments(segments) {
+    const speakerGroups = processSegments(segments);
+    const combinedSpeakerTexts = speakerGroups.map(g => {
+      const ts = g.timestamp ? `[${g.timestamp}]` : '';
+      return `${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
+    });
+    if (!isPollingTranscriptsRef.current) return;
+    setRows(prevRows => {
+      let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+      if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
+      const newTranscript = combinedSpeakerTexts.join('\n\n');
+      if (prevRows[activeIndex]?.transcription === newTranscript) return prevRows;
+      // After updating, scroll the textarea to the bottom
+      setTimeout(() => {
+        const textarea = document.querySelector(
+          `.data-table tbody tr${pinnedIndex !== null ? `.current-row` : ''} textarea.table-textarea[name='transcription']`
+        );
+        if (textarea) {
+          textarea.scrollTop = textarea.scrollHeight;
+        }
+      }, 0);
+      return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: newTranscript } : r);
+    });
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -735,6 +754,7 @@ function App() {
                         </td>
                         <td style={{ width: '28%' }}>
                           <textarea
+                            name="transcription"
                             value={row.transcription}
                             onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
                             onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
