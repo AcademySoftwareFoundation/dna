@@ -1,3 +1,5 @@
+import { convertWebSocketSegment } from './websocket-service';
+
 // Utility: Clean text
 export const cleanText = (text) => {
   if (!text) return ""
@@ -78,6 +80,7 @@ export interface SpeakerGroup {
   segments: any[]
   isMutable: boolean
   isHighlighted: boolean
+  timestamp?: string // Added for HH:MM:SS formatted time
 }
 
 // Group consecutive segments by speaker and combine text
@@ -135,8 +138,22 @@ export function groupSegmentsBySpeaker(
   const splitGroups: SpeakerGroup[] = []
   for (const g of groups) {
     const chunks = splitTextIntoSentenceChunks(g.combinedText, MAX_CHARS)
+    // Format timestamp as HH:MM:SS in local timezone from absolute_start_time
+    let timestamp = '';
+    if (g.startTime) {
+      try {
+        const date = new Date(g.startTime);
+        if (!isNaN(date.getTime())) {
+          // Format as HH:MM:SS in local time
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+          timestamp = `${hours}:${minutes}:${seconds}`;
+        }
+      } catch {}
+    }
     if (chunks.length <= 1) {
-      splitGroups.push(g)
+      splitGroups.push({ ...g, timestamp });
     } else {
       for (const chunk of chunks) {
         splitGroups.push({
@@ -146,10 +163,28 @@ export function groupSegmentsBySpeaker(
           combinedText: chunk,
           segments: g.segments,
           isMutable: g.isMutable,
-          isHighlighted: g.isHighlighted
+          isHighlighted: g.isHighlighted,
+          timestamp
         })
       }
     }
   }
   return splitGroups
+}
+
+// Process segments: convert, sort, and group by speaker
+export function processSegments(segments: any[]): SpeakerGroup[] {
+  const processedSegments = segments.map(seg =>
+    convertWebSocketSegment(seg)
+  );
+  // Sort segments by absolute_start_time (if it exists), like the Python example
+  const sortedSegments = processedSegments
+    .filter(s => s.absolute_start_time)
+    .sort((a, b) => {
+      if (a.absolute_start_time < b.absolute_start_time) return -1;
+      if (a.absolute_start_time > b.absolute_start_time) return 1;
+      return 0;
+    });
+  // Group by speaker using sortedSegments
+  return groupSegmentsBySpeaker(sortedSegments);
 }

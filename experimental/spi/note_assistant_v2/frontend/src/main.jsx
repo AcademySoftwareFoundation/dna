@@ -2,8 +2,9 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
 import { startTranscription, startWebSocketTranscription, stopWebSocketTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
-import { getWebSocketService } from '../lib/websocket-service';
-import { groupSegmentsBySpeaker, mergeByAbsoluteUtc } from '../lib/transcription-display';
+import { getWebSocketService, convertWebSocketSegment } from '../lib/websocket-service';
+import { processSegments } from '../lib/transcription-display';
+import { MOCK_MODE } from '../lib/config';
 
 function StatusBadge({ type = "info", children }) {
   if (!children) return null;
@@ -11,7 +12,12 @@ function StatusBadge({ type = "info", children }) {
 }
 
 function App() {
-  const [meetId, setMeetId] = useState("");
+  const [meetId, setMeetId] = useState(() => {
+    if (MOCK_MODE) {
+      return 'https://meet.google.com/mock-meet-123';
+    }
+    return '';
+  });
   const [status, setStatus] = useState({ msg: "", type: "info" });
   const [uploadStatus, setUploadStatus] = useState({ msg: "", type: "info" });
   const [uploading, setUploading] = useState(false);
@@ -214,33 +220,37 @@ function App() {
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
-          // Transcript Mutable Event: print to console for now
-          console.log('🟢 WebSocket Transcript Mutable Event:', segments);
+          // Transcript Mutable Event: process and print to console for now
+          console.log('🟢 WebSocket Segments:', segments);
+          const speakerGroups = processSegments(segments);
+          // Print array of "speaker:text" from each group
+          const combinedSpeakerTexts = speakerGroups.map(g => `${g.speaker}:${g.combinedText}`);
+          console.log('🟢 combinedSpeakerText array:', combinedSpeakerTexts);
           if (!isPollingTranscriptsRef.current) return;
           // TODO: Update UI with mutable segments
         },
-        (segments) => {
-          // Transcript Finalized Event: print to console for now
-          console.log('🔵 WebSocket Transcript Finalized Event:', segments);
-          if (!isPollingTranscriptsRef.current) return;
-          // TODO: Update UI with finalized segments
-        },
-        (statusValue) => {
-          // Meeting Status Event: print to console for now
-          console.log('🟡 WebSocket Meeting Status Event:', statusValue);
-        },
-        (error) => {
-          // Error Event: print to console
-          console.error('🔴 WebSocket Error Event:', error);
-        },
-        () => {
-          // Connected Event: print to console
-          console.log('✅ WebSocket Connected');
-        },
-        () => {
-          // Disconnected Event: print to console
-          console.log('❌ WebSocket Disconnected');
-        }
+        // (segments) => {
+        //   // Transcript Finalized Event: print to console for now
+        //   console.log('🔵 WebSocket Transcript Finalized Event:', segments);
+        //   if (!isPollingTranscriptsRef.current) return;
+        //   // TODO: Update UI with finalized segments
+        // },
+        // (statusValue) => {
+        //   // Meeting Status Event: print to console for now
+        //   console.log('🟡 WebSocket Meeting Status Event:', statusValue);
+        // },
+        // (error) => {
+        //   // Error Event: print to console
+        //   console.error('🔴 WebSocket Error Event:', error);
+        // },
+        // () => {
+        //   // Connected Event: print to console
+        //   console.log('✅ WebSocket Connected');
+        // },
+        // () => {
+        //   // Disconnected Event: print to console
+        //   console.log('❌ WebSocket Disconnected');
+        // }
       );
     } catch (err) {
       console.error('Error starting WebSocket transcription:', err);

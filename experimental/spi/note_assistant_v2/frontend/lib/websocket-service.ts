@@ -419,7 +419,7 @@ export function getWebSocketService(): TranscriptionWebSocketService {
 }
 
 // Helper function to convert WebSocket segments to our format
-export function convertWebSocketSegment(segment: any, meetingId: string): any {
+export function convertWebSocketSegment(segment: any): any {
   // console.log("🔄 [WEBSOCKET SERVICE] Converting segment:", segment);
   // console.log("🔄 [WEBSOCKET SERVICE] Segment type:", typeof segment);
   // console.log("🔄 [WEBSOCKET SERVICE] Segment keys:", segment ? Object.keys(segment) : "null/undefined");

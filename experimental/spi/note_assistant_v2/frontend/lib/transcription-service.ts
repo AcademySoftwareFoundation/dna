@@ -990,8 +990,8 @@ export async function startWebSocketTranscription(
   if (MOCK_MODE) {
     // Simulate connection
     setTimeout(() => {
-      onConnected();
-      onMeetingStatus('active');
+      if (typeof onConnected === 'function') onConnected();
+      if (typeof onMeetingStatus === 'function') onMeetingStatus('active');
     }, 500);
     // Simulate transcript events every 2 seconds
     let count = 0;
@@ -1013,29 +1013,37 @@ export async function startWebSocketTranscription(
       { speaker: "CR", text: "I'll communicate the action items and next steps to the artist." }
     ];
     // Accumulate all segments as in real WebSocket
-    const allSegments: TranscriptionSegment[] = [];
+    const allSegments: any[] = [];
     const interval = setInterval(() => {
       const feedback = creativeFeedbacks[count % creativeFeedbacks.length];
-      const segment: TranscriptionSegment = {
+      const now = new Date();
+      const absStart = new Date(now.getTime() - 1000).toISOString();
+      const absEnd = now.toISOString();
+      const updatedAt = new Date(now.getTime() + 8000).toISOString();
+      const segment = {
         id: `mock-${Date.now()}`,
         text: feedback.text,
-        timestamp: new Date().toISOString(),
         speaker: feedback.speaker,
         language: 'en',
+        absolute_start_time: absStart,
+        absolute_end_time: absEnd,
+        timestamp: absStart,
+        updated_at: updatedAt
       };
       allSegments.push(segment);
-      onTranscriptMutable([...allSegments]);
+      // Simulate real WebSocket payload structure
+      if (typeof onTranscriptMutable === 'function') onTranscriptMutable([...allSegments]);
       // Simulate finalized every 3 segments
       if ((count + 1) % 3 === 0) {
-        onTranscriptFinalized([...allSegments]);
+        if (typeof onTranscriptFinalized === 'function') onTranscriptFinalized([...allSegments]);
       }
       count++;
       // Simulate meeting completion after 100 segments
       if (count === 100) {
-        onMeetingStatus('completed');
+        if (typeof onMeetingStatus === 'function') onMeetingStatus('completed');
         clearInterval(interval);
         setTimeout(() => {
-          onDisconnected();
+          if (typeof onDisconnected === 'function') onDisconnected();
         }, 500);
       }
     }, 2000);
@@ -1058,7 +1066,7 @@ export async function startWebSocketTranscription(
         // console.log("🟢 [TRANSCRIPTION SERVICE] Found segments array with", event.payload.segments.length, "segments");
         // Convert each segment in the array
         const convertedSegments = event.payload.segments.map((segmentData: any) => {
-          return convertWebSocketSegment(segmentData, meetingIdString);
+          return convertWebSocketSegment(segmentData);
         });
         // console.log("🟢 [TRANSCRIPTION SERVICE] Converted", convertedSegments.length, "segments");
         onTranscriptMutable(convertedSegments);
@@ -1098,7 +1106,7 @@ export async function startWebSocketTranscription(
         // console.log("🔵 [TRANSCRIPTION SERVICE] Found segments array with", event.payload.segments.length, "segments");
         // Convert each segment in the array
         const convertedSegments = event.payload.segments.map((segmentData: any) => {
-          return convertWebSocketSegment(segmentData, meetingId.toString());
+          return convertWebSocketSegment(segmentData);
         });
         // console.log("🔵 [TRANSCRIPTION SERVICE] Converted", convertedSegments.length, "segments");
         onTranscriptFinalized(convertedSegments);
