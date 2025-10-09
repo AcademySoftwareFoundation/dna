@@ -33,7 +33,6 @@ function App() {
   const [isPollingTranscripts, setIsPollingTranscripts] = useState(false);
   const isPollingTranscriptsRef = useRef(isPollingTranscripts);
   const [joinedMeetId, setJoinedMeetId] = useState("");
-  const [lastSegmentIndex, setLastSegmentIndex] = useState(-1); // Track last received segment
   const [botIsActive, setBotIsActive] = useState(false);
   const [waitingForActive, setWaitingForActive] = useState(false);
   const [pinnedIndex, setPinnedIndex] = useState(null);
@@ -42,7 +41,6 @@ function App() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [mutableSegments, setMutableSegments] = useState([]);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
-  const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
   const prevIndexRef = useRef(currentIndex);
 
@@ -54,159 +52,10 @@ function App() {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
 
-  // Update the ref whenever lastSegmentIndex changes
-  useEffect(() => {
-    lastSegmentIndexRef.current = lastSegmentIndex;
-  }, [lastSegmentIndex]);
-
   // Update the ref whenever isPollingTranscripts changes
   useEffect(() => {
     isPollingTranscriptsRef.current = isPollingTranscripts;
   }, [isPollingTranscripts]);
-
-  // Function to fetch and update transcripts
-  const fetchTranscripts = async (meetingId) => {
-    try {
-      const currentLastSegmentIndex = lastSegmentIndexRef.current;
-      const url = currentLastSegmentIndex >= 0 
-        ? `http://localhost:8000/transcripts/google_meet/${meetingId}?last_segment_index=${currentLastSegmentIndex}`
-        : `http://localhost:8000/transcripts/google_meet/${meetingId}`;
-      console.log(`Calling URL: ${url}`);
-      const res = await fetch(url);
-      if (res.ok) {
-        const transcriptArray = await res.json(); // Now an array of objects {speaker, start, text}
-        console.log(`Response data:`, transcriptArray);
-        if (!Array.isArray(transcriptArray) || transcriptArray.length === 0) {
-          console.log('No new segments received');
-          return;
-        }
-        // Update last segment index
-        setLastSegmentIndex(currentLastSegmentIndex + transcriptArray.length);
-        // Concatenate all transcript strings (group by speaker, merge with existing transcription)
-        let newTranscriptText = '';
-        let lastSpeaker = null;
-        // Find the last speaker in the existing transcription (if any)
-        let existingTranscription = '';
-        if (rows.length > 0) {
-          let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
-          if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
-          existingTranscription = rows[activeIndex]?.transcription || '';
-          const match = existingTranscription.match(/^(?:.|\n)*?([A-Za-z0-9_\-]+):[^\n]*$/m);
-          if (match) {
-            // Try to get the last speaker from the last non-empty line
-            const lines = existingTranscription.trim().split(/\n/).filter(Boolean);
-            for (let i = lines.length - 1; i >= 0; i--) {
-              const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
-              if (m) { lastSpeaker = m[1]; break; }
-            }
-          }
-        }
-        transcriptArray.forEach((seg, idx) => {
-          if (!seg.text) return;
-          if (seg.speaker && seg.speaker === lastSpeaker && (newTranscriptText || existingTranscription)) {
-            // Same speaker as previous, append to last line
-            if (newTranscriptText) {
-              // If already building newTranscriptText, append to last line
-              const lastNewline = newTranscriptText.lastIndexOf('\n');
-              if (lastNewline === -1) {
-                newTranscriptText += ` ${seg.text}`;
-              } else {
-                newTranscriptText = newTranscriptText.slice(0, lastNewline) + newTranscriptText.slice(lastNewline) + ` ${seg.text}`;
-              }
-            } else if (existingTranscription) {
-              // If appending to existing transcription, just add to last line
-              newTranscriptText = ` ${seg.text}`;
-            } else {
-              newTranscriptText = `${seg.speaker}: ${seg.text}`;
-            }
-          } else if (seg.speaker) {
-            // New speaker, start new line
-            if (newTranscriptText) newTranscriptText += '\n';
-            newTranscriptText += `${seg.speaker}: ${seg.text}`;
-            lastSpeaker = seg.speaker;
-          } else {
-            // No speaker info, just append
-            if (newTranscriptText) newTranscriptText += '\n';
-            newTranscriptText += seg.text;
-            lastSpeaker = null;
-          }
-        });
-        // Merge with existing transcription, handling speaker grouping
-        let updatedTranscription = '';
-        if (rows.length > 0) {
-          let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
-          if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
-          const existingTranscription = rows[activeIndex]?.transcription || '';
-          let lines = existingTranscription.split(/\n/).filter(Boolean);
-          // Find last speaker from last non-empty line
-          let lastSpeaker = null;
-          if (lines.length > 0) {
-            for (let i = lines.length - 1; i >= 0; i--) {
-              const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
-              if (m) { lastSpeaker = m[1]; break; }
-            }
-          }
-          // Merge new segments
-          transcriptArray.forEach(seg => {
-            if (!seg.text) return;
-            if (seg.speaker) {
-              if (seg.speaker === lastSpeaker && lines.length > 0) {
-                // Append to last line
-                lines[lines.length - 1] += ` ${seg.text}`;
-              } else {
-                // New speaker
-                lines.push(`${seg.speaker}: ${seg.text}`);
-                lastSpeaker = seg.speaker;
-              }
-            } else {
-              // No speaker info
-              lines.push(seg.text);
-              lastSpeaker = null;
-            }
-          });
-          updatedTranscription = lines.join('\n');
-        }
-        console.log('Current rows:', rows);
-        if (rows.length > 0 && transcriptArray.length > 0) {
-          setRows(prevRows => {
-            let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
-            if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
-            const row = prevRows[activeIndex];
-            let lines = (row.transcription || '').split(/\n/).filter(Boolean);
-            // Find last speaker from last non-empty line
-            let lastSpeaker = null;
-            if (lines.length > 0) {
-              for (let i = lines.length - 1; i >= 0; i--) {
-                const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
-                if (m) { lastSpeaker = m[1]; break; }
-              }
-            }
-            // Merge new segments
-            transcriptArray.forEach(seg => {
-              if (!seg.text) return;
-              if (seg.speaker) {
-                if (seg.speaker === lastSpeaker && lines.length > 0) {
-                  lines[lines.length - 1] += ` ${seg.text}`;
-                } else {
-                  lines.push(`${seg.speaker}: ${seg.text}`);
-                  lastSpeaker = seg.speaker;
-                }
-              } else {
-                lines.push(seg.text);
-                lastSpeaker = null;
-              }
-            });
-            const updatedTranscription = lines.join('\n');
-            return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
-          });
-        } else {
-          console.log('No rows to update or transcript is empty');
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching transcripts:', err);
-    }
-  };
 
   // Start transcript polling (only called internally)
   const startTranscriptPolling = async (meetingId) => {
@@ -216,8 +65,6 @@ function App() {
     }
     setIsPollingTranscripts(true);
     setJoinedMeetId(meetingId);
-    setLastSegmentIndex(-1); // Reset segment index for new meeting
-    lastSegmentIndexRef.current = -1;
     hasStartedWebSocketPollingRef.current = true;
     
     try {
@@ -266,8 +113,6 @@ function App() {
       pollingIntervalRef.current = null;
     }
     setIsPollingTranscripts(false);
-    setLastSegmentIndex(-1); // Reset segment index
-    lastSegmentIndexRef.current = -1; // Reset ref as well
     hasStartedWebSocketPollingRef.current = false;
     // Clear global segments dict when stopping WebSocket
     for (const key in allSegments) {
@@ -603,36 +448,6 @@ function App() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
-  function appendSegmentsToTranscription(prevRows, segments, pinnedIndex, currentIndexRef) {
-    let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
-    if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
-    const row = prevRows[activeIndex];
-    let lines = (row.transcription || '').split(/\n/).filter(Boolean);
-    let lastSpeaker = null;
-    if (lines.length > 0) {
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const m = lines[i].match(/^([A-Za-z0-9_\-]+):/);
-        if (m) { lastSpeaker = m[1]; break; }
-      }
-    }
-    segments.forEach(seg => {
-      if (!seg.text) return;
-      if (seg.speaker) {
-        if (seg.speaker === lastSpeaker && lines.length > 0) {
-          lines[lines.length - 1] += ` ${seg.text}`;
-        } else {
-          lines.push(`${seg.speaker}: ${seg.text}`);
-          lastSpeaker = seg.speaker;
-        }
-      } else {
-        lines.push(seg.text);
-        lastSpeaker = null;
-      }
-    });
-    const updatedTranscription = lines.join('\n');
-    return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: updatedTranscription } : r);
-  }
 
   // Helper to process segments and update the UI transcription field
   function updateTranscriptionFromSegments(segments) {
