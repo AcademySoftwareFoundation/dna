@@ -608,9 +608,9 @@ function App() {
   // Helper to process segments and update the UI transcription field
   function updateTranscriptionFromSegments(segments) {
     const speakerGroups = processSegments(segments);
-    const combinedSpeakerTexts = speakerGroups.map(g => {
+    const combinedSpeakerTexts = speakerGroups.map((g, i) => {
       const ts = g.timestamp ? `[${g.timestamp}]` : '';
-      return `${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
+      return `#${i + 1} ${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
     });
     if (!isPollingTranscriptsRef.current) return;
     setRows(prevRows => {
