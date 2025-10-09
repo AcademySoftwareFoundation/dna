@@ -6,6 +6,11 @@ import { getWebSocketService, convertWebSocketSegment } from '../lib/websocket-s
 import { processSegments } from '../lib/transcription-display';
 import { MOCK_MODE } from '../lib/config';
 
+// Global dictionary to track all segments by timestamp
+const allSegments = {}; // { [timestamp]: combinedText }
+// Global dictionary to track segments per shot, with speaker and combinedText
+const shotSegments = {}; // { [shotKey]: { [timestamp]: { speaker, combinedText } } }
+
 function StatusBadge({ type = "info", children }) {
   if (!children) return null;
   return <span className={`badge badge-${type}`}>{children}</span>;
@@ -40,6 +45,9 @@ function App() {
   const lastSegmentIndexRef = useRef(-1); // Use ref to avoid closure issues for segment tracking
   const pollingIntervalRef = useRef(null);
   const prevIndexRef = useRef(currentIndex);
+
+  // Add a ref to track if websocket polling has started
+  const hasStartedWebSocketPollingRef = useRef(false);
 
   // Update the ref whenever currentIndex changes
   useEffect(() => {
@@ -210,6 +218,7 @@ function App() {
     setJoinedMeetId(meetingId);
     setLastSegmentIndex(-1); // Reset segment index for new meeting
     lastSegmentIndexRef.current = -1;
+    hasStartedWebSocketPollingRef.current = true;
     
     try {
       // Parse meeting ID to get the format needed for WebSocket
@@ -259,7 +268,11 @@ function App() {
     setIsPollingTranscripts(false);
     setLastSegmentIndex(-1); // Reset segment index
     lastSegmentIndexRef.current = -1; // Reset ref as well
-    
+    hasStartedWebSocketPollingRef.current = false;
+    // Clear global segments dict when stopping WebSocket
+    for (const key in allSegments) {
+      delete allSegments[key];
+    }
     // Stop WebSocket connection if active
     if (joinedMeetId) {
       try {
@@ -273,17 +286,33 @@ function App() {
     }
   };
 
+  // Update the ref whenever isPollingTranscripts changes
+  useEffect(() => {
+    isPollingTranscriptsRef.current = isPollingTranscripts;
+  }, [isPollingTranscripts]);
+
   // Manual transcript polling control
+  const pauseTranscriptPolling = () => {
+    console.log('pauseTranscriptPolling called');
+    setIsPollingTranscripts(false);
+  };
+
+  const resumeTranscriptPolling = () => {
+    console.log('resumeTranscriptPolling called');
+    setIsPollingTranscripts(true);
+  };
+
   const handleTranscriptPollingToggle = () => {
-    console.log('handleTranscriptPollingToggle called, isPollingTranscripts:', isPollingTranscripts);
-    if (isPollingTranscripts) {
-      // Stop polling
-      stopTranscriptPolling();
-    } else {
-      // Start polling
-      if (joinedMeetId) {
+    console.log('handleTranscriptPollingToggle called, isPollingTranscripts:', isPollingTranscriptsRef.current, ' hasStartedWebSocketPollingRef:', hasStartedWebSocketPollingRef.current);
+    if (!isPollingTranscripts) {
+      // Only resume polling if already started, otherwise start
+      if (joinedMeetId && hasStartedWebSocketPollingRef.current) {
+        resumeTranscriptPolling();
+      } else if (joinedMeetId && !hasStartedWebSocketPollingRef.current) {
         startTranscriptPolling(joinedMeetId);
       }
+    } else {
+      pauseTranscriptPolling();
     }
   };
 
@@ -607,12 +636,49 @@ function App() {
 
   // Helper to process segments and update the UI transcription field
   function updateTranscriptionFromSegments(segments) {
-    const speakerGroups = processSegments(segments);
-    const combinedSpeakerTexts = speakerGroups.map((g, i) => {
-      const ts = g.timestamp ? `[${g.timestamp}]` : '';
-      return `#${i + 1} ${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
+    // Track all segments globally as a dictionary
+    const newSegments = {}; // { [timestamp]: combinedText }
+    segments.forEach(seg => {
+      if (seg.timestamp && !(seg.timestamp in allSegments)) {
+        allSegments[seg.timestamp] = seg.combinedText || seg.text || '';
+        newSegments[seg.timestamp] = seg.combinedText || seg.text || '';
+      }
     });
+    console.log('allSegments:', allSegments);
+    console.log('newSegments:', newSegments);
+
     if (!isPollingTranscriptsRef.current) return;
+    // Track segments for this shot BEFORE processSegments
+    let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+    if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
+    const shotKey = rows[activeIndex]?.shot;
+    if (shotKey) {
+      if (!shotSegments[shotKey]) shotSegments[shotKey] = {};
+      // Only add new segments for this shot
+      Object.keys(newSegments).forEach(ts => {
+        // Find the segment in the original segments array to get speaker info
+        const seg = segments.find(s => s.timestamp === ts);
+        if (seg && !(ts in shotSegments[shotKey])) {
+          shotSegments[shotKey][ts] = {
+            speaker: seg.speaker || '',
+            combinedText: seg.combinedText || seg.text || ''
+          };
+        }
+      });
+      console.log('shotSegments:', shotSegments);
+    }
+    // Only include segments whose timestamps are present in shotSegments[shotKey]
+    let filteredSegments = segments;
+    if (shotKey && shotSegments[shotKey]) {
+      filteredSegments = segments.filter(seg =>
+        seg.timestamp && shotSegments[shotKey][seg.timestamp]
+      );
+    }
+    const speakerGroups = processSegments(filteredSegments);
+    const combinedSpeakerTexts = speakerGroups.map(g => {
+      const ts = g.timestamp ? `[${g.timestamp}]` : '';
+      return `${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
+    });
     setRows(prevRows => {
       let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
       if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
