@@ -4,12 +4,12 @@
     {
       "ts": "00:00:00",
       "speaker": "Cameron",
-      "text": "All right, okay, guys, thank you so much for jumping on. We're going to talk about this demo project with the animation and cuts here. How you guys doing? You guys have a good week. So far."
+      "text": "All right, okay, guys, thank you so much for jumping on. We're going to talk about this demo project with the animation and cuts here. How you guys doing? You guys have a good week so far?"
     },
     {
       "ts": "00:00:12",
       "speaker": "Lars",
-      "text": "Doing well. Good weekend."
+      "text": "Doing well. Good week."
     },
     {
       "ts": "00:00:15",
@@ -19,7 +19,7 @@
     {
       "ts": "00:00:16",
       "speaker": "Cameron",
-      "text": "Okay, so let's start here with HSM, satl, zero, 10. This is one of Sonia's shots. We're going to look at some of the lighting real quick. So let's jump in here. First thing that pops out to me, Sonia is, I think you did a really great job with the sun. The stars are looking good in the background and the animation of the droid is looking really, really good. Do you have anything to add here with regards to the lighting pass?"
+      "text": "Okay, so let's start here with HSM, satl, 0010. This is one of uh Sonia's shots. We're going to look at some of the lighting real quick. So let's jump in here. umm. First thing that pops out to me, Sonia is, I think you did a really great job with the sun. uhh. The stars are looking good in the background and the animation of the droid is looking really, really good. Do you have anything to add here with regards to the lighting pass?"
     },
     {
       "ts": "00:00:52",
@@ -39,42 +39,67 @@
     {
       "ts": "00:01:13",
       "speaker": "Cameron",
-      "text": "let's jump in. Keep me posted on roadblocks, by the way. Sonya, that's, that's, that's, that looks really good right now, but, yeah, definitely. All right, Lars, let's jump in and look at your compositing pass real quick. Yeah, for sure. This is HSM, S, A, T, L, O, 15. First things that jump out to me is that the galaxy is looking really good. What are you thinking with regards to, like, the helmet?"
+      "text": "let's jump in. Keep me posted on roadblocks, by the way. Sonia, that's, that's, that's, that looks really good right now, but"
+    },
+    {
+      "ts": "00:01:21",
+      "speaker": "Sonia",
+      "text": "yeah, definitely."
+    },
+    {
+      "ts": "00:01:23",
+      "speaker": "Cameron",
+      "text": "All right, Lars, let's jump in and look at your compositing pass real quick."
+    },
+    {
+      "ts": "00:01:25",
+      "speaker": "Lars",
+      "text": "Yeah, for sure."
+    },
+    {
+      "ts": "00:01:26",
+      "speaker": "Cameron",
+      "text": "This is HSM, S, A, T, L, O, O, 15. First things that jump out to me is that the galaxy is looking really good. What are you thinking with regards to, like, the helmet?"
     },
     {
       "ts": "00:01:39",
       "speaker": "Lars",
-      "text": "Yeah, dude, I'm second pass here. I kind of feel like the reflection on his visor is a little distracting. Let me see if me and my team can grade that down a little bit or Matt it out. I'm happy to take another pass"
+      "text": "Yeah, dude, on second pass here. I kind of feel like the reflection on his visor is a little distracting. Let me see if me and my team can grade that down a little bit or matte it out. I'm happy to take another pass at it"
     },
     {
       "ts": "00:01:50",
       "speaker": "Cameron",
-      "text": "at it nice."
+      "text": "Nice."
     },
     {
       "ts": "00:01:53",
       "speaker": "Lars",
-      "text": "Also, I'm kind of seeing that his eye whites are getting a little lost against the background. I'm gonna try to contrast locally for you."
+      "text": "Also, I'm kind of seeing that his eye whites are getting a little lost against the background. I'm gonna try to up that contrast locally for you."
     },
     {
       "ts": "00:02:02",
       "speaker": "Cameron",
-      "text": "Okay, yeah, cool. Yeah, that that, that actually sounds great. Yeah, I'm just noticing that now myself, it's, it's looking good. I I'm, it's definitely passing in terms of my believability, but sounds like you have some internal notes on your end to to address. Okay, yeah. Also, keep me posted on roadblocks there. Copy, let's jump into Griffin. Let's see. This is HSM, satl, oh, 20. This one is going to be your effects pass, looking specifically at the asteroid hit cool. First things that jump out to me is it's looking a little linear there. What are you thinking?"
+      "text": "Okay, yeah, cool. Yeah, that that, that actually sounds great. Yeah, I'm just noticing that now myself, it's, it's looking good. I I'm, it's definitely passing in terms of my believability, but sounds like you have some internal notes on your end to to address. Okay, yeah. Also, keep me posted on roadblocks there."
+    },
+    {
+      "ts": "00:02:28",
+      "speaker": "Lars",
+      "text": "Copy."
+    },
+    {
+      "ts": "00:02:29",
+      "speaker": "Cameron",
+      "text": "Let's jump into Griffin. Let's see. This is HSM, satl, oh, oh, 20. This one is going to be your effects pass, looking specifically at the asteroid hit. Cool. First things that jump out to me is it's looking a little linear there. What are you thinking?"
     },
     {
       "ts": "00:02:53",
       "speaker": "Griffin",
-      "text": "Yeah, it's a little linear. I'll"
-    },
-    {
-      "ts": "00:02:56",
-      "speaker": "Griffin",
-      "text": "add some turbulence and break it up. You'd like,"
+      "text": "Yeah, it's a little linear. I'll add some turbulence and break it up if you'd like."
     },
     {
       "ts": "00:02:59",
       "speaker": "Cameron",
-      "text": "okay, yeah, nice. That would be sweet. I like the color. I think the first first pass is looking good. We could definitely give it a couple more rounds here."
+      "text": "Okay, yeah, nice. That would be sweet. I like the color. I think the first first pass is looking good. We could definitely give it a couple more rounds here."
     },
     {
       "ts": "00:03:10",
@@ -89,7 +114,7 @@
     {
       "ts": "00:03:18",
       "speaker": "Griffin",
-      "text": "I can add some cooler tones at the base we want,"
+      "text": "I can add some cooler tones at the base if we want."
     },
     {
       "ts": "00:03:21",
@@ -99,7 +124,12 @@
     {
       "ts": "00:03:32",
       "speaker": "Sonia",
-      "text": "We lost your screen. Share for a second there."
+      "text": "We lost your screen share for a second there."
+    },
+    {
+      "ts": "00:03:34",
+      "speaker": "Griffin",
+      "text": "Oh, yeah he's back up though."
     },
     {
       "ts": "00:03:36",
@@ -109,7 +139,7 @@
     {
       "ts": "00:03:45",
       "speaker": "Griffin",
-      "text": "Maybe we add some additional motion blur at the flame Street, cell speed, open."
+      "text": "Okay, and maybe we add some additional motion blur at the flame streak, sell the speed a little bit?"
     },
     {
       "ts": "00:03:49",
@@ -119,7 +149,17 @@
     {
       "ts": "00:03:52",
       "speaker": "Cameron",
-      "text": "actually, yeah, I'm seeing that too. That's it. Okay. All good ideas, guys. We're on fire today. This is looking great. Sounds good? Yeah, keep me posted on Roblox. I'll make a note of that internally as well. And okay, so jumping back now we've got an animation pass on our main character here doing sort of like some somersaults through space."
+      "text": "actually, yeah, I'm seeing that too. That's it. Okay."
+    },
+    {
+      "ts": "00:03:54",
+      "speaker": "Griffin",
+      "text": "You see it?"
+    },
+    {
+      "ts": "00:03:56",
+      "speaker": "Cameron",
+      "text": "All good ideas, guys. We're on fire today. This is looking great. Sounds good. Yeah, keep me posted on Road blocks. I'll make a note of that internally as well. And okay, so jumping back now we've got an animation pass of our main character here doing sort of like some somersaults through space."
     },
     {
       "ts": "00:04:18",
@@ -129,7 +169,17 @@
     {
       "ts": "00:04:32",
       "speaker": "Cameron",
-      "text": "Yeah, I'm seeing the same, the same on my end. I think it's also like his expression is not reading for me very well. I think we can definitely do another passage, just like his facials. I feel like there's, there could be some work there. And then last but not least, I feel like the the ship in the background could also read a bit better. I just feel like it. At the moment, it's getting, like, covered by by our droid in the foreground. And I kind of want to, kind of want to stay on that for a little longer so we can see all the things in the scene."
+      "text": "Yeah, I'm seeing the same, the same on my end. I think it's also like his expression is not reading for me very well.
+    },
+    {
+      "ts": "00:04:44",
+      "speaker": "Sonia",
+      "text": "Mmm."
+    },
+    {
+      "ts": "00:04:45",
+      "speaker": "Cameron",
+      "text": "I think we can definitely do another pass at just like his facials. I feel like there's, there could be some work there. And then last but not least, I feel like the the ship in the background could also read a bit better. I just feel like it. At the moment, it's getting, like, covered by by our droid in the foreground. And I kind of want to, kind of want to stay on that for a little longer so we can see all the things in the scene."
     },
     {
       "ts": "00:05:09",
@@ -149,12 +199,12 @@
     {
       "ts": "00:05:21",
       "speaker": "Sonia",
-      "text": "Both of them just look. They look too two dimensional. Two dimensional."
+      "text": "Both of them just look. They look too two dimensional."
     },
     {
       "ts": "00:05:25",
       "speaker": "Cameron",
-      "text": "Okay, cool, all right. Well, I'm making another that as well and keeping posted on roadblocks."
+      "text": "Two dimensional? Okay, cool, all right. Well, I'm making another that as well and keeping posted on road blocks."
     },
     {
       "ts": "00:05:34",
@@ -164,12 +214,22 @@
     {
       "ts": "00:05:39",
       "speaker": "Cameron",
-      "text": "Lars again. This is HSN, satl, oh, oh, 50, yeah, can we look at that. We got some somersaulting. This kind of, like, reminds me of, like, gravity. I don't know if you guys, you guys, saw gravity, but it's like, it's giving like a gravity,"
+      "text": "Lars again. This is HSM, satl, oh, oh, 50."
     },
+    {
+      "ts": "00:05:48",
+      "speaker": "Lars",
+      "text": "Yeah."
+    },
+    {
+      "ts": "00:05:49",
+      "speaker": "Cameron",
+      "text": "Can we look at that? We got some somersaulting. This kind of, like, reminds me of, like, gravity. I don't know if you guys, you guys, saw gravity, but it's like, it's giving like a gravity,"
+
     {
       "ts": "00:06:00",
       "speaker": "Lars",
-      "text": "yeah, I think that's what the shot kind of had in mind when they were pulling this together. I think that was a big influence. But, you know, I'm kind of seeing here, the color balance between him and the BG feels a bit mismatched. I think I should maybe warm him up in the next pass. I don't know what you think on that one."
+      "text": "yeah, I think that's what the team kind of had in mind when they were pulling this together. I think that was a big influence. But, you know, I'm kind of seeing here, the color balance between him and the BG feels a bit mismatched. I think I should maybe warm him up in the next pass. I don't know what you think on that one."
     },
     {
       "ts": "00:06:18",
@@ -179,7 +239,17 @@
     {
       "ts": "00:06:36",
       "speaker": "Lars",
-      "text": "Totally, I feel like, Yes, her team is probably best positioned to work on that. I'm gonna jump in with one more thing here. I'm kind of feeling that his depth cueing is missing, you know, I'm not sure if you guys feel like that either, but, you know, I'll circle back up with my team to add in some subtle atmosphere and haze here, just to push the scale a little bit..."
+      "text": "Totally, I feel like, Yes, her team is probably best positioned to work on that. I'm gonna jump in with one more thing here. I'm kind of feeling that his depth cueing is missing, you know, I'm not sure if you guys feel like that either."
+    },
+    {
+      "ts": "00:06:51",
+      "speaker": "Griffin",
+      "text": "Yeah."
+    },
+    {
+      "ts": "00:06:52",
+      "speaker": "Lars",
+      "text": "But, you know, I'll circle back up with my team to add in some subtle atmospheric haze here, just to push the scale a little bit..."
     },
     {
       "ts": "00:06:58",
@@ -189,7 +259,7 @@
     {
       "ts": "00:06:59",
       "speaker": "Lars",
-      "text": "Yeah, yeah, I'm seeing that was a little bit off right now. Yeah, happy to work on that next pass."
+      "text": "Yeah, yeah, I'm seeing that was a little bit off right now. Yeah, happy to work on that on the next pass."
     },
     {
       "ts": "00:07:05",
@@ -199,12 +269,12 @@
     {
       "ts": "00:07:06",
       "speaker": "Cameron",
-      "text": "All right. Great job. Team. Okay, we've got we've got one more here. We've got Griffin's shot. It's HSM, S, A, T, L, O, O, 6, zero. It's like 14 frames pretty quick, but we just have, like, a quick, it's like a early pass at animation here. And, oh, I'm sorry, that's my mistake. It's the effects the shooting of the lasers, I think so. This is early stages. It's just the blocking of where the lasers should be going. This looks good. What are you feeling on your end? Griff..."
+      "text": "All right. Great job. Team. Okay, we've got we've got one more here. We've got Griffin's shot. It's HSM, S, A, T, L, O, O, 6, zero. It's like 14 frames pretty quick, but we just have, like, a quick, it's like a early pass at animation here. And, oh, I'm sorry, that's my mistake. It's the effects the shooting of the lasers, I think, so this is early stages. It's just the blocking of where the lasers should be going. This looks good. What are you feeling on your end? Griff..."
     },
     {
       "ts": "00:07:39",
       "speaker": "Griffin",
-      "text": "They definitely read a little flat. I can layer in more parallax and flicker to get some depth you want."
+      "text": "They definitely read a little flat. I can layer in more parallax and flicker to get some depth if you want."
     },
     {
       "ts": "00:07:46",
@@ -234,12 +304,12 @@
     {
       "ts": "00:08:37",
       "speaker": "Griffin",
-      "text": "she's pretty good."
+      "text": "yeah, she's pretty good."
     },
     {
       "ts": "00:08:41",
       "speaker": "Cameron",
-      "text": "Collaborate on, collaborate on, on, just, just bringing that to final I have to go back here and just take a look at an earlier shot. That's one of the things we outlined for this meeting."
+      "text": "If you guys want to collaborate on, collaborate on, on, just, just bringing that to final I have to go back here and just take a look at an earlier shot. That's one of the things we outlined for this meeting."
     },
     {
       "ts": "00:08:54",
@@ -254,22 +324,22 @@
     {
       "ts": "00:09:12",
       "speaker": "Lars",
-      "text": "Felt like the feedback was solid. I think I have a solid go forward plan, but defer the rest of the team here."
+      "text": "Felt like the feedback was solid. I think I have a solid go forward plan, but defer to the rest of the team here."
     },
     {
       "ts": "00:09:19",
       "speaker": "Griffin",
-      "text": "Yeah, I agree. And if any roadblocks, will let you know,"
+      "text": "Yeah, I agree. And if there's any roadblocks, we'll let you know."
     },
     {
       "ts": "00:09:22",
       "speaker": "Lars",
-      "text": "yeah, for sure, yeah,"
+      "text": "yeah, for sure."
     },
     {
       "ts": "00:09:24",
       "speaker": "Sonia",
-      "text": "it seems pretty straightforward."
+      "text": "yeah, it seems pretty straightforward."
     },
     {
       "ts": "00:09:25",
