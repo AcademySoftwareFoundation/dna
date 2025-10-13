@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
-import { startWebSocketTranscription, stopWebSocketTranscription, parseMeetingUrl, getApiUrl, getHeaders, processSegments } from '../lib/transcription-service'
+import { startWebSocketTranscription, stopWebSocketTranscription, getApiUrl, getHeaders, processSegments } from '../lib/transcription-service'
+import { startBot, stopBot, parseMeetingUrl } from '../lib/bot-service';
 import { MOCK_MODE } from '../lib/config';
 
 // Global dictionary to track all segments by timestamp
@@ -14,13 +15,12 @@ function StatusBadge({ type = "info", children }) {
   return <span className={`badge badge-${type}`}>{children}</span>;
 }
 
+function getDefaultMeetUrl() {
+  return MOCK_MODE ? 'https://meet.google.com/mock-meet-123' : '';
+}
+
 function App() {
-  const [meetId, setMeetId] = useState(() => {
-    if (MOCK_MODE) {
-      return 'https://meet.google.com/mock-meet-123';
-    }
-    return '';
-  });
+  const [meetId, setMeetId] = useState(getDefaultMeetUrl());
   const [status, setStatus] = useState({ msg: "", type: "info" });
   const [uploadStatus, setUploadStatus] = useState({ msg: "", type: "info" });
   const [uploading, setUploading] = useState(false);
@@ -201,43 +201,19 @@ function App() {
     setWaitingForActive(true);
     setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
     stopTranscriptPolling();
-    
     try {
-      const { platform, nativeMeetingId } = parseMeetingUrl(fullUrl);
-      if (MOCK_MODE) {
-        // Simulate mock response (like DISABLE_VEXA in backend)
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setStatus({ msg: "(TEST MODE) Bot has been requested to join the meeting", type: "success" });
-        setJoinedMeetId(fullUrl);
-        startTranscriptPolling(fullUrl);
-        return;
-      }
-      // Call Vexa backend REST API directly
-      const apiUrl = getApiUrl();
-      const res = await fetch(`${apiUrl}/bots`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          platform,
-          native_meeting_id: nativeMeetingId,
-          bot_name: 'Vexa',
-        }),
-      });
-      const data = await res.json();
-      // Accept any 2xx status as success if data.status is always numerical
-      if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300))) {
-        console.log('[DEBUG] Bot add response:', res, data); // debug log
-        setStatus({ msg: "Failed to add bot to meeting.", type: "error" });
+      const result = await startBot(fullUrl);
+      if (!result.success) {
+        setStatus({ msg: result.statusMsg, type: "error" });
         setSubmitting(false);
         setWaitingForActive(false);
         return;
       }
-      console.log('[DEBUG] Bot request successful:', data);
+      setStatus({ msg: result.statusMsg, type: "success" });
       setJoinedMeetId(fullUrl);
       startTranscriptPolling(fullUrl);
     } catch (err) {
       setStatus({ msg: "Error starting transcription", type: "error" });
-      console.error('Error submitting meet ID:', err);
       setWaitingForActive(false);
     } finally {
       setSubmitting(false);
@@ -332,32 +308,11 @@ function App() {
     setSubmitting(true);
     setStatus({ msg: "Exiting bot...", type: "info" });
     try {
-      // Parse joinedMeetId to get platform/nativeMeetingId
-      const { platform, nativeMeetingId } = parseMeetingUrl(joinedMeetId);
-      // MOCK_MODE: Simulate bot exit without API call
-      if (MOCK_MODE) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setStatus({ msg: "(TEST MODE) Bot exited successfully.", type: "success" });
-        setBotIsActive(false);
-        setJoinedMeetId("");
-        setMeetId("");
-        stopTranscriptPolling();
-        return;
-      }
-      // Use Vexa API directly (like handleSubmit)
-      const apiUrl = getApiUrl();
-      // Use correct Vexa API endpoint for stopping bot (DELETE /bots/{platform}/{nativeMeetingId})
-      const res = await fetch(`${apiUrl}/bots/${platform}/${nativeMeetingId}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
-      const data = await res.json();
-      // Accept any 2xx status as success if data.status is always numerical
-      if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300)) || data.status === 'error') {
-        console.log('[DEBUG] Bot exit response:', res, data); // debug log
-        setStatus({ msg: "Failed to exit bot.", type: "error" });
+      const result = await stopBot(joinedMeetId);
+      if (!result.success) {
+        setStatus({ msg: result.statusMsg, type: "error" });
       } else {
-        setStatus({ msg: "Bot exited successfully.", type: "success" });
+        setStatus({ msg: result.statusMsg, type: "success" });
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
