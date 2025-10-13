@@ -62,43 +62,48 @@ function App() {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
-    setIsPollingTranscripts(true);
     setJoinedMeetId(meetingId);
     hasStartedWebSocketPollingRef.current = true;
-    
     try {
       // Parse meeting ID to get the format needed for WebSocket
       const { platform, nativeMeetingId } = parseMeetingUrl(meetingId);
       const meetingIdForWS = `${platform}/${nativeMeetingId}`;
-      
-      // Start WebSocket transcription for real-time updates
+      // Start WebSocket transcription for real-time updates and status
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
           console.log('🟢 WebSocket Segments:', segments);
           updateTranscriptionFromSegments(segments);
         },
-        // (segments) => {
-        //   // Transcript Finalized Event: print to console for now
-        //   console.log('🔵 WebSocket Transcript Finalized Event:', segments);
-        //   updateTranscriptionFromSegments(segments);
-        // },
-        // (statusValue) => {
-        //   // Meeting Status Event: print to console
-        //   console.log('🟡 WebSocket Meeting Status Event:', statusValue);
-        // },
-        // (error) => {
-        //   // Error Event: print to console
-        //   console.error('🔴 WebSocket Error Event:', error);
-        // },
-        // () => {
-        //   // Connected Event: print to console
-        //   console.log('✅ WebSocket Connected');
-        // },
-        // () => {
-        //   // Disconnected Event: print to console
-        //   console.log('❌ WebSocket Disconnected');
-        // }
+        // onTranscriptFinalized (optional, not used here)
+        () => {},
+        // onMeetingStatus
+        (statusValue) => {
+          const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
+          setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
+          setBotIsActive(isActiveStatus);
+          if (waitingForActive && isActiveStatus) {
+            setWaitingForActive(false);
+          }
+          // Stop polling when status is 'completed' or 'error'
+          if (statusValue === 'completed' || statusValue === 'error') {
+            setBotIsActive(false);
+            setStatus({ msg: `Bot Status: ${statusValue}`, type: 'info' });
+            stopTranscriptPolling();
+          }
+        },
+        // onError
+        (error) => {
+          setStatus({ msg: `WebSocket error: ${error}`, type: 'error' });
+        },
+        // onConnected
+        () => {
+          console.log('✅ WebSocket Connected');
+        },
+        // onDisconnected
+        () => {
+          console.log('❌ WebSocket Disconnected');
+        }
       );
     } catch (err) {
       console.error('Error starting WebSocket transcription:', err);
@@ -186,56 +191,6 @@ function App() {
     return '';
   };
 
-  // Bot status polling
-  const statusPollingIntervalRef = useRef(null);
-  
-  const startBotStatusPolling = (meetingIdForStatus) => {
-    if (statusPollingIntervalRef.current) {
-      clearInterval(statusPollingIntervalRef.current);
-    }
-    
-    const pollBotStatus = async () => {
-      try {
-        const { platform, nativeMeetingId } = parseMeetingUrl(meetingIdForStatus);
-        const res = await fetch(`http://localhost:8000/bot-status/${platform}/${nativeMeetingId}`);
-        const data = await res.json();
-        
-        if (res.ok) {
-          const statusValue = data.status;
-          const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
-          setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
-          setBotIsActive(isActiveStatus);
-          
-          if (waitingForActive && isActiveStatus) {
-            setWaitingForActive(false);
-          }
-          
-          // Stop polling when status is 'completed' or 'error'
-          if (statusValue === 'completed' || statusValue === 'error') {
-            stopBotStatusPolling();
-            if (statusValue === 'completed') {
-              stopTranscriptPolling();
-              setBotIsActive(false);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error polling bot status:', err);
-      }
-    };
-    
-    // Poll immediately and then every 2 seconds
-    pollBotStatus();
-    statusPollingIntervalRef.current = setInterval(pollBotStatus, 2000);
-  };
-  
-  const stopBotStatusPolling = () => {
-    if (statusPollingIntervalRef.current) {
-      clearInterval(statusPollingIntervalRef.current);
-      statusPollingIntervalRef.current = null;
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     const rawInput = meetId.trim();
@@ -248,7 +203,6 @@ function App() {
     setWaitingForActive(true);
     setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
     stopTranscriptPolling();
-    stopBotStatusPolling();
     
     try {
       const { platform, nativeMeetingId } = parseMeetingUrl(fullUrl);
@@ -257,7 +211,7 @@ function App() {
         await new Promise((resolve) => setTimeout(resolve, 800));
         setStatus({ msg: "(TEST MODE) Bot has been requested to join the meeting", type: "success" });
         setJoinedMeetId(fullUrl);
-        startBotStatusPolling(fullUrl);
+        startTranscriptPolling(fullUrl);
         return;
       }
       // Call Vexa backend REST API directly
@@ -272,7 +226,9 @@ function App() {
         }),
       });
       const data = await res.json();
-      if (!res.ok || data.status !== 'success') {
+      // Accept any 2xx status as success if data.status is always numerical
+      if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300))) {
+        console.log('[DEBUG] Bot add response:', res, data); // debug log
         setStatus({ msg: "Failed to add bot to meeting.", type: "error" });
         setSubmitting(false);
         setWaitingForActive(false);
@@ -280,7 +236,7 @@ function App() {
       }
       console.log('[DEBUG] Bot request successful:', data);
       setJoinedMeetId(fullUrl);
-      startBotStatusPolling(fullUrl);
+      startTranscriptPolling(fullUrl);
     } catch (err) {
       setStatus({ msg: "Error starting transcription", type: "error" });
       console.error('Error submitting meet ID:', err);
@@ -380,20 +336,24 @@ function App() {
     try {
       // Parse joinedMeetId to get platform/nativeMeetingId
       const { platform, nativeMeetingId } = parseMeetingUrl(joinedMeetId);
-      const res = await fetch(`http://localhost:8000/stop-bot/${platform}/${nativeMeetingId}`, {
-        method: 'POST',
+      // Use Vexa API directly (like handleSubmit)
+      const apiUrl = getApiUrl();
+      // Use correct Vexa API endpoint for stopping bot (DELETE /bots/{platform}/{nativeMeetingId})
+      const res = await fetch(`${apiUrl}/bots/${platform}/${nativeMeetingId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
       });
-      
       const data = await res.json();
-      if (res.ok && data.status === 'success') {
+      // Accept any 2xx status as success if data.status is always numerical
+      if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300)) || data.status === 'error') {
+        console.log('[DEBUG] Bot exit response:', res, data); // debug log
+        setStatus({ msg: "Failed to exit bot.", type: "error" });
+      } else {
         setStatus({ msg: "Bot exited successfully.", type: "success" });
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
         stopTranscriptPolling();
-        stopBotStatusPolling();
-      } else {
-        setStatus({ msg: "Failed to exit bot.", type: "error" });
       }
     } catch (err) {
       setStatus({ msg: "Network error while exiting bot", type: "error" });
