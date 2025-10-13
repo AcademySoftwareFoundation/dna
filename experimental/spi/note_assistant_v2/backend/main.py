@@ -7,7 +7,6 @@ import json
 import asyncio
 from datetime import datetime
 from playlist import router as playlist_router
-from vexa_client import VexaClient, VexaClientError
 import random
 from note_assistant import summarize_gemini, DEFAULT_MODELS, create_llm_client
 import google.generativeai as genai
@@ -20,8 +19,8 @@ except ImportError:
     # python-dotenv not installed, environment variables should be set manually
     pass
 
-DISABLE_VEXA = True
-DISABLE_LLM = True
+# Set DISABLE_LLM from environment variable (default to True if not set)
+DISABLE_LLM = os.getenv('DISABLE_LLM', 'true').lower() in ('1', 'true', 'yes')
 
 app = FastAPI()
 
@@ -32,129 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Initialize VexaClient with API key from environment variable
-vexa_client = VexaClient(api_key=os.getenv('VEXA_API_KEY'))
-
-class MeetID(BaseModel):
-    meet_id: str
-
-@app.post("/submit-meet-id")
-async def submit_meet_id(data: MeetID, request: Request):
-    if DISABLE_VEXA:
-        # Return a mock response for testing
-        return {
-            "status": "success",
-            "meet_id": data.meet_id,
-            "message": "(TEST MODE) Bot has been requested to join the meeting",
-            "bot_result": {"test": True}
-        }
-    try:
-        print(f"Received Google Meet ID: {data.meet_id}")
-        # Request bot to join the Google Meet
-        result = vexa_client.request_bot(
-            platform="google_meet",
-            native_meeting_id=data.meet_id
-        )        
-        print(f"Bot request successful: {result}")
-        return {
-            "status": "success", 
-            "meet_id": data.meet_id,
-            "message": "Bot has been requested to join the meeting",
-            "bot_result": result
-        }
-    except VexaClientError as e:
-        print(f"Error requesting bot: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to request bot: {str(e)}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.get("/transcripts/{platform}/{meeting_id}")
-async def get_transcripts(platform: str, meeting_id: str, last_segment_index: Optional[int] = None):
-    """
-    Proxy endpoint to fetch transcripts from Vexa API.
-    This keeps the API key secure on the backend.
-    Returns an array of transcript segments with 'speaker', 'start', and 'text'.
-    """
-    if DISABLE_VEXA:
-        # For testing, return a random segment
-        random_texts = [
-            {"speaker": "KJ", "start": 0.0, "text": "The lighting on this shot looks great, but I think the shadows could be softer."},
-            {"speaker": "BH", "start": 5.2, "text": "Agreed, maybe the artist can try a different falloff on the key light?"},
-            {"speaker": "CR", "start": 10.1, "text": "I'll make a note to ask for a softer shadow pass."},
-            {"speaker": "KJ", "start": 15.0, "text": "The character's expression is much improved from the last version."},
-            {"speaker": "BH", "start": 20.3, "text": "Yes, but the hand movement still feels a bit stiff."},
-            {"speaker": "CR", "start": 25.7, "text": "Should we suggest a reference for more natural hand motion?"},
-            {"speaker": "KJ", "start": 30.0, "text": "Let's approve the background, but request tweaks on the character animation."},
-            {"speaker": "BH", "start": 35.2, "text": "I'll mark the background as finalled in ShotGrid."},
-            {"speaker": "CR", "start": 40.1, "text": "I'll send the artist a note about the animation feedback."},
-            {"speaker": "KJ", "start": 45.0, "text": "The color grade is close, but the highlights are a bit too hot."},
-            {"speaker": "BH", "start": 50.3, "text": "Maybe ask the artist to bring down the highlight gain by 10%."},
-            {"speaker": "CR", "start": 55.7, "text": "Noted, I'll include that in the feedback summary."},
-            {"speaker": "KJ", "start": 60.0, "text": "Great progress overall, just a few minor notes for the next version."},
-            {"speaker": "BH", "start": 65.2, "text": "Let's target final for the next review if these are addressed."},
-            {"speaker": "CR", "start": 70.1, "text": "I'll communicate the action items and next steps to the artist."}
-        ]
-        return [random.choice(random_texts)]
-    try:
-        transcript_data = vexa_client.get_transcript(platform, meeting_id)
-        segments = transcript_data.get('segments', [])
-        # Ignore the last segment, it may be incomplete or re-processed by Vexa
-        if len(segments) > 1:
-            segments = segments[:-1]
-        elif len(segments) == 1:
-            segments = []
-        # If last_segment_index is provided, filter to return only new segments
-        if last_segment_index is not None and segments:
-            segments = [segment for i, segment in enumerate(segments) if i > last_segment_index]
-        # Return only the array of dicts with 'speaker', 'start', 'text'
-        transcript_segments = [
-            {"speaker": segment.get("speaker", ""), "start": segment.get("start", 0.0), "text": segment.get("text", "")}
-            for segment in segments if 'text' in segment and 'speaker' in segment
-        ]
-        return transcript_segments
-    except VexaClientError as e:
-        print(f"Error fetching transcript: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to fetch transcript: {str(e)}")
-    except Exception as e:
-        print(f"Unexpected error fetching transcript: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.get("/bot-status/{platform}/{meeting_id}")
-async def get_bot_status(platform: str, meeting_id: str):
-    """
-    Returns the current status of the bot for a given meeting.
-    """
-    if DISABLE_VEXA:
-        # Return a mock status for testing
-        return {"status": "test-mode-running"}
-    try:
-        meeting = vexa_client.get_meeting_by_id(platform, meeting_id)
-        if meeting is None:
-            return {"status": "unknown"}
-        return {"status": meeting.get("status", "unknown")}
-    except Exception as e:
-        print(f"Error fetching bot status: {e}")
-        return {"status": "error", "detail": str(e)}
-
-@app.post("/stop-bot/{platform}/{meeting_id}")
-async def stop_bot(platform: str, meeting_id: str):
-    """
-    Stops the bot for a given meeting.
-    """
-    if DISABLE_VEXA:
-        # Return a mock stop result for testing
-        return {"status": "success", "result": "(TEST MODE) Bot stopped."}
-    try:
-        result = vexa_client.stop_bot(platform, meeting_id)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        print(f"Error stopping bot: {e}")
-        return {"status": "error", "detail": str(e)}
-
-# Register playlist router
-app.include_router(playlist_router)
 
 class LLMSummaryRequest(BaseModel):
     text: str
@@ -273,3 +149,6 @@ async def email_notes(data: EmailNotesRequest, background_tasks: BackgroundTasks
         send_gmail_email(data.email, subject, html)
     background_tasks.add_task(send_task)
     return {"status": "success", "message": f"Notes sent to {data.email}"}
+
+# Register playlist router
+app.include_router(playlist_router)
