@@ -1,4 +1,16 @@
 import os
+import random
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+router = APIRouter()
+
+class LLMSummaryRequest(BaseModel):
+    text: str
+
+# --- LLM IMPLEMENTATION CODE ---
+
+import os
 import requests
 from openai import OpenAI
 import anthropic
@@ -38,12 +50,7 @@ DEFAULT_MODELS = {
     "gemini": "gemini-2.5-flash-preview-05-20"
 }
 
-# === SUMMARIZATION FUNCTIONS ===
-
 def summarize_openai(conversation, model, client):
-    """
-    Summarize using OpenAI. Caller must provide a valid OpenAI client instance.
-    """
     prompt = USER_PROMPT_TEMPLATE.format(conversation=conversation)
     response = client.chat.completions.create(
         model=model,
@@ -56,9 +63,6 @@ def summarize_openai(conversation, model, client):
     return response.choices[0].message.content
 
 def summarize_claude(conversation, model, client):
-    """
-    Summarize using Claude. Caller must provide a valid anthropic.Anthropic client instance.
-    """
     prompt = USER_PROMPT_TEMPLATE.format(conversation=conversation)
     response = client.messages.create(
         model=model,
@@ -72,9 +76,6 @@ def summarize_claude(conversation, model, client):
     return response.content[0].text
 
 def summarize_ollama(conversation, model, client):
-    """
-    Summarize using Ollama. Caller must provide a requests.Session or similar client instance.
-    """
     prompt = SYSTEM_PROMPT + "\n\n" + USER_PROMPT_TEMPLATE.format(conversation=conversation)
     response = client.post(
         "http://localhost:11434/api/generate",
@@ -83,9 +84,6 @@ def summarize_ollama(conversation, model, client):
     return response.json()["response"]
 
 def summarize_gemini(conversation, model, client):
-    """
-    Summarize using Gemini. Caller must provide a valid google.generativeai.GenerativeModel instance as client.
-    """
     full_prompt = f"{SYSTEM_PROMPT}\n\n{USER_PROMPT_TEMPLATE.format(conversation=conversation)}"
     response = client.generate_content(
         full_prompt,
@@ -108,15 +106,6 @@ def summarize_gemini(conversation, model, client):
     return candidate.content.parts[0].text
 
 def create_llm_client(provider, api_key=None, model=None):
-    """
-    Convenience function to create a client instance for supported LLM providers.
-    Args:
-        provider (str): 'openai', 'claude', 'ollama', or 'gemini'
-        api_key (str, optional): API key for the provider (if required)
-        model (str, optional): Model name for Gemini (required for Gemini)
-    Returns:
-        Client instance for use with summarize_* functions
-    """
     provider = provider.lower()
     if provider == "openai":
         if not api_key:
@@ -138,66 +127,41 @@ def create_llm_client(provider, api_key=None, model=None):
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
-if __name__ == "__main__":
-    import argparse
-    import sys
-    load_dotenv()
-
-    parser = argparse.ArgumentParser(description="Test LLM summarization for a given conversation text.")
-    parser.add_argument("--provider", required=True, choices=["openai", "claude", "ollama", "gemini"], help="LLM provider to use")
-    parser.add_argument("--model", help="Model name (optional, will use default if not provided)")
-    parser.add_argument("--input", required=True, help="Path to text file containing the conversation")
-    args = parser.parse_args()
-
-    # Load conversation text
+# --- Gemini LLM client cache ---
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+gemini_model = DEFAULT_MODELS["gemini"]
+gemini_client = None
+if gemini_api_key:
     try:
-        with open(args.input, "r") as f:
-            conversation = f.read()
+        gemini_client = create_llm_client("gemini", api_key=gemini_api_key, model=gemini_model)
     except Exception as e:
-        print(f"Error reading input file: {e}")
-        sys.exit(1)
+        print(f"Error initializing Gemini client: {e}")
 
-    # Select model
-    model = args.model or DEFAULT_MODELS.get(args.provider)
-    if not model:
-        print(f"No model specified and no default available for provider {args.provider}.")
-        sys.exit(1)
+DISABLE_LLM = os.getenv('DISABLE_LLM', 'true').lower() in ('1', 'true', 'yes')
 
-    # Get API key from environment
-    api_key_env_map = {
-        "openai": "OPENAI_API_KEY",
-        "claude": "CLAUDE_API_KEY",
-        "gemini": "GEMINI_API_KEY"
-    }
-    api_key = None
-    if args.provider in api_key_env_map:
-        api_key = os.getenv(api_key_env_map[args.provider])
-        if not api_key:
-            print(f"API key for {args.provider} not found in .env file (expected variable: {api_key_env_map[args.provider]}).")
-            sys.exit(1)
-
-    # Create client
+@router.post("/llm-summary")
+async def llm_summary(data: LLMSummaryRequest):
+    """
+    Generate a summary using Gemini LLM for the given text.
+    """
+    if DISABLE_LLM:
+        # Return a random summary for testing
+        random_summaries = [
+            "The team discussed lighting and animation improvements.",
+            "Minor tweaks needed for character animation; background approved.",
+            "Action items: soften shadows, adjust highlight gain, improve hand motion.",
+            "Most notes addressed; only a few minor issues remain.",
+            "Ready for final review after next round of changes.",
+            "Feedback: color grade is close, but highlights too hot.",
+            "Artist to be notified about animation and lighting feedback.",
+            "Overall progress is good; next steps communicated to the team."
+        ]
+        return {"summary": random.choice(random_summaries)}
     try:
-        client = create_llm_client(args.provider, api_key=api_key, model=model)
+        if not gemini_client:
+            raise HTTPException(status_code=500, detail="Gemini client not initialized.")
+        summary = summarize_gemini(data.text, gemini_model, gemini_client)
+        return {"summary": summary}
     except Exception as e:
-        print(f"Error creating client: {e}")
-        sys.exit(1)
-
-    # Summarize
-    try:
-        if args.provider == "openai":
-            summary = summarize_openai(conversation, model, client)
-        elif args.provider == "claude":
-            summary = summarize_claude(conversation, model, client)
-        elif args.provider == "ollama":
-            summary = summarize_ollama(conversation, model, client)
-        elif args.provider == "gemini":
-            summary = summarize_gemini(conversation, model, client)
-        else:
-            print(f"Unsupported provider: {args.provider}")
-            sys.exit(1)
-        #print("\n=== LLM Summary Output ===\n")
-        print(summary)
-    except Exception as e:
-        print(f"Error during summarization: {e}")
-        sys.exit(1)
+        print(f"Error in /llm-summary: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM summary error: {str(e)}")
