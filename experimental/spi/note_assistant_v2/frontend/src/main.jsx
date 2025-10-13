@@ -336,6 +336,16 @@ function App() {
     try {
       // Parse joinedMeetId to get platform/nativeMeetingId
       const { platform, nativeMeetingId } = parseMeetingUrl(joinedMeetId);
+      // MOCK_MODE: Simulate bot exit without API call
+      if (MOCK_MODE) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        setStatus({ msg: "(TEST MODE) Bot exited successfully.", type: "success" });
+        setBotIsActive(false);
+        setJoinedMeetId("");
+        setMeetId("");
+        stopTranscriptPolling();
+        return;
+      }
       // Use Vexa API directly (like handleSubmit)
       const apiUrl = getApiUrl();
       // Use correct Vexa API endpoint for stopping bot (DELETE /bots/{platform}/{nativeMeetingId})
