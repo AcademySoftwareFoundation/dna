@@ -1,9 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
-import { startTranscription, startWebSocketTranscription, stopWebSocketTranscription, stopTranscription, parseMeetingUrl, getApiUrl, getHeaders } from '../lib/transcription-service'
-import { getWebSocketService, convertWebSocketSegment } from '../lib/websocket-service';
-import { processSegments } from '../lib/transcription-display';
+import { startWebSocketTranscription, stopWebSocketTranscription, parseMeetingUrl, getApiUrl, getHeaders, processSegments } from '../lib/transcription-service'
 import { MOCK_MODE } from '../lib/config';
 
 // Global dictionary to track all segments by timestamp
@@ -671,7 +669,7 @@ function App() {
             <div className="transcript-controls">
               <button 
                 type="button" 
-                className={`btn ${isPollingTranscripts ? 'danger' : 'primary'}`}
+                className={`btn ${isPollingTranscripts ? (botIsActive ? 'danger' : 'primary') : 'primary'}`}
                 onClick={handleTranscriptPollingToggle}
                 disabled={!joinedMeetId}
               >
