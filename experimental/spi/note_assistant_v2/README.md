@@ -92,6 +92,8 @@ Create a `.env.local` file for development settings:
 ```bash
 # Enable mock mode for testing without authentication
 VITE_MOCK_MODE=false
+VITE_VEXA_API_URL=http://localhost:18056 # point to where VEXA server is located
+VITE_VEXA_API_KEY=your_vexa_client_api_key_here
 ```
 
 ## Usage
