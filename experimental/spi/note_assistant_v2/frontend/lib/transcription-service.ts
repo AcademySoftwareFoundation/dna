@@ -299,7 +299,7 @@ export function clearApiUrl(): void {
 }
 
 // Function to get headers with Vexa API key - with extra logging
-function getHeaders() {
+export function getHeaders() {
   // Get the API key
   const apiKey = getApiKey();
   
