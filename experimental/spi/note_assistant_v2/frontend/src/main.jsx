@@ -412,7 +412,7 @@ function App() {
       // After updating, scroll the textarea to the bottom
       setTimeout(() => {
         const textarea = document.querySelector(
-          `.data-table tbody tr${pinnedIndex !== null ? `.current-row` : ''} textarea.table-textarea[name='transcription']`
+          `.data-table tbody tr.current-row textarea.table-textarea[name='transcription']`
         );
         if (textarea) {
           textarea.scrollTop = textarea.scrollHeight;
