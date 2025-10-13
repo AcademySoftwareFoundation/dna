@@ -1,5 +1,4 @@
 import { MOCK_MODE } from "./config"
-import { parseMeetingUrl } from "./utils"
 import { 
   getWebSocketService, 
   convertWebSocketSegment,
@@ -1404,5 +1403,3 @@ export function processSegments(segments: any[]): SpeakerGroup[] {
   // Group by speaker using sortedSegments
   return groupSegmentsBySpeaker(sortedSegments);
 }
-
-export { parseMeetingUrl };
