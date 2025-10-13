@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import "./ui.css";
-import { startTranscription, startWebSocketTranscription, stopWebSocketTranscription, stopTranscription, parseMeetingUrl } from '../lib/transcription-service'
+import { startTranscription, startWebSocketTranscription, stopWebSocketTranscription, stopTranscription, parseMeetingUrl, getApiUrl, getHeaders } from '../lib/transcription-service'
 import { getWebSocketService, convertWebSocketSegment } from '../lib/websocket-service';
 import { processSegments } from '../lib/transcription-display';
 import { MOCK_MODE } from '../lib/config';
@@ -39,7 +39,6 @@ function App() {
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [mutableSegments, setMutableSegments] = useState([]);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const pollingIntervalRef = useRef(null);
   const prevIndexRef = useRef(currentIndex);
@@ -252,14 +251,26 @@ function App() {
     stopBotStatusPolling();
     
     try {
-      // Call backend API to submit meeting ID
       const { platform, nativeMeetingId } = parseMeetingUrl(fullUrl);
-      const res = await fetch('http://localhost:8000/submit-meet-id', {
+      if (MOCK_MODE) {
+        // Simulate mock response (like DISABLE_VEXA in backend)
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        setStatus({ msg: "(TEST MODE) Bot has been requested to join the meeting", type: "success" });
+        setJoinedMeetId(fullUrl);
+        startBotStatusPolling(fullUrl);
+        return;
+      }
+      // Call Vexa backend REST API directly
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/bots`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meet_id: nativeMeetingId }),
+        headers: getHeaders(),
+        body: JSON.stringify({
+          platform,
+          native_meeting_id: nativeMeetingId,
+          bot_name: 'Vexa',
+        }),
       });
-      
       const data = await res.json();
       if (!res.ok || data.status !== 'success') {
         setStatus({ msg: "Failed to add bot to meeting.", type: "error" });
@@ -267,13 +278,9 @@ function App() {
         setWaitingForActive(false);
         return;
       }
-      
       console.log('[DEBUG] Bot request successful:', data);
       setJoinedMeetId(fullUrl);
-      
-      // Start polling for bot status instead of using WebSocket
       startBotStatusPolling(fullUrl);
-      
     } catch (err) {
       setStatus({ msg: "Error starting transcription", type: "error" });
       console.error('Error submitting meet ID:', err);
