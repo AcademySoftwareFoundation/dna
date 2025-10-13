@@ -29,6 +29,40 @@ The Dailies Note Assistant v2 is a full-stack application designed to streamline
 - Node.js 18 or higher
 - Google Cloud Project with Gmail API enabled
 - API keys for desired LLM providers (optional)
+- **Vexa.ai account or self-hosted instance** for Google Meet transcription bot management
+
+## Vexa.ai Integration
+
+This application uses [Vexa.ai](https://vexa.ai/) to manage the Google Meet transcription bots that capture audio during dailies sessions. Vexa provides the infrastructure to programmatically join Google Meet calls and stream real-time transcriptions.
+
+### Vexa Setup Options
+
+**Option 1: Cloud Subscription (Recommended)**
+- Sign up for a Vexa.ai cloud account at [https://vexa.ai/get-started](https://vexa.ai/get-started)
+- Obtain your API key from the Vexa dashboard
+- No additional setup required
+
+**Option 2: Self-Hosted**
+- Follow the self-hosting documentation at [https://vexa.ai/get-started](https://vexa.ai/get-started)
+- Deploy Vexa on your own infrastructure
+- Configure the API endpoint and authentication
+
+### Vexa Configuration
+
+Add your Vexa credentials to the frontend environment:
+
+```bash
+# .env.local in frontend directory
+VITE_VEXA_API_URL=https://api.vexa.ai  # or your self-hosted URL
+VITE_VEXA_API_KEY=your_vexa_api_key_here
+```
+
+The application communicates with Vexa to:
+- Join Google Meet sessions with transcription bots
+- Stream real-time audio transcriptions via WebSocket
+- Manage bot lifecycle (join/leave meetings)
+
+For detailed Vexa setup instructions, API documentation, and troubleshooting, visit [https://vexa.ai/get-started](https://vexa.ai/get-started).
 
 ## Installation
 
