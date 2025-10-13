@@ -38,7 +38,6 @@ function App() {
   const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
   const [sendingEmail, setSendingEmail] = useState(false);
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
-  const pollingIntervalRef = useRef(null);
   const prevIndexRef = useRef(currentIndex);
 
   // Add a ref to track if websocket polling has started
@@ -57,9 +56,6 @@ function App() {
   // Start transcript polling (only called internally)
   const startTranscriptPolling = async (meetingId) => {
     console.log('startTranscriptPolling called, isPollingTranscripts:', isPollingTranscripts);
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
     setJoinedMeetId(meetingId);
     hasStartedWebSocketPollingRef.current = true;
     try {
@@ -110,10 +106,6 @@ function App() {
 
   // Stop transcript polling (only called internally)
   const stopTranscriptPolling = async () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
     setIsPollingTranscripts(false);
     hasStartedWebSocketPollingRef.current = false;
     // Clear global segments dict when stopping WebSocket
@@ -162,18 +154,6 @@ function App() {
       pauseTranscriptPolling();
     }
   };
-
-  // Cleanup polling on component unmount
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-      if (statusPollingIntervalRef.current) {
-        clearInterval(statusPollingIntervalRef.current);
-      }
-    };
-  }, []);
 
   // Function to get full Google Meet URL from input (URL or Meet ID)
   const getFullMeetUrl = (input) => {
