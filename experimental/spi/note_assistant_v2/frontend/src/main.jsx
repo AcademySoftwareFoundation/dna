@@ -28,8 +28,8 @@ function App() {
   const [dragActive, setDragActive] = useState(false);
   const [rows, setRows] = useState([]); // [{shot, transcription, summary}]
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPollingTranscripts, setIsPollingTranscripts] = useState(false);
-  const isPollingTranscriptsRef = useRef(isPollingTranscripts);
+  const [isReceivingTranscripts, setIsReceivingTranscripts] = useState(false);
+  const isReceivingTranscriptsRef = useRef(isReceivingTranscripts);
   const [joinedMeetId, setJoinedMeetId] = useState("");
   const [botIsActive, setBotIsActive] = useState(false);
   const [waitingForActive, setWaitingForActive] = useState(false);
@@ -40,24 +40,24 @@ function App() {
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const prevIndexRef = useRef(currentIndex);
 
-  // Add a ref to track if websocket polling has started
-  const hasStartedWebSocketPollingRef = useRef(false);
+  // Add a ref to track if websocket is active
+  const hasActiveWebSocketRef = useRef(false);
 
   // Update the ref whenever currentIndex changes
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
 
-  // Update the ref whenever isPollingTranscripts changes
+  // Update the ref whenever isReceivingTranscripts changes
   useEffect(() => {
-    isPollingTranscriptsRef.current = isPollingTranscripts;
-  }, [isPollingTranscripts]);
+    isReceivingTranscriptsRef.current = isReceivingTranscripts;
+  }, [isReceivingTranscripts]);
 
-  // Start transcript polling (only called internally)
-  const startTranscriptPolling = async (meetingId) => {
-    console.log('startTranscriptPolling called, isPollingTranscripts:', isPollingTranscripts);
+  // Start transcript stream (only called internally)
+  const startTranscriptStream = async (meetingId) => {
+    console.log('startTranscriptStream called, isReceivingTranscripts:', isReceivingTranscripts);
     setJoinedMeetId(meetingId);
-    hasStartedWebSocketPollingRef.current = true;
+    hasActiveWebSocketRef.current = true;
     try {
       // Parse meeting ID to get the format needed for WebSocket
       const { platform, nativeMeetingId } = parseMeetingUrl(meetingId);
@@ -79,11 +79,11 @@ function App() {
           if (waitingForActive && isActiveStatus) {
             setWaitingForActive(false);
           }
-          // Stop polling when status is 'completed' or 'error'
+          // Stop stream when status is 'completed' or 'error'
           if (statusValue === 'completed' || statusValue === 'error') {
             setBotIsActive(false);
             setStatus({ msg: `Bot Status: ${statusValue}`, type: 'info' });
-            stopTranscriptPolling();
+            stopTranscriptStream();
           }
         },
         // onError
@@ -104,10 +104,10 @@ function App() {
     }
   };
 
-  // Stop transcript polling (only called internally)
-  const stopTranscriptPolling = async () => {
-    setIsPollingTranscripts(false);
-    hasStartedWebSocketPollingRef.current = false;
+  // Stop transcript stream (only called internally)
+  const stopTranscriptStream = async () => {
+    setIsReceivingTranscripts(false);
+    hasActiveWebSocketRef.current = false;
     // Clear global segments dict when stopping WebSocket
     for (const key in allSegments) {
       delete allSegments[key];
@@ -125,33 +125,33 @@ function App() {
     }
   };
 
-  // Update the ref whenever isPollingTranscripts changes
+  // Update the ref whenever isReceivingTranscripts changes
   useEffect(() => {
-    isPollingTranscriptsRef.current = isPollingTranscripts;
-  }, [isPollingTranscripts]);
+    isReceivingTranscriptsRef.current = isReceivingTranscripts;
+  }, [isReceivingTranscripts]);
 
-  // Manual transcript polling control
-  const pauseTranscriptPolling = () => {
-    console.log('pauseTranscriptPolling called');
-    setIsPollingTranscripts(false);
+  // Manual transcript stream control
+  const pauseTranscriptStream = () => {
+    console.log('pauseTranscriptStream called');
+    setIsReceivingTranscripts(false);
   };
 
-  const resumeTranscriptPolling = () => {
-    console.log('resumeTranscriptPolling called');
-    setIsPollingTranscripts(true);
+  const resumeTranscriptStream = () => {
+    console.log('resumeTranscriptStream called');
+    setIsReceivingTranscripts(true);
   };
 
-  const handleTranscriptPollingToggle = () => {
-    console.log('handleTranscriptPollingToggle called, isPollingTranscripts:', isPollingTranscriptsRef.current, ' hasStartedWebSocketPollingRef:', hasStartedWebSocketPollingRef.current);
-    if (!isPollingTranscripts) {
-      // Only resume polling if already started, otherwise start
-      if (joinedMeetId && hasStartedWebSocketPollingRef.current) {
-        resumeTranscriptPolling();
-      } else if (joinedMeetId && !hasStartedWebSocketPollingRef.current) {
-        startTranscriptPolling(joinedMeetId);
+  const handleTranscriptStreamToggle = () => {
+    console.log('handleTranscriptStreamToggle called, isReceivingTranscripts:', isReceivingTranscriptsRef.current, ' hasActiveWebSocketRef:', hasActiveWebSocketRef.current);
+    if (!isReceivingTranscripts) {
+      // Only resume stream if already started, otherwise start
+      if (joinedMeetId && hasActiveWebSocketRef.current) {
+        resumeTranscriptStream();
+      } else if (joinedMeetId && !hasActiveWebSocketRef.current) {
+        startTranscriptStream(joinedMeetId);
       }
     } else {
-      pauseTranscriptPolling();
+      pauseTranscriptStream();
     }
   };
 
@@ -180,7 +180,7 @@ function App() {
     setSubmitting(true);
     setWaitingForActive(true);
     setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
-    stopTranscriptPolling();
+    stopTranscriptStream();
     try {
       const result = await startBot(fullUrl);
       if (!result.success) {
@@ -191,7 +191,7 @@ function App() {
       }
       setStatus({ msg: result.statusMsg, type: "success" });
       setJoinedMeetId(fullUrl);
-      startTranscriptPolling(fullUrl);
+      startTranscriptStream(fullUrl);
     } catch (err) {
       setStatus({ msg: "Error starting transcription", type: "error" });
       setWaitingForActive(false);
@@ -296,7 +296,7 @@ function App() {
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
-        stopTranscriptPolling();
+        stopTranscriptStream();
       }
     } catch (err) {
       setStatus({ msg: "Network error while exiting bot", type: "error" });
@@ -372,7 +372,7 @@ function App() {
     console.log('allSegments:', allSegments);
     console.log('newSegments:', newSegments);
 
-    if (!isPollingTranscriptsRef.current) return;
+    if (!isReceivingTranscriptsRef.current) return;
     // Track segments for this shot BEFORE processSegments
     let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
     if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
@@ -604,11 +604,11 @@ function App() {
             <div className="transcript-controls">
               <button 
                 type="button" 
-                className={`btn ${isPollingTranscripts ? (botIsActive ? 'danger' : 'primary') : 'primary'}`}
-                onClick={handleTranscriptPollingToggle}
+                className={`btn ${isReceivingTranscripts ? (botIsActive ? 'danger' : 'primary') : 'primary'}`}
+                onClick={handleTranscriptStreamToggle}
                 disabled={!joinedMeetId}
               >
-                {isPollingTranscripts ? 'Pause Transcripts' : 'Get Transcripts'}
+                {isReceivingTranscripts ? 'Pause Transcripts' : 'Get Transcripts'}
               </button>
             </div>
           )}
