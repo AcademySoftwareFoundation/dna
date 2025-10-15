@@ -10,6 +10,7 @@ from playlist import router as playlist_router
 import random
 from email_service import router as email_router
 from note_service import router as note_router
+from shotgrid_service import router as shotgrid_router
 
 # Load environment variables from .env file (optional)
 try:
@@ -29,7 +30,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register playlist router
+# Register playlist, email, note, and shotgrid routers
 app.include_router(playlist_router)
 app.include_router(email_router)
 app.include_router(note_router)
+app.include_router(shotgrid_router)
