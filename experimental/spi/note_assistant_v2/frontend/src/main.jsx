@@ -367,6 +367,43 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // --- Transcript Download Helper ---
+  const downloadTranscript = () => {
+    if (!Object.keys(shotSegments).length) return;
+    
+    let transcriptContent = 'Audio Transcript\n================\n\n';
+    
+    // Iterate through each shot in shotSegments
+    Object.keys(shotSegments).forEach(shotKey => {
+      transcriptContent += `${shotKey}\n`;
+      transcriptContent += '-------------------\n';
+      
+      const segments = shotSegments[shotKey];
+      // Sort segments by timestamp
+      const sortedTimestamps = Object.keys(segments).sort();
+      
+      sortedTimestamps.forEach(timestamp => {
+        const segment = segments[timestamp];
+        const speaker = segment.speaker || 'Unknown';
+        const text = segment.combinedText || '';
+        transcriptContent += `[${timestamp}] ${speaker}:\n${text}\n\n`;
+      });
+      
+      transcriptContent += '\n';
+    });
+    
+    // Create blob and trigger download
+    const blob = new Blob([transcriptContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'audio_transcript.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Helper to process segments and update the UI transcription field
   function updateTranscriptionFromSegments(segments) {
     // Track all segments globally as a dictionary
@@ -732,6 +769,14 @@ function App() {
               disabled={rows.length === 0}
             >
               Download Notes
+            </button>
+            <button
+              className="btn primary"
+              style={{ minWidth: 180, height: 36, padding: '0 16px' }}
+              onClick={downloadTranscript}
+              disabled={Object.keys(shotSegments).length === 0}
+            >
+              Download Transcript
             </button>
             <input
               type="email"
