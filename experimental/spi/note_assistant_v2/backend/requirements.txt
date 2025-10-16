@@ -10,3 +10,4 @@ openai
 anthropic
 google-generativeai
 google_auth_oauthlib
+shotgun_api3
