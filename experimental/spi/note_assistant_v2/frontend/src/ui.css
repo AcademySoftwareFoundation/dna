@@ -238,6 +238,40 @@ body { margin: 0; background: var(--bg); color: var(--text); }
   text-overflow: ellipsis;
 }
 
+/* Full height table cells for tabbed interface */
+.data-table tbody tr td {
+  height: 1px; /* This forces the table cell to expand */
+}
+
+.data-table tbody tr td > div {
+  height: 100%;
+  min-height: 120px; /* Minimum height to ensure proper display */
+}
+
+/* Tab Styling */
+.tab-button {
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tab-button:hover {
+  color: var(--text);
+  background: rgba(61, 130, 246, 0.1);
+}
+
+.tab-button.active {
+  color: var(--accent);
+  background: var(--bg-alt);
+  border-bottom-color: var(--accent);
+}
+
 /* Responsive adjustments for floating controls */
 @media (max-width: 640px) {
   .floating-controls {

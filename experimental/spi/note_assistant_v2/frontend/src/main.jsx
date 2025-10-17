@@ -45,6 +45,7 @@ function App() {
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [activeTab, setActiveTab] = useState({}); // Track active tab per row
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const prevIndexRef = useRef(currentIndex);
 
@@ -269,6 +270,14 @@ function App() {
 
   const updateCell = (index, key, value) => {
     setRows(r => r.map((row, i) => i === index ? { ...row, [key]: value } : row));
+  };
+
+  const setTabForRow = (rowIndex, tabName) => {
+    setActiveTab(prev => ({ ...prev, [rowIndex]: tabName }));
+  };
+
+  const getActiveTabForRow = (rowIndex) => {
+    return activeTab[rowIndex] || 'notes';
   };
 
   // Function to get LLM summary from backend
@@ -648,9 +657,8 @@ function App() {
                   <tr>
                     {/* Remove Current column header */}
                     <th className="col-shot" style={{ width: '10%' }}>Shot/Version</th>
-                    <th className="col-notes" style={{ width: '28%' }}>Notes</th>
-                    <th className="col-transcription" style={{ width: '28%' }}>Transcription</th>
-                    <th className="col-summary" style={{ width: '28%' }}>Summary</th>
+                    <th className="col-notes" style={{ width: '45%' }}>Notes & Summary</th>
+                    <th className="col-transcription" style={{ width: '45%' }}>Transcription</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -701,56 +709,102 @@ function App() {
                             </svg>
                           </button>
                         </td>
-                        <td style={{ width: '28%' }}>
-                          <textarea
-                            value={row.notes || ''}
-                            onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
-                            onChange={(e) => updateCell(idx, 'notes', e.target.value)}
-                            className="table-textarea"
-                            placeholder="Enter notes..."
-                            rows={3}
-                          />
+                        <td style={{ width: '45%' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            {/* Tab Navigation */}
+                            <div style={{ display: 'flex', borderBottom: '1px solid #2c323c', marginBottom: '8px' }}>
+                              <button
+                                type="button"
+                                className={`tab-button ${getActiveTabForRow(idx) === 'notes' ? 'active' : ''}`}
+                                onClick={() => setTabForRow(idx, 'notes')}
+                              >
+                                Notes
+                              </button>
+                              <button
+                                type="button"
+                                className={`tab-button ${getActiveTabForRow(idx) === 'summary' ? 'active' : ''}`}
+                                style={{ position: 'relative' }}
+                                onClick={() => setTabForRow(idx, 'summary')}
+                              >
+                                Gemini
+                                {getActiveTabForRow(idx) === 'summary' && (
+                                  <button
+                                    type="button"
+                                    className="btn"
+                                    style={{ 
+                                      position: 'absolute', 
+                                      top: '-2px', 
+                                      right: '-8px', 
+                                      padding: '2px', 
+                                      minWidth: '20px', 
+                                      height: '20px', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      justifyContent: 'center',
+                                      fontSize: '10px',
+                                      background: '#3d82f6',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '50%'
+                                    }}
+                                    aria-label="Refresh Summary"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const inputText = row.transcription || row.notes || '';
+                                      if (!inputText.trim()) return;
+                                      updateCell(idx, 'summary', '...'); // Show loading
+                                      const summary = await getLLMSummary(inputText);
+                                      updateCell(idx, 'summary', summary || '[No summary returned]');
+                                    }}
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M9 3a6 6 0 1 1-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                      <path d="M3 3v6h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  </button>
+                                )}
+                              </button>
+                            </div>
+                            {/* Tab Content */}
+                            <div style={{ flex: 1 }}>
+                              {getActiveTabForRow(idx) === 'notes' && (
+                                <textarea
+                                  value={row.notes || ''}
+                                  onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                                  onChange={(e) => updateCell(idx, 'notes', e.target.value)}
+                                  className="table-textarea"
+                                  placeholder="Enter notes..."
+                                  rows={3}
+                                  style={{ height: '100%', minHeight: '72px' }}
+                                />
+                              )}
+                              {getActiveTabForRow(idx) === 'summary' && (
+                                <textarea
+                                  value={row.summary || ''}
+                                  onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                                  onChange={(e) => updateCell(idx, 'summary', e.target.value)}
+                                  className="table-textarea"
+                                  placeholder="Summary goes here..."
+                                  rows={3}
+                                  style={{ height: '100%', minHeight: '72px' }}
+                                />
+                              )}
+                            </div>
+                          </div>
                         </td>
-                        <td style={{ width: '28%' }}>
-                          <textarea
-                            name="transcription"
-                            value={row.transcription}
-                            onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
-                            onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
-                            className="table-textarea"
-                            placeholder="Enter transcription..."
-                            rows={3}
-                          />
-                        </td>
-                        <td style={{ width: '28%', position: 'relative' }}>
-                          <textarea
-                            value={row.summary}
-                            onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
-                            onChange={(e) => updateCell(idx, 'summary', e.target.value)}
-                            className="table-textarea"
-                            placeholder="Enter summary..."
-                            rows={3}
-                            style={{ paddingRight: '36px' }}
-                          />
-                          <button
-                            type="button"
-                            className="btn"
-                            style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            aria-label="Refresh"
-                            onClick={async () => {
-                              // Use transcription as input for summary
-                              const inputText = row.transcription || row.notes || '';
-                              if (!inputText.trim()) return;
-                              updateCell(idx, 'summary', '...'); // Show loading
-                              const summary = await getLLMSummary(inputText);
-                              updateCell(idx, 'summary', summary || '[No summary returned]');
-                            }}
-                          >
-                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M9 3a6 6 0 1 1-6 6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M3 3v6h6" stroke="#3d82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </button>
+                        <td style={{ width: '45%' }}>
+                          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <textarea
+                              name="transcription"
+                              value={row.transcription}
+                              onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                              onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
+                              className="table-textarea"
+                              placeholder="Transcription goes here..."
+                              rows={3}
+                              style={{ flex: 1, height: '100%', minHeight: '110px' }}
+                            />
+                          </div>
                         </td>
                       </tr>
                     );
