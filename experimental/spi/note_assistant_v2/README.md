@@ -12,22 +12,26 @@ The Dailies Note Assistant v2 is a full-stack application designed to streamline
 - **Backend**: FastAPI server with multiple services
 - **AI Integration**: Support for multiple LLM providers (OpenAI, Claude, Gemini, Ollama)
 - **Email Service**: Gmail API integration for sending notes
+- **ShotGrid Integration**: Direct integration with ShotGrid for project and playlist management
 - **Real-time Transcription**: WebSocket-based live transcription
 
 ## Features
 
-- 🎯 **Shot-based Organization**: Upload CSV playlists to organize notes by shot/version
-- 🎤 **Live Transcription**: Real-time audio transcription from Google Meet sessions
+- 🎯 **Shot-based Organization**: Upload CSV playlists or import from ShotGrid to organize notes by shot/version
+- �️ **ShotGrid Integration**: Connect directly to ShotGrid projects and playlists for seamless workflow
+- �🎤 **Live Transcription**: Real-time audio transcription from Google Meet sessions
 - 🤖 **AI Summaries**: Generate concise summaries using various LLM providers
 - 📧 **Email Integration**: Send formatted notes via Gmail
-- 📊 **Export Functionality**: Download notes as CSV files
+- 📊 **Export Functionality**: Download notes as CSV files or raw transcripts as TXT files
 - 🎯 **Pin/Focus System**: Pin specific shots to capture targeted transcriptions
+- 🎭 **Demo Mode**: Anonymize sensitive data for demonstrations and screenshots
 
 ## Prerequisites
 
 - Python 3.9 or higher
 - Node.js 18 or higher
 - Google Cloud Project with Gmail API enabled
+- **ShotGrid access** with API credentials (for production pipeline integration)
 - API keys for desired LLM providers (optional)
 - **Vexa.ai account or self-hosted instance** for Google Meet transcription bot management
 
@@ -64,6 +68,42 @@ The application communicates with Vexa to:
 
 For detailed Vexa setup instructions, API documentation, and troubleshooting, visit [https://vexa.ai/get-started](https://vexa.ai/get-started).
 
+## ShotGrid Integration
+
+The application integrates directly with ShotGrid (formerly Shotgun) to provide seamless access to your studio's project and playlist data. This allows users to select shots directly from existing ShotGrid playlists rather than manually uploading CSV files.
+
+### ShotGrid Setup
+
+1. **Create a Script User in ShotGrid**:
+   - Go to your ShotGrid site admin panel
+   - Navigate to Scripts and create a new script user
+   - Note the script name and generate an API key
+
+2. **Configure Field Names**:
+   - Identify the field names in your ShotGrid schema for shots and versions
+   - Common examples: `code`, `sg_shot`, `sg_version`, etc.
+
+3. **Set Project Type Filters**:
+   - Determine which project types should appear in the active projects list
+   - Examples: `Feature`, `Episodic`, `Commercial`, etc.
+
+### ShotGrid Configuration in .env
+
+```bash
+SHOTGRID_URL=https://your-studio.shotgrid.autodesk.com
+SHOTGRID_SCRIPT_NAME=your-script-name
+SHOTGRID_API_KEY=your-api-key
+SHOTGRID_SHOT_FIELD=code  # or your shot field name
+SHOTGRID_VERSION_FIELD=code  # or your version field name  
+SHOTGRID_TYPE_FILTER=Feature,Episodic  # comma-separated project types
+```
+
+The ShotGrid integration provides:
+- **Project Selection**: Browse active projects filtered by type
+- **Playlist Access**: View recent playlists for selected projects
+- **Shot Import**: Import shots/versions directly from ShotGrid playlists
+- **Demo Mode**: Anonymize ShotGrid data for demonstrations (see Demo Mode section)
+
 ## Installation
 
 ### Backend Setup
@@ -97,6 +137,17 @@ DISABLE_LLM=false
 OPENAI_API_KEY=your-openai-api-key
 ANTHROPIC_API_KEY=your-claude-api-key
 GEMINI_API_KEY=your-gemini-api-key
+
+# ShotGrid Configuration (required for production pipeline integration)
+SHOTGRID_URL=https://your-studio.shotgrid.autodesk.com
+SHOTGRID_SCRIPT_NAME=your-script-name
+SHOTGRID_API_KEY=your-api-key
+SHOTGRID_SHOT_FIELD=shot_field_name
+SHOTGRID_VERSION_FIELD=version_field_name
+SHOTGRID_TYPE_FILTER=Project,Types,To,Include
+
+# Demo Mode - anonymize data when set to true
+DEMO_MODE=false
 
 # For Ollama (if using local models)
 # Ensure Ollama is running on localhost:11434
@@ -150,9 +201,9 @@ The web interface will be available at `http://localhost:5173`
 
 ### Using the Application
 
-1. **Upload Playlist**: 
-   - Drag and drop or click to upload a CSV file containing shot/version information
-   - The first column should contain shot names or version identifiers
+1. **Choose Your Shot Source**:
+   - **Option A - Upload CSV**: Drag and drop a CSV file with shot/version information
+   - **Option B - ShotGrid Integration**: Select an active ShotGrid project and playlist to import shots
 
 2. **Join Google Meet**:
    - Enter a Google Meet URL or Meeting ID
@@ -168,7 +219,8 @@ The web interface will be available at `http://localhost:5173`
    - Summaries are generated from the transcription text using configured LLM
 
 5. **Export and Share**:
-   - Use "Download Notes" to export as CSV
+   - Use "Download Notes" to export structured notes as CSV
+   - Use "Download Transcript" to export raw transcriptions as TXT file
    - Enter an email address and click "Email Notes" to send formatted notes
 
 ### CSV Format
@@ -183,9 +235,18 @@ Only the first column (shot identifier) is required.
 
 ## API Endpoints
 
+### Core Functionality
 - `POST /upload-playlist` - Upload CSV playlist
 - `POST /llm-summary` - Generate AI summary from text
 - `POST /email-notes` - Send notes via email
+
+### ShotGrid Integration
+- `GET /shotgrid/active-projects` - Get list of active ShotGrid projects
+- `GET /shotgrid/latest-playlists/{project_id}` - Get recent playlists for a project
+- `GET /shotgrid/playlist-items/{playlist_id}` - Get shots/versions from a playlist
+- `GET /shotgrid/most-recent-playlist-items` - Get items from most recent playlist
+
+### Real-time Communication
 - WebSocket endpoints for real-time transcription
 
 ## Configuration
@@ -245,6 +306,7 @@ The backend uses FastAPI with the following structure:
 - `email_service.py` - Gmail API integration
 - `note_service.py` - LLM summary generation
 - `playlist.py` - CSV upload handling
+- `shotgrid_service.py` - ShotGrid API integration and demo mode
 
 ### Frontend Development
 
@@ -273,11 +335,17 @@ npm run build
    - Check API rate limits and quotas
    - Use `DISABLE_LLM=true` for testing without LLM calls
 
-3. **WebSocket Connection Issues**:
+3. **ShotGrid Connection Issues**:
+   - Verify ShotGrid URL, script name, and API key are correct
+   - Ensure the script user has proper permissions
+   - Check that field names match your ShotGrid schema
+   - Confirm project type filters are valid
+
+4. **WebSocket Connection Issues**:
    - Ensure backend server is running on port 8000
    - Check firewall settings for WebSocket connections
 
-4. **File Upload Problems**:
+5. **File Upload Problems**:
    - Ensure CSV files are properly formatted
    - Check file size limits
 
