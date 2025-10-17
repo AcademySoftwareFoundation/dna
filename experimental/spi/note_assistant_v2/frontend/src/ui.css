@@ -118,12 +118,34 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 }
 
 .current-cell input[type=radio] { cursor: pointer; width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* Add transition to all table rows for smooth height changes */
+.data-table tbody tr {
+  transition: all 0.3s ease;
+}
+
 .current-row { 
   border: 2px solid #90caf9 !important; /* lighter blue */
   border-radius: 4px;
   background-color: transparent !important; /* remove background color */
+  transition: all 0.3s ease;
 }
-.current-row .table-textarea, .current-row .readonly-cell { background: #202a36; }
+
+.current-row td {
+  padding-top: 15px !important; /* 25% more than default 12px */
+  padding-bottom: 15px !important; /* 25% more than default 12px */
+}
+
+.current-row .table-textarea { 
+  background: #202a36;
+  min-height: 176px !important; /* 100% more than default 88px */
+  transition: min-height 0.3s ease;
+}
+
+.current-row .readonly-cell { 
+  background: #202a36;
+}
+
 .current-row .table-textarea:focus { background: #243244; }
 
 /* Bot status indicator */
