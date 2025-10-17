@@ -190,6 +190,37 @@ Only the first column (shot identifier) is required.
 
 ## Configuration
 
+### Demo Mode
+
+The backend supports a **Demo Mode** that anonymizes sensitive data from ShotGrid before returning it to the frontend. This is useful for demonstrations, screenshots, or sharing the application without exposing real project information.
+
+Add the following line to your `.env` file in the backend directory:
+
+```bash
+# Demo Mode - anonymize data when set to true
+DEMO_MODE=false
+```
+
+Set `DEMO_MODE=true` to enable anonymization, or `DEMO_MODE=false` (or omit entirely) to use real data.
+
+#### How Demo Mode Works
+
+When demo mode is enabled, the system:
+
+1. **Fetches real data from ShotGrid** - All ShotGrid queries work normally
+2. **Anonymizes data before returning** - Text is scrambled using consistent hashing
+3. **Preserves data structure** - IDs, dates, and relationships remain intact
+4. **Maintains consistency** - The same input always produces the same anonymized output
+
+#### What Gets Anonymized
+
+- **Project codes**: `SPIDERMAN_001` → `PROJ_70B19AF5_001`
+- **Project names**: `Spider-Man: No Way Home` → `PROJECT_2B76F2DD`
+- **Playlist codes**: `dailies_review_v3` → `PLAYLIST_8A3F9B12`
+- **Shot names**: `shot_010/v001` → `A1B2C/12345` (5 chars max / 5-digit version)
+
+**Note**: Database IDs, dates, and relationships remain unchanged to preserve functionality.
+
 ### LLM Providers
 
 The application supports multiple LLM providers:
