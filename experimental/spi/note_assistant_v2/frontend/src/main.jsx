@@ -660,8 +660,32 @@ function App() {
                     return (
                       <tr key={idx} className={isCurrent ? 'current-row' : ''}>
                         {/* Remove Current radio button cell */}
-                        <td className="readonly-cell" style={{ width: '10%', position: 'relative' }}>
-                          {row.shot}
+                        <td className="readonly-cell" style={{ width: '10%', position: 'relative', paddingRight: '40px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2', wordWrap: 'break-word', overflowWrap: 'break-word', wordBreak: 'break-all', maxWidth: '100%' }}>
+                            {(() => {
+                              // Parse shot/version - try common delimiters
+                              const shotText = row.shot || '';
+                              const delimiters = ['/', '-', '_', '.'];
+                              let shot = shotText;
+                              let version = '';
+                              
+                              for (const delimiter of delimiters) {
+                                const parts = shotText.split(delimiter);
+                                if (parts.length >= 2) {
+                                  shot = parts[0];
+                                  version = parts.slice(1).join(delimiter);
+                                  break;
+                                }
+                              }
+                              
+                              return (
+                                <>
+                                  <span style={{ color: 'var(--text-muted)', wordWrap: 'break-word', overflowWrap: 'break-word' }}>{shot}</span>
+                                  <span style={{ fontSize: '1.5em', fontWeight: 'bold', wordWrap: 'break-word', overflowWrap: 'break-word' }}>{version || shot}</span>
+                                </>
+                              );
+                            })()}
+                          </div>
                           <button
                             type="button"
                             className={`btn${isPinned ? ' pinned' : ''}`}
