@@ -38,7 +38,7 @@ A full-stack web application that can join Google Meet sessions to capture live 
 **Key Features**:
 - Real-time Google Meet integration via Vexa.ai transcription bots
 - React-based web interface for live note management
-- ShotGrid integration for playlist and shot management
+- Optional ShotGrid integration for playlist and shot management
 - WebSocket-based live transcription streaming
 - Email integration for sharing notes
 - Shot pinning and focus system for targeted capture
@@ -79,7 +79,7 @@ Each project contains its own detailed README with installation and usage instru
 - Node.js 18+
 - API keys for desired LLM providers (OpenAI, Claude, Gemini)
 - Google Cloud credentials (only required for email functionality)
-- ShotGrid access (for pipeline integration)
+- ShotGrid access (optional - for pipeline integration)
 - Vexa.ai access (either cloud subscription or self-hosted instance)
 
 ## Contributing
