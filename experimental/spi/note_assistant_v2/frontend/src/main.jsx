@@ -50,6 +50,7 @@ function App() {
   const [emailStatus, setEmailStatus] = useState({ msg: "", type: "info" });
   const [sendingEmail, setSendingEmail] = useState(false);
   const [activeTab, setActiveTab] = useState({}); // Track active tab per row
+  const [newShotValue, setNewShotValue] = useState("");
   const currentIndexRef = useRef(0); // Use ref to avoid closure issues
   const prevIndexRef = useRef(currentIndex);
 
@@ -417,6 +418,34 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Function to add a new shot/version
+  const addNewShot = () => {
+    if (!newShotValue.trim()) return;
+    
+    const newRow = {
+      shot: newShotValue.trim(),
+      transcription: "",
+      summary: "",
+      notes: ""
+    };
+    
+    setRows(prevRows => [...prevRows, newRow]);
+    setNewShotValue("");
+    
+    // Set focus to the new row
+    setTimeout(() => {
+      setCurrentIndex(rows.length);
+    }, 0);
+  };
+
+  // Handle Enter key press in add shot input
+  const handleAddShotKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addNewShot();
+    }
+  };
+
   // Helper to process segments and update the UI transcription field
   function updateTranscriptionFromSegments(segments) {
     // Track all segments globally as a dictionary
@@ -671,8 +700,10 @@ function App() {
         </section>
 
         <section className="panel full-span">
-          <h2 className="panel-title">Shot Notes</h2>
-          {rows.length === 0 && <p className="help-text">Upload a playlist CSV to populate shot notes.</p>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h2 className="panel-title" style={{ margin: 0 }}>Shot Notes</h2>
+          </div>
+          {rows.length === 0 && <p className="help-text">Upload a playlist CSV to populate shot notes, or add shots manually using the button above.</p>}
           {rows.length > 0 && (
             <div className="table-wrapper" style={{ width: '100%' }}>
               <table className="data-table" style={{ width: '100%', tableLayout: 'fixed' }}>
@@ -838,6 +869,30 @@ function App() {
           )}
         </section>
       </main>
+
+      {/* Floating Add Shot Controls */}
+      <div className="floating-add-shot-controls">
+        <div className="add-shot-controls">
+          <input
+            type="text"
+            className="text-input"
+            placeholder="Add shot/version..."
+            value={newShotValue}
+            onChange={(e) => setNewShotValue(e.target.value)}
+            onKeyDown={handleAddShotKeyPress}
+            style={{ flex: 1, height: '36px', fontSize: '13px' }}
+          />
+          <button
+            type="button"
+            className="btn primary"
+            onClick={addNewShot}
+            disabled={!newShotValue.trim()}
+            title="Add Shot/Version"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
       {/* Floating Bot Status and Transcript Control */}
       {(botIsActive || status.msg) && (
