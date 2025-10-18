@@ -12,7 +12,7 @@ The Dailies Note Assistant v2 is a full-stack application designed to streamline
 - **Backend**: FastAPI server with multiple services
 - **AI Integration**: Support for multiple LLM providers (OpenAI, Claude, Gemini, Ollama)
 - **Email Service**: Gmail API integration for sending notes
-- **ShotGrid Integration**: Direct integration with ShotGrid for project and playlist management
+- **ShotGrid Integration**: Optional direct integration with ShotGrid for project and playlist management
 - **Real-time Transcription**: WebSocket-based live transcription
 
 ## Features
@@ -31,7 +31,7 @@ The Dailies Note Assistant v2 is a full-stack application designed to streamline
 - Python 3.9 or higher
 - Node.js 18 or higher
 - Google Cloud Project with Gmail API enabled
-- **ShotGrid access** with API credentials (for production pipeline integration)
+- **ShotGrid access** with API credentials (optional - for production pipeline integration)
 - API keys for desired LLM providers (optional)
 - **Vexa.ai account or self-hosted instance** for Google Meet transcription bot management
 
@@ -104,6 +104,48 @@ The ShotGrid integration provides:
 - **Shot Import**: Import shots/versions directly from ShotGrid playlists
 - **Demo Mode**: Anonymize ShotGrid data for demonstrations (see Demo Mode section)
 
+### Optional ShotGrid Integration
+
+**ShotGrid integration is completely optional.** The application can function without ShotGrid by using CSV file uploads for shot lists instead.
+
+#### Disabling ShotGrid Integration
+
+To disable ShotGrid integration:
+
+1. **Comment out or remove the `SHOTGRID_URL` environment variable** in your `.env` file:
+   ```bash
+   # ShotGrid Configuration (comment out SHOTGRID_URL to disable ShotGrid integration)
+   # SHOTGRID_URL=https://your-studio.shotgrid.autodesk.com
+   SHOTGRID_SCRIPT_NAME=your-script-name  # These can remain but won't be used
+   SHOTGRID_API_KEY=your-api-key
+   ```
+
+2. **The ShotGrid UI will be automatically hidden** when the backend detects no `SHOTGRID_URL` is configured.
+
+3. **Use CSV uploads instead** - The "Upload Playlist" section will still be available for importing shot lists via CSV files.
+
+#### Benefits of Disabling ShotGrid
+
+- **No ShotGrid dependencies**: No need for ShotGrid access, credentials, or network connectivity
+- **Simplified setup**: Faster installation and configuration  
+- **Standalone operation**: Use the application in environments without ShotGrid access
+- **CSV-based workflow**: Still maintain shot-based organization using CSV file uploads
+
+#### When to Use Each Approach
+
+**Use ShotGrid Integration When**:
+- You have active ShotGrid projects and playlists
+- You want seamless integration with existing studio pipelines
+- You need to access up-to-date project and shot information
+- Multiple users need consistent access to the same shot lists
+
+**Use CSV Upload When**:
+- ShotGrid is not available or accessible
+- Working with external vendors or clients
+- Prototyping or testing the application
+- You prefer manual control over shot lists
+- Working in isolated or air-gapped environments
+
 ## Installation
 
 ### Backend Setup
@@ -138,7 +180,7 @@ OPENAI_API_KEY=your-openai-api-key
 ANTHROPIC_API_KEY=your-claude-api-key
 GEMINI_API_KEY=your-gemini-api-key
 
-# ShotGrid Configuration (required for production pipeline integration)
+# ShotGrid Configuration (optional - comment out SHOTGRID_URL to disable)
 SHOTGRID_URL=https://your-studio.shotgrid.autodesk.com
 SHOTGRID_SCRIPT_NAME=your-script-name
 SHOTGRID_API_KEY=your-api-key
@@ -203,7 +245,7 @@ The web interface will be available at `http://localhost:5173`
 
 1. **Choose Your Shot Source**:
    - **Option A - Upload CSV**: Drag and drop a CSV file with shot/version information
-   - **Option B - ShotGrid Integration**: Select an active ShotGrid project and playlist to import shots
+   - **Option B - ShotGrid Integration**: Select an active ShotGrid project and playlist to import shots (if enabled)
 
 2. **Join Google Meet**:
    - Enter a Google Meet URL or Meeting ID
@@ -236,6 +278,7 @@ Only the first column (shot identifier) is required.
 ## API Endpoints
 
 ### Core Functionality
+- `GET /config` - Get application configuration (includes ShotGrid availability)
 - `POST /upload-playlist` - Upload CSV playlist
 - `POST /llm-summary` - Generate AI summary from text
 - `POST /email-notes` - Send notes via email
@@ -340,6 +383,7 @@ npm run build
    - Ensure the script user has proper permissions
    - Check that field names match your ShotGrid schema
    - Confirm project type filters are valid
+   - **If ShotGrid is not needed**: Comment out `SHOTGRID_URL` in `.env` to disable ShotGrid integration entirely
 
 4. **WebSocket Connection Issues**:
    - Ensure backend server is running on port 8000

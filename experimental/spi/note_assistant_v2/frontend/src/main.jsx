@@ -20,6 +20,10 @@ function getDefaultMeetUrl() {
 }
 
 function App() {
+  // --- Configuration State ---
+  const [config, setConfig] = useState({ shotgrid_enabled: false });
+  const [configLoaded, setConfigLoaded] = useState(false);
+
   // --- ShotGrid Project/Playlist State ---
   const [sgProjects, setSgProjects] = useState([]); // List of active projects
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -477,8 +481,25 @@ function App() {
   }
 
   // --- ShotGrid Project/Playlist Fetch Logic ---
-  // Fetch active ShotGrid projects on mount
+  // Fetch application configuration on mount
   useEffect(() => {
+    fetch("http://localhost:8000/config")
+      .then(res => res.json())
+      .then(data => {
+        setConfig(data);
+        setConfigLoaded(true);
+      })
+      .catch(() => {
+        console.error("Failed to fetch app config, assuming ShotGrid disabled");
+        setConfig({ shotgrid_enabled: false });
+        setConfigLoaded(true);
+      });
+  }, []);
+
+  // Fetch active ShotGrid projects on mount (only if ShotGrid is enabled)
+  useEffect(() => {
+    if (!configLoaded || !config.shotgrid_enabled) return;
+    
     setSgLoading(true);
     fetch("http://localhost:8000/shotgrid/active-projects")
       .then(res => res.json())
@@ -491,11 +512,11 @@ function App() {
       })
       .catch(() => setSgError("Network error fetching projects"))
       .finally(() => setSgLoading(false));
-  }, []);
+  }, [configLoaded, config.shotgrid_enabled]);
 
   // Fetch playlists when a project is selected
   useEffect(() => {
-    if (!selectedProjectId) {
+    if (!config.shotgrid_enabled || !selectedProjectId) {
       setSgPlaylists([]);
       setSelectedPlaylistId("");
       return;
@@ -512,11 +533,11 @@ function App() {
       })
       .catch(() => setSgError("Network error fetching playlists"))
       .finally(() => setSgLoading(false));
-  }, [selectedProjectId]);
+  }, [config.shotgrid_enabled, selectedProjectId]);
 
   // --- Populate shot list when a playlist is selected ---
   useEffect(() => {
-    if (!selectedPlaylistId) return;
+    if (!config.shotgrid_enabled || !selectedPlaylistId) return;
     // Fetch playlist shots from backend as soon as a playlist is selected
     setSgLoading(true);
     fetch(`http://localhost:8000/shotgrid/playlist-items/${selectedPlaylistId}`)
@@ -529,7 +550,7 @@ function App() {
         }
       })
       .finally(() => setSgLoading(false));
-  }, [selectedPlaylistId]);
+  }, [config.shotgrid_enabled, selectedPlaylistId]);
 
   return (
     <div className="app-shell">
@@ -570,49 +591,51 @@ function App() {
           </form>
         </section>
 
-        {/* --- ShotGrid Project/Playlist Selection as a panel --- */}
-        <section className="panel">
-          <h2 className="panel-title">ShotGrid Project & Playlist</h2>
-          <p className="help-text">Select an active ShotGrid project and a recent playlist to add shots to the shot list.</p>
-          <div className="field-row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            <div style={{ minWidth: 220, marginRight: 16 }}>
-              <label htmlFor="sg-project-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Project</label>
-              <select
-                id="sg-project-select"
-                value={selectedProjectId}
-                onChange={e => setSelectedProjectId(e.target.value)}
-                className="text-input"
-                style={{ width: '100%' }}
-                disabled={sgLoading || sgProjects.length === 0}
-              >
-                <option value="">-- Select Project --</option>
-                {sgProjects.map(pr => (
-                  <option key={pr.id} value={pr.id}>{pr.code}</option>
-                ))}
-              </select>
+        {/* --- ShotGrid Project/Playlist Selection as a panel (only if enabled) --- */}
+        {config.shotgrid_enabled && (
+          <section className="panel">
+            <h2 className="panel-title">ShotGrid Project & Playlist</h2>
+            <p className="help-text">Select an active ShotGrid project and a recent playlist to add shots to the shot list.</p>
+            <div className="field-row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div style={{ minWidth: 220, marginRight: 16 }}>
+                <label htmlFor="sg-project-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Project</label>
+                <select
+                  id="sg-project-select"
+                  value={selectedProjectId}
+                  onChange={e => setSelectedProjectId(e.target.value)}
+                  className="text-input"
+                  style={{ width: '100%' }}
+                  disabled={sgLoading || sgProjects.length === 0}
+                >
+                  <option value="">-- Select Project --</option>
+                  {sgProjects.map(pr => (
+                    <option key={pr.id} value={pr.id}>{pr.code}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
-          <div className="field-row" style={{ marginTop: 8 }}>
-            <div style={{ minWidth: 240 }}>
-              <label htmlFor="sg-playlist-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Playlist</label>
-              <select
-                id="sg-playlist-select"
-                value={selectedPlaylistId}
-                onChange={e => setSelectedPlaylistId(e.target.value)}
-                className="text-input"
-                style={{ width: '100%' }}
-                disabled={!selectedProjectId || sgLoading || sgPlaylists.length === 0}
-              >
-                <option value="">-- Select Playlist --</option>
-                {sgPlaylists.map(pl => (
-                  <option key={pl.id} value={pl.id}>{pl.code} ({pl.created_at?.slice(0,10)})</option>
-                ))}
-              </select>
+            <div className="field-row" style={{ marginTop: 8 }}>
+              <div style={{ minWidth: 240 }}>
+                <label htmlFor="sg-playlist-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Playlist</label>
+                <select
+                  id="sg-playlist-select"
+                  value={selectedPlaylistId}
+                  onChange={e => setSelectedPlaylistId(e.target.value)}
+                  className="text-input"
+                  style={{ width: '100%' }}
+                  disabled={!selectedProjectId || sgLoading || sgPlaylists.length === 0}
+                >
+                  <option value="">-- Select Playlist --</option>
+                  {sgPlaylists.map(pl => (
+                    <option key={pl.id} value={pl.id}>{pl.code} ({pl.created_at?.slice(0,10)})</option>
+                  ))}
+                </select>
+              </div>
+              {sgLoading && <span className="spinner" aria-hidden="true" style={{ marginLeft: 12, marginTop: 32 }} />}
+              {sgError && <span style={{ color: 'red', marginLeft: 12, marginTop: 32 }}>{sgError}</span>}
             </div>
-            {sgLoading && <span className="spinner" aria-hidden="true" style={{ marginLeft: 12, marginTop: 32 }} />}
-            {sgError && <span style={{ color: 'red', marginLeft: 12, marginTop: 32 }}>{sgError}</span>}
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="panel">
           <h2 className="panel-title">Upload Playlist</h2>
