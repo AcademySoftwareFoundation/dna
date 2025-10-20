@@ -1,0 +1,22 @@
+{
+  "session_id": "demo_dailies_2025_10_02",
+  "project": { "code": "HSM", "name": "Hyperspace Mini" },
+  "date_utc": "2025-10-02T16:00:00Z",
+  "participants": [
+    { "name": "Cameron", "role": "Supervisor" },
+    { "name": "Sonia", "role": "Lighting" },
+    { "name": "Lars", "role": "Compositor" },
+    { "name": "Griffin", "role": "FX" }
+  ],
+  "media": {
+    "audio_filename": "demo_review_session_recording.mp3",
+    "duration_seconds": 573
+  },
+  "review_set": [
+    "HSM_SATL_0010",
+    "HSM_SATL_0015",
+    "HSM_SATL_0020",
+    "HSM_SATL_0050",
+    "HSM_SATL_0060"
+  ]
+}
