@@ -22,14 +22,16 @@ body { margin: 0; background: var(--bg); color: var(--text); }
   display: flex; 
   flex-direction: column; 
   min-height: 100%; 
-  padding-left: 20px !important;
-  padding-right: 20px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 .app-header { padding: 32px 28px 8px; }
 .app-title { margin: 0 0 4px; font-size: 28px; letter-spacing: .5px; }
 .app-subtitle { margin: 0; font-size: 15px; color: var(--text-muted); }
 
-.app-main { width: 100%; margin: 0 auto; padding: 8px 28px 48px; display: grid; gap: 28px; grid-template-columns: repeat(auto-fit,minmax(340px,1fr)); }
+.app-main { width: 100%; margin: 0 auto; padding: 8px 15px 48px; display: grid; gap: 28px; grid-template-columns: repeat(auto-fit,minmax(400px,1fr)); }
 .full-span { grid-column: 1 / -1; }
 
 .panel { 
@@ -42,8 +44,6 @@ body { margin: 0; background: var(--bg); color: var(--text); }
   gap: 12px; 
   position: relative; 
   box-shadow: 0 4px 12px -2px rgba(0,0,0,.4); 
-  margin-left: 5px !important;
-  margin-right: 5px !important;
 }
 .panel-title { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: .5px; }
 
@@ -311,13 +311,15 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .tab-button {
   background: transparent;
   border: none;
-  padding: 6px 12px;
+  padding: 8px 16px;
   cursor: pointer;
   font-size: 14px;
   color: var(--text-muted);
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
   position: relative;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-button:hover {
