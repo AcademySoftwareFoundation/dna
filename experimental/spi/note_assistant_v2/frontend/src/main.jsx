@@ -59,6 +59,9 @@ function App() {
   // Add a ref to track if websocket is active
   const hasActiveWebSocketRef = useRef(false);
 
+  // Add state for top-level tab management
+  const [activeTopTab, setActiveTopTab] = useState('panel');
+
   // Update the ref whenever currentIndex changes
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -659,113 +662,143 @@ function App() {
       </header>
 
       <main className="app-main">
-        <section className="panel">
-          <h2 className="panel-title">Google Meet</h2>
-          <form onSubmit={handleSubmit} className="form-grid" aria-label="Enter Google Meet URL or ID">
-            {/* <label htmlFor="meet-id" className="field-label">Enter Google Meet URL or ID</label> */}
-            <p className="help-text">Enter Google Meet URL or ID (e.g abc-defg-hij)</p>
-            <div className="field-row">
-              <input
-                id="meet-id"
-                type="text"
-                className="text-input"
-                value={meetId}
-                onChange={(e) => setMeetId(e.target.value)}
-                placeholder="e.g. https://meet.google.com/abc-defg-hij or abc-defg-hij"
-                autoComplete="off"
-                required
-                aria-required="true"
-                disabled={botIsActive}
-              />
-              {botIsActive ? (
-                <button type="button" className="btn danger" onClick={handleExitBot} disabled={submitting}>
-                  {submitting ? "Exiting..." : "Exit"}
-                </button>
-              ) : (
-                <button type="submit" className="btn primary" disabled={!meetId.trim() || submitting || waitingForActive}>
-                  {submitting ? "Joining..." : "Join"}
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-
-        {/* --- ShotGrid Project/Playlist Selection as a panel (only if enabled) --- */}
-        {config.shotgrid_enabled && (
-          <section className="panel">
-            <h2 className="panel-title">ShotGrid Project & Playlist</h2>
-            <p className="help-text">Select an active ShotGrid project and a recent playlist to add shots to the shot list.</p>
-            <div className="field-row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <div style={{ minWidth: 220, marginRight: 16 }}>
-                <label htmlFor="sg-project-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Project</label>
-                <select
-                  id="sg-project-select"
-                  value={selectedProjectId}
-                  onChange={e => setSelectedProjectId(e.target.value)}
-                  className="text-input"
-                  style={{ width: '100%' }}
-                  disabled={sgLoading || sgProjects.length === 0}
-                >
-                  <option value="">-- Select Project --</option>
-                  {sgProjects.map(pr => (
-                    <option key={pr.id} value={pr.id}>{pr.code}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="field-row" style={{ marginTop: 8 }}>
-              <div style={{ minWidth: 240 }}>
-                <label htmlFor="sg-playlist-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Playlist</label>
-                <select
-                  id="sg-playlist-select"
-                  value={selectedPlaylistId}
-                  onChange={e => setSelectedPlaylistId(e.target.value)}
-                  className="text-input"
-                  style={{ width: '100%' }}
-                  disabled={!selectedProjectId || sgLoading || sgPlaylists.length === 0}
-                >
-                  <option value="">-- Select Playlist --</option>
-                  {sgPlaylists.map(pl => (
-                    <option key={pl.id} value={pl.id}>{pl.code} ({pl.created_at?.slice(0,10)})</option>
-                  ))}
-                </select>
-              </div>
-              {sgLoading && <span className="spinner" aria-hidden="true" style={{ marginLeft: 12, marginTop: 32 }} />}
-              {sgError && <span style={{ color: 'red', marginLeft: 12, marginTop: 32 }}>{sgError}</span>}
-            </div>
-          </section>
-        )}
-
-        <section className="panel">
-          <h2 className="panel-title">Upload Playlist</h2>
-          <p className="help-text">Upload a playlist .csv file. First column should contain the shot/version info.</p>
-
-          <div
-            className={`drop-zone ${dragActive ? "active" : ""}`}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            role="button"
-            tabIndex={0}
-            onClick={openFileDialog}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFileDialog(); }}
-            aria-label="Upload playlist CSV via drag and drop or click"
-          >
-            <div className="dz-inner">
-              <strong>Drag & Drop</strong> CSV here<br />
-              <span className="muted">or click to browse</span>
-            </div>
-            <input
-              id="playlist-file-input"
-              type="file"
-              accept=".csv"
-              onChange={onFileInputChange}
-              style={{ display: "none" }}
-            />
+        <section className="panel" style={{ height: '280px' }}>
+          {/* Tab Navigation */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #2c323c', marginBottom: '16px' }}>
+            <button
+              type="button"
+              className={`tab-button ${activeTopTab === 'panel' ? 'active' : ''}`}
+              onClick={() => setActiveTopTab('panel')}
+            >
+              Google Meet
+            </button>
+            {config.shotgrid_enabled && (
+              <button
+                type="button"
+                className={`tab-button ${activeTopTab === 'shotgrid' ? 'active' : ''}`}
+                onClick={() => setActiveTopTab('shotgrid')}
+              >
+                ShotGrid
+              </button>
+            )}
+            <button
+              type="button"
+              className={`tab-button ${activeTopTab === 'upload' ? 'active' : ''}`}
+              onClick={() => setActiveTopTab('upload')}
+            >
+              Upload Playlist
+            </button>
           </div>
-          <div className="actions-row">
-            {uploading && <span className="spinner" aria-hidden="true" />}
-            <StatusBadge type={uploadStatus.type}>{uploadStatus.msg}</StatusBadge>
+
+          {/* Tab Content */}
+          <div style={{ height: '240px' }}>
+            {activeTopTab === 'panel' && (
+              <div>
+                <p className="help-text">Enter Google Meet URL or ID (e.g abc-defg-hij)</p>
+                <form onSubmit={handleSubmit} className="form-grid" aria-label="Enter Google Meet URL or ID">
+                  <div className="field-row">
+                    <input
+                      id="meet-id"
+                      type="text"
+                      className="text-input"
+                      value={meetId}
+                      onChange={(e) => setMeetId(e.target.value)}
+                      placeholder="e.g. https://meet.google.com/abc-defg-hij or abc-defg-hij"
+                      autoComplete="off"
+                      required
+                      aria-required="true"
+                      disabled={botIsActive}
+                    />
+                    {botIsActive ? (
+                      <button type="button" className="btn danger" onClick={handleExitBot} disabled={submitting}>
+                        {submitting ? "Exiting..." : "Exit"}
+                      </button>
+                    ) : (
+                      <button type="submit" className="btn primary" disabled={!meetId.trim() || submitting || waitingForActive}>
+                        {submitting ? "Joining..." : "Join"}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {activeTopTab === 'shotgrid' && config.shotgrid_enabled && (
+              <div>
+                <p className="help-text">Select an active ShotGrid project and a recent playlist to add shots to the shot list.</p>
+                <div className="field-row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 220, marginRight: 16 }}>
+                    <label htmlFor="sg-project-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Project</label>
+                    <select
+                      id="sg-project-select"
+                      value={selectedProjectId}
+                      onChange={e => setSelectedProjectId(e.target.value)}
+                      className="text-input"
+                      style={{ width: '100%' }}
+                      disabled={sgLoading || sgProjects.length === 0}
+                    >
+                      <option value="">-- Select Project --</option>
+                      {sgProjects.map(pr => (
+                        <option key={pr.id} value={pr.id}>{pr.code}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="field-row" style={{ marginTop: 8 }}>
+                  <div style={{ minWidth: 240 }}>
+                    <label htmlFor="sg-playlist-select" className="field-label" style={{ marginBottom: 4, display: 'block' }}>Playlist</label>
+                    <select
+                      id="sg-playlist-select"
+                      value={selectedPlaylistId}
+                      onChange={e => setSelectedPlaylistId(e.target.value)}
+                      className="text-input"
+                      style={{ width: '100%' }}
+                      disabled={!selectedProjectId || sgLoading || sgPlaylists.length === 0}
+                    >
+                      <option value="">-- Select Playlist --</option>
+                      {sgPlaylists.map(pl => (
+                        <option key={pl.id} value={pl.id}>{pl.code} ({pl.created_at?.slice(0,10)})</option>
+                      ))}
+                    </select>
+                  </div>
+                  {sgLoading && <span className="spinner" aria-hidden="true" style={{ marginLeft: 12, marginTop: 32 }} />}
+                  {sgError && <span style={{ color: 'red', marginLeft: 12, marginTop: 32 }}>{sgError}</span>}
+                </div>
+              </div>
+            )}
+
+            {activeTopTab === 'upload' && (
+              <div>
+                <p className="help-text">Upload a playlist .csv file. First column should contain the shot/version info.</p>
+                <div
+                  className={`drop-zone ${dragActive ? "active" : ""}`}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  role="button"
+                  tabIndex={0}
+                  onClick={openFileDialog}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFileDialog(); }}
+                  aria-label="Upload playlist CSV via drag and drop or click"
+                >
+                  <div className="dz-inner">
+                    <strong>Drag & Drop</strong> CSV here<br />
+                    <span className="muted">or click to browse</span>
+                  </div>
+                  <input
+                    id="playlist-file-input"
+                    type="file"
+                    accept=".csv"
+                    onChange={onFileInputChange}
+                    style={{ display: "none" }}
+                  />
+                </div>
+                <div className="actions-row">
+                  {uploading && <span className="spinner" aria-hidden="true" />}
+                  <StatusBadge type={uploadStatus.type}>{uploadStatus.msg}</StatusBadge>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
