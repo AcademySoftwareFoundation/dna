@@ -662,7 +662,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        <section className="panel" style={{ height: '280px' }}>
+        <section className="panel" style={{ height: '280px', minWidth: '500px' }}>
           {/* Tab Navigation */}
           <div style={{ display: 'flex', borderBottom: '1px solid #2c323c', marginBottom: '16px' }}>
             <button
@@ -687,6 +687,13 @@ function App() {
               onClick={() => setActiveTopTab('upload')}
             >
               Upload Playlist
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTopTab === 'export' ? 'active' : ''}`}
+              onClick={() => setActiveTopTab('export')}
+            >
+              Export Notes
             </button>
           </div>
 
@@ -796,6 +803,74 @@ function App() {
                 <div className="actions-row">
                   {uploading && <span className="spinner" aria-hidden="true" />}
                   <StatusBadge type={uploadStatus.type}>{uploadStatus.msg}</StatusBadge>
+                </div>
+              </div>
+            )}
+
+            {activeTopTab === 'export' && (
+              <div>
+                <p className="help-text">Download your notes and transcripts, or email them to a recipient.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                  <button
+                    className="btn primary"
+                    style={{ alignSelf: 'flex-start', minWidth: 160, height: 36, padding: '0 16px', fontSize: '14px' }}
+                    onClick={downloadCSV}
+                    disabled={rows.length === 0}
+                  >
+                    Download Notes
+                  </button>
+                  <button
+                    className="btn primary"
+                    style={{ alignSelf: 'flex-start', minWidth: 160, height: 36, padding: '0 16px', fontSize: '14px' }}
+                    onClick={downloadTranscript}
+                    disabled={Object.keys(shotSegments).length === 0}
+                  >
+                    Download Transcript
+                  </button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="email"
+                      className="text-input"
+                      style={{ flex: 1, height: 36, padding: '0 12px', boxSizing: 'border-box', fontSize: '14px' }}
+                      placeholder="Enter email address"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      disabled={sendingEmail}
+                      aria-label="Recipient email address"
+                      required
+                    />
+                    <button
+                      className="btn primary"
+                      style={{ minWidth: 100, height: 36, padding: '0 16px', fontSize: '14px' }}
+                      disabled={!email || sendingEmail || rows.length === 0}
+                      onClick={async () => {
+                        setSendingEmail(true);
+                        setEmailStatus({ msg: "Sending notes...", type: "info" });
+                        try {
+                          const res = await fetch("http://localhost:8000/email-notes", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email, notes: rows }),
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.status === "success") {
+                            setEmailStatus({ msg: data.message, type: "success" });
+                          } else {
+                            setEmailStatus({ msg: data.message || "Failed to send email", type: "error" });
+                          }
+                        } catch (err) {
+                          setEmailStatus({ msg: "Network error while sending email", type: "error" });
+                        } finally {
+                          setSendingEmail(false);
+                        }
+                      }}
+                    >
+                      {sendingEmail ? "Sending..." : "Email"}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <StatusBadge type={emailStatus.type}>{emailStatus.msg}</StatusBadge>
                 </div>
               </div>
             )}
@@ -1033,64 +1108,6 @@ function App() {
 
       <footer className="app-footer">
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-            <button
-              className="btn primary"
-              style={{ minWidth: 180, height: 36, padding: '0 16px' }}
-              onClick={downloadCSV}
-              disabled={rows.length === 0}
-            >
-              Download Notes
-            </button>
-            <button
-              className="btn primary"
-              style={{ minWidth: 180, height: 36, padding: '0 16px' }}
-              onClick={downloadTranscript}
-              disabled={Object.keys(shotSegments).length === 0}
-            >
-              Download Transcript
-            </button>
-            <input
-              type="email"
-              className="text-input"
-              style={{ minWidth: 220, height: 36, padding: '0 12px', boxSizing: 'border-box' }}
-              placeholder="Enter email address"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              disabled={sendingEmail}
-              aria-label="Recipient email address"
-              required
-            />
-            <button
-              className="btn primary"
-              style={{ minWidth: 120, height: 36, padding: '0 16px' }}
-              disabled={!email || sendingEmail || rows.length === 0}
-              onClick={async () => {
-                setSendingEmail(true);
-                setEmailStatus({ msg: "Sending notes...", type: "info" });
-                try {
-                  const res = await fetch("http://localhost:8000/email-notes", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, notes: rows }),
-                  });
-                  const data = await res.json();
-                  if (res.ok && data.status === "success") {
-                    setEmailStatus({ msg: data.message, type: "success" });
-                  } else {
-                    setEmailStatus({ msg: data.message || "Failed to send email", type: "error" });
-                  }
-                } catch (err) {
-                  setEmailStatus({ msg: "Network error while sending email", type: "error" });
-                } finally {
-                  setSendingEmail(false);
-                }
-              }}
-            >
-              {sendingEmail ? "Sending..." : "Email Notes"}
-            </button>
-          </div>
-          <StatusBadge type={emailStatus.type}>{emailStatus.msg}</StatusBadge>
           <span>© {new Date().getFullYear()} Dailies Note Assistant</span>
         </div>
       </footer>
