@@ -1389,17 +1389,16 @@ export function groupSegmentsBySpeaker(
 
 // Process segments: convert, sort, and group by speaker
 export function processSegments(segments: any[]): SpeakerGroup[] {
-  const processedSegments = segments.map(seg =>
-    convertWebSocketSegment(seg)
-  );
-  // Sort segments by absolute_start_time (if it exists), like the Python example
-  const sortedSegments = processedSegments
+  // Sort segments by absolute_start_time (if it exists)
+  //console.log('processSegments: receiving', segments)
+  const sortedSegments = segments
     .filter(s => s.absolute_start_time)
     .sort((a, b) => {
       if (a.absolute_start_time < b.absolute_start_time) return -1;
       if (a.absolute_start_time > b.absolute_start_time) return 1;
       return 0;
     });
+  //console.log('sortedSegments', sortedSegments)
   // Group by speaker using sortedSegments
   return groupSegmentsBySpeaker(sortedSegments);
 }
