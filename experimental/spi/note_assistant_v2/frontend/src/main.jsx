@@ -522,48 +522,56 @@ function App() {
   // Helper to process segments and update the UI transcription field
   function updateTranscriptionFromSegments(segments) {
     // Track all segments globally as a dictionary
-    const newSegments = {}; // { [timestamp]: combinedText }
-    segments.forEach(seg => {
-      if (seg.timestamp && !(seg.timestamp in allSegments)) {
-        allSegments[seg.timestamp] = seg.combinedText || seg.text || '';
-        newSegments[seg.timestamp] = seg.combinedText || seg.text || '';
+    //console.log('segments:', segments);
+
+     segments.forEach(seg => {
+      let start_time = seg.absolute_start_time || seg.timestamp;
+      if (start_time) {
+        if (!(start_time in allSegments)) {
+          seg.new_segment = true; // first time we are seeing this segment
+        }
+        allSegments[start_time] = seg.combinedText || seg.text || '';
       }
     });
-    console.log('allSegments:', allSegments);
-    console.log('newSegments:', newSegments);
-
+    //console.log('allSegments:', allSegments);
+    
     if (!isReceivingTranscriptsRef.current) return;
+
     // Track segments for this shot BEFORE processSegments
     let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
     if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
     const shotKey = rows[activeIndex]?.shot;
+    //console.log('shotKey:', shotKey);
+
     if (shotKey) {
       if (!shotSegments[shotKey]) shotSegments[shotKey] = {};
       // Only add new segments for this shot
-      Object.keys(newSegments).forEach(ts => {
+      segments.forEach(seg => {
         // Find the segment in the original segments array to get speaker info
-        const seg = segments.find(s => s.timestamp === ts);
-        if (seg && !(ts in shotSegments[shotKey])) {
-          shotSegments[shotKey][ts] = {
-            speaker: seg.speaker || '',
-            combinedText: seg.combinedText || seg.text || ''
-          };
+        let start_time = seg.absolute_start_time || seg.timestamp;
+        if (!seg.new_segment) {
+          //console.log('changed segment found: ', seg)
+          // if this segment does not belong to the current shot, ignore it
+          if (!(start_time in shotSegments[shotKey])) {
+            //console.log("skipping segment, doesn't belong to this shot")
+            return;
+          }
+        }
+        if (seg) {
+          // New or updated segment received
+          shotSegments[shotKey][start_time] = seg;
         }
       });
-      console.log('shotSegments:', shotSegments);
+      //console.log('segments for shot ', shotKey, ' is ', shotSegments[shotKey]);
     }
-    // Only include segments whose timestamps are present in shotSegments[shotKey]
-    let filteredSegments = segments;
-    if (shotKey && shotSegments[shotKey]) {
-      filteredSegments = segments.filter(seg =>
-        seg.timestamp && shotSegments[shotKey][seg.timestamp]
-      );
-    }
-    const speakerGroups = processSegments(filteredSegments);
+
+    const speakerGroups = processSegments(Object.values(shotSegments[shotKey]));
+    //console.log('speakerGroups', speakerGroups)
     const combinedSpeakerTexts = speakerGroups.map(g => {
       const ts = g.timestamp ? `[${g.timestamp}]` : '';
       return `${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
     });
+    //console.log('combinedSpeakerTexts', combinedSpeakerTexts)
     setRows(prevRows => {
       let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
       if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
