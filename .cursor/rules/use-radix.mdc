@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Always use radix ui and react query for the frontend framework.

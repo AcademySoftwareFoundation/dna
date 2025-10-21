@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  whisper-server:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - ./audio_files:/app/audio_files
+    environment:
+      - FLASK_ENV=development

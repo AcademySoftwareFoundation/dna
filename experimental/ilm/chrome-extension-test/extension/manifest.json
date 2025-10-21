@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "ILM Dailies Audio Capture",
+  "version": "0.1.0",
+  "description": "Captures audio stream from the active tab and processes it.",
+"permissions": ["tabCapture", "activeTab"],
+"host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ILM Dailies Audio Capture"
+  }
+}
