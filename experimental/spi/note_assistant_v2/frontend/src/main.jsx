@@ -74,7 +74,7 @@ function App() {
 
   // Start transcript stream (only called internally)
   const startTranscriptStream = async (meetingId) => {
-    console.log('startTranscriptStream called, isReceivingTranscripts:', isReceivingTranscripts);
+    //console.log('startTranscriptStream called, isReceivingTranscripts:', isReceivingTranscripts);
     setJoinedMeetId(meetingId);
     hasActiveWebSocketRef.current = true;
     try {
@@ -85,7 +85,7 @@ function App() {
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
-          console.log('🟢 WebSocket Segments:', segments);
+          //console.log('🟢 WebSocket Segments:', segments);
           updateTranscriptionFromSegments(segments);
         },
         // onTranscriptFinalized (optional, not used here)
@@ -151,17 +151,17 @@ function App() {
 
   // Manual transcript stream control
   const pauseTranscriptStream = () => {
-    console.log('pauseTranscriptStream called');
+    //console.log('pauseTranscriptStream called');
     setIsReceivingTranscripts(false);
   };
 
   const resumeTranscriptStream = () => {
-    console.log('resumeTranscriptStream called');
+    //console.log('resumeTranscriptStream called');
     setIsReceivingTranscripts(true);
   };
 
   const handleTranscriptStreamToggle = () => {
-    console.log('handleTranscriptStreamToggle called, isReceivingTranscripts:', isReceivingTranscriptsRef.current, ' hasActiveWebSocketRef:', hasActiveWebSocketRef.current);
+    //console.log('handleTranscriptStreamToggle called, isReceivingTranscripts:', isReceivingTranscriptsRef.current, ' hasActiveWebSocketRef:', hasActiveWebSocketRef.current);
     if (!isReceivingTranscripts) {
       // Only resume stream if already started, otherwise start
       if (joinedMeetId && hasActiveWebSocketRef.current) {
@@ -430,9 +430,9 @@ function App() {
     let finalShotValue = newShotValue.trim();
     let shouldAddShot = true; // Flag to determine if shot should be added
     
-    console.log('🔍 addNewShot called with:', newShotValue.trim());
-    console.log('🔍 ShotGrid enabled:', config.shotgrid_enabled);
-    console.log('🔍 Selected project ID:', selectedProjectId);
+    // console.log('🔍 addNewShot called with:', newShotValue.trim());
+    // console.log('🔍 ShotGrid enabled:', config.shotgrid_enabled);
+    // console.log('🔍 Selected project ID:', selectedProjectId);
     
     // If ShotGrid is enabled, validate the input first
     if (config.shotgrid_enabled) {
@@ -444,7 +444,7 @@ function App() {
           input_value: newShotValue.trim(),
           project_id: selectedProjectId ? parseInt(selectedProjectId) : null
         };
-        console.log('🔍 Sending validation request:', requestBody);
+        //console.log('🔍 Sending validation request:', requestBody);
         
         const response = await fetch("http://localhost:8000/shotgrid/validate-shot-version", {
           method: "POST",
@@ -452,9 +452,9 @@ function App() {
           body: JSON.stringify(requestBody),
         });
         
-        console.log('🔍 Response status:', response.status);
+        //console.log('🔍 Response status:', response.status);
         const data = await response.json();
-        console.log('🔍 Response data:', data);
+        //console.log('🔍 Response data:', data);
         
         if (response.ok && data.status === "success") {
           if (data.success) {
@@ -487,7 +487,7 @@ function App() {
       }
     }
     
-    console.log('🔍 Should add shot:', shouldAddShot);
+    //console.log('🔍 Should add shot:', shouldAddShot);
     
     // Only add the shot if validation passed or ShotGrid is disabled
     if (shouldAddShot) {
@@ -498,7 +498,7 @@ function App() {
         notes: ""
       };
       
-      console.log('🔍 Adding new row:', newRow);
+     // console.log('🔍 Adding new row:', newRow);
       setRows(prevRows => [...prevRows, newRow]);
       setNewShotValue("");
       
@@ -654,7 +654,7 @@ function App() {
       .then((res) => res.json())
       .then((data) => {
         if (data.status === "success" && Array.isArray(data.items)) {
-          console.log('Fetched playlist items:', data.items);
+          //console.log('Fetched playlist items:', data.items);
           setRows(data.items.map(v => ({ shot: v, transcription: "", summary: "" })));
           setCurrentIndex(0);
         }

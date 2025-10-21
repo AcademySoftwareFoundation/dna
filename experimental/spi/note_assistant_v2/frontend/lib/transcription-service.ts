@@ -151,7 +151,7 @@ export function getWebSocketUrl(): string {
 // Function to set the WebSocket URL (derived from API URL)
 export function setWebSocketUrl(url: string): void {
   // WebSocket URL is derived from API URL, so we don't store it separately
-  console.log("WebSocket URL is derived from API URL:", url);
+  //console.log("WebSocket URL is derived from API URL:", url);
 }
 
 // Helper function to handle API responses
@@ -180,7 +180,7 @@ export function getApiKey(): string {
       const match = document.cookie.match(/(^|;)\s*vexa_api_key\s*=\s*([^;]+)/);
       const cookieValue = match ? decodeURIComponent(match[2]) : '';
       if (cookieValue) {
-        console.log("Found API key in cookies");
+        //console.log("Found API key in cookies");
         return cookieValue;
       }
     }
@@ -224,7 +224,7 @@ export function clearApiKey(): void {
   try {
     if (typeof window !== 'undefined') {
       document.cookie = 'vexa_api_key=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-      console.log("API key cookie cleared");
+      //console.log("API key cookie cleared");
     }
   } catch (error) {
     console.error("Error clearing API key:", error);
@@ -248,13 +248,13 @@ export function getApiUrl(): string {
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_VEXA_API_URL) {
       const envUrl = import.meta.env.VITE_VEXA_API_URL;
       if (envUrl) {
-        console.log("Using API URL from Vite env:", envUrl);
+        //console.log("Using API URL from Vite env:", envUrl);
         return envUrl;
       }
     }
     // Final fallback to default URL
     const defaultUrl = "https://devapi.dev.vexa.ai";
-    console.log("Using default API URL:", defaultUrl);
+    //console.log("Using default API URL:", defaultUrl);
     return defaultUrl;
   } catch (error) {
     console.error("Error getting API URL:", error);
@@ -277,7 +277,7 @@ export function setApiUrl(url: string): void {
       // Immediately verify the cookie was set
       setTimeout(() => {
         const isSet = document.cookie.includes('vexa_api_url=');
-        console.log(`API URL cookie set: ${isSet}`);
+        //console.log(`API URL cookie set: ${isSet}`);
       }, 10);
     }
   } catch (error) {
@@ -290,7 +290,7 @@ export function clearApiUrl(): void {
   try {
     if (typeof window !== 'undefined') {
       document.cookie = 'vexa_api_url=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-      console.log("API URL cookie cleared");
+      //console.log("API URL cookie cleared");
     }
   } catch (error) {
     console.error("Error clearing API URL:", error);
@@ -303,12 +303,12 @@ export function getHeaders() {
   const apiKey = getApiKey();
   
   // Add extensive logging
-  console.log("Building API headers");
-  console.log("Has API key:", !!apiKey);
-  if (apiKey) {
-    // Only log part of the key for security
-    console.log("API key starts with:", apiKey.substring(0, 4));
-  }
+  //console.log("Building API headers");
+  //console.log("Has API key:", !!apiKey);
+  // if (apiKey) {
+  //   // Only log part of the key for security
+  //   //console.log("API key starts with:", apiKey.substring(0, 4));
+  // }
   
   // Create headers with mandatory fields
   const headers = {
@@ -317,7 +317,7 @@ export function getHeaders() {
   };
   
   // Log what's being sent
-  console.log("Headers being sent:", JSON.stringify(headers));
+  //console.log("Headers being sent:", JSON.stringify(headers));
   
   return headers;
 }
@@ -399,7 +399,7 @@ export async function startTranscription(
        )
 
        if (matched?.id != null) {
-         console.log(`Found internal meeting ID: ${matched.id} for ${platform}/${nativeMeetingId}`)
+         //console.log(`Found internal meeting ID: ${matched.id} for ${platform}/${nativeMeetingId}`)
          return {
            success: true,
            meetingId: `${platform}/${nativeMeetingId}/${matched.id}`,
@@ -561,7 +561,7 @@ export async function getTranscription(meetingId: string): Promise<Transcription
 
   // Real API implementation using Vexa API
   try {
-    console.log("getTranscription called with meetingId:", meetingId);
+    //console.log("getTranscription called with meetingId:", meetingId);
     
     // The meetingId can be in format "platform/nativeMeetingId" or "platform/nativeMeetingId/id"
     const parts = meetingId.split('/');
