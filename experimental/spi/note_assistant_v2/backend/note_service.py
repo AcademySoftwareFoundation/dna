@@ -165,3 +165,34 @@ async def llm_summary(data: LLMSummaryRequest):
     except Exception as e:
         print(f"Error in /llm-summary: {e}")
         raise HTTPException(status_code=500, detail=f"LLM summary error: {str(e)}")
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+    load_dotenv()
+    parser = argparse.ArgumentParser(description="Test LLM summary functions.")
+    parser.add_argument('--provider', choices=['openai', 'claude', 'gemini', 'ollama'], default='gemini', help='LLM provider to test')
+    parser.add_argument('--text', type=str, default='Artist submitted new lighting pass for shot 101. Lead: Looks good, but highlights are too strong. Artist: Will reduce highlight gain and resubmit.', help='Conversation text to summarize')
+    args = parser.parse_args()
+
+    provider = args.provider
+    text = args.text
+    model = DEFAULT_MODELS.get(provider)
+    api_key = os.getenv(f'{provider.upper()}_API_KEY')
+    print(f"Testing {provider} summary...")
+    try:
+        client = create_llm_client(provider, api_key=api_key, model=model)
+        if provider == 'openai':
+            summary = summarize_openai(text, model, client)
+        elif provider == 'claude':
+            summary = summarize_claude(text, model, client)
+        elif provider == 'ollama':
+            summary = summarize_ollama(text, model, client)
+        elif provider == 'gemini':
+            summary = summarize_gemini(text, model, client)
+        else:
+            print(f"Unknown provider: {provider}")
+            sys.exit(1)
+        print(f"Summary:\n{summary}")
+    except Exception as e:
+        print(f"Error: {e}")

@@ -34,10 +34,19 @@ app.add_middleware(
 SHOTGRID_URL = os.environ.get("SHOTGRID_URL")
 shotgrid_enabled = bool(SHOTGRID_URL and SHOTGRID_URL.strip())
 
+# Check if VEXA is configured
+VEXA_BASE_URL = os.environ.get("VEXA_BASE_URL")
+vexa_routing_enabled = bool(VEXA_BASE_URL and VEXA_BASE_URL.strip())
+
 # Register core routers
 app.include_router(playlist_router)
 app.include_router(email_router)
 app.include_router(note_router)
+
+# Only register vexa router if VEXA is configured
+if vexa_routing_enabled:
+    from vexa_service import router as vexa_router
+    app.include_router(vexa_router)
 
 # Only register shotgrid router if ShotGrid is configured
 if shotgrid_enabled:
@@ -48,5 +57,6 @@ if shotgrid_enabled:
 def get_config():
     """Return application configuration including feature availability."""
     return JSONResponse(content={
-        "shotgrid_enabled": shotgrid_enabled
+        "shotgrid_enabled": shotgrid_enabled,
+        "vexa_routing_enabled": vexa_routing_enabled
     })

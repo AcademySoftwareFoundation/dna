@@ -5,6 +5,9 @@ import { startWebSocketTranscription, stopWebSocketTranscription, getApiUrl, get
 import { startBot, stopBot, parseMeetingUrl } from '../lib/bot-service';
 import { MOCK_MODE } from '../lib/config';
 
+// Helper to get backend URL from environment variable
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
 // Global dictionary to track all segments by timestamp
 const allSegments = {}; // { [timestamp]: combinedText }
 // Global dictionary to track segments per shot, with speaker and combinedText
@@ -85,24 +88,33 @@ function App() {
       await startWebSocketTranscription(
         meetingIdForWS,
         (segments) => {
-          //console.log('🟢 WebSocket Segments:', segments);
+          // --- WORKAROUND: Some platforms (e.g. vexa) never send 'active' status, but do send transcript segments ---
+          // If we receive transcript segments and bot is not marked active, flip bot status to 'active'
+          if (segments && segments.length > 0 && !botIsActive) {
+            setBotIsActive(true);
+            setStatus({ msg: 'Bot Status: active', type: 'success' });
+          }
+          console.log('🟢 WebSocket Segments:', segments);
           updateTranscriptionFromSegments(segments);
         },
         // onTranscriptFinalized (optional, not used here)
         () => {},
         // onMeetingStatus
         (statusValue) => {
-          const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
-          setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
-          setBotIsActive(isActiveStatus);
-          if (waitingForActive && isActiveStatus) {
-            setWaitingForActive(false);
-          }
-          // Stop stream when status is 'completed' or 'error'
-          if (statusValue === 'completed' || statusValue === 'error') {
-            setBotIsActive(false);
-            setStatus({ msg: `Bot Status: ${statusValue}`, type: 'info' });
-            stopTranscriptStream();
+          // Only update status if bot is not already active, or if status is 'completed' or 'error'
+          if (!botIsActive || statusValue === 'completed' || statusValue === 'error') {
+            const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
+            setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
+            setBotIsActive(isActiveStatus);
+            if (waitingForActive && isActiveStatus) {
+              setWaitingForActive(false);
+            }
+            // Stop stream when status is 'completed' or 'error'
+            if (statusValue === 'completed' || statusValue === 'error') {
+              setBotIsActive(false);
+              setStatus({ msg: `Bot Status: ${statusValue}`, type: 'info' });
+              stopTranscriptStream();
+            }
           }
         },
         // onError
@@ -225,7 +237,7 @@ function App() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch("http://localhost:8000/upload-playlist", {
+      const res = await fetch(`${BACKEND_URL}/upload-playlist`, {
         method: "POST",
         body: formData,
       });
@@ -293,7 +305,7 @@ function App() {
   // Function to get LLM summary from backend
   const getLLMSummary = async (text) => {
     try {
-      const res = await fetch('http://localhost:8000/llm-summary', {
+      const res = await fetch(`${BACKEND_URL}/llm-summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -388,29 +400,13 @@ function App() {
 
   // --- Transcript Download Helper ---
   const downloadTranscript = () => {
-    if (!Object.keys(shotSegments).length) return;
-    
+    if (!rows.length) return;
     let transcriptContent = 'Audio Transcript\n================\n\n';
-    
-    // Iterate through each shot in shotSegments
-    Object.keys(shotSegments).forEach(shotKey => {
-      transcriptContent += `${shotKey}\n`;
+    rows.forEach(row => {
+      transcriptContent += `${row.shot}\n`;
       transcriptContent += '-------------------\n';
-      
-      const segments = shotSegments[shotKey];
-      // Sort segments by timestamp
-      const sortedTimestamps = Object.keys(segments).sort();
-      
-      sortedTimestamps.forEach(timestamp => {
-        const segment = segments[timestamp];
-        const speaker = segment.speaker || 'Unknown';
-        const text = segment.combinedText || '';
-        transcriptContent += `[${timestamp}] ${speaker}:\n${text}\n\n`;
-      });
-      
-      transcriptContent += '\n';
+      transcriptContent += `${row.transcription || ''}\n\n`;
     });
-    
     // Create blob and trigger download
     const blob = new Blob([transcriptContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -446,7 +442,7 @@ function App() {
         };
         //console.log('🔍 Sending validation request:', requestBody);
         
-        const response = await fetch("http://localhost:8000/shotgrid/validate-shot-version", {
+        const response = await fetch(`${BACKEND_URL}/shotgrid/validate-shot-version`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
@@ -593,7 +589,7 @@ function App() {
   // --- ShotGrid Project/Playlist Fetch Logic ---
   // Fetch application configuration on mount
   useEffect(() => {
-    fetch("http://localhost:8000/config")
+    fetch(`${BACKEND_URL}/config`)
       .then(res => res.json())
       .then(data => {
         setConfig(data);
@@ -611,7 +607,7 @@ function App() {
     if (!configLoaded || !config.shotgrid_enabled) return;
     
     setSgLoading(true);
-    fetch("http://localhost:8000/shotgrid/active-projects")
+    fetch(`${BACKEND_URL}/shotgrid/active-projects`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
@@ -632,7 +628,7 @@ function App() {
       return;
     }
     setSgLoading(true);
-    fetch(`http://localhost:8000/shotgrid/latest-playlists/${selectedProjectId}`)
+    fetch(`${BACKEND_URL}/shotgrid/latest-playlists/${selectedProjectId}`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
@@ -650,7 +646,7 @@ function App() {
     if (!config.shotgrid_enabled || !selectedPlaylistId) return;
     // Fetch playlist shots from backend as soon as a playlist is selected
     setSgLoading(true);
-    fetch(`http://localhost:8000/shotgrid/playlist-items/${selectedPlaylistId}`)
+    fetch(`${BACKEND_URL}/shotgrid/playlist-items/${selectedPlaylistId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.status === "success" && Array.isArray(data.items)) {
@@ -855,7 +851,7 @@ function App() {
                         setSendingEmail(true);
                         setEmailStatus({ msg: "Sending notes...", type: "info" });
                         try {
-                          const res = await fetch("http://localhost:8000/email-notes", {
+                          const res = await fetch(`${BACKEND_URL}/email-notes`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ email, notes: rows }),
@@ -864,7 +860,16 @@ function App() {
                           if (res.ok && data.status === "success") {
                             setEmailStatus({ msg: data.message, type: "success" });
                           } else {
-                            setEmailStatus({ msg: data.message || "Failed to send email", type: "error" });
+                            // Enhanced error handling for credential issues
+                            let errorMsg = data.message || "Failed to send email";
+                            if (
+                              errorMsg.toLowerCase().includes("jsondecodeerror") ||
+                              errorMsg.toLowerCase().includes("credentials") ||
+                              errorMsg.includes("Expecting value: line 1 column 1 (char 0)")
+                            ) {
+                              errorMsg = "Email service error: Google credentials are missing or invalid. Please contact your administrator.";
+                            }
+                            setEmailStatus({ msg: errorMsg, type: "error" });
                           }
                         } catch (err) {
                           setEmailStatus({ msg: "Network error while sending email", type: "error" });

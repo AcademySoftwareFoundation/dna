@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 pydantic
 pydantic[email]
@@ -11,3 +11,5 @@ anthropic
 google-generativeai
 google_auth_oauthlib
 shotgun_api3
+httpx
+websockets

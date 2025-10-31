@@ -11,7 +11,7 @@ The Dailies Note Assistant v2 is a full-stack application designed to streamline
 - **Frontend**: React application with Vite build system
 - **Backend**: FastAPI server with multiple services
 - **AI Integration**: Support for multiple LLM providers (OpenAI, Claude, Gemini, Ollama)
-- **Email Service**: Gmail API integration for sending notes
+- **Email Service**: Gmail API or SMTP server integration for sending notes
 - **ShotGrid Integration**: Optional direct integration with ShotGrid for project and playlist management
 - **Real-time Transcription**: WebSocket-based live transcription
 
@@ -21,7 +21,7 @@ The Dailies Note Assistant v2 is a full-stack application designed to streamline
 - �️ **ShotGrid Integration**: Connect directly to ShotGrid projects and playlists for seamless workflow
 - �🎤 **Live Transcription**: Real-time audio transcription from Google Meet sessions
 - 🤖 **AI Summaries**: Generate concise summaries using various LLM providers
-- 📧 **Email Integration**: Send formatted notes via Gmail
+- 📧 **Email Integration**: Send formatted notes via Gmail or SMTP
 - 📊 **Export Functionality**: Download notes as CSV files or raw transcripts as TXT files
 - 🎯 **Pin/Focus System**: Pin specific shots to capture targeted transcriptions
 - 🎭 **Demo Mode**: Anonymize sensitive data for demonstrations and screenshots
@@ -68,9 +68,60 @@ The application communicates with Vexa to:
 
 For detailed Vexa setup instructions, API documentation, and troubleshooting, visit [https://vexa.ai/get-started](https://vexa.ai/get-started).
 
-## ShotGrid Integration
+#### API Routing (Optional)
 
-The application integrates directly with ShotGrid (formerly Shotgun) to provide seamless access to your studio's project and playlist data. This allows users to select shots directly from existing ShotGrid playlists rather than manually uploading CSV files.
+The backend provides optional VEXA API routing to bypass CORS restrictions when accessing VEXA services directly from the frontend.
+
+**Configuration:**
+Set the following environment variables in your `.env` file:
+
+```bash
+# VEXA Configuration
+VEXA_BASE_URL=http://localhost:18056
+VEXA_API_KEY=your_vexa_api_key
+VEXA_ADMIN_KEY=your_vexa_admin_key
+```
+
+If `VEXA_BASE_URL` is not configured, the VEXA routing endpoints will be disabled.
+
+**Available Endpoints:**
+
+HTTP Endpoints:
+- `GET /vexa/bots/status` - Get running bots status
+- `POST /vexa/bots` - Request a new bot
+- `DELETE /vexa/bots/{platform}/{native_meeting_id}` - Stop a bot
+
+WebSocket Proxy:
+- `WS /vexa/ws` - WebSocket proxy to VEXA backend
+
+The WebSocket proxy forwards all query parameters and messages bidirectionally between your frontend and the VEXA backend, allowing you to use the same client code for both direct VEXA connections and proxied connections.
+
+**Usage:**
+To use the backend VEXA routing, update your frontend `.local.env` file to point to the backend instead of the VEXA API directly:
+
+```bash
+# Frontend .local.env - Direct VEXA connection
+VITE_VEXA_BASE_URL=http://localhost:18056
+
+# Frontend .local.env - Via backend proxy (when CORS is an issue)
+VITE_VEXA_BASE_URL=http://localhost:8000/vexa
+```
+
+Frontend code can use the same WebSocket connection logic for both scenarios:
+
+```javascript
+// Direct VEXA connection
+const ws = new WebSocket('ws://localhost:18056/ws?api_key=your_key&platform=zoom&...');
+
+// Proxied through backend (when CORS is an issue)
+const ws = new WebSocket('ws://localhost:8000/vexa/ws?api_key=your_key&platform=zoom&...');
+```
+
+The backend will automatically proxy all messages and handle connection lifecycle management.
+
+## ShotGrid Integration (Optional)
+
+The application integrates directly with ShotGrid (formerly Shotgun) to provide seamless access to your studio's project and playlist data. This allows users to select shots directly from existing ShotGrid playlists rather than manually uploading CSV files. Note this is optional and the application can work with traditional CSV import/export for other production tracking systems.
 
 ### ShotGrid Setup
 
@@ -103,8 +154,6 @@ The ShotGrid integration provides:
 - **Playlist Access**: View recent playlists for selected projects
 - **Shot Import**: Import shots/versions directly from ShotGrid playlists
 - **Demo Mode**: Anonymize ShotGrid data for demonstrations (see Demo Mode section)
-
-### Optional ShotGrid Integration
 
 **ShotGrid integration is completely optional.** The application can function without ShotGrid by using CSV file uploads for shot lists instead.
 
@@ -172,7 +221,7 @@ pip install -r requirements.txt
 Create a `.env` file in the backend directory:
 ```bash
 # Gmail Configuration
-GMAIL_SENDER=your-email@gmail.com
+EMAIL_SENDER=your-email@gmail.com
 
 # LLM API Keys (optional - set DISABLE_LLM=true to use mock responses)
 DISABLE_LLM=false
@@ -195,12 +244,40 @@ DEMO_MODE=false
 # Ensure Ollama is running on localhost:11434
 ```
 
-5. Set up Gmail API credentials:
+5. Set up email sending (choose Gmail API or SMTP):
+   
+   **Option A: Gmail API (recommended for Google accounts)**
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create or select a project
    - Enable Gmail API
    - Create OAuth 2.0 credentials
    - Download the credentials and save as `client_secret.json` in the backend directory
+   - **Generate `token.json` for Gmail API authentication:**
+     - Run the following command in your backend directory:
+       ```bash
+       python email_service.py
+       ```
+     - The first time you run this, it will launch a browser window for Google authentication.
+     - After you log in and authorize, a `token.json` file will be created automatically.
+     - This file is required for sending emails via the Gmail API.
+   
+   **Option B: SMTP Server (for non-Gmail or internal mail servers)**
+   - Set the following environment variables in your `.env` file:
+     ```bash
+     EMAIL_PROVIDER=smtp
+     EMAIL_SENDER=your@email.com
+     SMTP_HOST=smtp.yourserver.com   # or 'localhost' for local testing
+     SMTP_PORT=587                   # or your server's port
+     SMTP_USER=your_smtp_username    # optional if your server does not require auth
+     SMTP_PASSWORD=your_smtp_password # optional if your server does not require auth
+     SMTP_TLS=true                   # set to 'true' if your server requires TLS (default is 'false')
+     ```
+   - The backend will use these settings to send emails via SMTP instead of Gmail API.
+   - You can test your SMTP configuration by running:
+     ```bash
+     python email_service.py
+     ```
+   - If SMTP is configured, a test email will be sent using your SMTP settings.
 
 ### Frontend Setup
 
@@ -281,7 +358,7 @@ Only the first column (shot identifier) is required.
 - `GET /config` - Get application configuration (includes ShotGrid availability)
 - `POST /upload-playlist` - Upload CSV playlist
 - `POST /llm-summary` - Generate AI summary from text
-- `POST /email-notes` - Send notes via email
+- `POST /email-notes` - Send notes via email (Gmail API or SMTP, depending on configuration)
 
 ### ShotGrid Integration
 - `GET /shotgrid/active-projects` - Get list of active ShotGrid projects
@@ -346,7 +423,7 @@ For development and testing, set `DISABLE_LLM=true` to use mock responses instea
 
 The backend uses FastAPI with the following structure:
 - `main.py` - Main application and routing
-- `email_service.py` - Gmail API integration
+- `email_service.py` - Gmail API and SMTP integration
 - `note_service.py` - LLM summary generation
 - `playlist.py` - CSV upload handling
 - `shotgrid_service.py` - ShotGrid API integration and demo mode
@@ -369,9 +446,9 @@ npm run build
 
 ### Common Issues
 
-1. **Gmail API Authentication**:
-   - Ensure `client_secret.json` is properly configured
-   - Check that Gmail API is enabled in Google Cloud Console
+1. **Gmail API Authentication / SMTP Configuration**:
+   - For Gmail: Ensure `client_secret.json` is properly configured and Gmail API is enabled in Google Cloud Console
+   - For SMTP: Ensure your SMTP server details are correct and accessible from the backend
 
 2. **LLM API Errors**:
    - Verify API keys are correctly set
@@ -407,3 +484,5 @@ See the main repository for licensing information.
 ## Support
 
 For issues and questions, please use the GitHub issues tracker in the main repository.
+
+
