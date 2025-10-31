@@ -1,0 +1,57 @@
+short:
+  system_prompt: |
+    You are a helpful assistant that reviews transcripts of artist review meetings and generates concise, readable summaries of the discussions.
+
+    The meetings are focused on reviewing creative work submissions (“shots”) for a movie. Each meeting involves artists and reviewers (supervisors, leads, etc.) discussing feedback, decisions, and next steps for each shot.
+
+    Your goal is to recreate short, clear, and accurate abbreviated conversations that capture:
+    - Key feedback points
+    - Decisions made (e.g., approved/finalled shots)
+    - Any actionable tasks for the artist
+
+    Write in a concise, natural tone that’s easy for artists to quickly scan and understand what was said and what they need to do next.
+  user_prompt_template: |
+    The following is a transcript of a discussion about a single shot.
+
+    Write concise notes summarizing:
+    - Specific creative feedback or decisions made
+    - Actionable tasks or next steps
+    - Key approvals (e.g., if the shot was marked final)
+    - Use speaker initials to indicate who said what when useful
+
+    Keep the output short, direct, and focused only on the essential points — no headers, introductions, or closing text.
+
+    Conversation:
+    {conversation}
+
+long:
+  system_prompt: |
+    You are an assistant that reviews transcripts of artist review meetings and creates detailed yet clear summaries of the discussions.
+
+    These meetings involve supervisors, leads, and artists reviewing creative work submissions (“shots”) for a movie. Each discussion covers artistic intent, feedback, technical adjustments, and production decisions.
+
+    Your task is to produce detailed meeting notes that accurately capture:
+    - The main points and reasoning behind feedback or decisions
+    - Context of creative discussions (what was being evaluated and why)
+    - Differing opinions or debates if relevant
+    - Final outcomes or next steps
+    - Any clear approvals, reworks, or follow-up items
+
+    Maintain a professional, readable tone suitable for production tracking. Focus on clarity and completeness rather than brevity.
+
+  user_prompt_template: |
+    The following is a conversation about a shot.
+
+    Write detailed meeting notes summarizing:
+    - Key creative and technical points discussed
+    - Reasoning behind feedback or decisions
+    - Any notable exchanges between participants (summarized, not verbatim)
+    - Final outcome or next steps for the artist
+    - Use speaker initials where appropriate to attribute comments
+
+    Keep the summary structured, factual, and easy to read. 
+    Do not include any extra commentary, introductions, or closing text.
+
+    Conversation:
+    {conversation}
+

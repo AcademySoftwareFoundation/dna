@@ -26,6 +26,9 @@ function App() {
   // --- Configuration State ---
   const [config, setConfig] = useState({ shotgrid_enabled: false });
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [enabledLLMs, setEnabledLLMs] = useState([]);
+  const [availablePromptTypes, setAvailablePromptTypes] = useState([]);
+  const [promptTypeSelection, setPromptTypeSelection] = useState({}); // Track prompt type per row per LLM
 
   // --- ShotGrid Project/Playlist State ---
   const [sgProjects, setSgProjects] = useState([]); // List of active projects
@@ -243,7 +246,12 @@ function App() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.status === "success") {
-        const mapped = (data.items || []).map(v => ({ shot: v, transcription: "", summary: "" }));
+        const mapped = (data.items || []).map(v => ({
+          shot: v.name,
+          transcription: v.transcription,
+          notes: v.notes,
+          summary: ""
+        }));
         setRows(mapped);
         setCurrentIndex(0);
         setUploadStatus({ msg: "Playlist CSV uploaded successfully", type: "success" });
@@ -295,20 +303,36 @@ function App() {
   };
 
   const setTabForRow = (rowIndex, tabName) => {
-    setActiveTab(prev => ({ ...prev, [rowIndex]: tabName }));
+    setActiveTab(prev => {
+      const newState = { ...prev };
+      newState[rowIndex] = tabName;
+      return newState;
+    });
   };
 
   const getActiveTabForRow = (rowIndex) => {
     return activeTab[rowIndex] || 'notes';
   };
 
+  // Helper functions for prompt type selection
+  const setPromptTypeForRowAndLLM = (rowIndex, llmKey, promptType) => {
+    setPromptTypeSelection(prev => ({
+      ...prev,
+      [`${rowIndex}_${llmKey}`]: promptType
+    }));
+  };
+
+  const getPromptTypeForRowAndLLM = (rowIndex, llmKey) => {
+    return promptTypeSelection[`${rowIndex}_${llmKey}`] || (availablePromptTypes[0] || '');
+  };
+
   // Function to get LLM summary from backend
-  const getLLMSummary = async (text) => {
+  const getLLMSummary = async (text, llmProvider = null, promptType = 'short') => {
     try {
       const res = await fetch(`${BACKEND_URL}/llm-summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, llm_provider: llmProvider, prompt_type: promptType }),
       });
       const data = await res.json();
       if (res.ok && data.summary) {
@@ -358,7 +382,7 @@ function App() {
         if (inputText.trim()) {
           // Show loading
           updateCell(prevIdx, 'summary', '...');
-          getLLMSummary(inputText).then(summary => {
+          getLLMSummary(inputText, null, availablePromptTypes[0] || '').then(summary => {
             updateCell(prevIdx, 'summary', summary || '[No summary returned]');
           });
         }
@@ -589,16 +613,40 @@ function App() {
   // --- ShotGrid Project/Playlist Fetch Logic ---
   // Fetch application configuration on mount
   useEffect(() => {
-    fetch(`${BACKEND_URL}/config`)
-      .then(res => res.json())
-      .then(data => {
-        setConfig(data);
+    // Fetch both config and available models
+    Promise.all([
+      fetch(`${BACKEND_URL}/config`).then(res => res.json()),
+      fetch(`${BACKEND_URL}/available-models`).then(res => res.json())
+    ])
+      .then(([configData, modelsData]) => {
+        setConfig(configData);
         setConfigLoaded(true);
+        
+        // Use the actual available models from the backend
+        if (modelsData.available_models) {
+          const llms = modelsData.available_models.map(model => ({
+            key: model.model_name, // Use model name as unique key
+            name: model.display_name,
+            model_name: model.model_name,
+            provider: model.provider
+          }));
+          setEnabledLLMs(llms);
+        } else {
+          setEnabledLLMs([]);
+        }
+        
+        // Set available prompt types
+        if (modelsData.available_prompt_types) {
+          setAvailablePromptTypes(modelsData.available_prompt_types);
+        } else {
+          setAvailablePromptTypes([]); // No assumptions about available prompt types
+        }
       })
       .catch(() => {
-        console.error("Failed to fetch app config, assuming ShotGrid disabled");
+        console.error("Failed to fetch app config and models");
         setConfig({ shotgrid_enabled: false });
         setConfigLoaded(true);
+        setEnabledLLMs([]);
       });
   }, []);
 
@@ -942,15 +990,14 @@ function App() {
                           <button
                             type="button"
                             className={`btn${isPinned ? ' pinned' : ''}`}
-                            style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isPinned ? '#e0f2fe' : undefined, borderColor: isPinned ? '#3d82f6' : undefined }}
+                            style={{ position: 'absolute', top: '12px', right: '12px', padding: '4px', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isPinned ? 'rgba(59, 130, 246, 0.1)' : undefined, borderColor: isPinned ? '#3d82f6' : undefined, color: isPinned ? '#3d82f6' : undefined }}
                             aria-label="Pin"
                             onClick={() => setPinnedIndex(isPinned ? null : idx)}
                           >
-                            <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
-                              {/* Larger half-circle head */}
-                              <path d="M3 8 A6 6 0 0 1 15 8 Z" fill="#3d82f6" stroke="#1e40af" strokeWidth="0.8"/>
-                              {/* Wider tapered pin */}
-                              <path d="M7 8 L11 8 L9 15 Z" fill="#3d82f6" stroke="#1e40af" strokeWidth="0.8"/>
+                            {/* Pin icon from Iconoir (https://iconoir.com/) */}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M9.5 14.5L3 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M5.00007 9.48528L14.1925 18.6777L15.8895 16.9806L15.4974 13.1944L21.0065 8.5211L15.1568 2.67141L10.4834 8.18034L6.69713 7.78823L5.00007 9.48528Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
                           </button>
                         </td>
@@ -961,79 +1008,165 @@ function App() {
                               <button
                                 type="button"
                                 className={`tab-button ${getActiveTabForRow(idx) === 'notes' ? 'active' : ''}`}
-                                onClick={() => setTabForRow(idx, 'notes')}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setTabForRow(idx, 'notes');
+                                }}
                               >
                                 Notes
                               </button>
-                              <button
-                                type="button"
-                                className={`tab-button ${getActiveTabForRow(idx) === 'summary' ? 'active' : ''}`}
-                                style={{ position: 'relative' }}
-                                onClick={() => setTabForRow(idx, 'summary')}
-                              >
-                                Gemini
-                                {getActiveTabForRow(idx) === 'summary' && (
-                                  <button
-                                    type="button"
-                                    className="btn"
-                                    style={{ 
-                                      position: 'absolute', 
-                                      top: '-2px', 
-                                      right: '-8px', 
-                                      padding: '2px', 
-                                      minWidth: '20px', 
-                                      height: '20px', 
-                                      display: 'flex', 
-                                      alignItems: 'center', 
-                                      justifyContent: 'center',
-                                      fontSize: '10px',
-                                      background: '#3d82f6',
-                                      color: 'white',
-                                      border: 'none',
-                                      borderRadius: '50%'
-                                    }}
-                                    aria-label="Refresh Summary"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      const inputText = row.transcription || row.notes || '';
-                                      if (!inputText.trim()) return;
-                                      updateCell(idx, 'summary', '...'); // Show loading
-                                      const summary = await getLLMSummary(inputText);
-                                      updateCell(idx, 'summary', summary || '[No summary returned]');
-                                    }}
-                                  >
-                                    <svg width="12" height="12" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                      <path d="M9 3a6 6 0 1 1-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                      <path d="M3 3v6h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                  </button>
-                                )}
-                              </button>
+                              {enabledLLMs.map(llm => (
+                                <button
+                                  key={llm.key}
+                                  type="button"
+                                  className={`tab-button ${getActiveTabForRow(idx) === llm.key ? 'active' : ''}`}
+                                  style={{ position: 'relative' }}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setTabForRow(idx, llm.key);
+                                  }}
+                                >
+                                  {llm.name}
+                                </button>
+                              ))}
                             </div>
                             {/* Tab Content */}
                             <div style={{ flex: 1 }}>
-                              {getActiveTabForRow(idx) === 'notes' && (
-                                <textarea
-                                  value={row.notes || ''}
-                                  onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
-                                  onChange={(e) => updateCell(idx, 'notes', e.target.value)}
-                                  className="table-textarea"
-                                  placeholder="Enter notes..."
-                                  rows={3}
-                                  style={{ height: '100%', minHeight: '72px' }}
-                                />
-                              )}
-                              {getActiveTabForRow(idx) === 'summary' && (
-                                <textarea
-                                  value={row.summary || ''}
-                                  onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
-                                  onChange={(e) => updateCell(idx, 'summary', e.target.value)}
-                                  className="table-textarea"
-                                  placeholder="Summary goes here..."
-                                  rows={3}
-                                  style={{ height: '100%', minHeight: '72px' }}
-                                />
-                              )}
+                              {(() => {
+                                const activeTab = getActiveTabForRow(idx);
+                                if (activeTab === 'notes') {
+                                  return (
+                                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                      {/* Invisible prompt selector to match height of LLM tabs */}
+                                      <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', visibility: 'hidden' }}>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', minWidth: '60px' }}>
+                                          Prompt:
+                                        </label>
+                                        <select
+                                          style={{
+                                            fontSize: '12px',
+                                            padding: '2px 4px',
+                                            border: '1px solid #444',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            borderRadius: '3px',
+                                            minWidth: '70px'
+                                          }}
+                                        >
+                                          <option>short</option>
+                                        </select>
+                                        <button
+                                          type="button"
+                                          style={{ 
+                                            padding: '2px', 
+                                            minWidth: '20px', 
+                                            height: '20px', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center',
+                                            fontSize: '10px',
+                                            background: '#3d82f6',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '3px'
+                                          }}
+                                        >
+                                          ↻
+                                        </button>
+                                      </div>
+                                      <textarea
+                                        value={row.notes || ''}
+                                        onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                                        onChange={(e) => updateCell(idx, 'notes', e.target.value)}
+                                        className="table-textarea"
+                                        placeholder="Enter notes..."
+                                        rows={3}
+                                        style={{ flex: 1, minHeight: '50px' }}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                
+                                const activeLLM = enabledLLMs.find(llm => llm.key === activeTab);
+                                if (activeLLM) {
+                                  return (
+                                    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                      {/* Prompt Type Selector */}
+                                      <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <label style={{ fontSize: '12px', color: 'var(--text-muted)', minWidth: '60px' }}>
+                                          Prompt:
+                                        </label>
+                                        <select
+                                          value={getPromptTypeForRowAndLLM(idx, activeLLM.key)}
+                                          onChange={(e) => setPromptTypeForRowAndLLM(idx, activeLLM.key, e.target.value)}
+                                          style={{
+                                            fontSize: '12px',
+                                            padding: '2px 4px',
+                                            border: '1px solid #444',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            borderRadius: '3px',
+                                            minWidth: '70px'
+                                          }}
+                                        >
+                                          {availablePromptTypes.map(promptType => (
+                                            <option key={promptType} value={promptType}>
+                                              {promptType}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          type="button"
+                                          className="btn"
+                                          style={{ 
+                                            padding: '2px', 
+                                            minWidth: '20px', 
+                                            height: '20px', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center',
+                                            fontSize: '10px',
+                                            background: '#3d82f6',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '3px'
+                                          }}
+                                          aria-label="Refresh Summary"
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const inputText = row.transcription || row.notes || '';
+                                            if (!inputText.trim()) return;
+                                            const promptType = getPromptTypeForRowAndLLM(idx, activeLLM.key);
+                                            updateCell(idx, `${activeLLM.key}_summary`, '...'); // Show loading
+                                            const summary = await getLLMSummary(inputText, activeLLM.provider, promptType);
+                                            updateCell(idx, `${activeLLM.key}_summary`, summary || '[No summary returned]');
+                                          }}
+                                        >
+                                          {/* Refresh icon from Iconoir (https://iconoir.com/) */}
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M21.8883 13.5C21.1645 18.3113 17.013 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C16.1006 2 19.6248 4.46819 21.1679 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                            <path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                          </svg>
+                                        </button>
+                                      </div>
+                                      <textarea
+                                        key={activeLLM.key}
+                                        value={row[`${activeLLM.key}_summary`] || ''}
+                                        onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                                        onChange={(e) => updateCell(idx, `${activeLLM.key}_summary`, e.target.value)}
+                                        className="table-textarea"
+                                        placeholder={`${activeLLM.name} summary goes here...`}
+                                        rows={3}
+                                        style={{ flex: 1, minHeight: '50px' }}
+                                      />
+                                    </div>
+                                  );
+                                }
+                                
+                                return null;
+                              })()}
                             </div>
                           </div>
                         </td>

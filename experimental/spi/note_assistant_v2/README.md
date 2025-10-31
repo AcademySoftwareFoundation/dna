@@ -371,6 +371,226 @@ Only the first column (shot identifier) is required.
 
 ## Configuration
 
+### LLM Configuration System
+
+The application uses a flexible YAML-based configuration system that allows you to customize both the LLM models and the prompts used for summary generation. This system separates model configuration from prompt configuration, making it easy to experiment with different combinations.
+
+#### Configuration Files
+
+The system uses factory default files that can be overridden with user-specific configurations:
+
+**Model Configuration:**
+- `backend/llm_models.factory.yaml` - Factory defaults for LLM models
+- `backend/llm_models.yaml` - User overrides (optional, create this file to customize)
+
+**Prompt Configuration:**
+- `backend/llm_prompts.factory.yaml` - Factory defaults for prompts
+- `backend/llm_prompts.yaml` - User overrides (optional, create this file to customize)
+
+The system automatically loads user configurations if they exist, otherwise falls back to factory defaults.
+
+#### Model Configuration (`llm_models.yaml`)
+
+Configure available LLM models, their display names, and model-specific parameters:
+
+```yaml
+# Default parameters applied to all models
+default:
+  temperature: 0.1
+  max_tokens: 1024
+
+# List of available models
+models:
+  - display_name: "ChatGPT"
+    model_name: "gpt-4o"
+    provider: "openai"
+  - display_name: "Claude"
+    model_name: "claude-3-sonnet-20240229"
+    provider: "anthropic"
+  - display_name: "Llama"
+    model_name: "llama3.2"
+    provider: "ollama"
+  - display_name: "Gemini"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "google"
+
+# Model-specific overrides (optional)
+model_overrides:
+  "gpt-4o":
+    temperature: 0.15
+  "claude-3-sonnet-20240229":
+    max_tokens: 2048
+    temperature: 0.05
+  "llama3.2":
+    temperature: 0.2
+  "gemini-2.5-flash-preview-05-20":
+    max_tokens: 1500
+    temperature: 0.08
+```
+
+**Configuration Options:**
+- `display_name`: Name shown in the UI
+- `model_name`: Actual model identifier for the API
+- `provider`: LLM provider (openai, anthropic, ollama, google)
+- `temperature`: Controls randomness (0.0 = deterministic, 1.0 = very random)
+- `max_tokens`: Maximum response length
+- `model_overrides`: Provider-specific parameter adjustments
+
+#### Prompt Configuration (`llm_prompts.yaml`)
+
+Configure different prompt types with customized system prompts and user prompt templates:
+
+```yaml
+short:
+  system_prompt: |
+    You are a helpful assistant that reviews transcripts of artist review meetings 
+    and generates concise, readable summaries of the discussions.
+    
+    The meetings are focused on reviewing creative work submissions ("shots") for a movie. 
+    Each meeting involves artists and reviewers discussing feedback, decisions, and next steps.
+    
+    Your goal is to create short, clear, and accurate abbreviated conversations that capture:
+    - Key feedback points
+    - Decisions made (e.g., approved/finalled shots)
+    - Any actionable tasks for the artist
+    
+    Write in a concise, natural tone that's easy for artists to quickly scan.
+
+  user_prompt_template: |
+    The following is a transcript of a discussion about a single shot.
+
+    Write concise notes summarizing:
+    - Specific creative feedback or decisions made
+    - Actionable tasks or next steps
+    - Key approvals (e.g., if the shot was marked final)
+    - Use speaker initials to indicate who said what when useful
+
+    Keep the output short, direct, and focused only on the essential points.
+
+    Conversation:
+    {conversation}
+
+long:
+  system_prompt: |
+    You are an assistant that reviews transcripts of artist review meetings 
+    and creates detailed yet clear summaries of the discussions.
+    
+    These meetings involve supervisors, leads, and artists reviewing creative work 
+    submissions ("shots") for a movie. Each discussion covers artistic intent, 
+    feedback, technical adjustments, and production decisions.
+    
+    Your task is to produce detailed meeting notes that accurately capture:
+    - The main points and reasoning behind feedback or decisions
+    - Context of creative discussions (what was being evaluated and why)
+    - Differing opinions or debates if relevant
+    - Final outcomes or next steps
+    - Any clear approvals, reworks, or follow-up items
+
+  user_prompt_template: |
+    The following is a conversation about a shot.
+
+    Write detailed meeting notes summarizing:
+    - Key creative and technical points discussed
+    - Reasoning behind feedback or decisions
+    - Any notable exchanges between participants (summarized, not verbatim)
+    - Final outcome or next steps for the artist
+    - Use speaker initials where appropriate to attribute comments
+
+    Keep the summary structured, factual, and easy to read.
+
+    Conversation:
+    {conversation}
+```
+
+**Prompt Configuration Options:**
+- `system_prompt`: Sets the AI's role, context, and behavior guidelines
+- `user_prompt_template`: Template for the user message, must include `{conversation}` placeholder
+- Multiple prompt types can be defined (e.g., `short`, `long`, `technical`, `creative`)
+
+#### Creating Custom Configurations
+
+**To customize models:**
+1. Copy `backend/llm_models.factory.yaml` to `backend/llm_models.yaml`
+2. Modify the models list, add new providers, or adjust parameters
+3. Restart the backend server to load changes
+
+**To customize prompts:**
+1. Copy `backend/llm_prompts.factory.yaml` to `backend/llm_prompts.yaml`
+2. Modify existing prompt types or add new ones
+3. Restart the backend server to load changes
+
+**Example: Adding a Custom Prompt Type**
+
+```yaml
+# In your llm_prompts.yaml file
+short:
+  # ... existing short prompt configuration
+
+technical:
+  system_prompt: |
+    You are a technical supervisor assistant that focuses on technical aspects 
+    of VFX shot reviews, emphasizing pipeline, workflow, and technical requirements.
+  
+  user_prompt_template: |
+    Review this shot discussion and create technical notes focusing on:
+    - Technical feedback and requirements
+    - Pipeline or workflow issues
+    - Technical approvals or blockers
+    - Software, tools, or technical specifications mentioned
+    
+    Conversation:
+    {conversation}
+
+creative:
+  system_prompt: |
+    You are a creative director assistant that focuses on the artistic and 
+    creative aspects of shot reviews, emphasizing story, aesthetics, and creative intent.
+  
+  user_prompt_template: |
+    Review this shot discussion and create creative notes focusing on:
+    - Artistic direction and creative feedback
+    - Story and character considerations
+    - Visual aesthetics and mood
+    - Creative approvals and artistic decisions
+    
+    Conversation:
+    {conversation}
+```
+
+#### Using Custom Configurations
+
+Once you've defined custom prompt types:
+
+1. **In the UI**: The prompt type selector will automatically show all available prompt types
+2. **Per Shot**: Each shot can use different prompt types for different LLM models
+3. **Per Model**: Different LLM models can use different prompt types for the same shot
+
+This allows for powerful combinations like:
+- Use "short" prompts with fast models for quick overviews
+- Use "long" prompts with more capable models for detailed analysis  
+- Use "technical" prompts for technical review sessions
+- Use "creative" prompts for creative review sessions
+
+#### Best Practices
+
+**For Prompts:**
+- Keep `system_prompt` focused on role and context
+- Always include `{conversation}` in `user_prompt_template`
+- Test prompts with different types of conversations
+- Consider your audience (artists, supervisors, producers)
+
+**For Models:**
+- Set lower `temperature` (0.0-0.3) for consistent, factual summaries
+- Adjust `max_tokens` based on desired summary length
+- Use model-specific overrides for fine-tuning individual models
+- Consider cost and speed trade-offs when selecting models
+
+**Configuration Management:**
+- Keep factory files as reference, customize in user files
+- Version control your user configuration files
+- Document any studio-specific prompt customizations
+- Test configuration changes with representative transcripts
+
 ### Demo Mode
 
 The backend supports a **Demo Mode** that anonymizes sensitive data from ShotGrid before returning it to the frontend. This is useful for demonstrations, screenshots, or sharing the application without exposing real project information.

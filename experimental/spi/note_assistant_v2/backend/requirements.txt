@@ -13,3 +13,4 @@ google_auth_oauthlib
 shotgun_api3
 httpx
 websockets
+PyYAML>=6.0

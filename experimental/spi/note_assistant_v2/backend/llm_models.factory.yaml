@@ -1,0 +1,30 @@
+default:
+  temperature: 0.1
+  max_tokens: 1024
+
+models:
+  - display_name: "ChatGPT"
+    model_name: "gpt-4o"
+    provider: "openai"
+  - display_name: "Claude"
+    model_name: "claude-3-sonnet-20240229"
+    provider: "anthropic"
+  - display_name: "Llama"
+    model_name: "llama3.2"
+    provider: "ollama"
+  - display_name: "Gemini"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "google"
+
+# Model-specific overrides (optional - for fine-tuning specific models)
+model_overrides:
+  "gpt-4o":
+    temperature: 0.15
+  "claude-3-sonnet-20240229":
+    max_tokens: 2048
+    temperature: 0.05
+  "llama3.2":
+    temperature: 0.2
+  "gemini-2.5-flash-preview-05-20":
+    max_tokens: 1500
+    temperature: 0.08
