@@ -195,6 +195,102 @@ To disable ShotGrid integration:
 - You prefer manual control over shot lists
 - Working in isolated or air-gapped environments
 
+## LLM Backend Routing
+
+The application supports routing LLM operations to a separate backend server, allowing you to run the main application on a system without internet access while processing LLM requests on a machine with the necessary resources and connectivity.
+
+### Configuration
+
+Add the following environment variable to your `.env` file:
+
+```bash
+# LLM Backend Routing (comment out LLM_BACKEND_BASE_URL to use local LLM providers)
+LLM_BACKEND_BASE_URL=http://localhost:8000
+```
+
+### How It Works
+
+When `LLM_BACKEND_BASE_URL` is configured:
+
+1. **Request Routing**: All LLM-related API calls (`/llm-summary` and `/available-models`) are automatically routed to the specified backend server
+2. **Transparent Operation**: The frontend continues to work exactly the same way - no code changes needed
+3. **Fallback Support**: If the remote LLM backend is unavailable, the system falls back to local LLM processing (if configured)
+4. **Error Handling**: Proper timeout handling (30 seconds) and error reporting for remote requests
+
+### Use Cases
+
+**Scenario 1: Internet-Isolated Main Server**
+- Run your main backend on a secure, internet-isolated system
+- Run a secondary backend with LLM access on a machine with internet connectivity
+- Route LLM operations to the connected machine while keeping core functionality isolated
+
+**Scenario 2: Resource Distribution**
+- Run the main application on a lightweight system
+- Route compute-intensive LLM operations to a high-performance GPU server
+- Optimize resource usage across your infrastructure
+
+**Scenario 3: Development and Testing**
+- Use a shared LLM backend for multiple development instances
+- Centralize LLM configuration and API key management
+- Reduce individual developer setup complexity
+
+### Setup Instructions
+
+1. **Deploy the LLM Backend Server**:
+   ```bash
+   # On your LLM-capable machine
+   cd backend
+   python -m uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+
+2. **Configure the Main Backend**:
+   ```bash
+   # In your main backend's .env file
+   LLM_BACKEND_BASE_URL=http://llm-server-ip:8000
+   
+   # Note: Local LLM provider settings (ENABLE_OPENAI, etc.) will be ignored when routing is enabled
+   DISABLE_LLM=false
+   ```
+
+3. **Configure the LLM Backend**:
+   ```bash
+   # In your LLM backend's .env file
+   # Comment out or remove LLM_BACKEND_BASE_URL to prevent routing loops
+   # LLM_BACKEND_BASE_URL=
+   
+   # Enable and configure your desired LLM providers
+   ENABLE_OPENAI=true
+   OPENAI_API_KEY=your_openai_key
+   ENABLE_GOOGLE=true
+   GEMINI_API_KEY=your_gemini_key
+   ```
+
+### Verification
+
+You can verify the routing is working by:
+
+1. **Check Configuration**: The `/config` endpoint will show `"llm_backend_routing_enabled": true`
+2. **Monitor Logs**: The main backend will log "Error routing to LLM backend" if there are connection issues
+3. **Response Metadata**: LLM responses include a `"routed": false` field indicating whether local or remote processing was used
+
+### Disabling LLM Routing
+
+To disable LLM backend routing:
+
+1. **Comment out the configuration**:
+   ```bash
+   # LLM Backend Routing (comment out LLM_BACKEND_BASE_URL to use local LLM providers)
+   # LLM_BACKEND_BASE_URL=http://localhost:8000
+   ```
+
+2. **Enable local LLM providers**:
+   ```bash
+   ENABLE_OPENAI=true
+   OPENAI_API_KEY=your_key
+   ```
+
+The system will automatically fall back to local LLM processing.
+
 ## Installation
 
 ### Backend Setup

@@ -38,6 +38,10 @@ shotgrid_enabled = bool(SHOTGRID_URL and SHOTGRID_URL.strip())
 VEXA_BASE_URL = os.environ.get("VEXA_BASE_URL")
 vexa_routing_enabled = bool(VEXA_BASE_URL and VEXA_BASE_URL.strip())
 
+# Check if LLM backend routing is configured
+LLM_BACKEND_BASE_URL = os.environ.get("LLM_BACKEND_BASE_URL")
+llm_backend_routing_enabled = bool(LLM_BACKEND_BASE_URL and LLM_BACKEND_BASE_URL.strip())
+
 # Register core routers
 app.include_router(playlist_router)
 app.include_router(email_router)
@@ -59,6 +63,7 @@ def get_config():
     return JSONResponse(content={
         "shotgrid_enabled": shotgrid_enabled,
         "vexa_routing_enabled": vexa_routing_enabled,
+        "llm_backend_routing_enabled": llm_backend_routing_enabled,
         "openai_enabled": os.environ.get("ENABLE_OPENAI", "false").lower() == "true",
         "anthropic_enabled": os.environ.get("ENABLE_ANTHROPIC", "false").lower() == "true",
         "ollama_enabled": os.environ.get("ENABLE_OLLAMA", "false").lower() == "true",

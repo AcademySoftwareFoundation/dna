@@ -1,5 +1,6 @@
 import os
 import random
+import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -273,11 +274,47 @@ if 'ollama' in enabled_providers:
 
 DISABLE_LLM = os.getenv('DISABLE_LLM', 'true').lower() in ('1', 'true', 'yes')
 
+# Check if LLM backend routing is configured
+LLM_BACKEND_BASE_URL = os.environ.get("LLM_BACKEND_BASE_URL")
+llm_backend_routing_enabled = bool(LLM_BACKEND_BASE_URL and LLM_BACKEND_BASE_URL.strip())
+
+def route_to_llm_backend(endpoint, method="GET", data=None, params=None):
+    """Route request to LLM backend server."""
+    if not llm_backend_routing_enabled:
+        raise HTTPException(status_code=500, detail="LLM backend routing not configured")
+    
+    url = f"{LLM_BACKEND_BASE_URL.rstrip('/')}{endpoint}"
+    
+    try:
+        if method.upper() == "GET":
+            response = requests.get(url, params=params, timeout=30)
+        elif method.upper() == "POST":
+            response = requests.post(url, json=data, timeout=30)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Error routing to LLM backend: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error routing to LLM backend: {str(e)}")
+
 @router.get("/available-models")
 async def get_available_models_endpoint():
     """
     Get list of available LLM models based on enabled providers.
     """
+    # Route to LLM backend if configured
+    if llm_backend_routing_enabled:
+        try:
+            return route_to_llm_backend("/available-models", method="GET")
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error routing to LLM backend for /available-models: {e}")
+            # Fall back to local processing if routing fails
+    
     try:
         available_models = get_available_models_for_enabled_providers()
         enabled_providers = get_enabled_providers()
@@ -290,7 +327,8 @@ async def get_available_models_endpoint():
             "available_models": available_models,
             "enabled_providers": enabled_providers,
             "available_prompt_types": available_prompt_types,
-            "disable_llm": DISABLE_LLM
+            "disable_llm": DISABLE_LLM,
+            "llm_backend_routing_enabled": llm_backend_routing_enabled
         }
     except Exception as e:
         print(f"Error in /available-models: {e}")
@@ -301,6 +339,16 @@ async def llm_summary(request: dict):
     """
     Generate a summary using specified or available LLM providers.
     """
+    # Route to LLM backend if configured
+    if llm_backend_routing_enabled:
+        try:
+            return route_to_llm_backend("/llm-summary", method="POST", data=request)
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Error routing to LLM backend for /llm-summary: {e}")
+            # Fall back to local processing if routing fails
+    
     text = request.get("text", "")
     llm_provider = request.get("llm_provider")
     prompt_type = request.get("prompt_type")  # No default assumption
@@ -323,7 +371,7 @@ async def llm_summary(request: dict):
             "Artist to be notified about animation and lighting feedback.",
             "Overall progress is good; next steps communicated to the team."
         ]
-        return {"summary": random.choice(random_summaries)}
+        return {"summary": random.choice(random_summaries), "routed": False}
     
     if not llm_clients:
         raise HTTPException(status_code=500, detail="No LLM clients initialized.")
@@ -352,7 +400,7 @@ async def llm_summary(request: dict):
         else:
             raise HTTPException(status_code=500, detail=f"Unsupported provider: {provider}")
         
-        return {"summary": summary, "provider": provider, "model": model, "prompt_type": prompt_type}
+        return {"summary": summary, "provider": provider, "model": model, "prompt_type": prompt_type, "routed": False}
     except Exception as e:
         print(f"Error in /llm-summary with {provider}: {e}")
         raise HTTPException(status_code=500, detail=f"LLM summary error: {str(e)}")
