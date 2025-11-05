@@ -15,6 +15,31 @@ DISABLE_LLM=false                          # Set to true to use mock responses
 DEMO_MODE=false                            # Anonymize sensitive data for demos
 ```
 
+### ShotGrid Configuration
+
+The following environment variables configure the ShotGrid integration:
+
+```bash
+# ShotGrid Configuration (comment out SG_URL to disable ShotGrid integration)
+SG_URL=https://your-studio.shotgrid.autodesk.com
+SG_SCRIPT_NAME=your_script_name
+SG_API_KEY=your_api_key
+SG_PLAYLIST_TYPE_FILTER=Client,SPA         # Comma-separated list of project types to include
+```
+
+#### Custom Field Configuration
+
+The following variables allow you to specify custom field names in the ShotGrid Version entity:
+
+```bash
+SG_PLAYLIST_SHOT_FIELD=sg_vfo_shot         # Custom field name in the Version entity that references the shot/asset (default: "shot")
+SG_PLAYLIST_VERSION_FIELD=sg_jts           # Custom field name in the Version entity that contains the version identifier (default: "version")
+```
+
+These fields are used when extracting shot/version information from playlists. Configure them to match your studio's custom ShotGrid schema.
+
+To disable ShotGrid integration, comment out the `SG_URL` environment variable.
+
 ### LLM Provider Configuration
 
 ```bash

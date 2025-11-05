@@ -31,8 +31,8 @@ app.add_middleware(
 )
 
 # Check if ShotGrid is configured
-SHOTGRID_URL = os.environ.get("SHOTGRID_URL")
-shotgrid_enabled = bool(SHOTGRID_URL and SHOTGRID_URL.strip())
+SG_URL = os.environ.get("SG_URL")
+shotgrid_enabled = bool(SG_URL and SG_URL.strip())
 
 # Check if VEXA is configured
 VEXA_BASE_URL = os.environ.get("VEXA_BASE_URL")
