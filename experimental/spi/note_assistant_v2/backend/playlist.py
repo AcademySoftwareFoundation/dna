@@ -1,4 +1,5 @@
 from fastapi import UploadFile, File, APIRouter
+from pydantic import BaseModel
 import csv
 import os
 
@@ -15,6 +16,64 @@ router = APIRouter()
 # Configuration for CSV field names
 SG_CSV_VERSION_FIELD = os.environ.get("SG_CSV_VERSION_FIELD", "version")
 SG_CSV_SHOT_FIELD = os.environ.get("SG_CSV_SHOT_FIELD", "shot")
+
+class NotesExportRequest(BaseModel):
+    notes: list
+    export_format: str = "csv"  # csv or txt
+
+@router.post("/export-notes")
+async def export_notes(request: NotesExportRequest):
+    """Export notes in CSV format using configurable field names"""
+    # Get the current values from environment
+    csv_version_field = os.environ.get("SG_CSV_VERSION_FIELD", "version")
+    csv_shot_field = os.environ.get("SG_CSV_SHOT_FIELD", "shot")
+    
+    # Build CSV content
+    lines = []
+    
+    # Create header with configurable field names
+    header = [csv_shot_field, csv_version_field, 'notes', 'transcription', 'summary']
+    lines.append(','.join(f'"{h}"' for h in header))
+    
+    # Process each note
+    for note in request.notes:
+        shot_name = str(note.get('shot', '')).strip()
+        
+        # Split shot/version using "/" delimiter
+        shot_value = ''
+        version_value = ''
+        
+        if shot_name and '/' in shot_name:
+            parts = shot_name.split('/', 1)  # Split only on first occurrence
+            shot_value = parts[0]
+            version_value = parts[1]
+        else:
+            # If no "/" delimiter found, put everything in shot field
+            shot_value = shot_name
+        
+        # Escape CSV values
+        def escape_csv(val):
+            return '"' + str(val).replace('"', '""') + '"'
+        
+        row = [
+            escape_csv(shot_value),
+            escape_csv(version_value),
+            escape_csv(note.get('notes', '')),
+            escape_csv(note.get('transcription', '')),
+            escape_csv(note.get('summary', ''))
+        ]
+        lines.append(','.join(row))
+    
+    csv_content = '\n'.join(lines)
+    
+    return {
+        "status": "success",
+        "content": csv_content,
+        "filename": "shot_notes.csv",
+        "content_type": "text/csv"
+    }
+
+
 
 @router.post("/upload-playlist")
 async def upload_playlist(file: UploadFile = File(...)):

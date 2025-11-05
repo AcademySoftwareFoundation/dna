@@ -396,33 +396,34 @@ function App() {
   }, [currentIndex]);
 
   // --- CSV Download Helper ---
-  const downloadCSV = () => {
+  const downloadCSV = async () => {
     if (!rows.length) return;
-    // CSV header
-    const header = ['shot/jts', 'notes', 'transcription', 'summary'];
-    // Escape CSV values
-    const escape = (val = '') => '"' + String(val).replace(/"/g, '""') + '"';
-    // Build CSV rows
-    const csvRows = [header.join(',')];
-    rows.forEach(row => {
-      csvRows.push([
-        escape(row.shot),
-        escape(row.notes),
-        escape(row.transcription),
-        escape(row.summary)
-      ].join(','));
-    });
-    const csvContent = csvRows.join('\n');
-    // Create blob and trigger download
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'shot_notes.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    
+    try {
+      const res = await fetch(`${BACKEND_URL}/export-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: rows, export_format: 'csv' }),
+      });
+      
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        // Create blob and trigger download
+        const blob = new Blob([data.content], { type: data.content_type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        console.error('Failed to export notes:', data);
+      }
+    } catch (err) {
+      console.error('Error exporting notes:', err);
+    }
   };
 
   // --- Transcript Download Helper ---
