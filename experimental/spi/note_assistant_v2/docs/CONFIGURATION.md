@@ -38,6 +38,28 @@ SG_PLAYLIST_VERSION_FIELD=sg_jts           # Custom field name in the Version en
 
 These fields are used when extracting shot/version information from playlists. Configure them to match your studio's custom ShotGrid schema.
 
+#### CSV Upload Configuration
+
+The following variables allow you to specify custom column names when uploading CSV files:
+
+```bash
+SG_CSV_SHOT_FIELD=shot                     # Column name in CSV that contains the shot/asset code (default: "shot")
+SG_CSV_VERSION_FIELD=jts                   # Column name in CSV that contains the version identifier (default: "version")
+```
+
+These fields are used when parsing uploaded CSV files to extract shot and version information. The system will:
+
+1. Look for columns matching these field names (case-insensitive)
+2. Combine shot and version values into the format `shot/version`
+3. Fall back to the first column if the configured fields are not found
+
+**Example CSV with default configuration:**
+```csv
+Shot,JTS,Notes,Transcription
+wom2140,12345,Some notes,Transcript text
+red1260,67890,More notes,More transcript
+```
+
 To disable ShotGrid integration, comment out the `SG_URL` environment variable.
 
 ### LLM Provider Configuration
