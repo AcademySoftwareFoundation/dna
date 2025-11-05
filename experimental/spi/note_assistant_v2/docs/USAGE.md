@@ -98,7 +98,25 @@ Choose one of two methods to load your shots:
 - **Generate summaries incrementally** as transcriptions accumulate
 - **Re-generate summaries** if transcriptions are updated
 
-### Step 5: Export and Share Results
+### Step 5: Configure Transcription Settings
+
+#### Speaker Label Control
+
+1. **Access Settings Tab**: Click on the "Settings" tab in the top panel
+2. **Speaker Labels Option**: Toggle "Include speaker labels in the transcript"
+   - **Enabled (default)**: Shows speaker names and timestamps (e.g., "Speaker1 [10:30]: transcript text")
+   - **Disabled**: Shows only timestamps (e.g., "[10:30]: transcript text")
+
+#### When to Disable Speaker Labels
+
+- **Meeting room scenarios**: When multiple people join from the same room/device
+- **Unclear speaker identification**: When the system cannot reliably identify individual speakers
+- **Simplified transcripts**: When you prefer cleaner transcripts without speaker attribution
+- **Anonymous feedback**: When speaker identity should not be recorded
+
+**Note**: Timestamps are always preserved regardless of speaker label setting for chronological reference.
+
+### Step 6: Export and Share Results
 
 #### Download Options
 
