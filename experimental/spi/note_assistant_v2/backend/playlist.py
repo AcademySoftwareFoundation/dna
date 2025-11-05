@@ -82,8 +82,10 @@ async def upload_playlist(file: UploadFile = File(...)):
     csv_shot_field = os.environ.get("SG_CSV_SHOT_FIELD", "shot")
     
     content = await file.read()
-    decoded = content.decode("utf-8", errors="ignore").splitlines()
-    reader = csv.reader(decoded)
+    decoded = content.decode("utf-8", errors="ignore")
+    # Use StringIO to create a file-like object for csv.reader to handle multi-line fields properly
+    from io import StringIO
+    reader = csv.reader(StringIO(decoded))
     items = []
     header = None
     for idx, row in enumerate(reader):
@@ -136,10 +138,12 @@ async def upload_playlist(file: UploadFile = File(...)):
         notes = ''
         if transcription_idx is not None and len(row) > transcription_idx:
             val = row[transcription_idx]
-            transcription = str(val).strip() if val is not None else ''
+            # Don't strip() to preserve leading/trailing whitespace including newlines
+            transcription = str(val) if val is not None else ''
         if notes_idx is not None and len(row) > notes_idx:
             val = row[notes_idx]
-            notes = str(val).strip() if val is not None else ''
+            # Don't strip() to preserve leading/trailing whitespace including newlines  
+            notes = str(val) if val is not None else ''
         
         if item_name:
             items.append({
