@@ -68,6 +68,9 @@ function App() {
   // Add state for top-level tab management
   const [activeTopTab, setActiveTopTab] = useState('panel');
 
+  // Add state for settings
+  const [includeSpeakerLabels, setIncludeSpeakerLabels] = useState(true);
+
   // Update the ref whenever currentIndex changes
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -589,7 +592,11 @@ function App() {
     //console.log('speakerGroups', speakerGroups)
     const combinedSpeakerTexts = speakerGroups.map(g => {
       const ts = g.timestamp ? `[${g.timestamp}]` : '';
-      return `${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
+      if (includeSpeakerLabels) {
+        return `${g.speaker}${ts ? ' ' + ts : ''}:\n${g.combinedText}`;
+      } else {
+        return `${ts ? ts + ':\n' : ''}${g.combinedText}`;
+      }
     });
     //console.log('combinedSpeakerTexts', combinedSpeakerTexts)
     setRows(prevRows => {
@@ -714,7 +721,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        <section className="panel" style={{ height: '280px', minWidth: '500px' }}>
+        <section className="panel" style={{ height: '280px', minWidth: '600px' }}>
           {/* Tab Navigation */}
           <div style={{ display: 'flex', borderBottom: '1px solid #2c323c', marginBottom: '16px' }}>
             <button
@@ -746,6 +753,13 @@ function App() {
               onClick={() => setActiveTopTab('export')}
             >
               Export Notes
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTopTab === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveTopTab('settings')}
+            >
+              Settings
             </button>
           </div>
 
@@ -932,6 +946,23 @@ function App() {
                 </div>
                 <div style={{ marginTop: 8 }}>
                   <StatusBadge type={emailStatus.type}>{emailStatus.msg}</StatusBadge>
+                </div>
+              </div>
+            )}
+
+            {activeTopTab === 'settings' && (
+              <div>
+                <p className="help-text">Configure application settings for transcription and AI summaries.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeSpeakerLabels}
+                      onChange={(e) => setIncludeSpeakerLabels(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span>Include speaker labels in the transcript</span>
+                  </label>
                 </div>
               </div>
             )}
