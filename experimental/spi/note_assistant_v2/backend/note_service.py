@@ -162,8 +162,9 @@ def summarize_claude(conversation, model, client, config):
 
 def summarize_ollama(conversation, model, client, config):
     prompt = config['system_prompt'] + "\n\n" + config['user_prompt_template'].format(conversation=conversation)
+    ollama_base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     response = client.post(
-        "http://localhost:11434/api/generate",
+        f"{ollama_base_url}/api/generate",
         json={"model": model, "prompt": prompt, "stream": False}
     )
     return response.json()["response"]
