@@ -64,27 +64,48 @@ Choose one of two methods to load your shots:
 
 2. **Click "Join"** to start the transcription bot
 
-3. **Verify Connection**: Check that transcription status shows "Connected"
+3. **Wait for "Get Transcripts" Button**: After joining, wait for the "Get Transcripts" button to appear (may take 10-20 seconds)
+   - The bot needs to detect incoming audio before enabling transcript streaming
+   - If the button doesn't appear after 20 seconds, try speaking a few words to trigger audio detection
+   - Once the button appears, click it to start receiving transcripts
+
+4. **Verify Connection**: Check that transcription status shows "Connected"
 
 ### Step 3: Capture Transcriptions
 
-#### Pin Shots for Focus
+#### Focus Management for Shot Tracking
 
-1. **Click "Pin" button** on specific shots you want to capture
-2. **Pinned shots** will be highlighted and receive transcriptions
-3. **Unpin shots** that are no longer being discussed
+1. **Set Row Focus**: Click on any field within a shot row to set it as the active row
+   - **Active row** is highlighted with a blue border
+   - **Transcriptions automatically flow** to the currently focused row
+   - **Switch focus** by clicking on a different row as the conversation moves to the next shot
 
-#### Control Transcription Capture
+2. **Follow the Conversation**: As the review progresses through different shots, click on the corresponding rows to redirect transcription capture
 
-1. **Toggle "Get Transcripts"** button to start/pause capturing
-2. **When active**: Real-time transcriptions appear in shot rows
-3. **When paused**: Transcriptions stop but connection remains
+#### Pause and Resume Transcription
+
+1. **Pause When Needed**: Click "Pause Transcripts" to temporarily stop streaming
+   - **Use during off-topic discussions** (breaks, unrelated conversations)
+   - **Helps improve LLM summarization** by avoiding irrelevant content
+   - **Connection remains active** - no need to rejoin the meeting
+
+2. **Resume Capture**: Click "Get Transcripts" again when the conversation becomes relevant
+
+#### Pin Shots for Extended Discussions
+
+1. **Pin for Long Discussions**: Click "Pin" button when a shot requires extended conversation
+   - **Locks transcription** to that specific shot regardless of row focus
+   - **Allows multitasking**: Edit other rows, generate summaries, add notes
+   - **Prevents accidental redirection** during complex discussions
+
+2. **Unpin to Resume**: Click "Unpin" to return to normal focus-based workflow
 
 #### Monitor Real-time Activity
 
-- **Transcription text** appears in the "Transcription" column
+- **Active row highlight**: Blue border shows which row is receiving transcripts
+- **Transcription text** appears in real-time in the "Transcription" column
 - **Timestamps** show when text was captured
-- **Pin status** indicates which shots are actively capturing
+- **Pin status** indicates if a shot is locked for capture
 
 ### Step 4: Generate AI Summaries
 
@@ -92,6 +113,10 @@ Choose one of two methods to load your shots:
 2. **Select Prompt Type**: Choose prompt style (short, long, technical, creative)
 3. **Click Refresh Icon** in the Summary column for specific shots
 4. **Review Generated Summary**: AI-generated summary appears in Summary column
+5. **Copy to Notes**: Use the "Add to Notes" button to transfer content to your personal notes
+   - **Select specific text**: Highlight portions of the LLM summary to copy only selected content
+   - **Copy entire summary**: Leave text unselected to copy the complete LLM summary
+   - **Combine sources**: Mix and match content from different LLM models and prompt types
 
 #### Summary Generation Tips
 
@@ -99,6 +124,7 @@ Choose one of two methods to load your shots:
 - **Try different prompt types** for varied summary styles
 - **Generate summaries incrementally** as transcriptions accumulate
 - **Re-generate summaries** if transcriptions are updated
+- **Curate your notes** by selectively copying the best parts from multiple AI summaries
 
 ### Step 5: Configure Transcription Settings
 
@@ -139,12 +165,6 @@ Choose one of two methods to load your shots:
 3. **Email Format**: Structured email with shot-by-shot breakdown
 
 ## Advanced Features
-
-### Multiple Shot Management
-
-- **Pin multiple shots** simultaneously for parallel discussions
-- **Switch focus** between shots as conversation moves
-- **Capture overlapping discussions** for complex review sessions
 
 ### Summary Customization
 
@@ -220,7 +240,9 @@ shot_030,v001,Environment matte painting,
 
 2. **No transcription data**:
    - Verify bot has joined successfully
-   - Check that "Get Transcripts" is enabled
+   - Wait for the "Get Transcripts" button to appear (may take 10-20 seconds after joining)
+   - If button doesn't appear, try speaking to trigger audio detection
+   - Check that "Get Transcripts" is enabled/clicked
    - Ensure shots are pinned for capture
 
 ### LLM Summary Issues
