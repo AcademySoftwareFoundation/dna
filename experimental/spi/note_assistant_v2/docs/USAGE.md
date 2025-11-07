@@ -38,11 +38,13 @@ Choose one of two methods to load your shots:
 
 1. **Prepare CSV file** with shot information:
    ```csv
-   Shot/Version,Notes,Transcription
-   shot_010/v001,Character animation scene,
-   shot_020/v002,Lighting pass,
-   shot_030/v001,Environment matte painting,
+   Shot,Version,Notes,Transcription
+   shot_010,v001,Character animation scene,
+   shot_020,v002,Lighting pass,
+   shot_030,v001,Environment matte painting,
    ```
+
+   **Note**: Column headers can be customized (e.g., "jts" instead of "Version"). See [Configuration Guide](CONFIGURATION.md#csv-upload-configuration).
 
 2. **Drag and drop** the CSV file into the upload area
 3. **Review imported shots** in the shots table
@@ -163,29 +165,35 @@ When `DEMO_MODE=true` is configured:
 ### Required Format
 
 ```csv
-Shot/Version,Notes,Transcription
-shot_010/v001,Character animation for opening sequence,
-shot_020/v002,Lighting pass for interior scene,
-shot_030/v001,Environment matte painting,
+Shot,Version,Notes,Transcription
+shot_010,v001,Character animation for opening sequence,
+shot_020,v002,Lighting pass for interior scene,
+shot_030,v001,Environment matte painting,
 ```
 
 ### Format Rules
 
-- **First column**: Shot/version identifier (required)
-- **Second column**: Notes/description (optional)
-- **Third column**: Transcription (optional, usually empty on import)
-- **Header row**: Recommended for clarity
+- **Shot column**: Shot identifier (required) - identified by header text (default: "Shot")
+- **Version column**: Version identifier (required) - identified by header text (default: "Version") 
+- **Notes column**: Notes/description (optional) - identified by "Notes" header
+- **Transcription column**: Transcription (optional, usually empty on import) - identified by "Transcription" header
+- **Column order**: Columns can be in any order, identified by header text
+- **Header row**: Required for column identification
 - **Standard CSV**: Use commas, quote fields containing commas
 - **File encoding**: UTF-8 recommended
+
+**Note**: The header text for Shot and Version columns can be customized via environment variables `SG_CSV_SHOT_FIELD` and `SG_CSV_VERSION_FIELD`. See [Configuration Guide](CONFIGURATION.md#csv-upload-configuration) for details.
 
 ### Example with Complex Data
 
 ```csv
-"Shot/Version","Notes","Transcription","Artist","Status"
-"shot_010/v001","Character animation, facial work","","John Smith","In Progress"
-"shot_020/v002","Lighting pass with volumetrics","","Jane Doe","Ready for Review"
-"shot_030_/001","Environment matte painting, sky replacement","","Bob Wilson","Final"
+"Shot","Version","Notes","Transcription","Artist","Status"
+"shot_010","v001","Character animation, facial work","","John Smith","In Progress"
+"shot_020","v002","Lighting pass with volumetrics","","Jane Doe","Ready for Review"
+"shot_030","v001","Environment matte painting, sky replacement","","Bob Wilson","Final"
 ```
+
+**Note**: Columns can be in any order. Additional columns (like "Artist" and "Status") are allowed and will be preserved.
 
 ## Troubleshooting Usage Issues
 
