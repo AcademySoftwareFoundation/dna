@@ -2,31 +2,7 @@
 
 Step-by-step instructions for using the Dailies Note Assistant v2.
 
-## Starting the Application
-
-### 1. Start Backend Server
-
-```bash
-cd backend
-python -m uvicorn main:main --reload --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-
-### 2. Start Frontend Development Server
-
-```bash
-cd frontend
-npm run dev
-```
-
-The web interface will be available at `http://localhost:5173`
-
-### 3. Verify Setup
-
-1. Open `http://localhost:5173` in your browser
-2. Check that the interface loads properly
-3. Verify configuration by visiting `http://localhost:8000/config`
+**Prerequisites**: If you haven't installed and configured the application yet, see the [Installation Guide](INSTALLATION.md) first.
 
 ## Basic Workflow
 
