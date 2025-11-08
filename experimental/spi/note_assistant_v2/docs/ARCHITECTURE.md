@@ -88,47 +88,6 @@ sequenceDiagram
 
 ## External Service Dependencies
 
-```mermaid
-mindmap
-  root((DNA v2))
-    (Required)
-      [Vexa.ai]
-        Bot Management
-        Audio Transcription
-        WebSocket Stream
-      [Google Meet]
-        Meeting Platform
-        Audio Source
-    (Optional - LLM)
-      [OpenAI]
-        GPT Models
-        API Key Required
-      [Anthropic]
-        Claude Models
-        API Key Required
-      [Google AI]
-        Gemini Models
-        API Key Required
-      [Ollama]
-        Local Models
-        Self-hosted
-    (Optional - Data)
-      [ShotGrid]
-        Project Data
-        Playlist Import
-        Script User Required
-      [CSV Files]
-        Manual Upload
-        File System
-    (Optional - Email)
-      [Gmail API]
-        OAuth Setup
-        Google Cloud
-      [SMTP Server]
-        Server Config
-        Credentials
-```
-
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                                    USER INTERFACE                                   │
