@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
+import { createPortal } from "react-dom";
 import "./ui.css";
 import { startWebSocketTranscription, stopWebSocketTranscription, getApiUrl, getHeaders, processSegments } from '../lib/transcription-service'
 import { startBot, stopBot, parseMeetingUrl } from '../lib/bot-service';
@@ -13,9 +14,174 @@ const allSegments = {}; // { [timestamp]: combinedText }
 // Global dictionary to track segments per shot, with speaker and combinedText
 const shotSegments = {}; // { [shotKey]: { [timestamp]: { speaker, combinedText } } }
 
-function StatusBadge({ type = "info", children }) {
+function StatusBadge({ type = "info", children, detailedMessage = null, maxLength = 40 }) {
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const badgeRef = useRef(null);
+  
   if (!children) return null;
-  return <span className={`badge badge-${type}`}>{children}</span>;
+  
+  const message = children.toString();
+  const fullMessage = detailedMessage || message;
+  const hasDetailedMessage = detailedMessage && detailedMessage !== message;
+  const shouldTruncate = message.length > maxLength;
+  const showInfoIcon = shouldTruncate || hasDetailedMessage;
+  const displayMessage = shouldTruncate ? message.substring(0, maxLength) + "..." : message;
+  
+  const handleInfoClick = (e) => {
+    e.stopPropagation();
+    
+    if (badgeRef.current) {
+      const rect = badgeRef.current.getBoundingClientRect();
+      let x = rect.left + rect.width + 8;
+      let y = rect.top;
+      
+      // Ensure popup stays within viewport bounds
+      const maxWidth = 400;
+      const maxHeight = 200;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      // Adjust horizontal position
+      if (x + maxWidth > viewportWidth) {
+        x = Math.max(10, rect.left - maxWidth - 8);
+      }
+      
+      // Adjust vertical position
+      if (y + maxHeight > viewportHeight) {
+        y = Math.max(10, viewportHeight - maxHeight - 10);
+      }
+      
+      // Ensure minimum distance from edges
+      x = Math.max(10, Math.min(x, viewportWidth - maxWidth - 10));
+      y = Math.max(10, Math.min(y, viewportHeight - maxHeight - 10));
+      
+      setPopupPosition({ x, y });
+    }
+    setShowPopup(true);
+  };
+  
+  const closePopup = () => {
+    setShowPopup(false);
+  };
+  
+  // Close popup when clicking outside
+  useEffect(() => {
+    if (!showPopup) return;
+    
+    const handleClickOutside = (e) => {
+      // Check if click is outside both the badge and the popup
+      const clickedElement = e.target;
+      const isClickInBadge = badgeRef.current && badgeRef.current.contains(clickedElement);
+      const isClickInPopup = clickedElement.closest('.status-popup');
+      
+      if (!isClickInBadge && !isClickInPopup) {
+        closePopup();
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPopup]);
+  
+  return (
+    <>
+      <span 
+        ref={badgeRef}
+        className={`badge badge-${type} ${showInfoIcon ? 'badge-truncated' : ''}`}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+      >
+        <span>{displayMessage}</span>
+        {showInfoIcon && (
+          <button
+            type="button"
+            className="badge-info-icon"
+            onClick={handleInfoClick}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              padding: '0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '16px',
+              height: '16px',
+              borderRadius: '50%',
+              opacity: 0.8,
+              fontSize: '12px'
+            }}
+            title="Click to see full message"
+          >
+            ⓘ
+          </button>
+        )}
+      </span>
+      
+      {showPopup && createPortal(
+        <div
+          className="status-popup"
+          style={{
+            position: 'fixed',
+            left: `${popupPosition.x}px`,
+            top: `${popupPosition.y}px`,
+            zIndex: 10001, // Higher z-index to ensure it appears above everything
+            background: '#1f242d',
+            border: '1px solid #444',
+            borderRadius: '8px',
+            padding: '12px',
+            maxWidth: '400px',
+            minWidth: '200px', // Add minimum width
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            color: '#e6ecf2',
+            fontSize: '13px',
+            lineHeight: '1.4',
+            wordBreak: 'break-word',
+            // Ensure visibility
+            visibility: 'visible',
+            pointerEvents: 'auto',
+            display: 'block'
+          }}
+          onClick={(e) => e.stopPropagation()} // Prevent click from bubbling
+        >
+          <div style={{ marginBottom: '8px', fontWeight: '500', color: '#93a1b3' }}>
+            Full Message:
+          </div>
+          <div style={{ marginRight: '20px' }}>{fullMessage}</div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              closePopup();
+            }}
+            style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              background: 'none',
+              border: 'none',
+              color: '#93a1b3',
+              cursor: 'pointer',
+              fontSize: '16px',
+              padding: '0',
+              width: '20px',
+              height: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Close"
+          >
+            ×
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 function getDefaultMeetUrl() {
@@ -39,7 +205,7 @@ function App() {
   const [sgError, setSgError] = useState("");
 
   const [meetId, setMeetId] = useState(getDefaultMeetUrl());
-  const [status, setStatus] = useState({ msg: "", type: "info" });
+  const [status, setStatus] = useState({ msg: "", type: "info", detailedMsg: null });
   const [uploadStatus, setUploadStatus] = useState({ msg: "", type: "info" });
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -98,7 +264,7 @@ function App() {
           // If we receive transcript segments and bot is not marked active, flip bot status to 'active'
           if (segments && segments.length > 0 && !botIsActive) {
             setBotIsActive(true);
-            setStatus({ msg: 'Bot Status: active', type: 'success' });
+            setStatus({ msg: 'Bot Status: active', type: 'success', detailedMsg: null });
           }
           console.log('🟢 WebSocket Segments:', segments);
           updateTranscriptionFromSegments(segments);
@@ -110,7 +276,7 @@ function App() {
           // Only update status if bot is not already active, or if status is 'completed' or 'error'
           if (!botIsActive || statusValue === 'completed' || statusValue === 'error') {
             const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
-            setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info' });
+            setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info', detailedMsg: null });
             setBotIsActive(isActiveStatus);
             if (waitingForActive && isActiveStatus) {
               setWaitingForActive(false);
@@ -118,14 +284,14 @@ function App() {
             // Stop stream when status is 'completed' or 'error'
             if (statusValue === 'completed' || statusValue === 'error') {
               setBotIsActive(false);
-              setStatus({ msg: `Bot Status: ${statusValue}`, type: 'info' });
+              setStatus({ msg: `Bot Status: ${statusValue}`, type: 'info', detailedMsg: null });
               stopTranscriptStream();
             }
           }
         },
         // onError
         (error) => {
-          setStatus({ msg: `WebSocket error: ${error}`, type: 'error' });
+          setStatus({ msg: `WebSocket error: ${error}`, type: 'error', detailedMsg: null });
         },
         // onConnected
         () => {
@@ -211,26 +377,34 @@ function App() {
     const rawInput = meetId.trim();
     const fullUrl = getFullMeetUrl(rawInput);
     if (!fullUrl) {
-      setStatus({ msg: "Please enter a valid Google Meet URL or Meet ID (e.g. https://meet.google.com/abc-defg-hij or abc-defg-hij)", type: "error" });
+      setStatus({ msg: "Please enter a valid Google Meet URL or Meet ID (e.g. https://meet.google.com/abc-defg-hij or abc-defg-hij)", type: "error", detailedMsg: null });
       return;
     }
     setSubmitting(true);
     setWaitingForActive(true);
-    setStatus({ msg: "Submitting Google Meet URL...", type: "info" });
+    setStatus({ msg: "Submitting Google Meet URL...", type: "info", detailedMsg: null });
     stopTranscriptStream();
     try {
       const result = await startBot(fullUrl);
       if (!result.success) {
-        setStatus({ msg: result.statusMsg, type: "error" });
+        // Log detailed error information for debugging
+        console.error('Bot join failed:', result.error);
+        setStatus({ 
+          msg: result.statusMsg, 
+          type: "error",
+          detailedMsg: result.detailedMsg || result.statusMsg
+        });
         setSubmitting(false);
         setWaitingForActive(false);
         return;
       }
-      setStatus({ msg: result.statusMsg, type: "success" });
+      setStatus({ msg: result.statusMsg, type: "success", detailedMsg: null });
       setJoinedMeetId(fullUrl);
       startTranscriptStream(fullUrl);
     } catch (err) {
-      setStatus({ msg: "Error starting transcription", type: "error" });
+      console.error('Error starting transcription:', err);
+      const errorMessage = `Error starting transcription: ${err.message || err}`;
+      setStatus({ msg: "Connection error", type: "error", detailedMsg: errorMessage });
       setWaitingForActive(false);
     } finally {
       setSubmitting(false);
@@ -352,20 +526,28 @@ function App() {
   // Exit bot handler
   const handleExitBot = async () => {
     setSubmitting(true);
-    setStatus({ msg: "Exiting bot...", type: "info" });
+    setStatus({ msg: "Exiting bot...", type: "info", detailedMsg: null });
     try {
       const result = await stopBot(joinedMeetId);
       if (!result.success) {
-        setStatus({ msg: result.statusMsg, type: "error" });
+        // Log detailed error information for debugging
+        console.error('Bot exit failed:', result.error);
+        setStatus({ 
+          msg: result.statusMsg, 
+          type: "error", 
+          detailedMsg: result.detailedMsg || result.statusMsg 
+        });
       } else {
-        setStatus({ msg: result.statusMsg, type: "success" });
+        setStatus({ msg: result.statusMsg, type: "success", detailedMsg: null });
         setBotIsActive(false);
         setJoinedMeetId("");
         setMeetId("");
         stopTranscriptStream();
       }
     } catch (err) {
-      setStatus({ msg: "Network error while exiting bot", type: "error" });
+      console.error('Network error while exiting bot:', err);
+      const errorMessage = `Network error while exiting bot: ${err.message || err}`;
+      setStatus({ msg: "Connection error", type: "error", detailedMsg: errorMessage });
     } finally {
       setSubmitting(false);
     }
@@ -1357,7 +1539,13 @@ function App() {
       {(botIsActive || status.msg) && (
         <div className="floating-controls">
           <div className="bot-status-display">
-            <StatusBadge type={status.type}>{status.msg}</StatusBadge>
+            <StatusBadge 
+              type={status.type} 
+              detailedMessage={status.detailedMsg}
+              maxLength={20}
+            >
+              {status.msg}
+            </StatusBadge>
           </div>
           {botIsActive && (
             <div className="transcript-controls">
