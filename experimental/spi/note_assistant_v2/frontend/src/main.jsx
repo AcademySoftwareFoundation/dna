@@ -45,6 +45,8 @@ function App() {
 
   // Add state for settings
   const [includeSpeakerLabels, setIncludeSpeakerLabels] = useState(true);
+  const [autoGenerateSummary, setAutoGenerateSummary] = useState(false);
+  const [autoSummaryLLM, setAutoSummaryLLM] = useState('none');
 
   // Use transcription hook
   const {
@@ -101,15 +103,25 @@ function App() {
         prevIdx != null &&
         prevIdx >= 0 &&
         prevIdx < rows.length &&
-        (!rows[prevIdx].summary || !rows[prevIdx].summary.trim())
+        autoGenerateSummary &&
+        autoSummaryLLM !== 'none'
       ) {
         const inputText = rows[prevIdx].transcription || rows[prevIdx].notes || '';
         if (inputText.trim()) {
-          // Show loading
-          updateCell(prevIdx, 'summary', '...');
-          getLLMSummary(inputText, null, availablePromptTypes[0] || '').then(summary => {
-            updateCell(prevIdx, 'summary', summary || '[No summary returned]');
-          });
+          const summaryField = `${autoSummaryLLM}_summary`;
+          
+          // Only generate if the selected LLM summary is empty
+          if (!rows[prevIdx][summaryField] || !rows[prevIdx][summaryField].trim()) {
+            const promptType = getPromptTypeForRowAndLLM(prevIdx, autoSummaryLLM);
+            const selectedLLM = enabledLLMs.find(llm => llm.key === autoSummaryLLM);
+            
+            if (selectedLLM) {
+              updateCell(prevIdx, summaryField, '...'); // Show loading
+              getLLMSummary(inputText, selectedLLM.provider, promptType).then(summary => {
+                updateCell(prevIdx, summaryField, summary || '[No summary returned]');
+              });
+            }
+          }
         }
       }
     }
@@ -157,6 +169,10 @@ function App() {
       // Settings
       includeSpeakerLabels={includeSpeakerLabels}
       setIncludeSpeakerLabels={setIncludeSpeakerLabels}
+      autoGenerateSummary={autoGenerateSummary}
+      setAutoGenerateSummary={setAutoGenerateSummary}
+      autoSummaryLLM={autoSummaryLLM}
+      setAutoSummaryLLM={setAutoSummaryLLM}
       
       // Utility functions
       updateCell={updateCell}

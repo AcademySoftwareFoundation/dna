@@ -47,6 +47,10 @@ function AppLayout({
   // Settings
   includeSpeakerLabels,
   setIncludeSpeakerLabels,
+  autoGenerateSummary,
+  setAutoGenerateSummary,
+  autoSummaryLLM,
+  setAutoSummaryLLM,
   
   // Utility functions
   updateCell,
@@ -144,6 +148,11 @@ function AppLayout({
               <SettingsPanel
                 includeSpeakerLabels={includeSpeakerLabels}
                 setIncludeSpeakerLabels={setIncludeSpeakerLabels}
+                autoGenerateSummary={autoGenerateSummary}
+                setAutoGenerateSummary={setAutoGenerateSummary}
+                autoSummaryLLM={autoSummaryLLM}
+                setAutoSummaryLLM={setAutoSummaryLLM}
+                enabledLLMs={enabledLLMs}
               />
             )}
           </div>
