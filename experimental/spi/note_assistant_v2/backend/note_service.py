@@ -404,7 +404,8 @@ async def llm_summary(request: dict):
         return {"summary": summary, "provider": provider, "model": model, "prompt_type": prompt_type, "routed": False}
     except Exception as e:
         print(f"Error in /llm-summary with {provider}: {e}")
-        raise HTTPException(status_code=500, detail=f"LLM summary error: {str(e)}")
+        # Return error in summary field instead of raising exception
+        return {"summary": f"Error: {str(e)}", "provider": provider, "model": model, "prompt_type": prompt_type, "routed": False, "error": True}
 
 if __name__ == "__main__":
     import sys
