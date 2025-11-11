@@ -15,6 +15,15 @@ function ShotTable({
   setPromptTypeSelection,
   updateCell
 }) {
+  // Helper function to set all rows to notes tab
+  const switchAllRowsToNotes = () => {
+    const newActiveTab = {};
+    rows.forEach((_, idx) => {
+      newActiveTab[idx] = 'notes';
+    });
+    setActiveTab(newActiveTab);
+  };
+
   const setTabForRow = (rowIndex, tabName) => {
     setActiveTab(prev => ({
       ...prev,
@@ -47,7 +56,53 @@ function ShotTable({
         <thead>
           <tr>
             <th className="col-shot" style={{ width: '10%' }}>Shot/Version</th>
-            <th className="col-notes" style={{ width: '45%' }}>Notes & Summary</th>
+                                <th className="col-notes" style={{ width: '45%' }}>
+                      <span 
+                        onClick={() => {
+                          const newActiveTab = {};
+                          rows.forEach((_, idx) => {
+                            newActiveTab[idx] = 'notes';
+                          });
+                          setActiveTab(newActiveTab);
+                        }}
+                        style={{ 
+                          cursor: 'pointer', 
+                          textDecoration: 'underline',
+                          color: '#3d82f6'
+                        }}
+                        title="Click to switch all rows to Notes tab"
+                      >
+                        Notes
+                      </span> & Summary
+                      {enabledLLMs.length > 0 && (
+                        <span style={{ marginLeft: '8px' }}>
+                          (
+                          {enabledLLMs.map((llm, index) => (
+                            <span key={llm.key}>
+                              <span
+                                onClick={() => {
+                                  const newActiveTab = {};
+                                  rows.forEach((_, idx) => {
+                                    newActiveTab[idx] = llm.key;
+                                  });
+                                  setActiveTab(newActiveTab);
+                                }}
+                                style={{ 
+                                  cursor: 'pointer', 
+                                  textDecoration: 'underline',
+                                  color: '#3d82f6'
+                                }}
+                                title={`Click to switch all rows to ${llm.name} tab`}
+                              >
+                                {llm.name}
+                              </span>
+                              {index < enabledLLMs.length - 1 && ', '}
+                            </span>
+                          ))}
+                          )
+                        </span>
+                      )}
+                    </th>
             <th className="col-transcription" style={{ width: '45%' }}>Transcription</th>
           </tr>
         </thead>
