@@ -19,6 +19,28 @@ function StatusBadge({ type = "info", children, detailedMessage = null, maxLengt
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const badgeRef = useRef(null);
   
+  // Close popup when clicking outside
+  useEffect(() => {
+    if (!showPopup) return;
+    
+    const handleClickOutside = (e) => {
+      // Check if click is outside both the badge and the popup
+      const clickedElement = e.target;
+      const isClickInBadge = badgeRef.current && badgeRef.current.contains(clickedElement);
+      const isClickInPopup = clickedElement.closest('.status-popup');
+      
+      if (!isClickInBadge && !isClickInPopup) {
+        closePopup();
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPopup]);
+  
+  // Early return must come after all hooks
   if (!children) return null;
   
   const message = children.toString();
@@ -64,27 +86,6 @@ function StatusBadge({ type = "info", children, detailedMessage = null, maxLengt
   const closePopup = () => {
     setShowPopup(false);
   };
-  
-  // Close popup when clicking outside
-  useEffect(() => {
-    if (!showPopup) return;
-    
-    const handleClickOutside = (e) => {
-      // Check if click is outside both the badge and the popup
-      const clickedElement = e.target;
-      const isClickInBadge = badgeRef.current && badgeRef.current.contains(clickedElement);
-      const isClickInPopup = clickedElement.closest('.status-popup');
-      
-      if (!isClickInBadge && !isClickInPopup) {
-        closePopup();
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showPopup]);
   
   return (
     <>
