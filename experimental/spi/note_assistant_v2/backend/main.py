@@ -10,7 +10,7 @@ from datetime import datetime
 from playlist import router as playlist_router
 import random
 from email_service import router as email_router
-from note_service import router as note_router
+from llm_service import router as llm_router
 
 # Load environment variables from .env file (optional)
 try:
@@ -45,7 +45,7 @@ llm_backend_routing_enabled = bool(LLM_BACKEND_BASE_URL and LLM_BACKEND_BASE_URL
 # Register core routers
 app.include_router(playlist_router)
 app.include_router(email_router)
-app.include_router(note_router)
+app.include_router(llm_router)
 
 # Only register vexa router if VEXA is configured
 if vexa_routing_enabled:
