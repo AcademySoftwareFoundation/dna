@@ -18,15 +18,46 @@ experimental/spi/note_assistant_v2/
 ├── backend/                 # FastAPI backend application
 │   ├── main.py             # Main application and routing
 │   ├── email_service.py    # Gmail API and SMTP integration
-│   ├── note_service.py     # LLM summary generation
+│   ├── llm_service.py      # LLM integration and summary generation
 │   ├── playlist.py         # CSV upload handling
 │   ├── shotgrid_service.py # ShotGrid API integration
+│   ├── vexa_service.py     # Vexa.ai API integration
 │   ├── requirements.txt    # Python dependencies
-│   └── .env               # Environment configuration
+│   ├── .env               # Environment configuration
+│   ├── llm_models.yaml    # LLM model configuration
+│   ├── llm_prompts.yaml   # LLM prompt configuration
+│   └── *.factory.yaml     # Factory default configurations
 ├── frontend/               # React frontend application
 │   ├── src/               # Source code
-│   ├── public/            # Static assets
+│   │   ├── components/    # React components
+│   │   │   ├── Panels/    # Panel components
+│   │   │   │   ├── UploadPanel.jsx      # File upload interface
+│   │   │   │   ├── SettingsPanel.jsx    # App settings
+│   │   │   │   ├── GoogleMeetPanel.jsx  # Google Meet integration
+│   │   │   │   ├── ExportPanel.jsx      # Data export options
+│   │   │   │   └── ShotGridPanel.jsx    # ShotGrid integration
+│   │   │   ├── StatusBadge.jsx          # Status indicator component
+│   │   │   ├── AppLayout.jsx            # Main layout component
+│   │   │   ├── FloatingControls.jsx     # Floating action controls
+│   │   │   ├── AddShotControls.jsx      # Shot addition controls
+│   │   │   └── ShotTable.jsx            # Main shot table with tabs
+│   │   ├── hooks/         # Custom React hooks
+│   │   │   ├── useAppConfig.js          # Application configuration
+│   │   │   ├── useGoogleMeet.js         # Google Meet functionality
+│   │   │   ├── useShotGrid.js           # ShotGrid API hooks
+│   │   │   └── useTranscription.js      # Transcription handling
+│   │   ├── services/      # API service functions
+│   │   │   └── llmService.js            # LLM API interactions
+│   │   ├── ui.css         # Global styles
+│   │   └── main.jsx       # Application entry point and coordination
+│   ├── lib/               # TypeScript utility libraries
+│   │   ├── transcription-service.ts     # Transcription utilities
+│   │   ├── bot-service.ts              # Bot integration service
+│   │   ├── config.ts                   # Configuration management
+│   │   └── websocket-service.ts        # WebSocket handling
+│   ├── public/            # Static assets and HTML template
 │   ├── package.json       # Node.js dependencies
+│   ├── package-lock.json  # Dependency lock file
 │   └── .env.local         # Frontend environment config
 ├── docs/                  # Documentation files
 └── README.md             # Main project documentation
@@ -102,9 +133,10 @@ experimental/spi/note_assistant_v2/
 **Key Components:**
 - **main.py**: Application entry point, routing, middleware
 - **email_service.py**: Gmail API and SMTP email sending
-- **note_service.py**: LLM integration and summary generation
+- **llm_service.py**: LLM integration and summary generation
 - **playlist.py**: CSV file processing and data validation
 - **shotgrid_service.py**: ShotGrid API integration and demo mode
+- **vexa_service.py**: Vexa.ai API integration for meeting transcription
 
 **Design Patterns:**
 - Service-oriented architecture with separate modules
@@ -121,12 +153,24 @@ experimental/spi/note_assistant_v2/
 - WebSocket for real-time communication
 - Modern CSS for styling (no external CSS frameworks)
 - Fetch API for HTTP requests
+- TypeScript utilities for complex services
 
 **Component Structure:**
-- Functional components with hooks
-- Centralized state management
-- Real-time data updates via WebSocket
-- Responsive design principles
+- **Panel-based UI**: Organized into functional panels (Upload, Settings, Google Meet, Export, ShotGrid)
+- **Modular Architecture**: Clean separation between layout (AppLayout), logic (main.jsx), and UI components
+- **Custom hooks** for feature-specific logic (transcription, ShotGrid, Google Meet, app configuration)
+- **Multi-LLM Support**: Tabbed interface supporting multiple AI providers with individual prompt types
+- **Real-time Features**: WebSocket transcription streaming with manual start/stop controls
+- **Service layer** for API interactions and external integrations
+- **TypeScript utilities** for configuration and WebSocket handling
+- **Responsive design** with modern CSS Grid and Flexbox
+
+**Architecture Improvements:**
+- **Refactored main.jsx**: Moved from monolithic component to coordinating hub using custom hooks
+- **AppLayout component**: Extracted all UI structure for better separation of concerns  
+- **ShotTable component**: Full-featured table with multi-LLM tabs, bulk switching, and "Add to Notes" functionality
+- **Custom hooks pattern**: useGoogleMeet, useTranscription, useAppConfig for encapsulated logic
+- **Auto-summary preferences**: User-configurable auto-generation with LLM selection
 
 ### Data Flow
 
@@ -284,7 +328,7 @@ refactor(email): simplify SMTP configuration
 
 2. **Implement provider logic:**
    ```python
-   # backend/note_service.py
+   # backend/llm_service.py
    async def call_new_provider_llm(model_name: str, messages: list) -> str:
        # Implementation for new provider
        pass
@@ -332,7 +376,7 @@ refactor(email): simplify SMTP configuration
 
 1. **Create component file:**
    ```javascript
-   // frontend/src/components/NewComponent.js
+   // frontend/src/components/NewComponent.jsx
    import React, { useState } from 'react';
    
    function NewComponent({ props }) {
@@ -350,24 +394,72 @@ refactor(email): simplify SMTP configuration
 
 2. **Add component styles:**
    ```css
-   /* frontend/src/App.css */
+   /* frontend/src/ui.css */
    .new-component {
        /* Component styles */
    }
    ```
 
-3. **Integrate in parent component:**
+3. **Integrate in AppLayout or main.jsx:**
    ```javascript
-   import NewComponent from './components/NewComponent';
+   // For UI components, add to AppLayout.jsx
+   import NewComponent from './NewComponent';
    
-   function App() {
+   function AppLayout({ /* props */ }) {
        return (
            <div>
                <NewComponent props={data} />
            </div>
        );
    }
+   
+   // For logic components, integrate in main.jsx
+   function App() {
+       // State management and logic coordination
+       return (
+           <AppLayout
+               // Pass props to layout
+           />
+       );
+   }
    ```
+
+### Creating Custom Hooks
+
+For feature-specific logic, create custom hooks:
+
+```javascript
+// frontend/src/hooks/useNewFeature.js
+import { useState, useEffect, useCallback } from 'react';
+
+export function useNewFeature(dependencies) {
+    const [state, setState] = useState(initialState);
+    
+    const handleAction = useCallback(() => {
+        // Feature logic here
+    }, [dependencies]);
+    
+    useEffect(() => {
+        // Side effects and cleanup
+    }, [dependencies]);
+    
+    return {
+        // Exposed state and functions
+        state,
+        handleAction
+    };
+}
+```
+
+### ShotTable Enhancements
+
+The ShotTable component supports several advanced features:
+
+1. **Multi-LLM Tabs**: Each row can display different AI summaries
+2. **Bulk Tab Switching**: Header links to switch all rows to specific tabs
+3. **Auto-Summary**: Configurable auto-generation on context switching
+4. **Add to Notes**: Copy summaries to notes with selection support
+5. **Prompt Type Selection**: Per-LLM prompt configuration
 
 ## Build and Deployment
 

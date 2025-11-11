@@ -58,6 +58,12 @@ Choose one of two methods to load your shots:
 
 2. **Follow the Conversation**: As the review progresses through different shots, click on the corresponding rows to redirect transcription capture
 
+3. **Automatic Summary Generation**: When enabled in settings, summaries are automatically generated when switching shot context
+   - **Triggers on focus change**: When you switch from one shot to another, the previous shot's transcription is automatically summarized
+   - **Uses preferred LLM and prompt**: Respects your configured default LLM model and prompt type settings
+   - **Background processing**: Summaries generate in the background without interrupting your workflow
+   - **Smart triggering**: Only generates summaries if transcription content has accumulated for the shot
+
 #### Pause and Resume Transcription
 
 1. **Pause When Needed**: Click "Pause Transcripts" to temporarily stop streaming
