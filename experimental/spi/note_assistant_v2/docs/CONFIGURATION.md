@@ -40,25 +40,48 @@ These fields are used when extracting shot/version information from playlists. C
 
 #### CSV Upload Configuration
 
-The following variables allow you to specify custom column names when uploading CSV files:
+The following variables allow you to specify custom column names when uploading CSV files. Each field supports comma-separated lists of possible column names, and the system will try them in order until it finds a match:
 
 ```bash
-SG_CSV_SHOT_FIELD=shot                     # Column name in CSV that contains the shot/asset code (default: "shot")
-SG_CSV_VERSION_FIELD=jts                   # Column name in CSV that contains the version identifier (default: "version")
+SG_CSV_SHOT_FIELD=shot,asset              # Column names for shot/asset code (default: "shot")
+SG_CSV_VERSION_FIELD=version,"shot > version"      # Column names for version identifier (default: "version")
+SG_CSV_NOTES_FIELD=notes,body             # Column names for notes content (default: "notes")
 ```
 
-These fields are used when parsing uploaded CSV files to extract shot and version information. The system will:
+These fields are used when parsing uploaded CSV files to extract shot, version, and notes information. The system will:
 
-1. Look for columns matching these field names (case-insensitive)
-2. Combine shot and version values into the format `shot/version`
-3. Fall back to the first column if the configured fields are not found
+1. Try each field name in the comma-separated list (case-insensitive)
+2. Use the first matching column found in the CSV header
+3. Handle field names with spaces by using quotes (e.g., `"shot > version"`)
+4. Combine shot and version values into the format `shot/version`
+5. Fall back to the first column for shot if no configured fields are found
 
-**Example CSV with default configuration:**
+**Example CSV configurations:**
+
+For a ShotGrid export with columns like "Shot > Version", "Links", "Body":
+```bash
+SG_CSV_VERSION_FIELD=version,"shot > version"
+SG_CSV_SHOT_FIELD=shot,links
+SG_CSV_NOTES_FIELD=notes,body
+```
+
+For a standard CSV format:
+```bash
+SG_CSV_VERSION_FIELD=version,ver,v
+SG_CSV_SHOT_FIELD=shot,"shot name",shotname
+SG_CSV_NOTES_FIELD=notes,comments,description
+```
+
+**Example CSV with ShotGrid export configuration:**
 ```csv
-Shot,JTS,Notes,Transcription
-wom2140,12345,Some notes,Transcript text
-red1260,67890,More notes,More transcript
+Id,Shot > Version,Subject,Status,Links,Author,To,Body,Type,Date Updated,Read/Unread,Project
+4162072,9754,Weekly Review,opn,[9754] proj-char.hero.ref-ref-44,Jane Doe,,Character design feedback,Review,2024/09/25 12:01:02 PM,unread,project
 ```
+
+In this example:
+- Version data comes from "Shot > Version" column (matches "shot > version" configuration)
+- Shot data comes from "Links" column (matches "links" configuration)  
+- Notes data comes from "Body" column (matches "body" configuration)
 
 To disable ShotGrid integration, comment out the `SG_URL` environment variable.
 

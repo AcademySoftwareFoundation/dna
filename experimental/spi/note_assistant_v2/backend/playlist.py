@@ -16,6 +16,31 @@ router = APIRouter()
 # Configuration for CSV field names
 SG_CSV_VERSION_FIELD = os.environ.get("SG_CSV_VERSION_FIELD", "version")
 SG_CSV_SHOT_FIELD = os.environ.get("SG_CSV_SHOT_FIELD", "shot")
+SG_CSV_NOTES_FIELD = os.environ.get("SG_CSV_NOTES_FIELD", "notes")
+
+def parse_field_names(field_config):
+    """Parse comma-separated field names, handling spaces and quotes"""
+    if not field_config:
+        return []
+    
+    # Split by comma and strip whitespace from each field
+    fields = [field.strip().strip('"').strip("'") for field in field_config.split(',')]
+    # Remove empty fields
+    return [field for field in fields if field]
+
+def find_column_index(header, field_names):
+    """Find the first matching column index from a list of possible field names"""
+    if not field_names:
+        return None
+    
+    # Header should already be lowercase and stripped, but ensure consistency
+    header_processed = [h.strip().lower() for h in header]
+    for field_name in field_names:
+        try:
+            return header_processed.index(field_name.strip().lower())
+        except ValueError:
+            continue
+    return None
 
 class NotesExportRequest(BaseModel):
     notes: list
@@ -24,15 +49,21 @@ class NotesExportRequest(BaseModel):
 @router.post("/export-notes")
 async def export_notes(request: NotesExportRequest):
     """Export notes in CSV format using configurable field names"""
-    # Get the current values from environment
-    csv_version_field = os.environ.get("SG_CSV_VERSION_FIELD", "version")
-    csv_shot_field = os.environ.get("SG_CSV_SHOT_FIELD", "shot")
+    # Get the current values from environment and parse field names
+    csv_version_fields = parse_field_names(os.environ.get("SG_CSV_VERSION_FIELD", "version"))
+    csv_shot_fields = parse_field_names(os.environ.get("SG_CSV_SHOT_FIELD", "shot"))
+    csv_notes_fields = parse_field_names(os.environ.get("SG_CSV_NOTES_FIELD", "notes"))
+    
+    # Use the first field name for export headers
+    csv_version_field = csv_version_fields[0] if csv_version_fields else "version"
+    csv_shot_field = csv_shot_fields[0] if csv_shot_fields else "shot"
+    csv_notes_field = csv_notes_fields[0] if csv_notes_fields else "notes"
     
     # Build CSV content
     lines = []
     
     # Create header with configurable field names
-    header = [csv_shot_field, csv_version_field, 'notes', 'transcription', 'summary']
+    header = [csv_shot_field, csv_version_field, csv_notes_field, 'transcription', 'summary']
     lines.append(','.join(f'"{h}"' for h in header))
     
     # Process each note
@@ -77,9 +108,10 @@ async def export_notes(request: NotesExportRequest):
 
 @router.post("/upload-playlist")
 async def upload_playlist(file: UploadFile = File(...)):
-    # Get the current values from environment
-    csv_version_field = os.environ.get("SG_CSV_VERSION_FIELD", "version")
-    csv_shot_field = os.environ.get("SG_CSV_SHOT_FIELD", "shot")
+    # Get the current values from environment and parse field names
+    csv_version_fields = parse_field_names(os.environ.get("SG_CSV_VERSION_FIELD", "version"))
+    csv_shot_fields = parse_field_names(os.environ.get("SG_CSV_SHOT_FIELD", "shot"))
+    csv_notes_fields = parse_field_names(os.environ.get("SG_CSV_NOTES_FIELD", "notes"))
     
     content = await file.read()
     decoded = content.decode("utf-8", errors="ignore")
@@ -95,22 +127,14 @@ async def upload_playlist(file: UploadFile = File(...)):
             header = [h.strip().lower() for h in row]
             
             # Find column indices for the configured field names
-            try:
-                shot_idx = header.index(csv_shot_field.lower())
-            except ValueError:
-                shot_idx = None
-            try:
-                version_idx = header.index(csv_version_field.lower())
-            except ValueError:
-                version_idx = None
+            shot_idx = find_column_index(header, csv_shot_fields)
+            version_idx = find_column_index(header, csv_version_fields)
+            notes_idx = find_column_index(header, csv_notes_fields)
+            
             try:
                 transcription_idx = header.index('transcription')
             except ValueError:
                 transcription_idx = None
-            try:
-                notes_idx = header.index('notes')
-            except ValueError:
-                notes_idx = None
             continue
         
         # Extract shot and version values using configured field names
