@@ -1542,7 +1542,7 @@ function App() {
             <StatusBadge 
               type={status.type} 
               detailedMessage={status.detailedMsg}
-              maxLength={20}
+              maxLength={25}
             >
               {status.msg}
             </StatusBadge>
