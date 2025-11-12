@@ -345,10 +345,13 @@ async def llm_summary(request: dict):
     if llm_backend_routing_enabled:
         try:
             return route_to_llm_backend("/llm-summary", method="POST", data=request)
-        except HTTPException:
+        except HTTPException as e:
+            print(f"DEBUG: HTTPException while routing to LLM backend: {e}")
             raise
         except Exception as e:
-            print(f"Error routing to LLM backend for /llm-summary: {e}")
+            print(f"DEBUG: Exception while routing to LLM backend for /llm-summary: {e}")
+            print(f"DEBUG: LLM_BACKEND_BASE_URL: {LLM_BACKEND_BASE_URL}")
+            print(f"DEBUG: Request data: {request}")
             # Fall back to local processing if routing fails
     
     text = request.get("text", "")
@@ -376,6 +379,9 @@ async def llm_summary(request: dict):
         return {"summary": random.choice(random_summaries), "routed": False}
     
     if not llm_clients:
+        print("DEBUG: No LLM clients initialized - check environment variables and API keys")
+        print(f"DEBUG: Enabled providers: {enabled_providers}")
+        print(f"DEBUG: Available llm_clients keys: {list(llm_clients.keys())}")
         raise HTTPException(status_code=500, detail="No LLM clients initialized.")
     
     # Choose provider: use specified provider if available, otherwise use first available
@@ -400,6 +406,8 @@ async def llm_summary(request: dict):
         elif provider == 'google':
             summary = summarize_gemini(text, model, client, config)
         else:
+            print(f"DEBUG: Unsupported provider requested: {provider}")
+            print(f"DEBUG: Available providers: {list(llm_clients.keys())}")
             raise HTTPException(status_code=500, detail=f"Unsupported provider: {provider}")
         
         return {"summary": summary, "provider": provider, "model": model, "prompt_type": prompt_type, "routed": False}
