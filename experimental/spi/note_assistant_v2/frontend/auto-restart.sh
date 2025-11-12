@@ -23,8 +23,8 @@ while true; do
         echo "Restart #$restart_count - Starting frontend server..."
     fi
     
-    # Start the frontend server
-    npm run dev
+    # Start the frontend server (pass through any command line arguments)
+    npm run dev "$@"
     
     # Get the exit code
     exit_code=$?
