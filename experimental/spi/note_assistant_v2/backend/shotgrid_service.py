@@ -13,14 +13,14 @@ from typing import Optional
 load_dotenv()
 
 # --- Configuration ---
-SHOTGRID_URL = os.environ.get("SHOTGRID_URL")
-SCRIPT_NAME = os.environ.get("SHOTGRID_SCRIPT_NAME")
-API_KEY = os.environ.get("SHOTGRID_API_KEY")
+SG_URL = os.environ.get("SG_URL")
+SG_SCRIPT_NAME = os.environ.get("SG_SCRIPT_NAME")
+SG_API_KEY = os.environ.get("SG_API_KEY")
 # Configurable field names for version and shot
-SHOTGRID_VERSION_FIELD = os.environ.get("SHOTGRID_VERSION_FIELD", "version")
-SHOTGRID_SHOT_FIELD = os.environ.get("SHOTGRID_SHOT_FIELD", "shot")
-SHOTGRID_TYPE_FILTER = os.environ.get("SHOTGRID_TYPE_FILTER", "")
-SHOTGRID_TYPE_LIST = [t.strip() for t in SHOTGRID_TYPE_FILTER.split(",") if t.strip()]
+SG_PLAYLIST_VERSION_FIELD = os.environ.get("SG_PLAYLIST_VERSION_FIELD", "version")
+SG_PLAYLIST_SHOT_FIELD = os.environ.get("SG_PLAYLIST_SHOT_FIELD", "shot")
+SG_PLAYLIST_TYPE_FILTER = os.environ.get("SG_PLAYLIST_TYPE_FILTER", "")
+SG_PLAYLIST_TYPE_LIST = [t.strip() for t in SG_PLAYLIST_TYPE_FILTER.split(",") if t.strip()]
 # Demo mode configuration
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 
@@ -111,7 +111,7 @@ def anonymize_shot_names(shot_names):
 
 def get_project_by_code(project_code):
     """Fetch a single project from ShotGrid by code."""
-    sg = Shotgun(SHOTGRID_URL, SCRIPT_NAME, API_KEY)
+    sg = Shotgun(SG_URL, SG_SCRIPT_NAME, SG_API_KEY)
     filters = [["code", "is", project_code]]
     fields = ["id", "code", "name", "sg_status", "created_at"]
     project = sg.find_one("Project", filters, fields)
@@ -128,7 +128,7 @@ def get_project_by_code(project_code):
 
 def get_latest_playlists_for_project(project_id, limit=20):
     """Fetch the latest playlists for a given project id."""
-    sg = Shotgun(SHOTGRID_URL, SCRIPT_NAME, API_KEY)
+    sg = Shotgun(SG_URL, SG_SCRIPT_NAME, SG_API_KEY)
     filters = [["project", "is", {"type": "Project", "id": project_id}]]
     fields = ["id", "code", "created_at", "updated_at"]
     playlists = sg.find("Playlist", filters, fields, order=[{"field_name": "created_at", "direction": "desc"}], limit=limit)
@@ -136,11 +136,11 @@ def get_latest_playlists_for_project(project_id, limit=20):
 
 def get_active_projects():
     """Fetch all active projects from ShotGrid (sg_status == 'Active' and sg_type in configured list), sorted by code."""
-    sg = Shotgun(SHOTGRID_URL, SCRIPT_NAME, API_KEY)
+    sg = Shotgun(SG_URL, SG_SCRIPT_NAME, SG_API_KEY)
     filters = [
         ["sg_status", "is", "Active"],
         {"filter_operator": "any", "filters": [
-            ["sg_type", "is", t] for t in SHOTGRID_TYPE_LIST
+            ["sg_type", "is", t] for t in SG_PLAYLIST_TYPE_LIST
         ]}
     ]
     fields = ["id", "code", "created_at", "sg_type"]
@@ -149,7 +149,7 @@ def get_active_projects():
 
 def get_playlist_shot_names(playlist_id):
     """Fetch the list of shot/version names from a playlist, using configurable field names."""
-    sg = Shotgun(SHOTGRID_URL, SCRIPT_NAME, API_KEY)
+    sg = Shotgun(SG_URL, SG_SCRIPT_NAME, SG_API_KEY)
     fields = ["versions"]
     playlist = sg.find_one("Playlist", [["id", "is", playlist_id]], fields)
     if not playlist or not playlist.get("versions"):
@@ -157,11 +157,11 @@ def get_playlist_shot_names(playlist_id):
     version_ids = [v["id"] for v in playlist["versions"] if v.get("id")]
     if not version_ids:
         return []
-    version_fields = ["id", SHOTGRID_VERSION_FIELD, SHOTGRID_SHOT_FIELD]
+    version_fields = ["id", SG_PLAYLIST_VERSION_FIELD, SG_PLAYLIST_SHOT_FIELD]
     versions = sg.find("Version", [["id", "in", version_ids]], version_fields)
     shot_names = [
-        f"{v.get(SHOTGRID_SHOT_FIELD)}/{v.get(SHOTGRID_VERSION_FIELD)}"
-        for v in versions if v.get(SHOTGRID_VERSION_FIELD) or v.get(SHOTGRID_SHOT_FIELD)
+        f"{v.get(SG_PLAYLIST_SHOT_FIELD)}/{v.get(SG_PLAYLIST_VERSION_FIELD)}"
+        for v in versions if v.get(SG_PLAYLIST_VERSION_FIELD) or v.get(SG_PLAYLIST_SHOT_FIELD)
     ]
     return anonymize_shot_names(shot_names)
 
@@ -190,23 +190,23 @@ def validate_shot_version_input(input_value, project_id=None):
         }
     
     input_value = input_value.strip()
-    sg = Shotgun(SHOTGRID_URL, SCRIPT_NAME, API_KEY)
+    sg = Shotgun(SG_URL, SG_SCRIPT_NAME, SG_API_KEY)
     
     # Check if input is a number (version)
     if input_value.isdigit():
         # Search for version by version number using the custom version field
         # Convert to integer since ShotGrid expects integer for this field
         version_number = int(input_value)
-        filters = [[SHOTGRID_VERSION_FIELD, "is", version_number]]
+        filters = [[SG_PLAYLIST_VERSION_FIELD, "is", version_number]]
         if project_id:
             filters.append(["project", "is", {"type": "Project", "id": project_id}])
         
-        fields = ["id", "code", SHOTGRID_SHOT_FIELD, SHOTGRID_VERSION_FIELD]
+        fields = ["id", "code", SG_PLAYLIST_SHOT_FIELD, SG_PLAYLIST_VERSION_FIELD]
         version = sg.find_one("Version", filters, fields)
         
         if version:
-            shot_name = version.get(SHOTGRID_SHOT_FIELD, "")
-            version_name = version.get(SHOTGRID_VERSION_FIELD, input_value)
+            shot_name = version.get(SG_PLAYLIST_SHOT_FIELD, "")
+            version_name = version.get(SG_PLAYLIST_VERSION_FIELD, input_value)
             shot_version = f"{shot_name}/{version_name}"
             
             if DEMO_MODE:
@@ -241,17 +241,17 @@ def validate_shot_version_input(input_value, project_id=None):
             
             # Find the latest version for this shot
             version_filters = [
-                [SHOTGRID_SHOT_FIELD, "is", shot_name],
+                [SG_PLAYLIST_SHOT_FIELD, "is", shot_name],
             ]
             if project_id:
                 version_filters.append(["project", "is", {"type": "Project", "id": project_id}])
             
-            version_fields = ["id", SHOTGRID_VERSION_FIELD]
+            version_fields = ["id", SG_PLAYLIST_VERSION_FIELD]
             latest_version = sg.find_one("Version", version_filters, version_fields, 
                                        order=[{"field_name": "created_at", "direction": "desc"}])
             
             if latest_version:
-                version_name = latest_version.get(SHOTGRID_VERSION_FIELD, "001")
+                version_name = latest_version.get(SG_PLAYLIST_VERSION_FIELD, "001")
                 shot_version = f"{shot_name}/{version_name}"
             else:
                 shot_version = f"{shot_name}/001"  # Default version if no versions found
@@ -273,17 +273,17 @@ def validate_shot_version_input(input_value, project_id=None):
             
             # Find the latest version for this asset
             version_filters = [
-                [SHOTGRID_SHOT_FIELD, "is", asset_name],  # Assuming assets use the same field
+                [SG_PLAYLIST_SHOT_FIELD, "is", asset_name],  # Assuming assets use the same field
             ]
             if project_id:
                 version_filters.append(["project", "is", {"type": "Project", "id": project_id}])
             
-            version_fields = ["id", SHOTGRID_VERSION_FIELD]
+            version_fields = ["id", SG_PLAYLIST_VERSION_FIELD]
             latest_version = sg.find_one("Version", version_filters, version_fields,
                                        order=[{"field_name": "created_at", "direction": "desc"}])
             
             if latest_version:
-                version_name = latest_version.get(SHOTGRID_VERSION_FIELD, "001")
+                version_name = latest_version.get(SG_PLAYLIST_VERSION_FIELD, "001")
                 shot_version = f"{asset_name}/{version_name}"
             else:
                 shot_version = f"{asset_name}/001"  # Default version if no versions found

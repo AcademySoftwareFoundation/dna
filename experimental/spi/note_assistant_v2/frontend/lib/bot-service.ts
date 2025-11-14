@@ -29,12 +29,65 @@ export async function startBot(fullUrl) {
         bot_name: 'Vexa',
       }),
     });
-    const data = await res.json();
-    if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300))) {
+    
+    let data;
+    try {
+      data = await res.json();
+    } catch (jsonError) {
+      const shortMessage = "Server response error";
+      const detailedMessage = `Failed to add bot to meeting. Server returned invalid response (HTTP ${res.status}: ${res.statusText})`;
       return {
         success: false,
         joinedMeetId: null,
-        statusMsg: "Failed to add bot to meeting.",
+        statusMsg: shortMessage,
+        detailedMsg: detailedMessage,
+        error: { jsonError, status: res.status, statusText: res.statusText },
+      };
+    }
+    
+    if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300))) {
+      let shortMessage = "Failed to add bot to meeting";
+      let detailedMessage = "Failed to add bot to meeting.";
+      
+      // Add specific error details if available
+      if (data.message) {
+        detailedMessage += ` ${data.message}`;
+        // For short message, try to extract key information
+        if (data.message.toLowerCase().includes('already exists')) {
+          shortMessage = "Bot already in meeting";
+        } else if (data.message.toLowerCase().includes('invalid') || data.message.toLowerCase().includes('expired')) {
+          shortMessage = "Invalid meeting URL";
+        } else if (data.message.toLowerCase().includes('permission') || data.message.toLowerCase().includes('denied')) {
+          shortMessage = "Permission denied";
+        } else if (data.message.toLowerCase().includes('not found')) {
+          shortMessage = "Meeting not found";
+        }
+      } else if (data.error) {
+        detailedMessage += ` Error: ${data.error}`;
+      } else if (data.detail) {
+        detailedMessage += ` ${data.detail}`;
+      }
+      
+      // Add HTTP status information to detailed message
+      if (!res.ok) {
+        detailedMessage += ` (HTTP ${res.status}: ${res.statusText})`;
+        // Update short message for common HTTP errors
+        if (res.status === 409) {
+          shortMessage = "Bot already in meeting";
+        } else if (res.status === 404) {
+          shortMessage = "Meeting not found";
+        } else if (res.status === 403) {
+          shortMessage = "Permission denied";
+        } else if (res.status >= 500) {
+          shortMessage = "Server error";
+        }
+      }
+      
+      return {
+        success: false,
+        joinedMeetId: null,
+        statusMsg: shortMessage,
+        detailedMsg: detailedMessage,
         error: data,
       };
     }
@@ -44,10 +97,29 @@ export async function startBot(fullUrl) {
       statusMsg: "Bot request successful.",
     };
   } catch (err) {
+    let shortMessage = "Connection error";
+    let detailedMessage = "Error starting transcription";
+    
+    // Provide more specific error details
+    if (err instanceof Error) {
+      detailedMessage += `: ${err.message}`;
+      // Extract key info for short message
+      if (err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('fetch')) {
+        shortMessage = "Network error";
+      } else if (err.message.toLowerCase().includes('timeout')) {
+        shortMessage = "Request timeout";
+      }
+    } else if (typeof err === 'string') {
+      detailedMessage += `: ${err}`;
+    } else {
+      detailedMessage += ": Unknown error occurred";
+    }
+    
     return {
       success: false,
       joinedMeetId: null,
-      statusMsg: "Error starting transcription",
+      statusMsg: shortMessage,
+      detailedMsg: detailedMessage,
       error: err,
     };
   }
@@ -73,11 +145,57 @@ export async function stopBot(joinedMeetId) {
       method: 'DELETE',
       headers: getHeaders(),
     });
-    const data = await res.json();
-    if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300)) || data.status === 'error') {
+    
+    let data;
+    try {
+      data = await res.json();
+    } catch (jsonError) {
+      const shortMessage = "Server response error";
+      const detailedMessage = `Failed to exit bot. Server returned invalid response (HTTP ${res.status}: ${res.statusText})`;
       return {
         success: false,
-        statusMsg: "Failed to exit bot.",
+        statusMsg: shortMessage,
+        detailedMsg: detailedMessage,
+        error: { jsonError, status: res.status, statusText: res.statusText },
+      };
+    }
+    
+    if (!res.ok || (typeof data.status === 'number' && (data.status < 200 || data.status >= 300)) || data.status === 'error') {
+      let shortMessage = "Failed to exit bot";
+      let detailedMessage = "Failed to exit bot.";
+      
+      // Add specific error details if available
+      if (data.message) {
+        detailedMessage += ` ${data.message}`;
+        // For short message, try to extract key information
+        if (data.message.toLowerCase().includes('not found')) {
+          shortMessage = "Bot not found";
+        } else if (data.message.toLowerCase().includes('already')) {
+          shortMessage = "Bot already stopped";
+        }
+      } else if (data.error) {
+        detailedMessage += ` Error: ${data.error}`;
+      } else if (data.detail) {
+        detailedMessage += ` ${data.detail}`;
+      }
+      
+      // Add HTTP status information to detailed message
+      if (!res.ok) {
+        detailedMessage += ` (HTTP ${res.status}: ${res.statusText})`;
+        // Update short message for common HTTP errors
+        if (res.status === 404) {
+          shortMessage = "Bot not found";
+        } else if (res.status === 403) {
+          shortMessage = "Permission denied";
+        } else if (res.status >= 500) {
+          shortMessage = "Server error";
+        }
+      }
+      
+      return {
+        success: false,
+        statusMsg: shortMessage,
+        detailedMsg: detailedMessage,
         error: data,
       };
     }
@@ -86,9 +204,28 @@ export async function stopBot(joinedMeetId) {
       statusMsg: "Bot exited successfully.",
     };
   } catch (err) {
+    let shortMessage = "Connection error";
+    let detailedMessage = "Network error while exiting bot";
+    
+    // Provide more specific error details
+    if (err instanceof Error) {
+      detailedMessage += `: ${err.message}`;
+      // Extract key info for short message
+      if (err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('fetch')) {
+        shortMessage = "Network error";
+      } else if (err.message.toLowerCase().includes('timeout')) {
+        shortMessage = "Request timeout";
+      }
+    } else if (typeof err === 'string') {
+      detailedMessage += `: ${err}`;
+    } else {
+      detailedMessage += ": Unknown error occurred";
+    }
+    
     return {
       success: false,
-      statusMsg: "Network error while exiting bot",
+      statusMsg: shortMessage,
+      detailedMsg: detailedMessage,
       error: err,
     };
   }

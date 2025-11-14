@@ -1,9 +1,12 @@
 :root {
   --bg: #0f1115;
   --bg-alt: #161b22;
+  --bg-primary: #1f242d;
+  --bg-secondary: #2c323c;
   --panel: #1f242d;
   --panel-border: #2c323c;
   --text: #e6ecf2;
+  --text-primary: #e6ecf2;
   --text-muted: #93a1b3;
   --accent: #3d82f6;
   --accent-hover: #2666d3;
@@ -65,6 +68,54 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .badge-error { background: var(--danger); color: #2a0909; }
 .badge-warning, .badge-warn { background: var(--warn); color: #261a04; }
 .badge-info { background: #273041; color: var(--text-muted); }
+
+/* Badge info icon styles */
+.badge-info-icon {
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+
+.badge-info-icon:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Make info icon more visible in error badges */
+.badge-error .badge-info-icon {
+  opacity: 1;
+  color: #fff;
+}
+
+.badge-error .badge-info-icon:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Status popup styles */
+.status-popup {
+  animation: fadeInScale 0.2s ease-out;
+  /* Ensure popup is always visible and not clipped */
+  position: fixed !important;
+  z-index: 10001 !important;
+  background: #1f242d !important;
+  border: 1px solid #444 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  color: #e6ecf2 !important;
+  /* Ensure it's not hidden by overflow */
+  overflow: visible !important;
+  white-space: normal !important;
+}
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 .help-text { margin: 0 0 4px; font-size: 13px; color: var(--text-muted); }
 
