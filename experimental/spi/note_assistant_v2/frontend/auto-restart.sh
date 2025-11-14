@@ -24,7 +24,7 @@ while true; do
     fi
     
     # Start the frontend server (pass through any command line arguments)
-    npm run dev "$@"
+    npm run dev -- "$@"
     
     # Get the exit code
     exit_code=$?
