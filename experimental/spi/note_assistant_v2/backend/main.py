@@ -57,6 +57,23 @@ if shotgrid_enabled:
     from shotgrid_service import router as shotgrid_router
     app.include_router(shotgrid_router)
 
+@app.get("/health")
+def health_check():
+    """Simple health check endpoint."""
+    return {"status": "ok", "message": "Backend server is running"}
+
+@app.get("/routes")
+def list_routes():
+    """List all available API routes."""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods)
+            })
+    return {"routes": routes}
+
 @app.get("/config")
 def get_config():
     """Return application configuration including feature availability."""
