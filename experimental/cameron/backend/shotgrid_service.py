@@ -194,13 +194,19 @@ def get_latest_playlists_for_project(project_id, limit=20):
 def get_active_projects():
     """Fetch all active projects from ShotGrid (sg_status == 'Active' and sg_type in configured list), sorted by code."""
     sg = Shotgun(get_shotgrid_url(), get_script_name(), get_api_key())
-    filters = [
-        ["sg_status", "is", "Active"],
-        {
-            "filter_operator": "any",
-            "filters": [["sg_type", "is", t] for t in SHOTGRID_TYPE_LIST],
-        },
-    ]
+
+    # Build filters - only include sg_type filter if SHOTGRID_TYPE_LIST is not empty
+    filters = [["sg_status", "is", "Active"]]
+
+    type_list = get_type_filter()
+    if type_list:  # Only add type filter if list is not empty
+        filters.append(
+            {
+                "filter_operator": "any",
+                "filters": [["sg_type", "is", t] for t in type_list],
+            }
+        )
+
     fields = ["id", "code", "created_at", "sg_type"]
     projects = sg.find(
         "Project", filters, fields, order=[{"field_name": "code", "direction": "asc"}]
@@ -262,47 +268,57 @@ def get_version_statuses(project_id=None):
     Always returns all statuses available in the schema (regardless of project).
     Returns a dict mapping status codes to display names.
     """
-    sg = Shotgun(get_shotgrid_url(), get_script_name(), get_api_key())
+    try:
+        sg = Shotgun(get_shotgrid_url(), get_script_name(), get_api_key())
 
-    # Get the schema to get all available statuses for the Version entity
-    schema = sg.schema_field_read("Version", "sg_status_list")
-    status_display_names = {}
+        # Get the schema to get all available statuses for the Version entity
+        schema = sg.schema_field_read("Version", "sg_status_list")
+        status_display_names = {}
 
-    print(f"DEBUG: Raw schema response keys: {schema.keys() if schema else 'None'}")
+        print(f"DEBUG: Raw schema response keys: {schema.keys() if schema else 'None'}")
 
-    if schema:
-        # The response structure is: {'sg_status_list': {'property_name': {'editable': bool, 'value': ...}}}
-        # We need to look for 'valid_values' or 'display_values' property
-        field_props = schema.get("sg_status_list", {})
-        print(
-            f"DEBUG: field_props keys: {field_props.keys() if isinstance(field_props, dict) else 'not a dict'}"
-        )
-
-        # Try to find valid_values property
-        if "properties" in field_props:
-            props = field_props["properties"]
+        if schema:
+            # The response structure is: {'sg_status_list': {'property_name': {'editable': bool, 'value': ...}}}
+            # We need to look for 'valid_values' or 'display_values' property
+            field_props = schema.get("sg_status_list", {})
             print(
-                f"DEBUG: Properties found: {props.keys() if isinstance(props, dict) else 'not a dict'}"
+                f"DEBUG: field_props keys: {field_props.keys() if isinstance(field_props, dict) else 'not a dict'}"
             )
 
-            if "valid_values" in props:
-                valid_values_prop = props["valid_values"]
-                print(f"DEBUG: valid_values property: {valid_values_prop}")
-                if isinstance(valid_values_prop, dict) and "value" in valid_values_prop:
-                    status_display_names = valid_values_prop["value"]
-            elif "display_values" in props:
-                display_values_prop = props["display_values"]
-                print(f"DEBUG: display_values property: {display_values_prop}")
-                if (
-                    isinstance(display_values_prop, dict)
-                    and "value" in display_values_prop
-                ):
-                    status_display_names = display_values_prop["value"]
+            # Try to find valid_values property
+            if "properties" in field_props:
+                props = field_props["properties"]
+                print(
+                    f"DEBUG: Properties found: {props.keys() if isinstance(props, dict) else 'not a dict'}"
+                )
 
-        print(f"DEBUG: Final status_display_names: {status_display_names}")
+                if "valid_values" in props:
+                    valid_values_prop = props["valid_values"]
+                    print(f"DEBUG: valid_values property: {valid_values_prop}")
+                    if (
+                        isinstance(valid_values_prop, dict)
+                        and "value" in valid_values_prop
+                    ):
+                        status_display_names = valid_values_prop["value"]
+                elif "display_values" in props:
+                    display_values_prop = props["display_values"]
+                    print(f"DEBUG: display_values property: {display_values_prop}")
+                    if (
+                        isinstance(display_values_prop, dict)
+                        and "value" in display_values_prop
+                    ):
+                        status_display_names = display_values_prop["value"]
 
-    # Return all available statuses from schema
-    return status_display_names
+            print(f"DEBUG: Final status_display_names: {status_display_names}")
+
+        # Return all available statuses from schema
+        return status_display_names
+    except Exception as e:
+        print(f"ERROR in get_version_statuses: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        raise
 
 
 def get_playlist_versions_with_statuses(playlist_id):
