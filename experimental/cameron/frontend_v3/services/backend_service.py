@@ -5,8 +5,9 @@ ONLY uses backend API - no local storage
 """
 
 import requests
+from io import StringIO
 from config import BACKEND_URL, CONNECTION_RETRY_ATTEMPTS, DEBUG_MODE, REQUEST_TIMEOUT
-from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
+from PySide6.QtCore import Property, QObject, QThread, QTimer, Signal, Slot
 
 from services.transcript_utils import (
     format_transcript_for_display,
@@ -15,6 +16,48 @@ from services.transcript_utils import (
 )
 from services.vexa_service import VexaService
 from services.vexa_websocket_service import VexaWebSocketService
+
+
+class LLMGenerationWorker(QThread):
+    """Worker thread for async LLM note generation"""
+
+    finished = Signal(str)  # Emits AI notes when done
+    error = Signal(str)  # Emits error message if failed
+
+    def __init__(self, backend_url, version_id, transcript, prompt, provider, api_key, timeout):
+        super().__init__()
+        self.backend_url = backend_url
+        self.version_id = version_id
+        self.transcript = transcript
+        self.prompt = prompt
+        self.provider = provider
+        self.api_key = api_key
+        self.timeout = timeout
+
+    def run(self):
+        """Execute LLM generation in background thread"""
+        try:
+            response = requests.post(
+                f"{self.backend_url}/versions/{self.version_id}/generate-ai-notes",
+                json={
+                    "version_id": self.version_id,
+                    "transcript": self.transcript,
+                    "prompt": self.prompt,
+                    "provider": self.provider,
+                    "api_key": self.api_key,
+                },
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            version = data.get("version", {})
+            ai_notes = version.get("ai_notes", "")
+
+            self.finished.emit(ai_notes)
+
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class BackendService(QObject):
@@ -62,6 +105,7 @@ class BackendService(QObject):
     # Versions
     versionsLoaded = Signal()
     hasShotGridVersionsChanged = Signal()
+    pinnedVersionIdChanged = Signal()
 
     # Sync signals
     syncCompleted = Signal(
@@ -110,13 +154,14 @@ class BackendService(QObject):
         self._all_segments = []  # All segments received via WebSocket
         self._mutable_segment_ids = set()  # IDs of segments that are still mutable
         self._seen_segment_ids = {}  # Dict: segment_key -> text_length (to detect updates)
-        self._current_version_segments = []  # Segments captured for current version only
+        self._current_version_segments = {}  # Dict: segment_key -> segment (for O(1) lookups)
         self._base_transcript = ""  # Transcript that existed when version was selected
 
         # Current version
         self._selected_version_id = None
         self._selected_version_name = ""
         self._selected_version_shotgrid_id = None
+        self._pinned_version_id = None  # Track which version is pinned for transcript streaming
 
         # Notes and transcript
         self._current_notes = ""
@@ -183,6 +228,17 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
         self._seen_segment_ids = (
             set()
         )  # Track which segment IDs we've already processed for this version
+        self._resume_timestamp = None  # Timestamp when transcript was resumed (to filter out old segments)
+        self._pause_cutoff_time = None  # Latest absolute_start_time when pause was initiated
+
+        # Debouncing for transcript updates (improves UI responsiveness)
+        self._transcript_update_timer = QTimer()
+        self._transcript_update_timer.setSingleShot(True)
+        self._transcript_update_timer.timeout.connect(self._emit_transcript_changed)
+        self._pending_transcript_update = False
+
+        # LLM generation worker thread (for async processing)
+        self._llm_worker = None
 
         # Load settings from .env file
         self.load_settings()
@@ -464,22 +520,31 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
             self._staging_note = ""
 
             # Reset transcript tracking for new version - start fresh
-            import time
+            # BUT only if this version is not pinned, or if it IS the pinned version
+            # (When a version is pinned, only that version gets new transcript segments)
+            if not self._pinned_version_id or self._pinned_version_id == version_id:
+                import time
 
-            self._version_activation_time = time.time()
-            self._seen_segment_ids = {}  # Clear the dict of seen segments (timestamp -> length)
-            self._current_version_segments = []  # Clear segments list for new version
-            self._base_transcript = (
-                self._current_transcript
-            )  # Save existing transcript as base
+                self._version_activation_time = time.time()
+                self._seen_segment_ids = {}  # Clear the dict of seen segments (timestamp -> length)
+                self._current_version_segments = {}  # Clear segments dict for new version
+                self._base_transcript = (
+                    self._current_transcript
+                )  # Save existing transcript as base
 
-            # Mark all CURRENT segments in the meeting as "seen" immediately
-            # so we only capture NEW segments that arrive after this point
-            self._mark_current_segments_as_seen()
+                # Mark all CURRENT segments in the meeting as "seen" immediately
+                # so we only capture NEW segments that arrive after this point
+                self._mark_current_segments_as_seen()
 
-            print(
-                f"  Reset transcript tracking - will only capture new segments from now on"
-            )
+                print(
+                    f"  Reset transcript tracking - will only capture new segments from now on"
+                )
+            else:
+                # A different version is pinned, so this version won't receive new transcripts
+                pinned_version_name = self._get_version_name(self._pinned_version_id)
+                print(
+                    f"  Note: Version '{pinned_version_name}' is pinned - transcripts will continue streaming to that version only"
+                )
 
             # Emit signals
             self.selectedVersionIdChanged.emit()
@@ -541,13 +606,18 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
 
     @Slot()
     def generateNotes(self):
-        """Generate AI notes for the current version"""
+        """Generate AI notes for the current version (async with QThread)"""
         if not self._selected_version_id:
             print("ERROR: No version selected")
             return
 
         if not self._current_transcript:
             print("ERROR: No transcript available for AI note generation")
+            return
+
+        # Check if a worker is already running
+        if self._llm_worker and self._llm_worker.isRunning():
+            print("WARNING: LLM generation already in progress, please wait...")
             return
 
         # Determine which provider, prompt, and API key to use based on API keys
@@ -572,30 +642,44 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
         if provider:
             print(f"  Using provider: {provider}")
 
-        try:
-            response = self._make_request(
-                "POST",
-                f"/versions/{self._selected_version_id}/generate-ai-notes",
-                json={
-                    "version_id": self._selected_version_id,
-                    "transcript": self._current_transcript,
-                    "prompt": prompt,
-                    "provider": provider,
-                    "api_key": api_key,
-                },
-            )
+        # Create worker thread for async generation
+        self._llm_worker = LLMGenerationWorker(
+            self._backend_url,
+            self._selected_version_id,
+            self._current_transcript,
+            prompt,
+            provider,
+            api_key,
+            self._request_timeout
+        )
 
-            data = response.json()
-            version = data.get("version", {})
+        # Connect signals
+        self._llm_worker.finished.connect(self._on_llm_generation_finished)
+        self._llm_worker.error.connect(self._on_llm_generation_error)
 
-            # Update AI notes from backend response
-            self._current_ai_notes = version.get("ai_notes", "")
-            self.currentAiNotesChanged.emit()
+        # Start generation in background
+        self._llm_worker.start()
+        print("  LLM generation started in background thread...")
 
-            print(f"✓ AI notes generated successfully")
+    def _on_llm_generation_finished(self, ai_notes: str):
+        """Handle successful LLM generation"""
+        self._current_ai_notes = ai_notes
+        self.currentAiNotesChanged.emit()
+        print(f"✓ AI notes generated successfully ({len(ai_notes)} chars)")
 
-        except Exception as e:
-            print(f"ERROR: Failed to generate AI notes: {e}")
+        # Clean up worker
+        if self._llm_worker:
+            self._llm_worker.deleteLater()
+            self._llm_worker = None
+
+    def _on_llm_generation_error(self, error_msg: str):
+        """Handle LLM generation error"""
+        print(f"ERROR: Failed to generate AI notes: {error_msg}")
+
+        # Clean up worker
+        if self._llm_worker:
+            self._llm_worker.deleteLater()
+            self._llm_worker = None
 
     @Slot()
     def addAiNotesToStaging(self):
@@ -819,6 +903,30 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
             self._meeting_status = "error"
             self.meetingStatusChanged.emit()
 
+    @Slot()
+    def pauseTranscript(self):
+        """Pause the transcript stream"""
+        if self._vexa_websocket:
+            self._vexa_websocket.pause_transcript()
+            print("⏸️  Transcript paused")
+        else:
+            print("ERROR: WebSocket service not initialized")
+
+    @Slot()
+    def playTranscript(self):
+        """Resume/play the transcript stream"""
+        if self._vexa_websocket:
+            self._vexa_websocket.play_transcript()
+            # The _on_transcript_resumed handler will mark segments as seen
+        else:
+            print("ERROR: WebSocket service not initialized")
+
+    def isTranscriptPaused(self) -> bool:
+        """Check if transcript is paused"""
+        if self._vexa_websocket:
+            return self._vexa_websocket.is_paused()
+        return False
+
     @Slot(str)
     def updateTranscriptionLanguage(self, language):
         """Update the transcription language"""
@@ -885,6 +993,12 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
             self._vexa_websocket.meetingStatusChanged.connect(
                 self._on_meeting_status_changed
             )
+            self._vexa_websocket.transcriptPaused.connect(
+                self._on_transcript_paused
+            )
+            self._vexa_websocket.transcriptResumed.connect(
+                self._on_transcript_resumed
+            )
 
         # Connect to WebSocket server
         self._vexa_websocket.connect_to_server()
@@ -915,7 +1029,7 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
         self._all_segments = []
         self._mutable_segment_ids = set()
         self._seen_segment_ids = {}
-        self._current_version_segments = []
+        self._current_version_segments = {}
         self._base_transcript = ""
 
     def _mark_current_segments_as_seen(self):
@@ -954,6 +1068,12 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
     def _on_websocket_connected(self):
         """Handle WebSocket connection established"""
         print("✅ WebSocket connected - ready to receive transcripts")
+
+        # Mark all current segments as seen to prevent replay after reconnection
+        if self._all_segments:
+            self._mark_current_segments_as_seen()
+            print("  Marked existing segments as seen (reconnection)")
+
         # Don't set status to connected here - wait for meeting.status messages
         # The status will be updated by _on_meeting_status_changed when we get
         # the actual meeting status (joining -> awaiting_admission -> active)
@@ -974,21 +1094,50 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
     def _on_transcript_initial(self, segments: list):
         """Handle initial transcript dump (all existing segments)"""
         print(f"🟣 Received initial transcript: {len(segments)} segments")
-        # Merge with existing segments
+        # Mark all initial segments as seen so we don't process them
+        # We only want NEW segments from this point forward
+        for seg in segments:
+            segment_key = seg.get("absolute_start_time") or seg.get("timestamp", "")
+            if segment_key:
+                self._seen_segment_ids[segment_key] = len(seg.get("text", ""))
+
+        # Still merge them into _all_segments for tracking purposes
         self._all_segments = merge_segments_by_absolute_utc(
             self._all_segments, segments
         )
-        # Mark all as mutable initially
-        for seg in segments:
-            seg_id = seg.get("id", "")
-            if seg_id:
-                self._mutable_segment_ids.add(seg_id)
-        # Update UI
-        self._update_transcript_display()
+
+        print(f"  Marked {len(segments)} initial segments as seen - will not be processed")
 
     def _on_transcript_mutable(self, segments: list):
         """Handle mutable (in-progress) transcript segments"""
-        print(f"🟢 Received mutable transcript: {len(segments)} segments")
+        # Check if paused - discard if so
+        if self._vexa_websocket and self._vexa_websocket.is_paused():
+            print(f"🟢 Received mutable transcript but paused - discarding {len(segments)} segments")
+            return
+
+        # Filter out segments from before pause cutoff time
+        if self._pause_cutoff_time is not None:
+            filtered_segments = []
+            discarded_count = 0
+            for seg in segments:
+                abs_time = seg.get("absolute_start_time")
+                if abs_time and abs_time > self._pause_cutoff_time:
+                    filtered_segments.append(seg)
+                else:
+                    discarded_count += 1
+
+            if discarded_count > 0:
+                print(f"🟢 Received mutable transcript: {len(segments)} segments ({discarded_count} discarded from pause period)")
+            else:
+                print(f"🟢 Received mutable transcript: {len(segments)} segments")
+
+            segments = filtered_segments
+        else:
+            print(f"🟢 Received mutable transcript: {len(segments)} segments")
+
+        # If all segments were filtered out, return early
+        if not segments:
+            return
 
         # Debug: print segment details to see what's coming through
         for seg in segments:
@@ -1013,7 +1162,35 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
 
     def _on_transcript_finalized(self, segments: list):
         """Handle finalized (completed) transcript segments"""
-        print(f"🔵 Received finalized transcript: {len(segments)} segments")
+        # Check if paused - discard if so
+        if self._vexa_websocket and self._vexa_websocket.is_paused():
+            print(f"🔵 Received finalized transcript but paused - discarding {len(segments)} segments")
+            return
+
+        # Filter out segments from before pause cutoff time
+        if self._pause_cutoff_time is not None:
+            filtered_segments = []
+            discarded_count = 0
+            for seg in segments:
+                abs_time = seg.get("absolute_start_time")
+                if abs_time and abs_time > self._pause_cutoff_time:
+                    filtered_segments.append(seg)
+                else:
+                    discarded_count += 1
+
+            if discarded_count > 0:
+                print(f"🔵 Received finalized transcript: {len(segments)} segments ({discarded_count} discarded from pause period)")
+            else:
+                print(f"🔵 Received finalized transcript: {len(segments)} segments")
+
+            segments = filtered_segments
+        else:
+            print(f"🔵 Received finalized transcript: {len(segments)} segments")
+
+        # If all segments were filtered out, return early
+        if not segments:
+            return
+
         # Merge with existing segments
         self._all_segments = merge_segments_by_absolute_utc(
             self._all_segments, segments
@@ -1042,10 +1219,58 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
 
         self.meetingStatusChanged.emit()
 
+    def _on_transcript_paused(self, pause_timestamp: float):
+        """Handle transcript pause"""
+        print(f"⏸️  Transcript paused at {pause_timestamp}")
+
+        # Record the latest absolute_start_time from all segments
+        # Any segments with absolute_start_time <= this value should be ignored after resume
+        if self._all_segments:
+            # Find the maximum absolute_start_time
+            max_time = None
+            for seg in self._all_segments:
+                abs_time = seg.get("absolute_start_time")
+                if abs_time:
+                    if max_time is None or abs_time > max_time:
+                        max_time = abs_time
+            self._pause_cutoff_time = max_time
+            print(f"  Recorded pause cutoff time: {max_time}")
+        else:
+            # No segments yet, use current timestamp as fallback
+            import time
+            from datetime import datetime
+            # Convert to ISO format similar to absolute_start_time
+            self._pause_cutoff_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+            print(f"  No segments yet, using current time as cutoff: {self._pause_cutoff_time}")
+
+    def _on_transcript_resumed(self):
+        """Handle transcript resume"""
+        import time
+        self._resume_timestamp = time.time()
+        print(f"▶️  Transcript resumed at {self._resume_timestamp}")
+
+        # Mark all current segments as seen so we don't replay them
+        self._mark_current_segments_as_seen()
+
+        # Clear the pause cutoff time - we'll start accepting new segments now
+        # The cutoff will be set again on next pause
+        print(f"  Cleared pause cutoff time - accepting all new segments from now on")
+        self._pause_cutoff_time = None
+
+    def _emit_transcript_changed(self):
+        """Emit transcript changed signal (called by debounce timer)"""
+        if self._pending_transcript_update:
+            self.currentTranscriptChanged.emit()
+            self._pending_transcript_update = False
+
     def _update_transcript_display(self):
         """Update transcript display from all segments"""
-        # Only update if a version is selected
-        if not self._selected_version_id or self._version_activation_time is None:
+        # Determine which version should receive the transcript
+        # If a version is pinned, ONLY that version receives transcripts
+        # Otherwise, the currently selected version receives them
+        target_version_id = self._pinned_version_id if self._pinned_version_id else self._selected_version_id
+
+        if not target_version_id or self._version_activation_time is None:
             return
 
         # Filter to segments that are NEW or have been UPDATED (longer text)
@@ -1070,75 +1295,83 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
                 self._seen_segment_ids[segment_key] = text_length
 
         if new_or_updated_segments:
-            # Update or add segments to current version's list
+            # Update or add segments to current version's dict (O(1) lookup/insert)
             for new_seg in new_or_updated_segments:
                 segment_key = new_seg.get("absolute_start_time") or new_seg.get(
                     "timestamp", ""
                 )
-
-                # Find and replace existing segment with same timestamp
-                replaced = False
-                for i, existing_seg in enumerate(self._current_version_segments):
-                    existing_key = existing_seg.get(
-                        "absolute_start_time"
-                    ) or existing_seg.get("timestamp", "")
-                    if existing_key == segment_key:
-                        self._current_version_segments[i] = (
-                            new_seg  # Replace with updated version
-                        )
-                        replaced = True
-                        break
-
-                if not replaced:
-                    self._current_version_segments.append(new_seg)  # Add new segment
+                # Dict automatically handles both insert and update
+                self._current_version_segments[segment_key] = new_seg
 
             # Rebuild transcript from current version's segments (segments from this session)
+            # Convert dict values to list for processing
             # This ensures each segment appears only once with its latest text
-            speaker_groups = group_segments_by_speaker(self._current_version_segments)
+            segment_list = list(self._current_version_segments.values())
+            speaker_groups = group_segments_by_speaker(segment_list)
             new_transcript_text = format_transcript_for_display(speaker_groups)
 
             # Combine base transcript (what existed before) with new segments
+            # Use StringIO for efficient string building
+            buffer = StringIO()
             if self._base_transcript:
-                self._current_transcript = (
-                    self._base_transcript + "\n" + new_transcript_text
-                )
-            else:
-                self._current_transcript = new_transcript_text
+                buffer.write(self._base_transcript)
+                buffer.write("\n")
+            buffer.write(new_transcript_text)
+            self._current_transcript = buffer.getvalue()
 
-            self.currentTranscriptChanged.emit()
+            # Only emit transcript change if we're updating the currently selected version
+            # (If pinned version != selected version, don't update the display)
+            if target_version_id == self._selected_version_id:
+                # Use debounced emit instead of immediate emit
+                self._pending_transcript_update = True
+                if not self._transcript_update_timer.isActive():
+                    self._transcript_update_timer.start(300)  # 300ms debounce
 
-            # Save the updated transcript to the currently active version in backend
-            self._save_transcript_to_active_version(self._current_transcript)
+            # Save the updated transcript to the target version in backend
+            self._save_transcript_to_version(target_version_id, self._current_transcript)
+
+            # Get target version name for logging
+            target_version_name = self._selected_version_name if target_version_id == self._selected_version_id else self._get_version_name(target_version_id)
 
             print(
-                f"Transcript updated for version '{self._selected_version_name}': {len(new_or_updated_segments)} new/updated segments"
+                f"Transcript updated for version '{target_version_name}': {len(new_or_updated_segments)} new/updated segments"
             )
 
-    def _save_transcript_to_active_version(self, transcript_text):
-        """Save transcript to the currently active version"""
-        if not self._selected_version_id:
+    def _save_transcript_to_version(self, version_id, transcript_text):
+        """Save transcript to the specified version"""
+        if not version_id:
             return
 
         try:
             # Update the version's transcript in the backend
             response = self._make_request(
                 "PUT",
-                f"/versions/{self._selected_version_id}/notes",
+                f"/versions/{version_id}/notes",
                 json={
-                    "version_id": self._selected_version_id,
+                    "version_id": version_id,
                     "transcript": transcript_text,
                 },
             )
 
             if response.status_code == 200:
-                print(
-                    f"  ✓ Saved transcript to version '{self._selected_version_name}'"
-                )
+                version_name = self._get_version_name(version_id)
+                print(f"  ✓ Saved transcript to version '{version_name}'")
             else:
                 print(f"  ✗ Failed to save transcript: {response.text}")
 
         except Exception as e:
             print(f"  ✗ Error saving transcript: {e}")
+
+    def _get_version_name(self, version_id):
+        """Get version name from version ID by fetching from backend"""
+        try:
+            response = self._make_request("GET", f"/versions/{version_id}")
+            if response.status_code == 200:
+                version_data = response.json()
+                return version_data.get("name", version_id)
+        except Exception:
+            pass
+        return version_id  # Fallback to ID if can't fetch name
 
     # ===== CSV Import/Export =====
 
@@ -1253,6 +1486,30 @@ Write in a concise, natural tone that's easy for artists to quickly scan and und
     @Property(bool, notify=hasShotGridVersionsChanged)
     def hasShotGridVersions(self):
         return self._has_shotgrid_versions
+
+    @Property(str, notify=pinnedVersionIdChanged)
+    def pinnedVersionId(self):
+        return self._pinned_version_id if self._pinned_version_id else ""
+
+    @Slot(str)
+    def pinVersion(self, version_id):
+        """Pin a version for transcript streaming"""
+        if self._pinned_version_id != version_id:
+            self._pinned_version_id = version_id
+            self.pinnedVersionIdChanged.emit()
+            print(f"📌 Pinned version: {version_id}")
+
+            # If this version is not currently selected, select it
+            if self._selected_version_id != version_id:
+                self.selectVersion(version_id)
+
+    @Slot()
+    def unpinVersion(self):
+        """Unpin the currently pinned version"""
+        if self._pinned_version_id:
+            print(f"📌 Unpinned version: {self._pinned_version_id}")
+            self._pinned_version_id = None
+            self.pinnedVersionIdChanged.emit()
 
     @Property(str, notify=shotgridUrlChanged)
     def shotgridUrl(self):

@@ -379,24 +379,74 @@ ApplicationWindow {
                             }
                         }
 
-                        // Status indicator
-                        Text {
-                            text: {
-                                if (backend.meetingStatus === "connecting") return "● Connecting..."
-                                if (backend.meetingStatus === "joining") return "● Joining..."
-                                if (backend.meetingStatus === "connected") return "● Connected"
-                                if (backend.meetingStatus === "error") return "● Error"
-                                return "○ Disconnected"
-                            }
-                            font.pixelSize: 12
-                            color: {
-                                if (backend.meetingStatus === "connecting") return "#fbc02d"
-                                if (backend.meetingStatus === "joining") return "#fbc02d"
-                                if (backend.meetingStatus === "connected") return "#388e3c"
-                                if (backend.meetingStatus === "error") return "#d32f2f"
-                                return themeManager.mutedTextColor
-                            }
+                        // Status indicator with play/pause controls
+                        RowLayout {
                             Layout.fillWidth: true
+                            spacing: 8
+
+                            Text {
+                                text: {
+                                    if (backend.meetingStatus === "connecting") return "● Connecting..."
+                                    if (backend.meetingStatus === "joining") return "● Joining..."
+                                    if (backend.meetingStatus === "connected") return "● Connected"
+                                    if (backend.meetingStatus === "error") return "● Error"
+                                    return "○ Disconnected"
+                                }
+                                font.pixelSize: 12
+                                color: {
+                                    if (backend.meetingStatus === "connecting") return "#fbc02d"
+                                    if (backend.meetingStatus === "joining") return "#fbc02d"
+                                    if (backend.meetingStatus === "connected") return "#388e3c"
+                                    if (backend.meetingStatus === "error") return "#d32f2f"
+                                    return themeManager.mutedTextColor
+                                }
+                                Layout.fillWidth: true
+                            }
+
+                            // Play/Pause button for transcript
+                            Button {
+                                id: transcriptToggleButton
+                                Layout.preferredHeight: 32
+                                enabled: backend.meetingStatus === "connected" && backend.meetingActive
+
+                                property bool isPaused: false
+
+                                text: isPaused ? "▶ Play Transcript" : "|| Pause Transcript"
+                                font.pixelSize: 12
+
+                                onClicked: {
+                                    if (isPaused) {
+                                        backend.playTranscript()
+                                        isPaused = false
+                                    } else {
+                                        backend.pauseTranscript()
+                                        isPaused = true
+                                    }
+                                }
+
+                                background: Rectangle {
+                                    // Yellow when playing, green when paused
+                                    color: {
+                                        if (!parent.enabled) return "#3a3a3a"
+                                        if (parent.isPaused) {
+                                            return parent.hovered ? "#28a745" : "#4caf50"  // Green
+                                        } else {
+                                            return parent.hovered ? "#d4a500" : "#ffc107"  // Yellow
+                                        }
+                                    }
+                                    radius: 4
+                                }
+
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: parent.enabled ? "#ffffff" : "#555555"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: parent.font.pixelSize
+                                    leftPadding: 8
+                                    rightPadding: 8
+                                }
+                            }
                         }
 
                         Button {
@@ -992,6 +1042,8 @@ ApplicationWindow {
                             delegate: ItemDelegate {
                                 width: versionListView.width - 16  // Reserve space for scrollbar
 
+                                property bool isPinned: backend.pinnedVersionId === model.versionId
+
                                 background: Rectangle {
                                     color: versionListView.currentIndex === index ? themeManager.accentColor : "#3a3a3a"
                                     radius: 6
@@ -999,21 +1051,59 @@ ApplicationWindow {
                                     border.width: 1
                                 }
 
-                                contentItem: Text {
-                                    text: model.description || "Version " + model.versionId
-                                    color: themeManager.textColor
-                                    font.pixelSize: 14
-                                    wrapMode: Text.WordWrap
-                                    padding: 0
-                                    leftPadding: 10
-                                    rightPadding: 12
-                                    topPadding: 2
-                                    bottomPadding: 2
+                                contentItem: RowLayout {
+                                    spacing: 6
+
+                                    // Pin icon
+                                    Text {
+                                        text: "📌"
+                                        font.pixelSize: 12
+                                        visible: isPinned
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+
+                                    // Version name
+                                    Text {
+                                        text: model.description || "Version " + model.versionId
+                                        color: themeManager.textColor
+                                        font.pixelSize: 14
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
                                 }
 
                                 onClicked: {
                                     versionListView.currentIndex = index
                                     backend.selectVersion(model.versionId)
+                                }
+
+                                // Right-click context menu
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.RightButton
+                                    onClicked: function(mouse) {
+                                        versionContextMenu.versionId = model.versionId
+                                        versionContextMenu.isPinned = isPinned
+                                        versionContextMenu.popup()
+                                    }
+                                }
+
+                                Menu {
+                                    id: versionContextMenu
+                                    property string versionId: ""
+                                    property bool isPinned: false
+
+                                    MenuItem {
+                                        text: versionContextMenu.isPinned ? "Unpin Version" : "Pin Version"
+                                        onTriggered: {
+                                            if (versionContextMenu.isPinned) {
+                                                backend.unpinVersion()
+                                            } else {
+                                                backend.pinVersion(versionContextMenu.versionId)
+                                            }
+                                        }
+                                    }
                                 }
                             }
 

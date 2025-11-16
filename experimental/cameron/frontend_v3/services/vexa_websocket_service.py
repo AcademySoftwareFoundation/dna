@@ -24,6 +24,8 @@ class VexaWebSocketService(QObject):
     transcriptFinalizedReceived = Signal(list)  # List of segments (finalized)
     transcriptInitialReceived = Signal(list)  # Initial transcript dump
     meetingStatusChanged = Signal(str)  # Meeting status (active, completed, etc.)
+    transcriptPaused = Signal(float)  # Emitted when paused, with pause timestamp
+    transcriptResumed = Signal()  # Emitted when resumed
 
     # Signal for subscription confirmation
     subscribed = Signal(list)  # List of meeting IDs
@@ -47,6 +49,10 @@ class VexaWebSocketService(QObject):
 
         # Subscribed meetings tracking
         self._subscribed_meetings: Set[str] = set()  # Format: "platform/native_id"
+
+        # Transcript streaming control
+        self._is_paused = False
+        self._pause_timestamp = None  # Track when pause was initiated
 
         # Ping timer to keep connection alive
         self._ping_timer = QTimer()
@@ -164,11 +170,30 @@ class VexaWebSocketService(QObject):
         """Get list of subscribed meeting keys"""
         return list(self._subscribed_meetings)
 
+    def pause_transcript(self):
+        """Pause transcript streaming - messages will be received but not emitted"""
+        import time
+        self._is_paused = True
+        self._pause_timestamp = time.time()
+        print(f"Transcript streaming paused at {self._pause_timestamp}")
+        self.transcriptPaused.emit(self._pause_timestamp)
+
+    def play_transcript(self):
+        """Resume transcript streaming"""
+        self._is_paused = False
+        self._pause_timestamp = None
+        print("Transcript streaming resumed")
+        self.transcriptResumed.emit()
+
+    def is_paused(self) -> bool:
+        """Check if transcript streaming is paused"""
+        return self._is_paused
+
     # ===== Qt Slot Handlers =====
 
     def _on_connected(self):
         """Handle WebSocket connection established"""
-        print("✅ WebSocket connected successfully")
+        print("WebSocket connected successfully")
         self._is_connected = True
         self._reconnect_attempts = 0
         self._reconnect_timer.stop()
@@ -201,7 +226,7 @@ class VexaWebSocketService(QObject):
         if self.ws:
             error_msg += f" - {self.ws.errorString()}"
 
-        print(f"🔴 {error_msg}")
+        print(f"{error_msg}")
         self.error.emit(error_msg)
 
     def _on_message_received(self, message: str):
@@ -210,9 +235,14 @@ class VexaWebSocketService(QObject):
             data = json.loads(message)
             message_type = data.get("type", "unknown")
 
+            # Check if paused and discard transcript messages immediately
+            if self._is_paused and message_type in ["transcript.initial", "transcript.mutable", "transcript.finalized"]:
+                # Silently discard - don't even log it
+                return
+
             # Debug logging
             if message_type not in ["pong"]:  # Don't log pong messages
-                print(f"📨 WebSocket message: {message_type}")
+                print(f"WebSocket message: {message_type}")
 
             # Route message based on type
             if message_type == "transcript.initial":
@@ -232,15 +262,15 @@ class VexaWebSocketService(QObject):
                 pass
             elif message_type == "error":
                 error_msg = data.get("error", "Unknown error")
-                print(f"🔴 Server error: {error_msg}")
+                print(f"Server error: {error_msg}")
                 self.error.emit(error_msg)
             else:
-                print(f"❓ Unknown message type: {message_type}")
+                print(f"Unknown message type: {message_type}")
 
         except json.JSONDecodeError as e:
-            print(f"🔴 Failed to parse WebSocket message: {e}")
+            print(f"Failed to parse WebSocket message: {e}")
         except Exception as e:
-            print(f"🔴 Error processing WebSocket message: {e}")
+            print(f"Error processing WebSocket message: {e}")
 
     # ===== Message Handlers =====
 
@@ -256,7 +286,7 @@ class VexaWebSocketService(QObject):
 
     def _handle_transcript_mutable(self, data: Dict[str, Any]):
         """Handle mutable (in-progress) transcript segments"""
-        print("🟢 Received transcript.mutable")
+        print("Received transcript.mutable")
         segments = self._extract_segments(data)
         if segments:
             converted_segments = [self._convert_segment(seg) for seg in segments]
@@ -265,7 +295,7 @@ class VexaWebSocketService(QObject):
 
     def _handle_transcript_finalized(self, data: Dict[str, Any]):
         """Handle finalized (completed) transcript segments"""
-        print("🔵 Received transcript.finalized")
+        print("Received transcript.finalized")
         segments = self._extract_segments(data)
         if segments:
             converted_segments = [self._convert_segment(seg) for seg in segments]
@@ -276,19 +306,19 @@ class VexaWebSocketService(QObject):
         """Handle meeting status change"""
         payload = data.get("payload", {})
         status = payload.get("status", "unknown")
-        print(f"🟡 Meeting status: {status}")
+        print(f"Meeting status: {status}")
         self.meetingStatusChanged.emit(status)
 
     def _handle_subscribed(self, data: Dict[str, Any]):
         """Handle subscription confirmation"""
         meetings = data.get("meetings", [])
-        print(f"🔌 Subscription confirmed for {len(meetings)} meetings")
+        print(f"Subscription confirmed for {len(meetings)} meetings")
         self.subscribed.emit(meetings)
 
     def _handle_unsubscribed(self, data: Dict[str, Any]):
         """Handle unsubscription confirmation"""
         meetings = data.get("meetings", [])
-        print(f"🔌 Unsubscription confirmed for {len(meetings)} meetings")
+        print(f"Unsubscription confirmed for {len(meetings)} meetings")
         self.unsubscribed.emit(meetings)
 
     # ===== Helper Methods =====
