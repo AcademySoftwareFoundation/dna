@@ -68,32 +68,23 @@ Create virtual environments in both directories(requires python 3.11 per VFX pla
 ```
 python3.11 -m venv venv
 ```
-```
-python3.11 -m venv venv
-```
 
-Activate virtual environments:
-```
-source venv/bin/activate
-```
+Activate virtual environments in both directories:
 ```
 source venv/bin/activate
 ```
 
-Install requirements:
-```
-pip3 install -r requirements
-```
+Install requirements in both directories:
 ```
 pip3 install -r requirements
 ```
 
-Run backend:
+Run backend in /backend:
 ```
 python3 -m uvicorn main:app --reload --port 8000
 ```
 
-Run frontend:
+Run frontend in /frontend_v3:
 ```
 python3 main.py
 ```
