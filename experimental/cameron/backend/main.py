@@ -1,18 +1,18 @@
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+import asyncio
+import json
+import os
+import random
+import sys
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
-from typing import Dict, Any, Optional
-import os
-import json
-import asyncio
-from datetime import datetime
-from playlist import router as playlist_router
-import random
-from email_service import router as email_router
 from note_service import router as note_router
+from playlist import router as playlist_router
+from pydantic import BaseModel, EmailStr
 from version_service import router as version_router
-import sys
 
 # Load environment variables from .env file (optional)
 try:
@@ -39,16 +39,17 @@ shotgrid_enabled = bool(SHOTGRID_URL and SHOTGRID_URL.strip())
 
 # Register core routers
 app.include_router(playlist_router)
-app.include_router(email_router)
 app.include_router(note_router)
 app.include_router(version_router)
 
 # Always register shotgrid router (config can be set via API)
 from shotgrid_service import router as shotgrid_router
+
 app.include_router(shotgrid_router)
 
 # Register settings router
 from settings_service import router as settings_router
+
 app.include_router(settings_router)
 
 
@@ -60,7 +61,7 @@ def root():
         "version": "1.0.0",
         "status": "running",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }
 
 
@@ -87,8 +88,8 @@ def health_check():
             "vexa_transcription": vexa_configured,
             "llm_openai": openai_configured,
             "llm_claude": claude_configured,
-            "llm_gemini": gemini_configured
-        }
+            "llm_gemini": gemini_configured,
+        },
     }
 
 

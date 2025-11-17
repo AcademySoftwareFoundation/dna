@@ -18,13 +18,19 @@ ENV_FILE = Path(__file__).parent / ".env"
 
 
 class Settings(BaseModel):
-    """Application settings model"""
+    """Application settings model - all configurable via frontend preferences"""
 
-    # ShotGrid
+    # ShotGrid Core Settings
     shotgrid_url: Optional[str] = None
     shotgrid_api_key: Optional[str] = None
     shotgrid_script_name: Optional[str] = None
     shotgrid_author_email: Optional[str] = None
+    shotgrid_shot_field: Optional[str] = (
+        None  # Field for shot/entity (default: "entity")
+    )
+    shotgrid_version_field: Optional[str] = (
+        None  # Field for version name (default: "code")
+    )
     prepend_session_header: Optional[bool] = None
 
     # ShotGrid DNA Transcript Settings
@@ -40,7 +46,7 @@ class Settings(BaseModel):
         None  # Playlist link field (default: "sg_playlist")
     )
 
-    # Vexa
+    # Vexa Transcription
     vexa_api_key: Optional[str] = None
     vexa_api_url: Optional[str] = None
 
@@ -232,4 +238,34 @@ def save_partial_settings(settings: dict):
         return {"status": "success", "message": "Settings saved successfully"}
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reload")
+def reload_settings():
+    """Reload settings from .env file into runtime configuration"""
+    try:
+        # Reload environment variables from .env file
+        from dotenv import load_dotenv
+
+        load_dotenv(override=True)
+
+        # Update ShotGrid runtime config
+        from shotgrid_service import _runtime_config
+
+        _runtime_config["SHOTGRID_URL"] = os.environ.get("SHOTGRID_URL")
+        _runtime_config["SCRIPT_NAME"] = os.environ.get("SHOTGRID_SCRIPT_NAME")
+        _runtime_config["API_KEY"] = os.environ.get("SHOTGRID_API_KEY")
+        _runtime_config["SHOTGRID_VERSION_FIELD"] = os.environ.get(
+            "SHOTGRID_VERSION_FIELD", "code"
+        )
+        _runtime_config["SHOTGRID_SHOT_FIELD"] = os.environ.get(
+            "SHOTGRID_SHOT_FIELD", "entity"
+        )
+
+        print("✓ Settings reloaded from .env file")
+        return {"status": "success", "message": "Settings reloaded successfully"}
+
+    except Exception as e:
+        print(f"ERROR: Failed to reload settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))

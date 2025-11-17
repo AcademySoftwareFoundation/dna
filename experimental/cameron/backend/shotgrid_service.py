@@ -1,7 +1,5 @@
 import argparse
-import hashlib
 import os
-import re
 import sys
 from typing import List, Optional
 
@@ -21,8 +19,6 @@ _runtime_config = {
     "API_KEY": os.environ.get("SHOTGRID_API_KEY"),
     "SHOTGRID_VERSION_FIELD": os.environ.get("SHOTGRID_VERSION_FIELD", "code"),
     "SHOTGRID_SHOT_FIELD": os.environ.get("SHOTGRID_SHOT_FIELD", "entity"),
-    "SHOTGRID_TYPE_FILTER": os.environ.get("SHOTGRID_TYPE_FILTER", ""),
-    "DEMO_MODE": os.environ.get("DEMO_MODE", "false").lower() == "true",
 }
 
 
@@ -47,115 +43,12 @@ def get_shot_field():
     return _runtime_config.get("SHOTGRID_SHOT_FIELD", "entity")
 
 
-def get_type_filter():
-    type_filter = _runtime_config.get("SHOTGRID_TYPE_FILTER", "")
-    return [t.strip() for t in type_filter.split(",") if t.strip()]
-
-
-def get_demo_mode():
-    return _runtime_config.get("DEMO_MODE", False)
-
-
 # For backward compatibility
 SHOTGRID_URL = get_shotgrid_url()
 SCRIPT_NAME = get_script_name()
 API_KEY = get_api_key()
 SHOTGRID_VERSION_FIELD = get_version_field()
 SHOTGRID_SHOT_FIELD = get_shot_field()
-SHOTGRID_TYPE_FILTER = _runtime_config.get("SHOTGRID_TYPE_FILTER", "")
-SHOTGRID_TYPE_LIST = get_type_filter()
-DEMO_MODE = get_demo_mode()
-
-
-def anonymize_text(text, prefix="DEMO"):
-    """
-    Anonymize text by creating a consistent hash-based replacement.
-    This ensures the same input always produces the same anonymized output.
-    """
-    if not text or not get_demo_mode():
-        return text
-
-    # Create a hash of the original text
-    hash_object = hashlib.md5(text.encode())
-    hash_hex = hash_object.hexdigest()[:8]  # Use first 8 characters
-
-    # Extract any numeric parts to preserve structure
-    numbers = re.findall(r"\d+", text)
-    number_suffix = f"_{numbers[0]}" if numbers else ""
-
-    return f"{prefix}_{hash_hex.upper()}{number_suffix}"
-
-
-def anonymize_project_data(projects):
-    """Anonymize project data for demo mode."""
-    if not get_demo_mode():
-        return projects
-
-    anonymized = []
-    for project in projects:
-        project_copy = project.copy()
-        if "code" in project_copy:
-            project_copy["code"] = anonymize_text(project_copy["code"], "PROJ")
-        if "name" in project_copy:
-            project_copy["name"] = anonymize_text(project_copy["name"], "PROJECT")
-        anonymized.append(project_copy)
-    return anonymized
-
-
-def anonymize_playlist_data(playlists):
-    """Anonymize playlist data for demo mode."""
-    if not get_demo_mode():
-        return playlists
-
-    anonymized = []
-    for playlist in playlists:
-        playlist_copy = playlist.copy()
-        if "code" in playlist_copy:
-            playlist_copy["code"] = anonymize_text(playlist_copy["code"], "PLAYLIST")
-        anonymized.append(playlist_copy)
-    return anonymized
-
-
-def anonymize_shot_name(shot_text):
-    """Anonymize shot name to be max 5 characters."""
-    if not shot_text or not DEMO_MODE:
-        return shot_text
-
-    # Create a hash and take first 5 characters as uppercase
-    hash_object = hashlib.md5(shot_text.encode())
-    hash_hex = hash_object.hexdigest()[:5].upper()
-    return hash_hex
-
-
-def anonymize_version_name(version_text):
-    """Anonymize version name to be a 5-digit integer."""
-    if not version_text or not DEMO_MODE:
-        return version_text
-
-    # Create a hash and convert to a 5-digit number
-    hash_object = hashlib.md5(version_text.encode())
-    hash_int = int(hash_object.hexdigest()[:8], 16)  # Convert hex to int
-    # Ensure it's a 5-digit number (10000-99999)
-    version_num = (hash_int % 90000) + 10000
-    return str(version_num)
-
-
-def anonymize_shot_names(shot_names):
-    """Anonymize shot/version names for demo mode."""
-    if not get_demo_mode():
-        return shot_names
-
-    anonymized = []
-    for shot_name in shot_names:
-        # Split shot/version format
-        if "/" in shot_name:
-            parts = shot_name.split("/", 1)
-            shot_part = anonymize_shot_name(parts[0])
-            version_part = anonymize_version_name(parts[1])
-            anonymized.append(f"{shot_part}/{version_part}")
-        else:
-            anonymized.append(anonymize_shot_name(shot_name))
-    return anonymized
 
 
 def get_project_by_code(project_code):
@@ -164,15 +57,6 @@ def get_project_by_code(project_code):
     filters = [["code", "is", project_code]]
     fields = ["id", "code", "name", "sg_status", "created_at"]
     project = sg.find_one("Project", filters, fields)
-
-    if project and get_demo_mode():
-        project_copy = project.copy()
-        if "code" in project_copy:
-            project_copy["code"] = anonymize_text(project_copy["code"], "PROJ")
-        if "name" in project_copy:
-            project_copy["name"] = anonymize_text(project_copy["name"], "PROJECT")
-        return project_copy
-
     return project
 
 
@@ -188,30 +72,19 @@ def get_latest_playlists_for_project(project_id, limit=20):
         order=[{"field_name": "created_at", "direction": "desc"}],
         limit=limit,
     )
-    return anonymize_playlist_data(playlists)
+    return playlists
 
 
 def get_active_projects():
-    """Fetch all active projects from ShotGrid (sg_status == 'Active' and sg_type in configured list), sorted by code."""
+    """Fetch all active projects from ShotGrid (sg_status == 'Active'), sorted by code."""
     sg = Shotgun(get_shotgrid_url(), get_script_name(), get_api_key())
 
-    # Build filters - only include sg_type filter if SHOTGRID_TYPE_LIST is not empty
     filters = [["sg_status", "is", "Active"]]
-
-    type_list = get_type_filter()
-    if type_list:  # Only add type filter if list is not empty
-        filters.append(
-            {
-                "filter_operator": "any",
-                "filters": [["sg_type", "is", t] for t in type_list],
-            }
-        )
-
     fields = ["id", "code", "created_at", "sg_type"]
     projects = sg.find(
         "Project", filters, fields, order=[{"field_name": "code", "direction": "asc"}]
     )
-    return anonymize_project_data(projects)
+    return projects
 
 
 def extract_shot_name(shot_field):
@@ -251,13 +124,7 @@ def get_playlist_shot_names(playlist_id):
         version_id = v.get("id")
 
         if version_name and version_id:
-            display_name = version_name
-
-            # Anonymize if in demo mode
-            if get_demo_mode():
-                display_name = anonymize_version_name(version_name)
-
-            version_data.append({"id": version_id, "name": display_name})
+            version_data.append({"id": version_id, "name": version_name})
 
     return version_data
 
@@ -352,13 +219,7 @@ def get_playlist_versions_with_statuses(playlist_id):
         status = v.get("sg_status_list", "")
 
         if version_name and version_id:
-            display_name = version_name
-
-            # Anonymize if in demo mode
-            if get_demo_mode():
-                display_name = anonymize_version_name(version_name)
-
-            version_info = {"id": version_id, "name": display_name, "status": status}
+            version_info = {"id": version_id, "name": version_name, "status": status}
             version_data.append(version_info)
 
     return version_data
@@ -407,9 +268,6 @@ def validate_shot_version_input(input_value, project_id=None):
             shot_name = extract_shot_name(version.get(SHOTGRID_SHOT_FIELD))
             version_name = version.get(SHOTGRID_VERSION_FIELD, input_value)
             shot_version = f"{shot_name}/{version_name}"
-
-            if get_demo_mode():
-                shot_version = f"{anonymize_shot_name(shot_name)}/{anonymize_version_name(version_name)}"
 
             return {
                 "success": True,
@@ -463,9 +321,6 @@ def validate_shot_version_input(input_value, project_id=None):
                     f"{shot_name}/001"  # Default version if no versions found
                 )
 
-            if get_demo_mode():
-                shot_version = f"{anonymize_shot_name(shot_name)}/{anonymize_version_name(version_name if latest_version else '001')}"
-
             return {
                 "success": True,
                 "shot_version": shot_version,
@@ -506,9 +361,6 @@ def validate_shot_version_input(input_value, project_id=None):
                 shot_version = (
                     f"{asset_name}/001"  # Default version if no versions found
                 )
-
-            if get_demo_mode():
-                shot_version = f"{anonymize_shot_name(asset_name)}/{anonymize_version_name(version_name if latest_version else '001')}"
 
             return {
                 "success": True,
@@ -1197,8 +1049,6 @@ if __name__ == "__main__":
             print("Proceeding without project filter")
 
     print("ShotGrid Service Test CLI")
-    if get_demo_mode():
-        print("🎭 DEMO MODE ACTIVE - Data will be anonymized")
     print("1. List all active projects")
     print("2. List latest playlists for a project")
     print("3. List shot/version info for a playlist")
