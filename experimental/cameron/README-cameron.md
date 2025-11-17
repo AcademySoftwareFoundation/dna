@@ -3,7 +3,7 @@
 This iteration of DNA is for ideas generation for what the UI should look and behave like. It is also intended for first tests to gauge utility of this LLM infused workflow. 
 
 > [!IMPORTANT]  
-> /frontend_v3 is the frontend to use. The other two are tests/iterations. 
+> /frontend_v3 is the frontend to use. The other two are tests/iterations. I have tested frontend_v3 on Fedora (ARM) and Ubuntu (x86) as well as Mac ARM. 
 
 ## Features
 
