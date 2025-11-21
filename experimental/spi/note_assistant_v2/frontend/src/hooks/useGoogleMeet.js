@@ -15,11 +15,15 @@ export function useGoogleMeet() {
 
   // Function to get full Google Meet URL from input (URL or Meet ID)
   const getFullMeetUrl = useCallback((input) => {
-    const urlPattern = /^https?:\/\/meet\.google\.com\/([a-zA-Z0-9\-]+)$/;
+    const urlPattern = /^https?:\/\/meet\.google\.com\/([a-zA-Z0-9\-]+)(?:\?.*)?$/;
     const idPattern = /^[a-zA-Z0-9\-]{10,}$/;
     if (!input) return '';
     const urlMatch = input.match(urlPattern);
-    if (urlMatch) return input;
+    if (urlMatch) {
+      // Extract just the meet ID and return clean URL
+      const meetId = urlMatch[1];
+      return `https://meet.google.com/${meetId}`;
+    }
     if (idPattern.test(input.trim())) {
       // Convert meet ID to full URL
       return `https://meet.google.com/${input.trim()}`;
