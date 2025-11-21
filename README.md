@@ -6,7 +6,7 @@
 Introduction: Dailies Notes Assistant (DNA)
 ===========================================
 
-Mission statement goes here.
+Mission statement goes here.  This is a Mission Statement.  No, really.
 
 General description goes here.
 
