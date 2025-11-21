@@ -32,7 +32,6 @@ export function useShotGrid(config, configLoaded) {
   useEffect(() => {
     if (!config.shotgrid_enabled || !selectedProjectId) {
       setSgPlaylists([]);
-      setSelectedPlaylistId("");
       return;
     }
     setSgLoading(true);

@@ -991,7 +991,7 @@ export async function startWebSocketTranscription(
     setTimeout(() => {
       if (typeof onConnected === 'function') onConnected();
       if (typeof onMeetingStatus === 'function') onMeetingStatus('active');
-    }, 500);
+    }, 1000);
     // Simulate transcript events every 2 seconds
     let count = 0;
     const creativeFeedbacks = [
