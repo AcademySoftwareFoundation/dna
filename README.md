@@ -6,11 +6,9 @@
 Introduction: Dailies Notes Assistant (DNA)
 ===========================================
 
-This is the first project proposed in the ASWF Machine Learning Workgroup (wg-ml):
-https://github.com/AcademySoftwareFoundation/tac/issues/1029
+This is the first project proposed in the [ASWF Machine Learning Workgroup](https://github.com/AcademySoftwareFoundation/tac/issues/1029)
 
-The goals of the project are detailed in the original proposal:
-https://github.com/AcademySoftwareFoundation/tac/issues/1040
+The goals of ths project are detailed in the [original proposal](https://github.com/AcademySoftwareFoundation/tac/issues/1040)
 
 
 ☎️ Communications channels and additional resources
