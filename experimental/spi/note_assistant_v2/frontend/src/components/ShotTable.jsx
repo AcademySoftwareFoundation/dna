@@ -13,8 +13,17 @@ function ShotTable({
   availablePromptTypes,
   promptTypeSelection,
   setPromptTypeSelection,
-  updateCell
+  updateCell,
+  isReceivingTranscripts,
+  setIsReceivingTranscripts,
+  onTranscriptToggle
 }) {
+  const [hasActiveFocus, setHasActiveFocus] = React.useState(true);
+
+  // Add a ref to track if we recently toggled to prevent rapid toggling
+  const recentlyToggled = React.useRef(false);
+  const prevRowsRef = React.useRef(rows);
+
   // Helper function to set all rows to notes tab
   const switchAllRowsToNotes = () => {
     const newActiveTab = {};
@@ -22,6 +31,191 @@ function ShotTable({
       newActiveTab[idx] = 'notes';
     });
     setActiveTab(newActiveTab);
+  };
+
+  // Handle clicking outside to deactivate focus
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if click is on a text input or within a text input
+      const isTextInput = event.target.tagName === 'TEXTAREA' || 
+                         (event.target.tagName === 'INPUT' && event.target.type === 'text') ||
+                         event.target.closest('textarea') ||
+                         event.target.closest('input[type="text"]');
+      
+      // If clicking on a text input, don't deactivate focus
+      if (isTextInput) {
+        return;
+      }
+      
+      // Check if click is within the table
+      const isWithinTable = event.target.closest('.data-table');
+      
+      // Check if click is within floating controls (don't interfere with those)
+      const isWithinFloatingControls = event.target.closest('.floating-controls');
+      
+      // Check if click is on interactive elements we want to ignore
+      const isButton = event.target.tagName === 'BUTTON' || event.target.closest('button');
+      const isSelect = event.target.tagName === 'SELECT' || event.target.closest('select');
+      const isSVG = event.target.tagName === 'SVG' || event.target.closest('svg');
+      
+      // Only deactivate if we're clicking in non-interactive areas, but NOT in floating controls
+      if (isWithinTable && !isButton && !isSelect && !isSVG) {
+        setHasActiveFocus(false);
+        // Only pause transcript collection if no shot is pinned (pinned shots should continue receiving transcripts)
+        if (isReceivingTranscripts && !recentlyToggled.current && pinnedIndex === null) {
+          recentlyToggled.current = true;
+          setIsReceivingTranscripts(); // This toggles from true to false
+          setTimeout(() => { recentlyToggled.current = false; }, 1000); // Prevent rapid toggling
+        }
+      } else if (!isWithinTable && !isWithinFloatingControls) {
+        setHasActiveFocus(false);
+        // Only pause transcript collection if no shot is pinned (pinned shots should continue receiving transcripts)
+        if (isReceivingTranscripts && !recentlyToggled.current && pinnedIndex === null) {
+          recentlyToggled.current = true;
+          setIsReceivingTranscripts(); // This toggles from true to false
+          setTimeout(() => { recentlyToggled.current = false; }, 1000); // Prevent rapid toggling
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isReceivingTranscripts, pinnedIndex]);
+
+  // Handle Escape key to toggle transcript streaming
+  React.useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setHasActiveFocus(false);
+        // Use the same toggle logic as the floating control button
+        if (!recentlyToggled.current) {
+          recentlyToggled.current = true;
+          onTranscriptToggle(); // Use the same function as the floating control button
+          setTimeout(() => { recentlyToggled.current = false; }, 1000); // Prevent rapid toggling
+        }
+      }
+      
+      // Handle Ctrl+P to toggle pin/unpin
+      if (event.ctrlKey && event.key === 'p') {
+        event.preventDefault(); // Prevent browser print dialog
+        
+        // Determine which row to pin/unpin based on current focus
+        const focusedElement = document.activeElement;
+        let targetRowIndex = currentIndex; // Default to current index
+        
+        // Try to get row index from focused element
+        if (focusedElement && focusedElement.tagName === 'TEXTAREA') {
+          const rowElement = focusedElement.closest('tr');
+          if (rowElement) {
+            const allRows = Array.from(rowElement.parentElement.children);
+            const rowIndex = allRows.indexOf(rowElement);
+            if (rowIndex >= 0) {
+              targetRowIndex = rowIndex;
+            }
+          }
+        }
+        
+        // Handle pin/unpin logic
+        if (pinnedIndex === targetRowIndex) {
+          // If the target row is currently pinned, unpin it
+          setPinnedIndex(null);
+        } else if (pinnedIndex !== null) {
+          // If another row is pinned and we're pressing Ctrl+P on a different row,
+          // unpin the current pinned row and switch context to the target row (but don't pin it)
+          setPinnedIndex(null);
+          setCurrentIndex(targetRowIndex);
+          setHasActiveFocus(true);
+        } else {
+          // If no row is pinned, pin the target row and make it active for transcription
+          setPinnedIndex(targetRowIndex);
+          setCurrentIndex(targetRowIndex);
+          setHasActiveFocus(true);
+        }
+      }
+      
+      // Handle Alt+Arrow keys for navigation (changed from Ctrl to avoid macOS conflicts)
+      if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        event.preventDefault(); // Prevent default scroll behavior
+        
+        let newIndex;
+        if (event.key === 'ArrowUp') {
+          newIndex = Math.max(0, currentIndex - 1);
+        } else {
+          newIndex = Math.min(rows.length - 1, currentIndex + 1);
+        }
+        
+        // Only change if we can actually move
+        if (newIndex !== currentIndex) {
+          // Always move the current index for navigation
+          setCurrentIndex(newIndex);
+          
+          // Only set focus if no shot is pinned (pinned shots should continue receiving transcripts)
+          if (pinnedIndex === null) {
+            setHasActiveFocus(true);
+          }
+          
+          // Focus the active tab textarea of the new row (Notes or LLM summary)
+          // But don't trigger handleTextFieldFocus when a shot is pinned
+          setTimeout(() => {
+            const tableRows = document.querySelectorAll('.data-table tbody tr');
+            if (tableRows[newIndex]) {
+              const activeTabName = getActiveTabForRow(newIndex);
+              let targetTextarea;
+              
+              if (activeTabName === 'notes') {
+                // Focus the notes textarea
+                targetTextarea = tableRows[newIndex].querySelector('textarea.table-textarea:not([name="transcription"])');
+              } else {
+                // Focus the active LLM summary textarea
+                targetTextarea = tableRows[newIndex].querySelector(`textarea[data-llm-key="${activeTabName}"]`);
+              }
+              
+              // Fallback to transcription if we can't find the target
+              if (!targetTextarea) {
+                targetTextarea = tableRows[newIndex].querySelector('textarea[name="transcription"]');
+              }
+              
+              if (targetTextarea) {
+                // Add a flag to prevent handleTextFieldFocus from changing currentIndex when shot is pinned
+                targetTextarea.dataset.keyboardNavigation = 'true';
+                targetTextarea.focus();
+                // Remove the flag after a short delay
+                setTimeout(() => {
+                  delete targetTextarea.dataset.keyboardNavigation;
+                }, 100);
+              }
+            }
+          }, 50);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isReceivingTranscripts, onTranscriptToggle, pinnedIndex, currentIndex, setPinnedIndex, setCurrentIndex, rows, activeTab]);
+
+  // Handle text field focus to restore active focus
+  const handleTextFieldFocus = (rowIndex, event) => {
+    // Prevent the event from bubbling up
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    // Check if this focus event is from keyboard navigation
+    const isKeyboardNavigation = event && event.target && event.target.dataset.keyboardNavigation;
+    
+    // Only set the current index when focusing on a text field if no shot is pinned
+    // When a shot is pinned, transcription should continue to the pinned shot regardless of focus
+    if (pinnedIndex === null) {
+      setCurrentIndex(rowIndex);
+    }
+    // If a shot is pinned, DO NOT change currentIndex regardless of how focus happened
+    // The pinned shot should always remain the target for transcription
+    
+    // Use a small delay to ensure this runs after any click handlers
+    setTimeout(() => {
+      setHasActiveFocus(true);
+    }, 10);
   };
 
   const setTabForRow = (rowIndex, tabName) => {
@@ -34,6 +228,58 @@ function ShotTable({
   const getActiveTabForRow = (rowIndex) => {
     return activeTab[rowIndex] || 'notes';
   };
+
+  // Initialize tabs for new rows while preserving existing selections
+  React.useEffect(() => {
+    const prevRows = prevRowsRef.current;
+    
+    // Detect when a completely new dataset replaces the current rows (e.g., new playlist import)
+    const isDatasetReplacement = (
+      prevRows.length === rows.length &&
+      rows.length > 0 &&
+      prevRows.some((prevRow, idx) => {
+        const currentRow = rows[idx];
+        if (!currentRow || !prevRow) return true;
+        const prevIdentifier = `${prevRow.shot || ''}__${prevRow.version || ''}`;
+        const currentIdentifier = `${currentRow.shot || ''}__${currentRow.version || ''}`;
+        return prevIdentifier !== currentIdentifier;
+      })
+    );
+
+    if (isDatasetReplacement) {
+      const newActiveTab = {};
+      rows.forEach((_, idx) => {
+        newActiveTab[idx] = 'notes';
+      });
+      setActiveTab(newActiveTab);
+    } else if (rows.length > 0) {
+      setActiveTab(prev => {
+        const nextTabs = { ...prev };
+        let changed = false;
+        
+        // Ensure every row has an assigned tab (default to notes)
+        rows.forEach((_, idx) => {
+          if (!nextTabs[idx]) {
+            nextTabs[idx] = 'notes';
+            changed = true;
+          }
+        });
+
+        // Remove any stale tab entries for rows that no longer exist
+        Object.keys(nextTabs).forEach(key => {
+          const idx = Number(key);
+          if (Number.isInteger(idx) && idx >= rows.length) {
+            delete nextTabs[idx];
+            changed = true;
+          }
+        });
+
+        return changed ? nextTabs : prev;
+      });
+    }
+
+    prevRowsRef.current = rows;
+  }, [rows, setActiveTab]);
 
   const setPromptTypeForRowAndLLM = (rowIndex, llmKey, promptType) => {
     setPromptTypeSelection(prev => ({
@@ -52,6 +298,18 @@ function ShotTable({
 
   return (
     <div className="table-wrapper" style={{ width: '100%' }}>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .current-row-focused {
+            border: 2px solid #3d82f6 !important;
+            background-color: rgba(59, 130, 246, 0.1) !important;
+          }
+          .current-row-unfocused {
+            border: 2px dotted rgba(59, 130, 246, 0.7) !important;
+            background-color: rgba(59, 130, 246, 0.04) !important;
+          }
+        `
+      }} />
       <table className="data-table" style={{ width: '100%', tableLayout: 'fixed' }}>
         <thead>
           <tr>
@@ -109,9 +367,19 @@ function ShotTable({
         <tbody>
           {rows.map((row, idx) => {
             const isPinned = pinnedIndex === idx;
+            // When determining which row is "current" for transcription purposes:
+            // - If a shot is pinned, only the pinned shot is "current" 
+            // - If no shot is pinned, the currentIndex determines which shot is "current"
             const isCurrent = pinnedIndex !== null ? isPinned : idx === currentIndex;
+            // Show dotted border when transcripts are NOT being received, regardless of focus
+            // Show solid border when transcripts ARE being received
+            const shouldShowDottedBorder = isCurrent && !isReceivingTranscripts;
+            const rowClass = isCurrent 
+              ? (shouldShowDottedBorder ? 'current-row current-row-unfocused' : 'current-row current-row-focused')
+              : '';
+            
             return (
-              <tr key={idx} className={isCurrent ? 'current-row' : ''}>
+              <tr key={idx} className={rowClass}>
                 {/* Shot/Version Cell */}
                 <td className="readonly-cell" style={{ width: '10%', position: 'relative', paddingRight: '40px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2', wordWrap: 'break-word', overflowWrap: 'break-word', wordBreak: 'break-all', maxWidth: '100%' }}>
@@ -146,9 +414,10 @@ function ShotTable({
                     aria-label="Pin"
                     onClick={() => setPinnedIndex(isPinned ? null : idx)}
                   >
-                    {/* Pin icon from Iconoir (https://iconoir.com/) */}
+                  {/* Pin icon from Iconoir (https://iconoir.com/) */}
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9.5 14.5L3 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M5.00007 9.48528L14.1925 18.6777L15.8895 16.9806L15.4974 13.1944L21.0065 8.5211L15.1568 2.67141L10.4834 8.18034L6.69713 7.78823L5.00007 9.48528Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </button>
                 </td>
@@ -203,9 +472,10 @@ function ShotTable({
                           marginLeft: '8px'
                         }}
                         aria-label="Refresh All Summaries"
+                        title="Generate summaries for all enabled LLMs for this shot using current transcription"
                         onClick={async (e) => {
                           e.stopPropagation();
-                          const inputText = row.transcription || row.notes || '';
+                          const inputText = row.transcription || '';
                           if (!inputText.trim()) return;
                           
                           // Generate summaries for all enabled LLMs
@@ -271,7 +541,7 @@ function ShotTable({
                               </div>
                               <textarea
                                 value={row.notes || ''}
-                                onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                                onFocus={(e) => handleTextFieldFocus(idx, e)}
                                 onChange={(e) => updateCell(idx, 'notes', e.target.value)}
                                 className="table-textarea"
                                 placeholder="Enter notes..."
@@ -327,9 +597,10 @@ function ShotTable({
                                     borderRadius: '3px'
                                   }}
                                   aria-label="Refresh Summary"
+                                  title={`Generate ${activeLLM.name} summary for this shot using current transcription`}
                                   onClick={async (e) => {
                                     e.stopPropagation();
-                                    const inputText = row.transcription || row.notes || '';
+                                    const inputText = row.transcription || '';
                                     if (!inputText.trim()) return;
                                     const promptType = getPromptTypeForRowAndLLM(idx, activeLLM.key);
                                     updateCell(idx, `${activeLLM.key}_summary`, '...'); // Show loading
@@ -360,6 +631,7 @@ function ShotTable({
                                     borderRadius: '3px',
                                     whiteSpace: 'nowrap'
                                   }}
+                                  title="Copy summary content to Notes tab (copies selected text or entire summary if none selected)"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     // Find the active summary textarea using data attributes
@@ -398,7 +670,7 @@ function ShotTable({
                                   }
                                 }}
                                 value={row[`${activeLLM.key}_summary`] || ''}
-                                onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                                onFocus={(e) => handleTextFieldFocus(idx, e)}
                                 onChange={(e) => updateCell(idx, `${activeLLM.key}_summary`, e.target.value)}
                                 className="table-textarea"
                                 placeholder={`${activeLLM.name} summary goes here...`}
@@ -421,7 +693,7 @@ function ShotTable({
                     <textarea
                       name="transcription"
                       value={row.transcription}
-                      onFocus={() => { if (pinnedIndex === null) setCurrentIndex(idx); }}
+                      onFocus={(e) => handleTextFieldFocus(idx, e)}
                       onChange={(e) => updateCell(idx, 'transcription', e.target.value)}
                       className="table-textarea"
                       placeholder="Transcription goes here..."

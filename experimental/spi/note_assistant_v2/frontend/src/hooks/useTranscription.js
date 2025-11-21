@@ -11,6 +11,7 @@ export function useTranscription(rows, setRows, currentIndex, pinnedIndex, inclu
   const [joinedMeetId, setJoinedMeetId] = useState("");
   const isReceivingTranscriptsRef = useRef(isReceivingTranscripts);
   const currentIndexRef = useRef(0);
+  const pinnedIndexRef = useRef(null);
   const hasActiveWebSocketRef = useRef(false);
 
   // Update refs when values change
@@ -21,6 +22,10 @@ export function useTranscription(rows, setRows, currentIndex, pinnedIndex, inclu
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  useEffect(() => {
+    pinnedIndexRef.current = pinnedIndex;
+  }, [pinnedIndex]);
 
   // Helper to process segments and update the UI transcription field
   const updateTranscriptionFromSegments = useCallback((segments) => {
@@ -39,7 +44,7 @@ export function useTranscription(rows, setRows, currentIndex, pinnedIndex, inclu
     if (!isReceivingTranscriptsRef.current) return;
 
     // Track segments for this shot BEFORE processSegments
-    let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+    let activeIndex = pinnedIndexRef.current !== null ? pinnedIndexRef.current : currentIndexRef.current;
     if (activeIndex == null || activeIndex < 0 || activeIndex >= rows.length) activeIndex = 0;
     const shotKey = rows[activeIndex]?.shot;
 
@@ -72,7 +77,7 @@ export function useTranscription(rows, setRows, currentIndex, pinnedIndex, inclu
     });
 
     setRows(prevRows => {
-      let activeIndex = pinnedIndex !== null ? pinnedIndex : currentIndexRef.current;
+      let activeIndex = pinnedIndexRef.current !== null ? pinnedIndexRef.current : currentIndexRef.current;
       if (activeIndex == null || activeIndex < 0 || activeIndex >= prevRows.length) activeIndex = 0;
       const newTranscript = combinedSpeakerTexts.join('\n\n');
       if (prevRows[activeIndex]?.transcription === newTranscript) return prevRows;
@@ -89,7 +94,7 @@ export function useTranscription(rows, setRows, currentIndex, pinnedIndex, inclu
       
       return prevRows.map((r, idx) => idx === activeIndex ? { ...r, transcription: newTranscript } : r);
     });
-  }, [rows, setRows, pinnedIndex, includeSpeakerLabels]);
+  }, [rows, setRows, includeSpeakerLabels]);
 
   // Start transcript stream
   const startTranscriptStream = useCallback(async (meetingId, setBotIsActive, setStatus, botIsActive) => {
@@ -123,10 +128,6 @@ export function useTranscription(rows, setRows, currentIndex, pinnedIndex, inclu
             const isActiveStatus = statusValue === 'active' || statusValue === 'test-mode-running';
             setStatus({ msg: `Bot Status: ${statusValue}`, type: isActiveStatus ? 'success' : 'info', detailedMsg: null });
             setBotIsActive(isActiveStatus);
-            
-            if (setWaitingForActive && isActiveStatus) {
-              setWaitingForActive(false);
-            }
             
             // Stop stream when status is 'completed' or 'error'
             if (statusValue === 'completed' || statusValue === 'error') {
