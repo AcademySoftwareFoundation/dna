@@ -19,13 +19,14 @@ async def get_bots_status():
         bots = client.get_running_bots_status()
         return bots
     except Exception as e:
+        print(f"DEBUG: Exception in get_bots_status: {e}")
+        print(f"DEBUG: BASE_URL: {BASE_URL}")
+        print(f"DEBUG: API_KEY configured: {bool(API_KEY)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/bots")
 async def post_bot(request: Request):
     data = await request.json()
-    print("Received bot request data:", data)
-    print("client config:", client)
     try:
         bot = client.request_bot(
             platform=data.get("platform"),
@@ -36,6 +37,10 @@ async def post_bot(request: Request):
         )
         return bot
     except Exception as e:
+        print(f"DEBUG: Exception in post_bot: {e}")
+        print(f"DEBUG: Request data: {data}")
+        print(f"DEBUG: BASE_URL: {BASE_URL}")
+        print(f"DEBUG: API_KEY configured: {bool(API_KEY)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/bots/{platform}/{native_meeting_id}")
@@ -44,6 +49,10 @@ async def delete_bot_route(platform: str, native_meeting_id: str):
         result = client.stop_bot(platform, native_meeting_id)
         return result
     except Exception as e:
+        print(f"DEBUG: Exception in delete_bot_route: {e}")
+        print(f"DEBUG: Platform: {platform}, Meeting ID: {native_meeting_id}")
+        print(f"DEBUG: BASE_URL: {BASE_URL}")
+        print(f"DEBUG: API_KEY configured: {bool(API_KEY)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.websocket("/ws")
@@ -60,13 +69,15 @@ async def vexa_ws_proxy(websocket: WebSocket):
                     try:
                         data = await websocket.receive_text()
                         await vexa_ws.send(data)
-                    except Exception:
+                    except Exception as e:
+                        print(f"DEBUG: Exception in websocket from_frontend: {e}")
                         break
             async def from_vexa():
                 try:
                     async for msg in vexa_ws:
                         await websocket.send_text(msg)
-                except Exception:
+                except Exception as e:
+                    print(f"DEBUG: Exception in websocket from_vexa: {e}")
                     pass
             import asyncio
             tasks = [asyncio.create_task(from_frontend()), asyncio.create_task(from_vexa())]
@@ -76,10 +87,12 @@ async def vexa_ws_proxy(websocket: WebSocket):
         finally:
             await vexa_ws.close()
     except WebSocketDisconnect:
-        print("Frontend disconnected")
+        print("DEBUG: Frontend disconnected")
         if websocket.application_state == WebSocketState.CONNECTED:
             await websocket.close()
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"DEBUG: WebSocket error: {e}")
+        print(f"DEBUG: BASE_URL: {BASE_URL}")
+        print(f"DEBUG: vexa_ws_url: {vexa_ws_url}")
         if websocket.application_state == WebSocketState.CONNECTED:
             await websocket.close(code=1011, reason=str(e))

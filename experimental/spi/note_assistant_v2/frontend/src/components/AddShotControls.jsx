@@ -1,0 +1,1 @@
+// This file has been removed - functionality moved to FloatingControls.jsx
