@@ -4,7 +4,7 @@ import StatusBadge from '../StatusBadge';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex }) {
+function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex, setOriginalFilename }) {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [playlistStatus, setPlaylistStatus] = useState({ msg: "", type: "info" });
   const [playlistItemsLoading, setPlaylistItemsLoading] = useState(false);
@@ -35,7 +35,6 @@ function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex }) {
       return;
     }
     setPlaylistStatus({ msg: "", type: "info" });
-    setSelectedProjectId("");
     setSelectedPlaylistId(parsedPlaylistId);
   };
 
@@ -54,13 +53,21 @@ function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex }) {
           //console.log('Fetched playlist items:', data.items);
           setRows(data.items.map(v => ({ shot: v, transcription: "", summary: "", notes: "" })));
           setCurrentIndex(0);
+          // Set original filename for ShotGrid playlists with project name
+          if (setOriginalFilename) {
+            const project = sgProjects.find(p => String(p.id) === String(selectedProjectId));
+            const projectName = project?.code || 'unknown_project';
+            // Clean up the project name for filename
+            const cleanProjectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
+            setOriginalFilename(`${cleanProjectName}_playlist_${selectedPlaylistId}`);
+          }
         }
       })
       .catch((error) => {
         console.error('Error fetching playlist items:', error);
       })
       .finally(() => setPlaylistItemsLoading(false));
-  }, [config.shotgrid_enabled, selectedPlaylistId, setRows, setCurrentIndex]);
+  }, [config.shotgrid_enabled, selectedPlaylistId, selectedProjectId, sgProjects, setRows, setCurrentIndex, setOriginalFilename]);
 
   if (!config.shotgrid_enabled) {
     return null;

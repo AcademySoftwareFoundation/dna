@@ -36,6 +36,7 @@ router = APIRouter()
 class EmailNotesRequest(BaseModel):
     email: EmailStr
     notes: list
+    subject: str = "Dailies Shot Notes"  # Optional custom subject with default
 
 def get_gmail_service():
     creds = None
@@ -125,7 +126,9 @@ async def email_notes(data: EmailNotesRequest):
         html += f"<td>{row.get('summary','').replace(chr(10),'<br>')}</td>"
         html += "</tr>"
     html += "</tbody></table>"
-    subject = "Dailies Shot Notes"
+    
+    # Use the custom subject from the request
+    subject = data.subject
     try:
         send_email(data.email, subject, html)
         return {"status": "success", "message": f"Notes sent to {data.email}"}

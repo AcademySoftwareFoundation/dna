@@ -581,13 +581,10 @@ async def llm_summary(request: dict):
         try:
             return route_to_llm_backend("/llm-summary", method="POST", data=request)
         except HTTPException as e:
-            print(f"DEBUG: HTTPException while routing to LLM backend: {e}")
             raise
         except Exception as e:
-            print(f"DEBUG: Exception while routing to LLM backend for /llm-summary: {e}")
-            print(f"DEBUG: LLM_BACKEND_BASE_URL: {LLM_BACKEND_BASE_URL}")
-            print(f"DEBUG: Request data: {request}")
             # Fall back to local processing if routing fails
+            pass
     
     text = request.get("text", "")
     llm_model = request.get("llm_model")  # Specific model key like "google_gemini-1.5-pro"
@@ -615,23 +612,30 @@ async def llm_summary(request: dict):
         return {"summary": random.choice(random_summaries), "routed": False}
     
     if not llm_clients:
-        print("DEBUG: No LLM clients initialized - check environment variables and API keys")
-        print(f"DEBUG: Enabled providers: {enabled_providers}")
-        print(f"DEBUG: Available llm_clients keys: {list(llm_clients.keys())}")
         raise HTTPException(status_code=500, detail="No LLM clients initialized.")
     
     # Choose model: use specific model if available, otherwise use provider, otherwise use first available
     selected_client_key = None
     
-    if llm_model and llm_model in llm_clients:
-        selected_client_key = llm_model
-    elif llm_provider:
+    if llm_model:
+        # Try direct match first
+        if llm_model in llm_clients:
+            selected_client_key = llm_model
+        else:
+            # Try to find model by matching the model name part
+            for key, client_info in llm_clients.items():
+                if client_info['model'] == llm_model:
+                    selected_client_key = key
+                    break
+    
+    if not selected_client_key and llm_provider:
         # Find first model for this provider
         for key in llm_clients.keys():
             if llm_clients[key]['provider'] == llm_provider:
                 selected_client_key = key
                 break
-    else:
+    
+    if not selected_client_key:
         # Use first available
         selected_client_key = list(llm_clients.keys())[0]
     
@@ -655,8 +659,6 @@ async def llm_summary(request: dict):
         elif provider == 'google':
             summary = summarize_gemini(text, model, client, config)
         else:
-            print(f"DEBUG: Unsupported provider requested: {provider}")
-            print(f"DEBUG: Available providers: {list(llm_clients.keys())}")
             raise HTTPException(status_code=500, detail=f"Unsupported provider: {provider}")
         
         return {"summary": summary, "provider": provider, "model": model, "prompt_type": prompt_type, "routed": False}

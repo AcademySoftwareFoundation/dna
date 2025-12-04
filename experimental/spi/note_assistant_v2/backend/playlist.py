@@ -45,6 +45,7 @@ def find_column_index(header, field_names):
 class NotesExportRequest(BaseModel):
     notes: list
     export_format: str = "csv"  # csv or txt
+    original_filename: str = None  # Optional original source filename
 
 @router.post("/export-notes")
 async def export_notes(request: NotesExportRequest):
@@ -97,10 +98,19 @@ async def export_notes(request: NotesExportRequest):
     
     csv_content = '\n'.join(lines)
     
+    # Generate filename based on original source
+    if request.original_filename:
+        # Remove extension and add _dna.csv suffix
+        base_name = os.path.splitext(request.original_filename)[0]
+        filename = f"{base_name}_dna.csv"
+    else:
+        # Default filename
+        filename = "shot_notes_dna.csv"
+    
     return {
         "status": "success",
         "content": csv_content,
-        "filename": "shot_notes.csv",
+        "filename": filename,
         "content_type": "text/csv"
     }
 
@@ -175,4 +185,4 @@ async def upload_playlist(file: UploadFile = File(...)):
                 'transcription': transcription,
                 'notes': notes
             })
-    return {"status": "success", "items": items}
+    return {"status": "success", "items": items, "original_filename": file.filename}

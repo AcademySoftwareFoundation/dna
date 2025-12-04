@@ -121,8 +121,8 @@ function SettingsPanel({
                       style={{ 
                         width: `${refreshProgress}%`, 
                         height: '100%', 
-                        background: 'var(--accent-color)',
-                        transition: 'width 0.3s ease'
+                        background: '#3d82f6',
+                        transition: refreshProgress === 0 ? 'none' : 'width 0.2s ease'
                       }}
                     />
                   </div>

@@ -3,7 +3,7 @@ import StatusBadge from '../StatusBadge';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-function UploadPanel({ setRows, setCurrentIndex }) {
+function UploadPanel({ setRows, setCurrentIndex, setOriginalFilename }) {
   const [uploadStatus, setUploadStatus] = useState({ msg: "", type: "info" });
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -28,6 +28,10 @@ function UploadPanel({ setRows, setCurrentIndex }) {
         }));
         setRows(mapped);
         setCurrentIndex(0);
+        // Store the original filename for export naming
+        if (setOriginalFilename && data.original_filename) {
+          setOriginalFilename(data.original_filename);
+        }
         setUploadStatus({ msg: "Playlist CSV uploaded successfully", type: "success" });
       } else {
         setUploadStatus({ msg: "Upload failed", type: "error" });
