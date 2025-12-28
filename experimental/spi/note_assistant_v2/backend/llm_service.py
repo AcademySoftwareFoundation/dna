@@ -822,6 +822,23 @@ def process_recording_task(recording_url: str, recipient_email: str, shotgrid_da
         if thumbnail_url:
             cmd.extend(['--thumbnail-url', thumbnail_url])
 
+        # Enable caching if GMEET_CACHE_DIR is configured
+        cache_dir = os.getenv('GMEET_CACHE_DIR', '')
+        if cache_dir and project_name:
+            # Convert relative path to absolute path (relative to backend directory)
+            if not os.path.isabs(cache_dir):
+                cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), cache_dir))
+
+            cmd.extend(['--output', cache_dir])
+            cmd.extend(['--project', project_name])
+            print(f"Cache enabled: recordings will be cached in {cache_dir}/{project_name}/")
+        else:
+            print("Cache disabled: using temporary files only")
+            if not cache_dir:
+                print("  Reason: GMEET_CACHE_DIR not set")
+            if not project_name:
+                print("  Reason: project_name not available")
+
         print(f"Running command: {' '.join(cmd)}")
 
         print(f"Command: {' '.join(cmd)}")

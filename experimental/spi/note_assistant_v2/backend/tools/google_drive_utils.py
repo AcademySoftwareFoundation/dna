@@ -527,11 +527,14 @@ def validate_cached_recording(
         return False
 
     # Optionally validate size matches expected
-    if expected_size and actual_size != expected_size:
-        if verbose:
-            print(f"Warning: Cached file size mismatch (expected {expected_size}, got {actual_size})")
-            print(f"File may be corrupted: {cache_path}")
-        return False
+    if expected_size is not None:
+        # Convert to int if needed (Google Drive API returns size as string)
+        expected_size_int = int(expected_size) if isinstance(expected_size, str) else expected_size
+        if actual_size != expected_size_int:
+            if verbose:
+                print(f"Warning: Cached file size mismatch (expected {expected_size_int}, got {actual_size})")
+                print(f"File may be corrupted: {cache_path}")
+            return False
 
     return True
 
