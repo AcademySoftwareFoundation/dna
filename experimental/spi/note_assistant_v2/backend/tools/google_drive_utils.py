@@ -401,3 +401,235 @@ def download_drive_file(
     # All retries exhausted
     print(f"Error: Failed to download file after {max_retries} attempts")
     return False
+
+
+# ============================================================================
+# Recording Cache Functions
+# ============================================================================
+
+def sanitize_filename(filename: str, max_length: int = 200) -> str:
+    """
+    Sanitize filename for cross-platform filesystem compatibility.
+
+    Removes/replaces characters that are invalid on Windows/Linux/macOS:
+    < > : " / \\ | ? *
+
+    Args:
+        filename: Original filename from Google Drive
+        max_length: Maximum filename length (default: 200, leaves room for extension)
+
+    Returns:
+        Sanitized filename safe for all filesystems
+
+    Example:
+        >>> sanitize_filename("Daily Review: 2024/12/28.mp4")
+        'Daily_Review_2024_12_28.mp4'
+    """
+    import re
+
+    # Remove file extension temporarily
+    name_parts = filename.rsplit('.', 1)
+    if len(name_parts) == 2:
+        name, ext = name_parts
+    else:
+        name = filename
+        ext = ''
+
+    # Replace invalid characters with underscores
+    # Invalid: < > : " / \ | ? *
+    name = re.sub(r'[<>:"/\\|?*]', '_', name)
+
+    # Replace multiple underscores with single underscore
+    name = re.sub(r'_+', '_', name)
+
+    # Remove leading/trailing underscores and spaces
+    name = name.strip('_ ')
+
+    # Truncate to max_length
+    if len(name) > max_length:
+        name = name[:max_length]
+
+    # Reconstruct with extension
+    if ext:
+        return f"{name}.{ext}"
+    return name
+
+
+def get_cached_recording_path(
+    file_id: str,
+    project: str,
+    output_dir: str,
+    recording_name: str
+) -> str:
+    """
+    Generate cache path for a recording.
+
+    Args:
+        file_id: Google Drive file ID
+        project: Project name for organization
+        output_dir: Root output directory
+        recording_name: Original recording filename (will be sanitized)
+
+    Returns:
+        Full path to cached file location
+
+    Example:
+        >>> get_cached_recording_path("1a2b3c4d", "myproject", "/cache", "meeting.mp4")
+        '/cache/myproject/meeting/recording.mp4'
+    """
+    # Sanitize the recording name for filesystem safety
+    sanitized_name = sanitize_filename(recording_name)
+
+    # Remove extension from sanitized name for directory
+    name_without_ext = sanitized_name.rsplit('.', 1)[0] if '.' in sanitized_name else sanitized_name
+
+    # Build path: {output_dir}/{project}/{sanitized_name}/recording.mp4
+    cache_path = os.path.join(
+        output_dir,
+        project,
+        name_without_ext,
+        "recording.mp4"
+    )
+
+    return cache_path
+
+
+def validate_cached_recording(
+    cache_path: str,
+    expected_size: Optional[int] = None,
+    verbose: bool = False
+) -> bool:
+    """
+    Validate that cached file exists and is complete.
+
+    Checks:
+    - File exists
+    - File is not empty
+    - File size matches expected (if provided)
+
+    Args:
+        cache_path: Path to cached file
+        expected_size: Expected file size in bytes (from Drive metadata)
+        verbose: Print validation details
+
+    Returns:
+        True if valid, False otherwise
+    """
+    # Check if file exists
+    if not os.path.exists(cache_path):
+        return False
+
+    # Check file is not empty
+    actual_size = os.path.getsize(cache_path)
+    if actual_size == 0:
+        if verbose:
+            print(f"Warning: Cached file is empty: {cache_path}")
+        return False
+
+    # Optionally validate size matches expected
+    if expected_size and actual_size != expected_size:
+        if verbose:
+            print(f"Warning: Cached file size mismatch (expected {expected_size}, got {actual_size})")
+            print(f"File may be corrupted: {cache_path}")
+        return False
+
+    return True
+
+
+def get_cached_recording(
+    file_id: str,
+    project: str,
+    output_dir: str,
+    recording_name: str,
+    expected_size: Optional[int] = None,
+    verbose: bool = False
+) -> Optional[str]:
+    """
+    Check if file exists in cache and return path if valid.
+
+    Args:
+        file_id: Google Drive file ID
+        project: Project name
+        output_dir: Root output directory
+        recording_name: Original recording filename
+        expected_size: Expected file size for validation
+        verbose: Print cache lookup details
+
+    Returns:
+        Path to cached file if valid, None if not found or invalid
+    """
+    cache_path = get_cached_recording_path(file_id, project, output_dir, recording_name)
+
+    if verbose:
+        print(f"Checking cache: {cache_path}")
+
+    if validate_cached_recording(cache_path, expected_size, verbose):
+        return cache_path
+
+    return None
+
+
+def cache_recording(
+    source_path: str,
+    file_id: str,
+    project: str,
+    output_dir: str,
+    recording_name: str,
+    verbose: bool = False
+) -> Optional[str]:
+    """
+    Store downloaded file in cache.
+
+    Creates cache directory structure and copies file from temp location
+    to permanent cache location.
+
+    Args:
+        source_path: Path to downloaded temp file
+        file_id: Google Drive file ID
+        project: Project name
+        output_dir: Root output directory
+        recording_name: Original recording filename
+        verbose: Print caching details
+
+    Returns:
+        Path to cached file if successful, None if failed
+
+    Raises:
+        PermissionError: If cannot write to cache directory
+        OSError: If disk full or other I/O error
+    """
+    import shutil
+
+    try:
+        # Get cache path
+        cache_path = get_cached_recording_path(file_id, project, output_dir, recording_name)
+
+        # Create cache directory
+        cache_dir = os.path.dirname(cache_path)
+        os.makedirs(cache_dir, exist_ok=True)
+
+        if verbose:
+            print(f"Caching file to: {cache_path}")
+
+        # Copy file to cache
+        shutil.copy2(source_path, cache_path)
+
+        # Validate the cached file
+        if not validate_cached_recording(cache_path, verbose=verbose):
+            print(f"Warning: Cached file validation failed")
+            return None
+
+        if verbose:
+            print(f"Successfully cached recording")
+
+        return cache_path
+
+    except PermissionError as e:
+        print(f"Error: Cannot write to cache directory: {e}")
+        return None
+    except OSError as e:
+        print(f"Error: Failed to cache file: {e}")
+        return None
+    except Exception as e:
+        print(f"Error: Unexpected error caching file: {e}")
+        return None

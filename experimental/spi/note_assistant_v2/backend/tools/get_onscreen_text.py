@@ -39,7 +39,7 @@ Usage Examples:
     python get_onscreen_text.py meeting.mp4 --start-time 120 --duration 300 --verbose
 
     # Detect build numbers and speaker names
-    python get_onscreen_text.py meeting.mp4 --version-pattern "goat-\\d+" --interval 1.0
+    python get_onscreen_text.py meeting.mp4 --version-pattern "proj-\\d+" --interval 1.0
 
     # Use full image OCR without speaker panel detection
     python get_onscreen_text.py frame.png --no-crop -v
@@ -1207,7 +1207,7 @@ def main():
     parser.add_argument("--no-crop", action="store_true",
                        help="Skip speaker panel detection and process the entire image with OCR.")
     parser.add_argument("--version-pattern", type=str,
-                       help="Regex pattern to detect version IDs (e.g., 'v\\d+\\.\\d+\\.\\d+' for version numbers, 'goat-\\d+' for build numbers).")
+                       help="Regex pattern to detect version IDs (e.g., 'v\\d+\\.\\d+\\.\\d+' for version numbers, 'proj-\\d+' for build numbers).")
     parser.add_argument("--parallel", action="store_true",
                        help="Enable parallel processing using multiple CPU cores (faster but disables debug mode for videos).")
     args = parser.parse_args()

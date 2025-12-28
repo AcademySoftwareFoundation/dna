@@ -73,7 +73,11 @@ def main():
     # Optional arguments
     parser.add_argument("recipient_email", nargs='?', default=None,
                        help="Email address for results (optional - if omitted, only CSV is produced)")
-    parser.add_argument("--output", help="Output CSV path (default: <sg_csv_basename>_processed.csv)")
+    parser.add_argument("--output",
+                       help="Output path: directory for organized outputs (requires --project) "
+                            "OR specific CSV file path (legacy mode). "
+                            "Directory mode: final CSV → {output}/{project}/{basename}_processed.csv, "
+                            "cached recordings → {output}/{project}/recordings/")
     parser.add_argument("--prompt-type", default="short", help="LLM prompt type (default: short)")
     parser.add_argument("--reference-threshold", type=int, default=30,
                        help="Time threshold for reference detection (default: 30)")
@@ -91,7 +95,7 @@ def main():
     parser.add_argument("--drive-url", default=None,
                        help="Google Drive URL for video (optional - enables clickable timestamp links in email)")
     parser.add_argument("--thumbnail-url", default=None,
-                       help="Base URL for version thumbnails (optional). Version ID will be appended. Example: 'http://thumbs05.spimageworks.com/images/attributes/jts/goat-'")
+                       help="Base URL for version thumbnails (optional). Version ID will be appended. Example: 'http://thumbs.example.com/images/project-'")
     parser.add_argument("--timeline-csv", default=None,
                        help="Output CSV path for chronological version timeline (optional). Shows when each version appears in the video.")
     parser.add_argument("--email-subject", default="Dailies Review Data - Version Notes and Summaries",
@@ -99,13 +103,42 @@ def main():
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument("--keep-intermediate", action="store_true",
                        help="Keep intermediate CSV files for debugging")
+    parser.add_argument("--project", type=str, default=None,
+                       help="Project name for organizing outputs (required when --output is a directory)")
+    parser.add_argument("--force-download", action="store_true",
+                       help="Force re-download from Google Drive even if cached version exists")
 
     args = parser.parse_args()
 
-    # Determine output filename
-    if not args.output:
-        # Derive from input SG CSV: <basename>_processed.csv
-        sg_basename = os.path.splitext(os.path.basename(args.sg_playlist_csv))[0]
+    # Determine if output is directory or file
+    output_is_dir = False
+    output_dir = None
+    sg_basename = os.path.splitext(os.path.basename(args.sg_playlist_csv))[0]
+
+    if args.output:
+        # Check if output is a directory (doesn't end with .csv)
+        if not args.output.endswith('.csv'):
+            output_is_dir = True
+            output_dir = args.output
+
+            # Require --project for directory mode
+            if not args.project:
+                parser.error("--project is required when --output is a directory path")
+
+            # Note: We don't create the full directory structure here because we need
+            # the recording name from Google Drive metadata first.
+            # The structure will be: {output_dir}/{project}/{recording_name}/
+            # This will be created in extract_google_meet_data()
+
+            # For now, just ensure output_dir exists
+            os.makedirs(output_dir, exist_ok=True)
+        else:
+            # File mode (legacy behavior)
+            output_dir_parent = os.path.dirname(args.output)
+            if output_dir_parent:
+                os.makedirs(output_dir_parent, exist_ok=True)
+    else:
+        # No --output specified: use current directory (legacy behavior)
         args.output = f"{sg_basename}_processed.csv"
 
     # Infer provider from model name
@@ -122,6 +155,9 @@ def main():
         sys.exit(1)
 
     # Create temp directory for intermediate files
+    # Note: When using output_dir mode with --keep-intermediate, the directory
+    # structure will be created by extract_google_meet_data() after it gets
+    # the recording name from Google Drive metadata
     temp_dir = tempfile.mkdtemp(prefix="gmeet_recording_")
 
     print("=== Google Meet Recording Processing Pipeline ===")
@@ -141,7 +177,7 @@ def main():
         gmeet_csv = os.path.join(temp_dir, "gmeet_data.csv")
 
         print("=== Stage 1: Extracting Google Meet Data ===")
-        success = extract_google_meet_data(
+        result = extract_google_meet_data(
             video_path=args.video_input,
             version_pattern=args.version_pattern,
             output_csv=gmeet_csv,
@@ -154,11 +190,32 @@ def main():
             parallel=args.parallel,
             drive_credentials=None,  # Will use default from .env
             timeline_csv_path=args.timeline_csv,
-            version_column_name=args.version_column
+            version_column_name=args.version_column,
+            output_dir=output_dir if output_is_dir else None,
+            project=args.project if output_is_dir else None,
+            force_download=args.force_download,
+            sg_basename=sg_basename,
+            keep_intermediate=args.keep_intermediate
         )
+
+        # Handle result - can be bool or tuple (success, recording_dir)
+        if isinstance(result, tuple):
+            success, recording_dir = result
+        else:
+            success = result
+            recording_dir = None
 
         if not success:
             cleanup_and_exit(temp_dir, "Failed to extract Google Meet data")
+
+        # If we got a recording directory, update output paths
+        if recording_dir and output_is_dir:
+            # Update final CSV path
+            args.output = os.path.join(recording_dir, f"{sg_basename}_processed.csv")
+
+            # Update timeline CSV path if specified
+            if args.timeline_csv and not os.path.dirname(args.timeline_csv):
+                args.timeline_csv = os.path.join(recording_dir, args.timeline_csv)
 
         if args.verbose:
             print("✓ Stage 1 complete")
@@ -284,7 +341,10 @@ def main():
             shutil.rmtree(temp_dir)
             print(f"Removed temporary files: {temp_dir}")
         else:
-            print(f"Kept intermediate files in: {temp_dir}")
+            if recording_dir:
+                print(f"Kept intermediate files in: {recording_dir}")
+            else:
+                print(f"Kept intermediate files in: {temp_dir}")
 
         print(f"\nFinal output: {args.output}")
         print("Pipeline completed successfully!")

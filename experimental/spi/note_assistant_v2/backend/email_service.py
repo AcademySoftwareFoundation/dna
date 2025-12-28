@@ -444,12 +444,12 @@ def main():
         python email_service.py user@example.com results.csv --drive-url "https://drive.google.com/file/d/ABC123/view"
 
         # With thumbnails
-        python email_service.py user@example.com results.csv --thumbnail-url "http://thumbs05.spimageworks.com/images/attributes/jts/goat-"
+        python email_service.py user@example.com results.csv --thumbnail-url "http://thumbs.example.com/images/project-"
 
         # With both
         python email_service.py user@example.com results.csv \
             --drive-url "https://drive.google.com/file/d/ABC123/view" \
-            --thumbnail-url "http://thumbs05.spimageworks.com/images/attributes/jts/goat-"
+            --thumbnail-url "http://thumbs.example.com/images/project-"
     """
     import argparse
 
@@ -465,12 +465,12 @@ Examples:
   python email_service.py user@example.com results.csv --drive-url "https://drive.google.com/file/d/ABC123/view"
 
   # With thumbnails
-  python email_service.py user@example.com results.csv --thumbnail-url "http://thumbs05.spimageworks.com/images/attributes/jts/goat-"
+  python email_service.py user@example.com results.csv --thumbnail-url "http://thumbs.example.com/images/project-"
 
   # With both Drive URL and thumbnails
   python email_service.py user@example.com results.csv \\
       --drive-url "https://drive.google.com/file/d/ABC123/view" \\
-      --thumbnail-url "http://thumbs05.spimageworks.com/images/attributes/jts/goat-"
+      --thumbnail-url "http://thumbs.example.com/images/project-"
         '''
     )
 
@@ -479,7 +479,7 @@ Examples:
     parser.add_argument('--drive-url', default=None,
                        help='Google Drive URL for video (optional - enables clickable timestamp links)')
     parser.add_argument('--thumbnail-url', default=None,
-                       help='Base URL for version thumbnails (optional). Version ID will be appended. Example: "http://thumbs05.spimageworks.com/images/attributes/jts/goat-"')
+                       help='Base URL for version thumbnails (optional). Version ID will be appended. Example: "http://thumbs.example.com/images/project-"')
 
     args = parser.parse_args()
 

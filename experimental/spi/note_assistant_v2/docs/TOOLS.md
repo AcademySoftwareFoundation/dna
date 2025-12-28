@@ -132,7 +132,9 @@ These parameters are always required:
 | Parameter | What It Does | Default | Example |
 |-----------|--------------|---------|---------|
 | `recipient_email` | Email address to send results to | None (no email) | `producer@studio.com` |
-| `--output` | Where to save the final CSV | `<sg_basename>_processed.csv` | `results.csv` |
+| `--output` | Directory for organized outputs OR CSV file path | `<sg_basename>_processed.csv` | `/outputs` or `results.csv` |
+| `--project` | Project name for organizing outputs (required with directory) | None | `myproject` |
+| `--force-download` | Force re-download from Drive even if cached | Off | Add flag to bypass cache |
 | `--drive-url` | Google Drive link for clickable timestamps | None | See below |
 | `--thumbnail-url` | Base URL for version thumbnails in email | None | `http://thumbs.server.com/` |
 | `--timeline-csv` | Save timeline CSV showing version chronology | None | `timeline.csv` |
@@ -143,7 +145,7 @@ These parameters are always required:
 | `--start-time` | Skip to this time in video (seconds) | 0 | `120` (start at 2 min) |
 | `--duration` | Only process this many seconds | Full video | `600` (10 minutes) |
 | `-v, --verbose` | Show detailed progress messages | Off | Add flag for more info |
-| `--keep-intermediate` | Keep temporary files for debugging | Off | Add flag to preserve |
+| `--keep-intermediate` | Keep intermediate files in organized location | Off | Add flag to preserve |
 
 ### Common Usage Examples
 
@@ -216,6 +218,144 @@ python process_gmeet_recording.py \
 ```
 
 **Use case:** The timeline CSV enables building additional tools (e.g., desktop review system plugins) that let users search for specific versions and jump directly to the relevant discussion in the recorded video.
+
+---
+
+### Using Organized Output Mode with Caching
+
+**What is organized output mode?**
+
+When you provide a directory path to `--output` (instead of a CSV filename), the pipeline organizes all outputs by project and recording name, and automatically caches downloaded Google Drive recordings to avoid re-downloading.
+
+**Benefits:**
+- **Avoid re-downloads**: Cached recordings are reused on subsequent runs
+- **Organized structure**: All outputs grouped by project and recording
+- **Offline capability**: Process cached recordings without internet access
+- **Bandwidth savings**: No redundant downloads from Google Drive
+
+**Directory structure:**
+```
+{output_dir}/
+└── {project}/
+    └── {recording_name}/
+        ├── recording.mp4              ← Cached video
+        ├── {sg_basename}_processed.csv ← Final results
+        ├── timeline.csv               ← Timeline (if requested)
+        └── intermediate/              ← Intermediate files (if --keep-intermediate)
+            ├── audio_transcript.csv
+            └── visual_detections.csv
+```
+
+**Basic usage with caching:**
+```bash
+python process_gmeet_recording.py \
+    "https://drive.google.com/file/d/1aB2cD3eF/view" \
+    playlist.csv \
+    --version-pattern "v(\d+)" \
+    --version-column "version" \
+    --model gemini-2.0-flash-exp \
+    --output /path/to/outputs \
+    --project myproject
+```
+
+**First run (cache miss):**
+- Downloads video from Google Drive
+- Caches to `/path/to/outputs/myproject/Daily_Review_2025_01_15/recording.mp4`
+- Processes video and saves results in same directory
+- Output: `/path/to/outputs/myproject/Daily_Review_2025_01_15/playlist_processed.csv`
+
+**Second run (cache hit):**
+```bash
+# Run same command again
+```
+- Detects cached recording
+- Skips download (prints "Cache hit! Using cached file...")
+- Processes from cache (much faster)
+- Updates CSV in same location
+
+**Force re-download (refresh cache):**
+```bash
+# Add --force-download flag
+python process_gmeet_recording.py \
+    "https://drive.google.com/file/d/1aB2cD3eF/view" \
+    playlist.csv \
+    --version-pattern "v(\d+)" \
+    --version-column "version" \
+    --model gemini-2.0-flash-exp \
+    --output /path/to/outputs \
+    --project myproject \
+    --force-download
+```
+- Re-downloads even if cached
+- Updates cache with new version
+- Useful when source file was updated on Google Drive
+
+**With intermediate files:**
+```bash
+python process_gmeet_recording.py \
+    "https://drive.google.com/file/d/1aB2cD3eF/view" \
+    playlist.csv \
+    --version-pattern "v(\d+)" \
+    --version-column "version" \
+    --model gemini-2.0-flash-exp \
+    --output /path/to/outputs \
+    --project myproject \
+    --keep-intermediate
+```
+- Intermediate files saved to `/path/to/outputs/myproject/Daily_Review_2025_01_15/intermediate/`
+- Preserved across runs (not in temp directory)
+
+**Multiple recordings for same project:**
+```bash
+# First recording
+python process_gmeet_recording.py \
+    "https://drive.google.com/file/d/RECORDING1/view" \
+    playlist1.csv \
+    --output /outputs --project myproject ...
+
+# Second recording (different file)
+python process_gmeet_recording.py \
+    "https://drive.google.com/file/d/RECORDING2/view" \
+    playlist2.csv \
+    --output /outputs --project myproject ...
+```
+
+Result:
+```
+/outputs/myproject/
+├── Daily_Review_Monday/
+│   ├── recording.mp4
+│   └── playlist1_processed.csv
+└── Weekly_Review_Friday/
+    ├── recording.mp4
+    └── playlist2_processed.csv
+```
+
+Each recording gets its own directory, preventing files from being overwritten.
+
+**Legacy mode (backward compatible):**
+
+If you specify a CSV filename (ending with `.csv`), the pipeline works as before:
+```bash
+# File mode - no caching, no project organization
+python process_gmeet_recording.py \
+    video.mp4 \
+    playlist.csv \
+    --version-pattern "v(\d+)" \
+    --version-column "version" \
+    --model gemini-2.0-flash-exp \
+    --output results/output.csv
+```
+- No caching
+- No project organization
+- CSV saved to specified path
+
+**Requirements for organized mode:**
+- `--output` must be a directory path (not ending in `.csv`)
+- `--project` is required when using directory mode
+- Works with both Google Drive URLs and local video files
+
+---
 
 ### Understanding the Output
 
@@ -1141,6 +1281,61 @@ python process_gmeet_recording.py ... --prompt-type detailed
 - `notes`: Original intent/context
 - `summary`: What was actually discussed
 - `transcription`: Full verbatim conversation
+
+---
+
+### How does caching work?
+
+**What gets cached?**
+
+When using organized output mode (`--output` as directory + `--project`), Google Drive recordings are automatically cached locally to avoid re-downloading.
+
+**Cache location:**
+```
+{output_dir}/{project}/{recording_name}/recording.mp4
+```
+
+**How caching works:**
+
+1. **First run**:
+   - Downloads from Google Drive
+   - Saves to cache location
+   - Processes video
+
+2. **Subsequent runs**:
+   - Checks if cached file exists
+   - Validates file size matches
+   - Uses cached version (skips download)
+
+**When is cache used?**
+- Same Google Drive link
+- Same project name
+- Same output directory
+- Recording hasn't changed
+
+**Force refresh:**
+```bash
+# Re-download even if cached
+--force-download
+```
+
+**Cache benefits:**
+- **Speed**: Skip 100MB+ downloads
+- **Offline**: Process without internet
+- **Bandwidth**: Avoid redundant downloads
+
+**Clearing cache:**
+
+Simply delete the recording directory:
+```bash
+rm -rf /outputs/myproject/Daily_Review_2025_01_15/
+```
+
+**Important notes:**
+- Cache only works with `--output` directory mode
+- Requires `--project` parameter
+- Each recording gets its own subdirectory
+- Multiple recordings per project won't overwrite each other
 
 ---
 

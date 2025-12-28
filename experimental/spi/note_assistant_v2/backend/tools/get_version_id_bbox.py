@@ -236,7 +236,7 @@ def detect_version_id_bbox_ocr(image_path, pattern, min_confidence=0.5, debug=Fa
         score = confidence
         
         # Bonus for longer matches (project identifiers vs just numbers)
-        if len(matched_part) >= 6:  # e.g., "goat-9498" is 9 chars
+        if len(matched_part) >= 6:  # e.g., "proj-9498" is 9 chars
             score += 0.1
         
         # Bonus for containing letters (not just numbers)

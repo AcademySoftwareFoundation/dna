@@ -28,10 +28,10 @@ Usage Examples:
     python get_data_from_google_meet.py "https://drive.google.com/file/d/1a2b3c4d/view" --version-pattern "v\\d+\\.\\d+\\.\\d+" --drive-credentials /path/to/service_account.json
 
     # Google Drive file ID (OAuth2 - will prompt for login on first run)
-    python get_data_from_google_meet.py 1a2b3c4d5e6f7g8h9i --version-pattern "goat-\\d+" --parallel
+    python get_data_from_google_meet.py 1a2b3c4d5e6f7g8h9i --version-pattern "proj-\\d+" --parallel
 
     # Custom audio model and frame interval
-    python get_data_from_google_meet.py meeting.mp4 --version-pattern "goat-\\d+" --audio-model small --frame-interval 3.0
+    python get_data_from_google_meet.py meeting.mp4 --version-pattern "proj-\\d+" --audio-model small --frame-interval 3.0
 
     # Process specific time range
     python get_data_from_google_meet.py meeting.mp4 --version-pattern "v\\d+\\.\\d+\\.\\d+" --start-time 120 --duration 300
@@ -382,7 +382,10 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                            start_time: float = 0.0, duration: Optional[float] = None,
                            batch_size: int = 20, verbose: bool = False, parallel: bool = False,
                            drive_credentials: Optional[str] = None, timeline_csv_path: Optional[str] = None,
-                           version_column_name: str = 'version_id') -> bool:
+                           version_column_name: str = 'version_id',
+                           output_dir: Optional[str] = None, project: Optional[str] = None,
+                           force_download: bool = False, sg_basename: Optional[str] = None,
+                           keep_intermediate: bool = False):
     """
     Extract data from a Google Meet recording: synchronized transcripts, speaker names, and version IDs
 
@@ -402,19 +405,82 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
         drive_credentials: Path to Google Drive OAuth2 credentials JSON (default: ../client_secret.json)
         timeline_csv_path: Optional path to save chronological version timeline CSV
         version_column_name: Column name to use for version in timeline CSV (default: 'version_id')
+        output_dir: Root output directory for organized mode
+        project: Project name for organizing outputs
+        force_download: Force re-download even if cached
+        sg_basename: ShotGrid CSV basename for naming outputs
+        keep_intermediate: Whether to keep intermediate files
 
     Returns:
-        True if successful, False otherwise
+        If output_dir is specified: Tuple of (success: bool, recording_dir: str)
+        Otherwise: bool (success status)
     """
     # Import Google Drive utilities
-    from google_drive_utils import parse_drive_url, download_drive_file
+    from google_drive_utils import (
+        parse_drive_url,
+        download_drive_file,
+        get_file_metadata,
+        get_cached_recording,
+        cache_recording
+    )
 
     # Detect if input is a Google Drive URL/ID
     file_id = parse_drive_url(video_path)
     temp_video_path = None
     temp_video_dir = None
 
-    if file_id:
+    # Variables for caching and directory management
+    original_filename = None
+    skip_download = False
+    recording_dir = None
+    intermediate_dir = None
+
+    # Check cache before downloading (if output_dir and project provided)
+    if file_id and output_dir:
+        if verbose:
+            print(f"Detected Google Drive file ID: {file_id}")
+
+        # Set default credentials path if not provided (OAuth2 in parent directory)
+        if drive_credentials is None:
+            drive_credentials = os.path.join(os.path.dirname(__file__), '..', 'client_secret.json')
+
+        # Get original filename from Google Drive metadata
+        metadata = get_file_metadata(file_id, drive_credentials)
+        if metadata:
+            original_filename = metadata['name']
+            file_size = metadata.get('size', 0)
+
+            # Create recording directory structure
+            from google_drive_utils import sanitize_filename
+            sanitized_name = sanitize_filename(original_filename)
+            name_without_ext = sanitized_name.rsplit('.', 1)[0] if '.' in sanitized_name else sanitized_name
+            recording_dir = os.path.join(output_dir, project, name_without_ext)
+
+            # Create recording directory
+            os.makedirs(recording_dir, exist_ok=True)
+
+            if verbose:
+                print(f"Recording directory: {recording_dir}")
+
+            # Check cache before downloading
+            if not force_download:
+                cached_path = get_cached_recording(
+                    file_id, project, output_dir, original_filename,
+                    expected_size=file_size, verbose=verbose
+                )
+                if cached_path:
+                    video_path = cached_path
+                    skip_download = True
+                    if verbose:
+                        print(f"Cache hit! Using cached file: {cached_path}")
+                else:
+                    if verbose:
+                        print(f"Cache miss. Downloading from Google Drive...")
+            else:
+                if verbose:
+                    print(f"Force download enabled. Bypassing cache...")
+
+    if file_id and not skip_download:
         # Download from Google Drive
         if verbose:
             print(f"Detected Google Drive file ID: {file_id}")
@@ -440,8 +506,24 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                     shutil.rmtree(temp_video_dir)
                 return False
 
-            # Update video_path to point to downloaded file
-            video_path = temp_video_path
+            # Cache the downloaded file if output_dir and original_filename are available
+            if output_dir and original_filename:
+                cached_path = cache_recording(
+                    temp_video_path, file_id, project, output_dir,
+                    original_filename, verbose=verbose
+                )
+                if cached_path:
+                    video_path = cached_path
+                    # Clean up temp since we have it cached now
+                    if temp_video_dir and os.path.exists(temp_video_dir):
+                        import shutil
+                        shutil.rmtree(temp_video_dir)
+                        temp_video_dir = None  # Mark as cleaned
+                else:
+                    video_path = temp_video_path
+            else:
+                # Update video_path to point to downloaded file
+                video_path = temp_video_path
 
         except Exception as e:
             print(f"Error downloading from Google Drive: {e}")
@@ -645,11 +727,36 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                 print(f"\n=== Step 7: Extracting Version Timeline ===")
             extract_version_timeline(visual_csv, timeline_csv_path, version_column_name=version_column_name, verbose=verbose)
 
-        return True
+        # Step 8: Copy intermediate files to recording directory if keep_intermediate
+        if recording_dir and keep_intermediate:
+            import shutil
+            intermediate_dir = os.path.join(recording_dir, "intermediate")
+            os.makedirs(intermediate_dir, exist_ok=True)
+
+            if verbose:
+                print(f"\n=== Copying intermediate files to {intermediate_dir} ===")
+
+            # Copy intermediate CSVs
+            for filename in ['audio_transcript.csv', 'visual_detections.csv']:
+                src = os.path.join(temp_dir, filename)
+                if os.path.exists(src):
+                    dst = os.path.join(intermediate_dir, filename)
+                    shutil.copy2(src, dst)
+                    if verbose:
+                        print(f"Copied {filename}")
+
+        # Return tuple with recording directory if output_dir specified
+        if output_dir:
+            return (True, recording_dir)
+        else:
+            return True
         
     except Exception as e:
         print(f"Error during processing: {e}")
-        return False
+        if output_dir:
+            return (False, None)
+        else:
+            return False
     
     finally:
         # Clean up temporary directory for intermediate files
@@ -662,7 +769,8 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
             except Exception as e:
                 print(f"Warning: Failed to clean up temporary directory: {e}")
 
-        # Clean up downloaded Google Drive file
+        # Clean up downloaded Google Drive file (only if not cached)
+        # Note: temp_video_dir is set to None if file was cached
         if temp_video_dir and os.path.exists(temp_video_dir):
             try:
                 shutil.rmtree(temp_video_dir)
@@ -685,7 +793,7 @@ def main():
                        help="Path to the input video file (.mp4, .avi, .mov, etc.) OR Google Drive URL/file ID. "
                             "Supported Drive formats: https://drive.google.com/file/d/FILE_ID/view OR FILE_ID")
     parser.add_argument("--version-pattern", required=True, type=str,
-                       help="Regex pattern to detect version IDs (e.g., 'v\\d+\\.\\d+\\.\\d+' for version numbers, 'goat-\\d+' for build numbers).")
+                       help="Regex pattern to detect version IDs (e.g., 'v\\d+\\.\\d+\\.\\d+' for version numbers, 'proj-\\d+' for build numbers).")
     
     # Optional arguments
     parser.add_argument("-o", "--output", help="Output CSV file path. If not provided, will be input filename with '_processed.csv' suffix.")
