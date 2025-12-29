@@ -386,8 +386,22 @@ def main():
             shutil.rmtree(temp_dir)
             print(f"Removed temporary files: {temp_dir}")
         else:
+            # Copy remaining intermediate files to recording directory
             if recording_dir:
-                print(f"Kept intermediate files in: {recording_dir}")
+                intermediate_dir = os.path.join(recording_dir, "intermediate")
+                os.makedirs(intermediate_dir, exist_ok=True)
+
+                # Copy Stage 2+ intermediate files
+                for filename in ['gmeet_data.csv', 'combined_data.csv']:
+                    src = os.path.join(temp_dir, filename)
+                    if os.path.exists(src):
+                        dst = os.path.join(intermediate_dir, filename)
+                        shutil.copy2(src, dst)
+                        print(f"Copied {filename} to intermediate/")
+
+                # Clean up temp directory after copying
+                shutil.rmtree(temp_dir)
+                print(f"Kept intermediate files in: {intermediate_dir}")
             else:
                 print(f"Kept intermediate files in: {temp_dir}")
 

@@ -819,6 +819,11 @@ def process_recording_task(recording_url: str, recipient_email: str, shotgrid_da
         if parallel:
             cmd.append('--parallel')
 
+        # Keep intermediate files if configured
+        keep_intermediate = os.getenv('GMEET_KEEP_INTERMEDIATE', 'false').lower() == 'true'
+        if keep_intermediate:
+            cmd.append('--keep-intermediate')
+
         if thumbnail_url:
             cmd.extend(['--thumbnail-url', thumbnail_url])
 

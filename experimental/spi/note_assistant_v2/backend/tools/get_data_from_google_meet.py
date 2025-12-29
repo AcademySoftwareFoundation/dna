@@ -66,7 +66,8 @@ from get_onscreen_text import (
 
 
 def _run_audio_transcription_worker(video_path: str, transcript_csv: str,
-                                   audio_model: str, duration: Optional[float], verbose: bool) -> tuple:
+                                   audio_model: str, duration: Optional[float], verbose: bool,
+                                   cache_audio_path: Optional[str] = None) -> tuple:
     """
     Worker function for audio transcription in multiprocessing.
     Must be defined at module level for multiprocessing to work.
@@ -83,7 +84,8 @@ def _run_audio_transcription_worker(video_path: str, transcript_csv: str,
         transcript_csv,
         model_name=audio_model,
         duration=duration,
-        verbose=verbose
+        verbose=verbose,
+        cache_audio_path=cache_audio_path
     )
     elapsed = time.time() - start_time
 
@@ -577,12 +579,19 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
     
     # Create temporary directory for intermediate files
     temp_dir = tempfile.mkdtemp(prefix="google_meet_data_")
-    
+
+    # Determine cache path for extracted audio (if caching is enabled)
+    cache_audio_path = None
+    if recording_dir:
+        cache_audio_path = os.path.join(recording_dir, "audio.mp3")
+        if verbose and os.path.exists(cache_audio_path):
+            print(f"Cached audio file found: {cache_audio_path}")
+
     try:
         # Define paths for intermediate CSV files
         transcript_csv = os.path.join(temp_dir, "transcript.csv")
         visual_csv = os.path.join(temp_dir, "visual.csv")
-        
+
         if verbose:
             print(f"Using temporary directory: {temp_dir}")
         
@@ -598,7 +607,7 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                     # Submit both tasks to separate processes
                     audio_future = executor.submit(
                         _run_audio_transcription_worker,
-                        video_path, transcript_csv, audio_model, duration, verbose
+                        video_path, transcript_csv, audio_model, duration, verbose, cache_audio_path
                     )
                     visual_future = executor.submit(
                         _run_visual_detection_worker,
@@ -666,7 +675,8 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                 transcript_csv,
                 model_name=audio_model,
                 duration=duration,
-                verbose=verbose
+                verbose=verbose,
+                cache_audio_path=cache_audio_path
             )
             timing['transcription'] = time.time() - transcription_start
 
@@ -793,7 +803,7 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                 print(f"\n=== Copying intermediate files to {intermediate_dir} ===")
 
             # Copy intermediate CSVs
-            for filename in ['audio_transcript.csv', 'visual_detections.csv']:
+            for filename in ['transcript.csv', 'visual.csv']:
                 src = os.path.join(temp_dir, filename)
                 if os.path.exists(src):
                     dst = os.path.join(intermediate_dir, filename)

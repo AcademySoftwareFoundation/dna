@@ -150,7 +150,7 @@ def save_transcript_to_csv(transcript_result: dict, output_csv_path: str) -> boo
         return False
 
 
-def process_media_file(input_file_path: str, output_csv_path: str, model_name: str = "base", duration: float = None, verbose: bool = False) -> bool:
+def process_media_file(input_file_path: str, output_csv_path: str, model_name: str = "base", duration: float = None, verbose: bool = False, cache_audio_path: str = None) -> bool:
     """
     Processes a media file (.mp4 or .mp3) to extract transcript.
 
@@ -160,6 +160,9 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
         model_name (str): Whisper model to use for transcription.
         duration (float, optional): Duration in seconds to process. If None, processes entire file.
         verbose (bool): Print detailed progress information.
+        cache_audio_path (str, optional): Path to cache the extracted audio file. If provided and exists,
+                                         skips audio extraction. If provided and doesn't exist, saves
+                                         extracted audio to this path for future use.
 
     Returns:
         bool: True if successful, False otherwise.
@@ -175,7 +178,7 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
             print(f"Processing duration: {duration} seconds")
     
     file_extension = os.path.splitext(input_file_path)[1].lower()
-    
+
     # Determine if we need to extract audio or can use the file directly
     if file_extension == '.mp3':
         audio_file_path = input_file_path
@@ -183,19 +186,35 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
         if verbose:
             print("Input is MP3, using directly for transcription")
     elif file_extension == '.mp4':
-        # Create temporary audio file
-        temp_audio_file = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
-        audio_file_path = temp_audio_file.name
-        temp_audio_file.close()
-        
-        if verbose:
-            print(f"Input is MP4, extracting audio to temporary file: {audio_file_path}")
-        
-        # Extract audio from video
-        if not extract_audio_from_video(input_file_path, audio_file_path, duration):
-            if temp_audio_file:
-                os.unlink(audio_file_path)
-            return False
+        # Check if cached audio exists
+        if cache_audio_path and os.path.exists(cache_audio_path):
+            audio_file_path = cache_audio_path
+            temp_audio_file = None
+            if verbose:
+                print(f"Using cached audio file: {cache_audio_path}")
+        else:
+            # Determine where to save extracted audio
+            if cache_audio_path:
+                # Save to cache location
+                audio_file_path = cache_audio_path
+                temp_audio_file = None
+                # Create parent directory if needed
+                os.makedirs(os.path.dirname(cache_audio_path), exist_ok=True)
+                if verbose:
+                    print(f"Input is MP4, extracting audio to cache: {audio_file_path}")
+            else:
+                # Create temporary audio file
+                temp_audio_file = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+                audio_file_path = temp_audio_file.name
+                temp_audio_file.close()
+                if verbose:
+                    print(f"Input is MP4, extracting audio to temporary file: {audio_file_path}")
+
+            # Extract audio from video
+            if not extract_audio_from_video(input_file_path, audio_file_path, duration):
+                if temp_audio_file:
+                    os.unlink(audio_file_path)
+                return False
     else:
         print(f"Error: Unsupported file format '{file_extension}'. Supported formats: .mp4, .mp3")
         return False
@@ -222,10 +241,12 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
         
         return success
     finally:
-        # Clean up temporary audio file if created
+        # Clean up temporary audio file if created (but not cached files)
         if file_extension == '.mp4' and temp_audio_file:
             try:
                 os.unlink(audio_file_path)
+                if verbose:
+                    print(f"Cleaned up temporary audio file")
             except OSError:
                 pass
 
