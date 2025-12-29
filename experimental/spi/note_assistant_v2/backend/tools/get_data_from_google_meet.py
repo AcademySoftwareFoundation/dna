@@ -48,6 +48,7 @@ import argparse
 import os
 import re
 import csv
+import time
 import tempfile
 import subprocess
 from typing import List, Dict, Tuple, Optional
@@ -64,33 +65,49 @@ from get_onscreen_text import (
 )
 
 
-def _run_audio_transcription_worker(video_path: str, transcript_csv: str, 
-                                   audio_model: str, duration: Optional[float], verbose: bool) -> bool:
+def _run_audio_transcription_worker(video_path: str, transcript_csv: str,
+                                   audio_model: str, duration: Optional[float], verbose: bool) -> tuple:
     """
     Worker function for audio transcription in multiprocessing.
     Must be defined at module level for multiprocessing to work.
+
+    Returns:
+        Tuple of (success: bool, elapsed_time: float)
     """
     if verbose:
         print("[Audio Process] Starting audio transcription...")
-    return process_media_file(
+
+    start_time = time.time()
+    success = process_media_file(
         video_path,
         transcript_csv,
         model_name=audio_model,
         duration=duration,
         verbose=verbose
     )
+    elapsed = time.time() - start_time
+
+    if verbose:
+        print(f"[Audio Process] Completed in {elapsed:.1f}s")
+
+    return (success, elapsed)
 
 
 def _run_visual_detection_worker(video_path: str, frame_interval: float, visual_csv: str,
                                 duration: Optional[float], batch_size: int, verbose: bool,
-                                version_pattern: str, start_time: float) -> bool:
+                                version_pattern: str, start_time_offset: float) -> tuple:
     """
     Worker function for visual detection in multiprocessing.
     Must be defined at module level for multiprocessing to work.
+
+    Returns:
+        Tuple of (success: bool, elapsed_time: float)
     """
     if verbose:
         print("[Visual Process] Starting visual detection...")
-    return process_video_visual(
+
+    start_time = time.time()
+    success = process_video_visual(
         video_path,
         frame_interval,
         visual_csv,
@@ -98,9 +115,15 @@ def _run_visual_detection_worker(video_path: str, frame_interval: float, visual_
         batch_size=batch_size,
         verbose=verbose,
         version_pattern=version_pattern,  # Always required
-        start_time=start_time,
+        start_time=start_time_offset,
         parallel=True  # Enable parallel frame processing within visual detection too
     )
+    elapsed = time.time() - start_time
+
+    if verbose:
+        print(f"[Visual Process] Completed in {elapsed:.1f}s")
+
+    return (success, elapsed)
 
 
 def parse_transcript_csv(transcript_csv_path: str) -> List[Dict]:
@@ -412,9 +435,12 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
         keep_intermediate: Whether to keep intermediate files
 
     Returns:
-        If output_dir is specified: Tuple of (success: bool, recording_dir: str)
-        Otherwise: bool (success status)
+        If output_dir is specified: Tuple of (success: bool, recording_dir: str, timing: dict)
+        Otherwise: Tuple of (success: bool, timing: dict)
     """
+    # Initialize timing tracking
+    timing = {}
+
     # Import Google Drive utilities
     from google_drive_utils import (
         parse_drive_url,
@@ -497,7 +523,9 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
             if verbose:
                 print(f"Downloading from Google Drive to: {temp_video_path}")
 
+            download_start = time.time()
             success = download_drive_file(file_id, temp_video_path, drive_credentials, verbose)
+            timing['download'] = time.time() - download_start
 
             if not success:
                 print("Failed to download file from Google Drive")
@@ -562,9 +590,10 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
             # Run audio transcription and visual detection in parallel using multiprocessing
             if verbose:
                 print("\n=== Running Audio Transcription and Visual Detection in Parallel (Multiprocessing) ===")
-            
+
             # Use ProcessPoolExecutor for true parallelism (bypasses GIL)
             try:
+                parallel_start = time.time()
                 with ProcessPoolExecutor(max_workers=2) as executor:
                     # Submit both tasks to separate processes
                     audio_future = executor.submit(
@@ -573,30 +602,53 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                     )
                     visual_future = executor.submit(
                         _run_visual_detection_worker,
-                        video_path, frame_interval, visual_csv, duration, batch_size, 
+                        video_path, frame_interval, visual_csv, duration, batch_size,
                         verbose, version_pattern, start_time
                     )
-                    
-                    # Wait for both to complete and get results
-                    transcript_success = audio_future.result()
-                    visual_success = visual_future.result()
+
+                    # Wait for both to complete and get results (with individual times)
+                    transcript_success, transcription_time = audio_future.result()
+                    visual_success, visual_time = visual_future.result()
+
+                parallel_elapsed = time.time() - parallel_start
+
+                # Store individual task times
+                timing['transcription'] = transcription_time
+                timing['visual_detection'] = visual_time
+
+                # Store parallel execution time
+                timing['parallel_elapsed'] = parallel_elapsed
+
+                # Calculate speedup
+                sequential_time = transcription_time + visual_time
+                speedup = sequential_time / parallel_elapsed if parallel_elapsed > 0 else 1.0
+                timing['parallel_speedup'] = speedup
+
+                if verbose:
+                    print(f"\n[Parallel Timing]")
+                    print(f"  Audio transcription: {transcription_time:.1f}s")
+                    print(f"  Visual detection: {visual_time:.1f}s")
+                    print(f"  Sequential would take: {sequential_time:.1f}s")
+                    print(f"  Parallel took: {parallel_elapsed:.1f}s")
+                    print(f"  Speedup: {speedup:.2f}x")
+
             except Exception as e:
                 print(f"Error in multiprocessing execution: {e}")
                 print("Falling back to sequential processing...")
                 # Fall back to sequential processing if multiprocessing fails
                 return extract_google_meet_data(
-                    video_path, version_pattern, output_csv, audio_model, 
+                    video_path, version_pattern, output_csv, audio_model,
                     frame_interval, start_time, duration, batch_size, verbose, parallel=False
                 )
-            
+
             if not transcript_success:
                 print("Failed to generate audio transcript")
-                return False
-            
+                return (False, timing)
+
             if not visual_success:
                 print("Failed to generate visual detections")
-                return False
-            
+                return (False, timing)
+
             if verbose:
                 print("[Multiprocessing] Both audio transcription and visual detection completed successfully")
                 print(f"Audio transcript saved to: {transcript_csv}")
@@ -607,7 +659,8 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
             # Step 1: Extract audio transcript
             if verbose:
                 print("\n=== Step 1: Audio Transcription ===")
-            
+
+            transcription_start = time.time()
             transcript_success = process_media_file(
                 video_path,
                 transcript_csv,
@@ -615,18 +668,20 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                 duration=duration,
                 verbose=verbose
             )
-            
+            timing['transcription'] = time.time() - transcription_start
+
             if not transcript_success:
                 print("Failed to generate audio transcript")
-                return False
-            
+                return (False, timing)
+
             if verbose:
                 print(f"Audio transcript saved to: {transcript_csv}")
-            
+
             # Step 2: Extract visual detections (speaker names + version IDs)
             if verbose:
                 print("\n=== Step 2: Visual Detection ===")
-            
+
+            visual_start = time.time()
             visual_success = process_video_visual(
                 video_path,
                 frame_interval,
@@ -638,11 +693,12 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                 start_time=start_time,
                 parallel=False  # Sequential frame processing
             )
-            
+            timing['visual_detection'] = time.time() - visual_start
+
             if not visual_success:
                 print("Failed to generate visual detections")
-                return False
-            
+                return (False, timing)
+
             if verbose:
                 print(f"Visual detections saved to: {visual_csv}")
         
@@ -659,7 +715,7 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
         
         if not transcript_segments:
             print("No transcript segments found")
-            return False
+            return (False, timing)
         
         # Synchronize transcript with visual data
         synchronized_records = synchronize_data(transcript_segments, visual_detections)
@@ -745,18 +801,18 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                     if verbose:
                         print(f"Copied {filename}")
 
-        # Return tuple with recording directory if output_dir specified
+        # Return tuple with recording directory and timing if output_dir specified
         if output_dir:
-            return (True, recording_dir)
+            return (True, recording_dir, timing)
         else:
-            return True
-        
+            return (True, timing)
+
     except Exception as e:
         print(f"Error during processing: {e}")
         if output_dir:
-            return (False, None)
+            return (False, None, timing)
         else:
-            return False
+            return (False, timing)
     
     finally:
         # Clean up temporary directory for intermediate files

@@ -25,6 +25,7 @@ import sys
 import csv
 import tempfile
 import shutil
+import time
 from dotenv import load_dotenv
 
 # Load .env from parent directory
@@ -48,6 +49,20 @@ from llm_service import (
     llm_clients
 )
 from email_service import send_csv_email
+
+
+def format_duration(seconds: float) -> str:
+    """Format seconds into human-readable duration (Xh Ym Zs)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    elif minutes > 0:
+        return f"{minutes}m {secs}s"
+    else:
+        return f"{secs}s"
 
 
 def cleanup_and_exit(temp_dir, error_msg):
@@ -154,6 +169,10 @@ def main():
         print(f"Available models: {[m['model_name'] for m in available_models]}")
         sys.exit(1)
 
+    # Initialize timing tracking
+    timing = {}
+    script_start_time = time.time()
+
     # Create temp directory for intermediate files
     # Note: When using output_dir mode with --keep-intermediate, the directory
     # structure will be created by extract_google_meet_data() after it gets
@@ -177,6 +196,7 @@ def main():
         gmeet_csv = os.path.join(temp_dir, "gmeet_data.csv")
 
         print("=== Stage 1: Extracting Google Meet Data ===")
+        stage1_start = time.time()
         result = extract_google_meet_data(
             video_path=args.video_input,
             version_pattern=args.version_pattern,
@@ -198,15 +218,27 @@ def main():
             keep_intermediate=args.keep_intermediate
         )
 
-        # Handle result - can be bool or tuple (success, recording_dir)
+        # Handle result - can be tuple (success, recording_dir, stage1_timing) or (success, stage1_timing)
         if isinstance(result, tuple):
-            success, recording_dir = result
+            if len(result) == 3:
+                # With output_dir: (success, recording_dir, stage1_timing)
+                success, recording_dir, stage1_timing = result
+            else:
+                # Without output_dir: (success, stage1_timing)
+                success, stage1_timing = result
+                recording_dir = None
+
+            # Merge stage1 detailed timing into main timing dict
+            timing.update(stage1_timing)
         else:
+            # Backward compatibility if function doesn't return timing
             success = result
             recording_dir = None
 
         if not success:
             cleanup_and_exit(temp_dir, "Failed to extract Google Meet data")
+
+        timing['stage1'] = time.time() - stage1_start
 
         # If we got a recording directory, update output paths
         if recording_dir and output_is_dir:
@@ -217,8 +249,7 @@ def main():
             if args.timeline_csv and not os.path.dirname(args.timeline_csv):
                 args.timeline_csv = os.path.join(recording_dir, args.timeline_csv)
 
-        if args.verbose:
-            print("✓ Stage 1 complete")
+        print(f"✓ Stage 1 complete ({format_duration(timing['stage1'])})")
         print()
 
         # ===================================================================
@@ -227,6 +258,7 @@ def main():
         combined_csv = os.path.join(temp_dir, "combined_data.csv")
 
         print("=== Stage 2: Combining with ShotGrid Data ===")
+        stage2_start = time.time()
 
         # Load ShotGrid data (using provided version column)
         sg_data = load_sg_data(
@@ -275,8 +307,8 @@ def main():
 
         print(f"Combined data saved: {len(output_rows)} versions")
 
-        if args.verbose:
-            print("✓ Stage 2 complete")
+        timing['stage2'] = time.time() - stage2_start
+        print(f"✓ Stage 2 complete ({format_duration(timing['stage2'])})")
         print()
 
         # ===================================================================
@@ -286,7 +318,8 @@ def main():
         print(f"Using model: {args.model}")
         print(f"Inferred provider: {provider}")
 
-        success = process_csv_with_llm_summaries(
+        stage3_start = time.time()
+        result = process_csv_with_llm_summaries(
             csv_path=combined_csv,
             output_path=args.output,
             provider=provider,
@@ -294,13 +327,19 @@ def main():
             prompt_type=args.prompt_type
         )
 
+        # Handle result - can be tuple (success, llm_time) or just bool
+        if isinstance(result, tuple):
+            success, llm_time = result
+            timing['llm_summarization'] = llm_time
+        else:
+            success = result
+
         if not success:
             cleanup_and_exit(temp_dir, "Failed to generate LLM summaries")
 
+        timing['stage3'] = time.time() - stage3_start
         print(f"LLM summaries saved to: {args.output}")
-
-        if args.verbose:
-            print("✓ Stage 3 complete")
+        print(f"✓ Stage 3 complete ({format_duration(timing['stage3'])})")
         print()
 
         # ===================================================================
@@ -310,12 +349,18 @@ def main():
             print("=== Stage 4: Sending Email ===")
 
             try:
+                # Calculate total execution time
+                total_time = time.time() - script_start_time
+
                 success = send_csv_email(
                     args.recipient_email,
                     args.output,
                     drive_url=args.drive_url,
                     thumbnail_url=args.thumbnail_url,
-                    timeline_csv_path=args.timeline_csv
+                    timeline_csv_path=args.timeline_csv,
+                    subject=args.email_subject,
+                    execution_time=format_duration(total_time),
+                    timing_breakdown=timing
                 )
                 if success:
                     print(f"Email sent successfully to {args.recipient_email}")
@@ -346,6 +391,38 @@ def main():
             else:
                 print(f"Kept intermediate files in: {temp_dir}")
 
+        # ===================================================================
+        # Final Summary
+        # ===================================================================
+        total_time = time.time() - script_start_time
+
+        print("\n" + "="*60)
+        print("Processing Complete!")
+        print(f"Total Time: {format_duration(total_time)}")
+        print("\nTiming Breakdown:")
+
+        if 'download' in timing:
+            print(f"  • Google Drive Download: {format_duration(timing['download'])}")
+
+        # Show parallel processing speedup if available
+        if 'parallel_elapsed' in timing and 'parallel_speedup' in timing:
+            print(f"  • Audio Transcription: {format_duration(timing['transcription'])} (actual)")
+            print(f"  • Visual Detection: {format_duration(timing['visual_detection'])} (actual)")
+            sequential_time = timing['transcription'] + timing['visual_detection']
+            print(f"    → Sequential would take: {format_duration(sequential_time)}")
+            print(f"    → Parallel took: {format_duration(timing['parallel_elapsed'])}")
+            print(f"    → Speedup: {timing['parallel_speedup']:.2f}x")
+        else:
+            # Sequential mode
+            if 'transcription' in timing:
+                print(f"  • Audio Transcription: {format_duration(timing['transcription'])}")
+            if 'visual_detection' in timing:
+                print(f"  • Visual Detection (bbox + speaker): {format_duration(timing['visual_detection'])}")
+
+        if 'llm_summarization' in timing:
+            print(f"  • LLM Summarization: {format_duration(timing['llm_summarization'])}")
+
+        print("="*60)
         print(f"\nFinal output: {args.output}")
         print("Pipeline completed successfully!")
 

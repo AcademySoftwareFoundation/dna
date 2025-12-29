@@ -847,6 +847,9 @@ def process_recording_task(recording_url: str, recipient_email: str, shotgrid_da
         #return  # TEMPORARY: Remove this return to actually execute the command
 
         # Run the subprocess and capture output to log file
+        import time
+        start_time = time.time()
+
         with open(log_file_path, 'w') as log_file:
             log_file.write(f"=== Google Meet Past Recording Processing ===\n")
             log_file.write(f"Started: {datetime.now().isoformat()}\n")
@@ -869,14 +872,28 @@ def process_recording_task(recording_url: str, recipient_email: str, shotgrid_da
             # Wait for completion
             return_code = process.wait()
 
+            # Calculate execution time
+            elapsed_seconds = time.time() - start_time
+            hours = int(elapsed_seconds // 3600)
+            minutes = int((elapsed_seconds % 3600) // 60)
+            seconds = int(elapsed_seconds % 60)
+
+            if hours > 0:
+                elapsed_str = f"{hours}h {minutes}m {seconds}s"
+            elif minutes > 0:
+                elapsed_str = f"{minutes}m {seconds}s"
+            else:
+                elapsed_str = f"{seconds}s"
+
             log_file.write(f"\n{'='*60}\n")
             log_file.write(f"Completed: {datetime.now().isoformat()}\n")
+            log_file.write(f"Duration: {elapsed_str} ({elapsed_seconds:.2f} seconds)\n")
             log_file.write(f"Return code: {return_code}\n")
 
         if return_code != 0:
             raise Exception(f"Processing failed with return code {return_code}. Check log: {log_file_path}")
 
-        print(f"Processing completed successfully! Log: {log_file_path}")
+        print(f"Processing completed in {elapsed_str}! Log: {log_file_path}")
 
     except Exception as e:
         error_msg = f"Error processing Google Meet recording: {str(e)}"
@@ -987,14 +1004,20 @@ async def process_past_recording(
 def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=None, prompt_type="short"):
     """
     Process a CSV file by adding LLM summaries for conversation data.
-    
+
     Args:
         csv_path: Path to input CSV file
         output_path: Path to output CSV file with summaries
         provider: LLM provider to use (optional)
         model: Specific model to use (optional)
         prompt_type: Type of prompt to use for summaries
+
+    Returns:
+        Tuple of (success: bool, llm_time: float) where llm_time is total LLM processing time in seconds
     """
+    import time
+    llm_start_time = time.time()
+
     print(f"Loading CSV from: {csv_path}")
     
     # Read the CSV file
@@ -1003,13 +1026,13 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
         print(f"Loaded {len(df)} rows from CSV")
     except Exception as e:
         print(f"Error reading CSV file: {e}")
-        return False
-    
+        return (False, 0.0)
+
     # Check if conversation column exists
     if 'conversation' not in df.columns:
         print("Error: 'conversation' column not found in CSV")
         print(f"Available columns: {list(df.columns)}")
-        return False
+        return (False, 0.0)
     
     # Initialize new columns for LLM results
     df['llm_summary'] = ''
@@ -1045,7 +1068,7 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
     
     if not selected_client_key:
         print("No LLM clients available for processing")
-        return False
+        return (False, 0.0)
     
     client_info = llm_clients[selected_client_key]
     client = client_info['client']
@@ -1111,12 +1134,14 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
     # Save the results to output CSV
     try:
         df.to_csv(output_path, index=False)
+        llm_total_time = time.time() - llm_start_time
         print(f"\nResults saved to: {output_path}")
         print(f"Processed {processed_count} conversations successfully")
-        return True
+        return (True, llm_total_time)
     except Exception as e:
         print(f"Error saving output CSV: {e}")
-        return False
+        llm_total_time = time.time() - llm_start_time
+        return (False, llm_total_time)
 
 if __name__ == "__main__":
     import sys

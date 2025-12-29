@@ -216,7 +216,7 @@ def send_email(to, subject, html_content, attachments=None):
     else:
         send_gmail_email(to, subject, html_content, attachments=attachments)
 
-def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = None, thumbnail_url: str = None, timeline_csv_path: str = None) -> bool:
+def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = None, thumbnail_url: str = None, timeline_csv_path: str = None, subject: str = None, execution_time: str = None, timing_breakdown: dict = None) -> bool:
     """
     Send email with CSV data including version number, LLM summary, SG notes, and first 500 characters from conversation.
 
@@ -229,6 +229,9 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
         drive_url: Optional Google Drive URL for creating timestamp links
         thumbnail_url: Optional base URL for thumbnails. Version ID will be appended.
         timeline_csv_path: Optional path to timeline CSV file to attach
+        subject: Optional custom email subject line
+        execution_time: Optional total execution time string (e.g., "7m 45s")
+        timing_breakdown: Optional dict with stage timings (e.g., {'stage1': 337.5, 'stage2': 2.1, ...})
 
     Returns:
         True if email was sent successfully, False otherwise
@@ -239,7 +242,10 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
         return False
 
     FROM_EMAIL = EMAIL_SENDER
-    SUBJECT = 'Dailies Review Data - Version Notes and Summaries'
+    # Use custom subject if provided, otherwise use default
+    if subject is None:
+        subject = 'Dailies Review Data - Version Notes and Summaries'
+    SUBJECT = subject
 
     # Read CSV data
     rows = []
@@ -344,6 +350,66 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
     html_content += '''
       </tbody>
     </table>
+    '''
+
+    # Add execution time and breakdown if provided
+    if execution_time:
+        html_content += f'''
+        <div style="margin-top: 30px; padding: 15px; background-color: #f5f5f5; border-radius: 5px;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: bold;">
+                ⏱️ Processing Time: {execution_time}
+            </p>
+        '''
+
+        # Add timing breakdown if provided
+        if timing_breakdown:
+            # Helper function to format duration
+            def format_time(seconds):
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                if hours > 0:
+                    return f"{hours}h {minutes}m {secs}s"
+                elif minutes > 0:
+                    return f"{minutes}m {secs}s"
+                else:
+                    return f"{secs}s"
+
+            # Build detailed breakdown items
+            detailed_items = []
+            if 'download' in timing_breakdown:
+                detailed_items.append(f'<li>Google Drive Download: {format_time(timing_breakdown["download"])}</li>')
+
+            # Show parallel speedup if available
+            if 'parallel_elapsed' in timing_breakdown and 'parallel_speedup' in timing_breakdown:
+                transcription_time = timing_breakdown['transcription']
+                visual_time = timing_breakdown['visual_detection']
+                sequential_time = transcription_time + visual_time
+                parallel_time = timing_breakdown['parallel_elapsed']
+                speedup = timing_breakdown['parallel_speedup']
+
+                detailed_items.append(f'<li>Audio Transcription: {format_time(transcription_time)} (actual)</li>')
+                detailed_items.append(f'<li>Visual Detection: {format_time(visual_time)} (actual)</li>')
+                detailed_items.append(f'<li style="margin-left: 15px; color: #4a90e2;">→ Sequential: {format_time(sequential_time)}, Parallel: {format_time(parallel_time)}, Speedup: {speedup:.2f}x</li>')
+            else:
+                # Sequential mode
+                if 'transcription' in timing_breakdown:
+                    detailed_items.append(f'<li>Audio Transcription: {format_time(timing_breakdown["transcription"])}</li>')
+                if 'visual_detection' in timing_breakdown:
+                    detailed_items.append(f'<li>Visual Detection: {format_time(timing_breakdown["visual_detection"])}</li>')
+
+            if 'llm_summarization' in timing_breakdown:
+                detailed_items.append(f'<li>LLM Summarization: {format_time(timing_breakdown["llm_summarization"])}</li>')
+
+            if detailed_items:
+                html_content += '<p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Timing Breakdown:</p>'
+                html_content += '<ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #666;">'
+                html_content += '\n'.join(detailed_items)
+                html_content += '</ul>'
+
+        html_content += '</div>'
+
+    html_content += '''
     <p style='margin-top:20px;font-size:11px;color:#666;'>
       Generated from combined_review_data_with_summaries.csv
     </p>
