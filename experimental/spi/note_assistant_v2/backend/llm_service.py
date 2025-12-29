@@ -758,6 +758,7 @@ def process_recording_task(recording_url: str, recipient_email: str, shotgrid_da
         parallel = os.getenv('GMEET_PARALLEL', 'false').lower() == 'true'
         prompt_type = os.getenv('GMEET_PROMPT_TYPE', 'short')
         thumbnail_url = os.getenv('GMEET_THUMBNAIL_URL', '')
+        duration = os.getenv('GMEET_DURATION', '')
         # Build email subject from playlist name if available
         if playlist_name:
             # Strip .csv extension if present
@@ -823,6 +824,16 @@ def process_recording_task(recording_url: str, recipient_email: str, shotgrid_da
         keep_intermediate = os.getenv('GMEET_KEEP_INTERMEDIATE', 'false').lower() == 'true'
         if keep_intermediate:
             cmd.append('--keep-intermediate')
+
+        # Add duration limit if configured
+        if duration:
+            try:
+                duration_seconds = float(duration)
+                if duration_seconds > 0:
+                    cmd.extend(['--duration', str(duration_seconds)])
+                    print(f"Duration limit enabled: processing first {duration_seconds} seconds")
+            except ValueError:
+                print(f"Warning: Invalid GMEET_DURATION value '{duration}', ignoring")
 
         if thumbnail_url:
             cmd.extend(['--thumbnail-url', thumbnail_url])
