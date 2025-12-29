@@ -199,38 +199,66 @@ def analyze_version_discussions(chronological_order: List[Dict], sg_data: Dict[s
         # We're switching to a different version
         # Calculate how long the current version was discussed
         if current_discussion:
-            current_duration = calculate_time_difference(
-                current_discussion['start_time'], 
-                current_discussion['end_time']
-            )
-            
-            # If current discussion was brief (< threshold) and we have previous discussions
-            if current_duration < reference_threshold and len(discussions) > 0:
-                # Merge current discussion as reference to the previous main discussion
-                prev_main = discussions[-1]
-                # Only add to reference_versions if it's not the same version as the previous main
-                existing_ref_ids = [v_id for v_id, _ in prev_main['reference_versions']]
-                if (current_discussion['version_id'] not in existing_ref_ids and
-                    current_discussion['version_id'] != prev_main['version_id']):
-                    prev_main['reference_versions'].append((current_discussion['version_id'], current_discussion['start_time']))
-                prev_main['conversations'].extend(current_discussion['conversations'])
-                # Update end time if current discussion was later
-                if current_discussion['end_time'] > prev_main['end_time']:
-                    prev_main['end_time'] = current_discussion['end_time']
+            # Check if this version already exists in discussions
+            existing_discussion_for_current = None
+            for disc in discussions:
+                if disc['version_id'] == current_discussion['version_id']:
+                    existing_discussion_for_current = disc
+                    break
+
+            if existing_discussion_for_current:
+                # Merge current discussion back into the existing one (version mentioned again later)
+                existing_discussion_for_current['conversations'].extend(current_discussion['conversations'])
+                if current_discussion['end_time'] > existing_discussion_for_current['end_time']:
+                    existing_discussion_for_current['end_time'] = current_discussion['end_time']
             else:
-                # Current discussion was substantial or it's the first one, save it
-                discussions.append(current_discussion)
+                # No existing discussion for this version, decide whether to save or merge
+                current_duration = calculate_time_difference(
+                    current_discussion['start_time'],
+                    current_discussion['end_time']
+                )
+
+                # If current discussion was brief (< threshold) and we have previous discussions
+                if current_duration < reference_threshold and len(discussions) > 0:
+                    # Merge current discussion as reference to the previous main discussion
+                    prev_main = discussions[-1]
+                    # Only add to reference_versions if it's not the same version as the previous main
+                    existing_ref_ids = [v_id for v_id, _ in prev_main['reference_versions']]
+                    if (current_discussion['version_id'] not in existing_ref_ids and
+                        current_discussion['version_id'] != prev_main['version_id']):
+                        prev_main['reference_versions'].append((current_discussion['version_id'], current_discussion['start_time']))
+                    prev_main['conversations'].extend(current_discussion['conversations'])
+                    # Update end time if current discussion was later
+                    if current_discussion['end_time'] > prev_main['end_time']:
+                        prev_main['end_time'] = current_discussion['end_time']
+                else:
+                    # Current discussion was substantial or it's the first one, save it
+                    discussions.append(current_discussion)
         
         # Start new discussion with this version
         if is_sg_version:
-            current_discussion = {
-                'version_id': version_num,
-                'start_time': timestamp,
-                'end_time': timestamp,
-                'conversations': [entry],
-                'reference_versions': [],
-                'is_sg_version': True
-            }
+            # Check if this version already has a discussion - if so, merge into it
+            existing_discussion = None
+            for disc in discussions:
+                if disc['version_id'] == version_num:
+                    existing_discussion = disc
+                    break
+
+            if existing_discussion:
+                # Merge into existing discussion
+                existing_discussion['conversations'].append(entry)
+                existing_discussion['end_time'] = timestamp
+                current_discussion = existing_discussion
+            else:
+                # Create new discussion
+                current_discussion = {
+                    'version_id': version_num,
+                    'start_time': timestamp,
+                    'end_time': timestamp,
+                    'conversations': [entry],
+                    'reference_versions': [],
+                    'is_sg_version': True
+                }
         else:
             # This is a reference version, add to previous main discussion if exists
             if discussions:
@@ -255,24 +283,38 @@ def analyze_version_discussions(chronological_order: List[Dict], sg_data: Dict[s
     
     # Handle the final discussion
     if current_discussion:
-        current_duration = calculate_time_difference(
-            current_discussion['start_time'], 
-            current_discussion['end_time']
-        )
-        
-        if current_duration < reference_threshold and len(discussions) > 0 and current_discussion['is_sg_version']:
-            # Final discussion was brief, merge it as reference to previous
-            prev_main = discussions[-1]
-            # Only add to reference_versions if it's not the same version as the previous main
-            existing_ref_ids = [v_id for v_id, _ in prev_main['reference_versions']]
-            if (current_discussion['version_id'] not in existing_ref_ids and
-                current_discussion['version_id'] != prev_main['version_id']):
-                prev_main['reference_versions'].append((current_discussion['version_id'], current_discussion['start_time']))
-            prev_main['conversations'].extend(current_discussion['conversations'])
-            if current_discussion['end_time'] > prev_main['end_time']:
-                prev_main['end_time'] = current_discussion['end_time']
+        # Check if this version already exists in discussions
+        existing_discussion_for_final = None
+        for disc in discussions:
+            if disc['version_id'] == current_discussion['version_id']:
+                existing_discussion_for_final = disc
+                break
+
+        if existing_discussion_for_final:
+            # Merge final discussion back into existing one
+            existing_discussion_for_final['conversations'].extend(current_discussion['conversations'])
+            if current_discussion['end_time'] > existing_discussion_for_final['end_time']:
+                existing_discussion_for_final['end_time'] = current_discussion['end_time']
         else:
-            discussions.append(current_discussion)
+            # No existing discussion for this version, decide whether to save or merge
+            current_duration = calculate_time_difference(
+                current_discussion['start_time'],
+                current_discussion['end_time']
+            )
+
+            if current_duration < reference_threshold and len(discussions) > 0 and current_discussion['is_sg_version']:
+                # Final discussion was brief, merge it as reference to previous
+                prev_main = discussions[-1]
+                # Only add to reference_versions if it's not the same version as the previous main
+                existing_ref_ids = [v_id for v_id, _ in prev_main['reference_versions']]
+                if (current_discussion['version_id'] not in existing_ref_ids and
+                    current_discussion['version_id'] != prev_main['version_id']):
+                    prev_main['reference_versions'].append((current_discussion['version_id'], current_discussion['start_time']))
+                prev_main['conversations'].extend(current_discussion['conversations'])
+                if current_discussion['end_time'] > prev_main['end_time']:
+                    prev_main['end_time'] = current_discussion['end_time']
+            else:
+                discussions.append(current_discussion)
     
     return discussions
 

@@ -71,22 +71,23 @@ def transcribe_audio(audio_file_path: str, model_name: str = "base", verbose: bo
     Returns:
         dict: The transcription result with timestamps.
     """
+    model = None
     try:
         if verbose:
             print(f"Loading Whisper model '{model_name}'...")
-            
+
         model = whisper.load_model(model_name)
-        
+
         if verbose:
             print(f"Model loaded successfully. Starting transcription...")
             print("This may take several minutes depending on the audio length and model size...")
-            
+
             # Get audio duration for progress estimation
             try:
                 import librosa
                 audio_duration = librosa.get_duration(filename=audio_file_path)
                 print(f"Audio duration: {audio_duration:.1f} seconds")
-                
+
                 # Rough time estimates based on model size (these are approximate)
                 model_speed_multipliers = {
                     'tiny': 32, 'base': 16, 'small': 8, 'medium': 4, 'large': 2
@@ -99,22 +100,33 @@ def transcribe_audio(audio_file_path: str, model_name: str = "base", verbose: bo
             except Exception as e:
                 if verbose:
                     print(f"Could not estimate audio duration: {e}")
-        
+
         # Use verbose parameter to show progress if available
         if verbose:
             result = model.transcribe(audio_file_path, word_timestamps=True, verbose=True)
         else:
             result = model.transcribe(audio_file_path, word_timestamps=True, verbose=False)
-            
+
         if verbose:
             segments_count = len(result.get('segments', []))
             print(f"Transcription completed successfully!")
             print(f"Generated {segments_count} transcript segments")
-            
+
         return result
     except Exception as e:
         print(f"An error occurred during transcription: {e}")
         return None
+    finally:
+        # Explicitly delete model and free memory
+        if model is not None:
+            del model
+            import gc
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
+            if verbose:
+                print("Released Whisper model from memory")
 
 
 def save_transcript_to_csv(transcript_result: dict, output_csv_path: str) -> bool:
@@ -289,6 +301,11 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
 
         # Save to CSV
         success = save_transcript_to_csv(transcript_result, output_csv_path)
+
+        # Explicitly delete transcript_result to free memory (can be very large for long videos)
+        del transcript_result
+        import gc
+        gc.collect()
 
         return success
     finally:

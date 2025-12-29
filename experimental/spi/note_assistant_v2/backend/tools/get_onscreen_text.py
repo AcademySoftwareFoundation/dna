@@ -1141,7 +1141,21 @@ def process_video(video_path: str, interval: float, output_csv: str,
                         timestamps.append(timestamp_str)
                         if verbose:
                             print(f"  -> Failed to extract frame at {timestamp:.2f}s")
-        
+
+            # Clean up frames from this batch to free memory
+            # (Only delete frames, not the temp_dir itself - we'll reuse it for next batch)
+            if not debug:  # Don't delete if in debug mode
+                for timestamp in batch_timestamps:
+                    frame_path = extracted_frames.get(timestamp)
+                    if frame_path and os.path.exists(frame_path):
+                        try:
+                            os.remove(frame_path)
+                        except Exception as e:
+                            if verbose:
+                                print(f"Warning: Failed to delete frame {frame_path}: {e}")
+                if verbose:
+                    print(f"Cleaned up {len(batch_timestamps)} frames from batch")
+
         # Write results to CSV
         try:
             # Sanitize names before saving

@@ -92,6 +92,18 @@ def _run_audio_transcription_worker(video_path: str, transcript_csv: str,
     if verbose:
         print(f"[Audio Process] Completed in {elapsed:.1f}s")
 
+    # Explicit cleanup to free memory before worker terminates
+    # This is critical when using ProcessPoolExecutor as workers stay alive
+    import gc
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        if verbose:
+            print("[Audio Process] Cleared GPU cache")
+    gc.collect()
+    if verbose:
+        print("[Audio Process] Released memory")
+
     return (success, elapsed)
 
 
@@ -124,6 +136,17 @@ def _run_visual_detection_worker(video_path: str, frame_interval: float, visual_
 
     if verbose:
         print(f"[Visual Process] Completed in {elapsed:.1f}s")
+
+    # Explicit cleanup to free memory before worker terminates
+    import gc
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        if verbose:
+            print("[Visual Process] Cleared GPU cache")
+    gc.collect()
+    if verbose:
+        print("[Visual Process] Released memory")
 
     return (success, elapsed)
 
@@ -601,9 +624,13 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                 print("\n=== Running Audio Transcription and Visual Detection in Parallel (Multiprocessing) ===")
 
             # Use ProcessPoolExecutor for true parallelism (bypasses GIL)
+            # Use 'spawn' method to avoid forking the entire parent process memory
             try:
+                # Set multiprocessing start method to 'spawn' to avoid memory bloat from fork()
+                mp_context = multiprocessing.get_context('spawn')
+
                 parallel_start = time.time()
-                with ProcessPoolExecutor(max_workers=2) as executor:
+                with ProcessPoolExecutor(max_workers=2, mp_context=mp_context) as executor:
                     # Submit both tasks to separate processes
                     audio_future = executor.submit(
                         _run_audio_transcription_worker,
