@@ -170,13 +170,13 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
     if not os.path.exists(input_file_path):
         print(f"Error: Input file not found at '{input_file_path}'")
         return False
-    
+
     if verbose:
         print(f"Processing media file: {input_file_path}")
         print(f"Using Whisper model: {model_name}")
         if duration:
             print(f"Processing duration: {duration} seconds")
-    
+
     file_extension = os.path.splitext(input_file_path)[1].lower()
 
     # Determine if we need to extract audio or can use the file directly
@@ -218,29 +218,89 @@ def process_media_file(input_file_path: str, output_csv_path: str, model_name: s
     else:
         print(f"Error: Unsupported file format '{file_extension}'. Supported formats: .mp4, .mp3")
         return False
-    
+
+    # If duration is specified and we're using a full audio file (cached or MP3),
+    # create a temporary trimmed version to save transcription time
+    temp_trimmed_audio = None
+    transcription_audio_path = audio_file_path
+
+    if duration is not None:
+        # Check if the audio file is longer than the requested duration
+        # We'll create a trimmed version regardless to ensure we only transcribe what's needed
+        temp_trimmed_audio = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+        trimmed_path = temp_trimmed_audio.name
+        temp_trimmed_audio.close()
+
+        if verbose:
+            print(f"Creating trimmed audio file (first {duration}s) to save transcription time...")
+
+        # Use ffmpeg to extract just the first N seconds
+        try:
+            cmd = [
+                'ffmpeg', '-i', audio_file_path, '-y',
+                '-t', str(duration),
+                '-acodec', 'copy',  # Copy codec to avoid re-encoding (faster)
+                trimmed_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode == 0:
+                transcription_audio_path = trimmed_path
+                if verbose:
+                    print(f"Trimmed audio created: {trimmed_path}")
+            else:
+                if verbose:
+                    print(f"Warning: Failed to create trimmed audio, will transcribe full file")
+                    print(f"FFmpeg error: {result.stderr}")
+                # Clean up failed temp file
+                try:
+                    os.unlink(trimmed_path)
+                except:
+                    pass
+                temp_trimmed_audio = None
+        except Exception as e:
+            if verbose:
+                print(f"Warning: Could not create trimmed audio: {e}")
+            # Clean up failed temp file
+            try:
+                os.unlink(trimmed_path)
+            except:
+                pass
+            temp_trimmed_audio = None
+
     try:
         # Transcribe audio
         if verbose:
             print(f"Transcribing audio using Whisper model '{model_name}'...")
+            if temp_trimmed_audio:
+                print(f"Transcribing trimmed audio ({duration}s) instead of full cached file")
             print("This may take several minutes depending on the audio length and model size...")
         else:
             print(f"Transcribing audio using Whisper model '{model_name}'...")
-        transcript_result = transcribe_audio(audio_file_path, model_name, verbose)
-        
+        transcript_result = transcribe_audio(transcription_audio_path, model_name, verbose)
+
         if transcript_result is None:
             return False
-        
+
         if verbose:
             segments_count = len(transcript_result.get('segments', []))
             total_duration = transcript_result.get('segments', [{}])[-1].get('end', 0) if segments_count > 0 else 0
             print(f"Transcription completed! Found {segments_count} segments spanning {total_duration:.1f} seconds")
-        
+
         # Save to CSV
         success = save_transcript_to_csv(transcript_result, output_csv_path)
-        
+
         return success
     finally:
+        # Clean up temporary trimmed audio file if created
+        if temp_trimmed_audio:
+            try:
+                os.unlink(transcription_audio_path)
+                if verbose:
+                    print(f"Cleaned up temporary trimmed audio file")
+            except OSError:
+                pass
+
         # Clean up temporary audio file if created (but not cached files)
         if file_extension == '.mp4' and temp_audio_file:
             try:
