@@ -208,9 +208,11 @@ def analyze_version_discussions(chronological_order: List[Dict], sg_data: Dict[s
 
             if existing_discussion_for_current:
                 # Merge current discussion back into the existing one (version mentioned again later)
-                existing_discussion_for_current['conversations'].extend(current_discussion['conversations'])
-                if current_discussion['end_time'] > existing_discussion_for_current['end_time']:
-                    existing_discussion_for_current['end_time'] = current_discussion['end_time']
+                # CRITICAL: Only extend if they're different objects (avoid extending list with itself!)
+                if existing_discussion_for_current is not current_discussion:
+                    existing_discussion_for_current['conversations'].extend(current_discussion['conversations'])
+                    if current_discussion['end_time'] > existing_discussion_for_current['end_time']:
+                        existing_discussion_for_current['end_time'] = current_discussion['end_time']
             else:
                 # No existing discussion for this version, decide whether to save or merge
                 current_duration = calculate_time_difference(
@@ -292,9 +294,11 @@ def analyze_version_discussions(chronological_order: List[Dict], sg_data: Dict[s
 
         if existing_discussion_for_final:
             # Merge final discussion back into existing one
-            existing_discussion_for_final['conversations'].extend(current_discussion['conversations'])
-            if current_discussion['end_time'] > existing_discussion_for_final['end_time']:
-                existing_discussion_for_final['end_time'] = current_discussion['end_time']
+            # CRITICAL: Only extend if they're different objects (avoid extending list with itself!)
+            if existing_discussion_for_final is not current_discussion:
+                existing_discussion_for_final['conversations'].extend(current_discussion['conversations'])
+                if current_discussion['end_time'] > existing_discussion_for_final['end_time']:
+                    existing_discussion_for_final['end_time'] = current_discussion['end_time']
         else:
             # No existing discussion for this version, decide whether to save or merge
             current_duration = calculate_time_difference(
@@ -325,17 +329,17 @@ def process_transcript_versions_with_time_analysis(transcript_data: Dict[str, Li
                                                  reference_threshold: int,
                                                  version_column: str = 'jts') -> Tuple[List[Dict], Set[str]]:
     """Process transcript versions using time-based analysis for references."""
-    
+
     # Analyze discussions with time-based logic
     discussions = analyze_version_discussions(chronological_order, sg_data, reference_threshold)
-    
+
     output_rows = []
     processed_sg_versions = set()
-    
+
     # Handle conversations that appear before any SG version is identified
     pre_discussion_conversations = []
     first_sg_version_found = False
-    
+
     for entry in chronological_order:
         version_num = entry.get('version_num')
         
@@ -350,7 +354,7 @@ def process_transcript_versions_with_time_analysis(transcript_data: Dict[str, Li
                 pre_discussion_conversations.append(entry)
         else:
             break
-    
+
     # Process each discussion
     for discussion in discussions:
         version_num = discussion['version_id']
@@ -381,7 +385,7 @@ def process_transcript_versions_with_time_analysis(transcript_data: Dict[str, Li
                 'reference_versions': ref_versions_str,
                 'version_id': version_num                  # Keep for internal processing
             })
-    
+
     return output_rows, processed_sg_versions
 
 
