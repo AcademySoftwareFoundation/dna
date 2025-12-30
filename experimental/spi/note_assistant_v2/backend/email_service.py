@@ -216,7 +216,7 @@ def send_email(to, subject, html_content, attachments=None):
     else:
         send_gmail_email(to, subject, html_content, attachments=attachments)
 
-def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = None, thumbnail_url: str = None, timeline_csv_path: str = None, subject: str = None, execution_time: str = None, timing_breakdown: dict = None) -> bool:
+def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = None, thumbnail_url: str = None, timeline_csv_path: str = None, subject: str = None, execution_time: str = None, timing_breakdown: dict = None, participants: list = None, meeting_duration: str = None) -> bool:
     """
     Send email with CSV data including version number, LLM summary, SG notes, and first 500 characters from conversation.
 
@@ -232,6 +232,8 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
         subject: Optional custom email subject line
         execution_time: Optional total execution time string (e.g., "7m 45s")
         timing_breakdown: Optional dict with stage timings (e.g., {'stage1': 337.5, 'stage2': 2.1, ...})
+        participants: Optional list of participant names
+        meeting_duration: Optional total meeting duration string (e.g., "45m 30s")
 
     Returns:
         True if email was sent successfully, False otherwise
@@ -265,15 +267,57 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
         return False
 
     # Generate HTML content
-    html_content = '''
-    <h2>Dailies Review Data</h2>
-    <p>Review notes and summaries from the dailies session.</p>
+    html_content = f'''
+    <h2>{html.escape(SUBJECT)}</h2>
+    '''
+
+    # Add meeting summary section if any info is provided
+    if participants or meeting_duration or rows:
+        html_content += '''
+    <div style="margin-bottom: 25px; padding: 15px; background-color: #f9fafb; border-left: 4px solid #3b82f6; border-radius: 4px;">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #1f2937;">Meeting Summary</h3>
+        <table style="border: none; font-size: 14px; color: #374151;">
+    '''
+
+        if participants:
+            participants_str = ', '.join(participants)
+            html_content += f'''
+            <tr>
+                <td style="padding: 4px 12px 4px 0; font-weight: bold; vertical-align: top;">Participants:</td>
+                <td style="padding: 4px 0;">{html.escape(participants_str)}</td>
+            </tr>
+    '''
+
+        if rows:
+            version_ids = [row.get('version_id', '') for row in rows if row.get('version_id')]
+            version_list = ', '.join(version_ids)
+            html_content += f'''
+            <tr>
+                <td style="padding: 4px 12px 4px 0; font-weight: bold; vertical-align: top;">Versions Reviewed:</td>
+                <td style="padding: 4px 0;">{len(version_ids)} version(s) - {html.escape(version_list)}</td>
+            </tr>
+    '''
+
+        if meeting_duration:
+            html_content += f'''
+            <tr>
+                <td style="padding: 4px 12px 4px 0; font-weight: bold; vertical-align: top;">Meeting Duration:</td>
+                <td style="padding: 4px 0;">{html.escape(meeting_duration)}</td>
+            </tr>
+    '''
+
+        html_content += '''
+        </table>
+    </div>
+    '''
+
+    html_content += '''
     <table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;'>
       <thead>
         <tr style='background:#f1f5f9;font-weight:bold;'>
           <th style='min-width:80px;'>Version ID</th>
-          <th style='min-width:150px;'>SG Notes</th>
-          <th style='min-width:200px;'>AI Notes</th>
+          <th style='min-width:150px;'>Notes</th>
+          <th style='min-width:200px;'>Transcript Summary</th>
           <!-- <th style='min-width:250px;'>Conversation (First 500 chars)</th> -->
         </tr>
       </thead>

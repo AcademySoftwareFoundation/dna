@@ -65,6 +65,73 @@ def format_duration(seconds: float) -> str:
         return f"{secs}s"
 
 
+def extract_meeting_metadata(gmeet_csv: str, verbose: bool = False):
+    """
+    Extract meeting metadata from gmeet_data.csv.
+
+    Args:
+        gmeet_csv: Path to gmeet_data.csv file
+        verbose: Enable verbose output
+
+    Returns:
+        dict with:
+            - participants: list of unique speaker names
+            - meeting_duration: formatted duration string (e.g., "45m 30s")
+            - duration_seconds: total duration in seconds
+    """
+    if not os.path.exists(gmeet_csv):
+        return None
+
+    participants = set()
+    start_time = None
+    end_time = None
+
+    try:
+        with open(gmeet_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Collect speaker names
+                speaker = row.get('speaker_name', '').strip()
+                if speaker:
+                    participants.add(speaker)
+
+                # Track time range
+                timestamp_str = row.get('timestamp', '').strip()
+                if timestamp_str:
+                    # Convert HH:MM:SS to seconds
+                    parts = timestamp_str.split(':')
+                    if len(parts) == 3:
+                        hours, minutes, seconds = map(int, parts)
+                        time_seconds = hours * 3600 + minutes * 60 + seconds
+
+                        if start_time is None or time_seconds < start_time:
+                            start_time = time_seconds
+                        if end_time is None or time_seconds > end_time:
+                            end_time = time_seconds
+    except Exception as e:
+        if verbose:
+            print(f"Warning: Could not extract meeting metadata: {e}")
+        return None
+
+    # Calculate duration
+    duration_seconds = 0
+    if start_time is not None and end_time is not None:
+        duration_seconds = end_time - start_time
+
+    metadata = {
+        'participants': sorted(list(participants)),
+        'meeting_duration': format_duration(duration_seconds) if duration_seconds > 0 else None,
+        'duration_seconds': duration_seconds
+    }
+
+    if verbose:
+        print(f"Meeting metadata extracted:")
+        print(f"  Participants: {metadata['participants']}")
+        print(f"  Duration: {metadata['meeting_duration']}")
+
+    return metadata
+
+
 def cleanup_and_exit(temp_dir, error_msg):
     """Clean up temporary directory and exit with error."""
     if temp_dir and os.path.exists(temp_dir):
@@ -461,6 +528,26 @@ def main():
                 # Calculate total execution time
                 total_time = time.time() - script_start_time
 
+                # Extract meeting metadata from gmeet_data.csv
+                meeting_metadata = None
+                if not args.combined_csv:
+                    # Only extract metadata if we have gmeet_csv (not when using --combined-csv)
+                    if args.gmeet_csv:
+                        # Using provided gmeet_csv
+                        meeting_metadata = extract_meeting_metadata(args.gmeet_csv, verbose=args.verbose)
+                    elif gmeet_csv and os.path.exists(gmeet_csv):
+                        # Using generated gmeet_csv
+                        meeting_metadata = extract_meeting_metadata(gmeet_csv, verbose=args.verbose)
+
+                # Prepare meeting info for email
+                participants = meeting_metadata['participants'] if meeting_metadata else None
+                meeting_duration = meeting_metadata['meeting_duration'] if meeting_metadata else None
+
+                if args.verbose and meeting_metadata:
+                    print(f"Including meeting summary in email:")
+                    print(f"  Participants: {participants}")
+                    print(f"  Meeting Duration: {meeting_duration}")
+
                 success = send_csv_email(
                     args.recipient_email,
                     args.output,
@@ -469,7 +556,9 @@ def main():
                     timeline_csv_path=args.timeline_csv,
                     subject=args.email_subject,
                     execution_time=format_duration(total_time),
-                    timing_breakdown=timing
+                    timing_breakdown=timing,
+                    participants=participants,
+                    meeting_duration=meeting_duration
                 )
                 if success:
                     print(f"Email sent successfully to {args.recipient_email}")
