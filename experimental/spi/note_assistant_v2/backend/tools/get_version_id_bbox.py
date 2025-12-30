@@ -63,6 +63,13 @@ import easyocr
 
 logging.getLogger("grpc").setLevel(logging.ERROR)
 
+# =========================================================
+# Configuration Constants
+# =========================================================
+
+# Default padding in pixels to add around detected bounding boxes
+DEFAULT_PADDING_PX = 300
+
 
 # =========================================================
 # Video frame extraction (reused from get_speaker_bbox.py)
@@ -99,7 +106,7 @@ def extract_frame_from_video(video_path, time_seconds=None):
 # OCR-based Text Detection
 # =========================================================
 
-def detect_version_id_bbox_ocr(image_path, pattern, min_confidence=0.5, debug=False, padding=100):
+def detect_version_id_bbox_ocr(image_path, pattern, min_confidence=0.5, debug=False, padding=DEFAULT_PADDING_PX):
     """
     Detect text matching a regex pattern and return its bounding box.
     
@@ -363,8 +370,8 @@ Examples:
                        help="Save debug visualization with bounding boxes")
     parser.add_argument("--min-confidence", type=float, default=0.5,
                        help="Minimum OCR confidence threshold (default: 0.5)")
-    parser.add_argument("--padding", type=int, default=100,
-                       help="Padding in pixels to add around detected bounding box (default: 100)")
+    parser.add_argument("--padding", type=int, default=DEFAULT_PADDING_PX,
+                       help=f"Padding in pixels to add around detected bounding box (default: {DEFAULT_PADDING_PX})")
     args = parser.parse_args()
 
     input_path = args.input_path
