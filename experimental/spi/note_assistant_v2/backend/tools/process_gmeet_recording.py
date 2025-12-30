@@ -123,7 +123,38 @@ def main():
     parser.add_argument("--force-download", action="store_true",
                        help="Force re-download from Google Drive even if cached version exists")
 
+    # Stage-skipping arguments
+    parser.add_argument("--transcript-csv", default=None,
+                       help="Path to existing transcript.csv to skip audio transcription (Stage 1a)")
+    parser.add_argument("--visual-csv", default=None,
+                       help="Path to existing visual.csv to skip visual detection (Stage 1b)")
+    parser.add_argument("--gmeet-csv", default=None,
+                       help="Path to existing gmeet_data.csv to skip entire Stage 1")
+    parser.add_argument("--combined-csv", default=None,
+                       help="Path to existing combined_data.csv to skip Stages 1-2")
+
     args = parser.parse_args()
+
+    # Validate stage-skipping arguments
+    if args.gmeet_csv and args.combined_csv:
+        parser.error("--gmeet-csv and --combined-csv are mutually exclusive")
+
+    if args.gmeet_csv and (args.transcript_csv or args.visual_csv):
+        parser.error("--gmeet-csv cannot be used with --transcript-csv or --visual-csv")
+
+    if args.combined_csv and (args.transcript_csv or args.visual_csv or args.gmeet_csv):
+        parser.error("--combined-csv cannot be used with other stage-skip arguments")
+
+    # Validate that provided CSV files exist
+    for arg_name, csv_path in [('--transcript-csv', args.transcript_csv),
+                                ('--visual-csv', args.visual_csv),
+                                ('--gmeet-csv', args.gmeet_csv),
+                                ('--combined-csv', args.combined_csv)]:
+        if csv_path:
+            if not os.path.exists(csv_path):
+                parser.error(f"{arg_name}: File not found: {csv_path}")
+            if not os.path.isfile(csv_path):
+                parser.error(f"{arg_name}: Path is not a file: {csv_path}")
 
     # Determine if output is directory or file
     output_is_dir = False
@@ -191,54 +222,122 @@ def main():
 
     try:
         # ===================================================================
-        # Stage 1: Extract Google Meet Data
+        # Stage 1: Extract Google Meet Data (or use existing)
         # ===================================================================
-        gmeet_csv = os.path.join(temp_dir, "gmeet_data.csv")
+        recording_dir = None
 
-        print("=== Stage 1: Extracting Google Meet Data ===")
-        stage1_start = time.time()
-        result = extract_google_meet_data(
-            video_path=args.video_input,
-            version_pattern=args.version_pattern,
-            output_csv=gmeet_csv,
-            audio_model=args.audio_model,
-            frame_interval=args.frame_interval,
-            start_time=args.start_time,
-            duration=args.duration,
-            batch_size=args.batch_size,
-            verbose=args.verbose,
-            parallel=args.parallel,
-            drive_credentials=None,  # Will use default from .env
-            timeline_csv_path=args.timeline_csv,
-            version_column_name=args.version_column,
-            output_dir=output_dir if output_is_dir else None,
-            project=args.project if output_is_dir else None,
-            force_download=args.force_download,
-            sg_basename=sg_basename,
-            keep_intermediate=args.keep_intermediate
-        )
+        if args.gmeet_csv:
+            # Use provided gmeet CSV instead of processing
+            print("=== Stage 1: Using existing gmeet_data.csv ===")
+            print(f"Input: {args.gmeet_csv}")
+            gmeet_csv = args.gmeet_csv
+            timing['stage1'] = 0.0
 
-        # Handle result - can be tuple (success, recording_dir, stage1_timing) or (success, stage1_timing)
-        if isinstance(result, tuple):
-            if len(result) == 3:
-                # With output_dir: (success, recording_dir, stage1_timing)
-                success, recording_dir, stage1_timing = result
+            # Still process video_input for recording_dir if in output_dir mode
+            # This is needed for organizing output files properly
+            if output_is_dir and args.video_input:
+                # Import here to avoid circular imports
+                from google_drive_utils import is_google_drive_url, get_file_id_from_url, sanitize_filename
+
+                if is_google_drive_url(args.video_input):
+                    file_id = get_file_id_from_url(args.video_input)
+                    recording_name = file_id
+                else:
+                    # Local file - use filename
+                    recording_name = os.path.splitext(os.path.basename(args.video_input))[0]
+
+                recording_name = sanitize_filename(recording_name)
+                recording_dir = os.path.join(output_dir, args.project, recording_name)
+                os.makedirs(recording_dir, exist_ok=True)
+
+            if args.verbose:
+                print("Stage 1 skipped - no timing data available")
+            print()
+
+        elif args.combined_csv:
+            # Skip both Stage 1 and Stage 2
+            print("=== Stages 1-2: Using existing combined_data.csv ===")
+            print(f"Input: {args.combined_csv}")
+            gmeet_csv = None  # Won't be used
+            timing['stage1'] = 0.0
+
+            # Still process video_input for recording_dir if in output_dir mode
+            if output_is_dir and args.video_input:
+                from google_drive_utils import is_google_drive_url, get_file_id_from_url, sanitize_filename
+
+                if is_google_drive_url(args.video_input):
+                    file_id = get_file_id_from_url(args.video_input)
+                    recording_name = file_id
+                else:
+                    recording_name = os.path.splitext(os.path.basename(args.video_input))[0]
+
+                recording_name = sanitize_filename(recording_name)
+                recording_dir = os.path.join(output_dir, args.project, recording_name)
+                os.makedirs(recording_dir, exist_ok=True)
+
+            if args.verbose:
+                print("Stages 1-2 skipped - will proceed directly to Stage 3")
+            print()
+
+        else:
+            # Run Stage 1 normally (with optional partial skips)
+            gmeet_csv = os.path.join(temp_dir, "gmeet_data.csv")
+
+            print("=== Stage 1: Extracting Google Meet Data ===")
+            if args.transcript_csv:
+                print(f"Using existing transcript: {args.transcript_csv}")
+            if args.visual_csv:
+                print(f"Using existing visual: {args.visual_csv}")
+
+            stage1_start = time.time()
+            result = extract_google_meet_data(
+                video_path=args.video_input,
+                version_pattern=args.version_pattern,
+                output_csv=gmeet_csv,
+                audio_model=args.audio_model,
+                frame_interval=args.frame_interval,
+                start_time=args.start_time,
+                duration=args.duration,
+                batch_size=args.batch_size,
+                verbose=args.verbose,
+                parallel=args.parallel,
+                drive_credentials=None,  # Will use default from .env
+                timeline_csv_path=args.timeline_csv,
+                version_column_name=args.version_column,
+                output_dir=output_dir if output_is_dir else None,
+                project=args.project if output_is_dir else None,
+                force_download=args.force_download,
+                sg_basename=sg_basename,
+                keep_intermediate=args.keep_intermediate,
+                # NEW: Pass partial skip CSVs
+                existing_transcript_csv=args.transcript_csv,
+                existing_visual_csv=args.visual_csv
+            )
+
+            # Handle result - can be tuple (success, recording_dir, stage1_timing) or (success, stage1_timing)
+            if isinstance(result, tuple):
+                if len(result) == 3:
+                    # With output_dir: (success, recording_dir, stage1_timing)
+                    success, recording_dir, stage1_timing = result
+                else:
+                    # Without output_dir: (success, stage1_timing)
+                    success, stage1_timing = result
+                    recording_dir = None
+
+                # Merge stage1 detailed timing into main timing dict
+                timing.update(stage1_timing)
             else:
-                # Without output_dir: (success, stage1_timing)
-                success, stage1_timing = result
+                # Backward compatibility if function doesn't return timing
+                success = result
                 recording_dir = None
 
-            # Merge stage1 detailed timing into main timing dict
-            timing.update(stage1_timing)
-        else:
-            # Backward compatibility if function doesn't return timing
-            success = result
-            recording_dir = None
+            if not success:
+                cleanup_and_exit(temp_dir, "Failed to extract Google Meet data")
 
-        if not success:
-            cleanup_and_exit(temp_dir, "Failed to extract Google Meet data")
+            timing['stage1'] = time.time() - stage1_start
 
-        timing['stage1'] = time.time() - stage1_start
+            print(f"✓ Stage 1 complete ({format_duration(timing['stage1'])})")
+            print()
 
         # If we got a recording directory, update output paths
         if recording_dir and output_is_dir:
@@ -249,67 +348,77 @@ def main():
             if args.timeline_csv and not os.path.dirname(args.timeline_csv):
                 args.timeline_csv = os.path.join(recording_dir, args.timeline_csv)
 
-        print(f"✓ Stage 1 complete ({format_duration(timing['stage1'])})")
-        print()
-
         # ===================================================================
-        # Stage 2: Combine with ShotGrid Data
+        # Stage 2: Combine with ShotGrid Data (or use existing)
         # ===================================================================
-        combined_csv = os.path.join(temp_dir, "combined_data.csv")
+        if args.combined_csv:
+            # Use provided combined CSV instead of processing
+            print("=== Stage 2: Using existing combined_data.csv ===")
+            print(f"Input: {args.combined_csv}")
+            combined_csv = args.combined_csv
+            timing['stage2'] = 0.0
 
-        print("=== Stage 2: Combining with ShotGrid Data ===")
-        stage2_start = time.time()
+            if args.verbose:
+                print("Stage 2 skipped - no timing data available")
+            print()
 
-        # Load ShotGrid data (using provided version column)
-        sg_data = load_sg_data(
-            args.sg_playlist_csv,
-            args.version_column,
-            args.version_pattern
-        )
-        print(f"Loaded {len(sg_data)} ShotGrid versions")
+        else:
+            # Run Stage 2 normally
+            combined_csv = os.path.join(temp_dir, "combined_data.csv")
 
-        # Load transcript data (always uses 'version_id' from Stage 1 output)
-        transcript_data, chronological_order = load_transcript_data(
-            gmeet_csv,
-            'version_id',  # Output from stage 1 always uses this column name
-            args.version_pattern
-        )
-        print(f"Loaded {len(transcript_data)} transcript versions")
+            print("=== Stage 2: Combining with ShotGrid Data ===")
+            stage2_start = time.time()
 
-        # Process and merge
-        output_rows, processed_sg_versions = process_transcript_versions_with_time_analysis(
-            transcript_data,
-            chronological_order,
-            sg_data,
-            args.reference_threshold,
-            version_column=args.version_column
-        )
+            # Load ShotGrid data (using provided version column)
+            sg_data = load_sg_data(
+                args.sg_playlist_csv,
+                args.version_column,
+                args.version_pattern
+            )
+            print(f"Loaded {len(sg_data)} ShotGrid versions")
 
-        # Add remaining SG versions not in transcript
-        remaining_sg_versions = set(sg_data.keys()) - processed_sg_versions
-        for version_num in sorted(remaining_sg_versions, key=lambda x: int(x) if x.isdigit() else 0):
-            output_rows.append({
-                'shot': sg_data[version_num].get('shot', ''),
-                args.version_column: sg_data[version_num].get('jts', ''),
-                'notes': sg_data[version_num]['notes'],
-                'conversation': '',
-                'timestamp': '',
-                'reference_versions': '',
-                'version_id': version_num
-            })
+            # Load transcript data (always uses 'version_id' from Stage 1 output)
+            transcript_data, chronological_order = load_transcript_data(
+                gmeet_csv,
+                'version_id',  # Output from stage 1 always uses this column name
+                args.version_pattern
+            )
+            print(f"Loaded {len(transcript_data)} transcript versions")
 
-        # Write combined CSV
-        with open(combined_csv, 'w', newline='', encoding='utf-8') as f:
-            fieldnames = ['shot', args.version_column, 'notes', 'conversation', 'timestamp', 'reference_versions', 'version_id']
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(output_rows)
+            # Process and merge
+            output_rows, processed_sg_versions = process_transcript_versions_with_time_analysis(
+                transcript_data,
+                chronological_order,
+                sg_data,
+                args.reference_threshold,
+                version_column=args.version_column
+            )
 
-        print(f"Combined data saved: {len(output_rows)} versions")
+            # Add remaining SG versions not in transcript
+            remaining_sg_versions = set(sg_data.keys()) - processed_sg_versions
+            for version_num in sorted(remaining_sg_versions, key=lambda x: int(x) if x.isdigit() else 0):
+                output_rows.append({
+                    'shot': sg_data[version_num].get('shot', ''),
+                    args.version_column: sg_data[version_num].get('jts', ''),
+                    'notes': sg_data[version_num]['notes'],
+                    'conversation': '',
+                    'timestamp': '',
+                    'reference_versions': '',
+                    'version_id': version_num
+                })
 
-        timing['stage2'] = time.time() - stage2_start
-        print(f"✓ Stage 2 complete ({format_duration(timing['stage2'])})")
-        print()
+            # Write combined CSV
+            with open(combined_csv, 'w', newline='', encoding='utf-8') as f:
+                fieldnames = ['shot', args.version_column, 'notes', 'conversation', 'timestamp', 'reference_versions', 'version_id']
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(output_rows)
+
+            print(f"Combined data saved: {len(output_rows)} versions")
+
+            timing['stage2'] = time.time() - stage2_start
+            print(f"✓ Stage 2 complete ({format_duration(timing['stage2'])})")
+            print()
 
         # ===================================================================
         # Stage 3: Generate LLM Summaries
@@ -391,8 +500,19 @@ def main():
                 intermediate_dir = os.path.join(recording_dir, "intermediate")
                 os.makedirs(intermediate_dir, exist_ok=True)
 
-                # Copy Stage 2+ intermediate files
-                for filename in ['gmeet_data.csv', 'combined_data.csv']:
+                # Determine which intermediate files to copy based on what was generated
+                files_to_copy = []
+
+                # Only copy gmeet_data.csv if we actually ran Stage 1
+                if not args.gmeet_csv and not args.combined_csv:
+                    files_to_copy.append('gmeet_data.csv')
+
+                # Only copy combined_data.csv if we actually ran Stage 2
+                if not args.combined_csv:
+                    files_to_copy.append('combined_data.csv')
+
+                # Copy files that exist in temp_dir
+                for filename in files_to_copy:
                     src = os.path.join(temp_dir, filename)
                     if os.path.exists(src):
                         dst = os.path.join(intermediate_dir, filename)

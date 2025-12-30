@@ -433,12 +433,16 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
                            version_column_name: str = 'version_id',
                            output_dir: Optional[str] = None, project: Optional[str] = None,
                            force_download: bool = False, sg_basename: Optional[str] = None,
-                           keep_intermediate: bool = False):
+                           keep_intermediate: bool = False,
+                           existing_transcript_csv: Optional[str] = None,
+                           existing_visual_csv: Optional[str] = None):
     """
     Extract data from a Google Meet recording: synchronized transcripts, speaker names, and version IDs
 
     Supports both local video files and Google Drive URLs/file IDs. When a Drive URL is detected,
     the file is automatically downloaded to a temporary location before processing.
+
+    NEW: Supports partial stage skipping by accepting existing transcript.csv or visual.csv files.
 
     Args:
         video_path: Path to local video file OR Google Drive URL/file ID
@@ -458,6 +462,8 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
         force_download: Force re-download even if cached
         sg_basename: ShotGrid CSV basename for naming outputs
         keep_intermediate: Whether to keep intermediate files
+        existing_transcript_csv: Path to existing transcript.csv to skip audio transcription (NEW)
+        existing_visual_csv: Path to existing visual.csv to skip visual detection (NEW)
 
     Returns:
         If output_dir is specified: Tuple of (success: bool, recording_dir: str, timing: dict)
@@ -620,124 +626,223 @@ def extract_google_meet_data(video_path: str, version_pattern: str, output_csv: 
         
         if parallel:
             # Run audio transcription and visual detection in parallel using multiprocessing
-            if verbose:
-                print("\n=== Running Audio Transcription and Visual Detection in Parallel (Multiprocessing) ===")
+            # BUT: respect existing CSVs if provided
 
-            # Use ProcessPoolExecutor for true parallelism (bypasses GIL)
-            # Use 'spawn' method to avoid forking the entire parent process memory
-            try:
-                # Set multiprocessing start method to 'spawn' to avoid memory bloat from fork()
-                mp_context = multiprocessing.get_context('spawn')
+            tasks_to_run = []
+            if not existing_transcript_csv:
+                tasks_to_run.append('audio')
+            if not existing_visual_csv:
+                tasks_to_run.append('visual')
 
-                parallel_start = time.time()
-                with ProcessPoolExecutor(max_workers=2, mp_context=mp_context) as executor:
-                    # Submit both tasks to separate processes
-                    audio_future = executor.submit(
-                        _run_audio_transcription_worker,
-                        video_path, transcript_csv, audio_model, duration, verbose, cache_audio_path
+            if not tasks_to_run:
+                # Both CSVs provided - just copy them
+                if verbose:
+                    print("\n=== Both transcript and visual CSVs provided - skipping video processing ===")
+
+                import shutil
+                if existing_transcript_csv:
+                    shutil.copy2(existing_transcript_csv, transcript_csv)
+                    print(f"Copied transcript: {transcript_csv}")
+                if existing_visual_csv:
+                    shutil.copy2(existing_visual_csv, visual_csv)
+                    print(f"Copied visual: {visual_csv}")
+
+                timing['transcription'] = 0.0
+                timing['visual_detection'] = 0.0
+
+            elif len(tasks_to_run) == 1:
+                # Only one task needed - run sequentially (no benefit from parallel)
+                if verbose:
+                    print(f"\n=== Only {tasks_to_run[0]} task needed - running sequentially ===")
+
+                if 'audio' in tasks_to_run:
+                    # Copy existing visual CSV
+                    import shutil
+                    shutil.copy2(existing_visual_csv, visual_csv)
+                    timing['visual_detection'] = 0.0
+
+                    # Run audio transcription
+                    transcription_start = time.time()
+                    transcript_success = process_media_file(
+                        video_path, transcript_csv, model_name=audio_model,
+                        duration=duration, verbose=verbose, cache_audio_path=cache_audio_path
                     )
-                    visual_future = executor.submit(
-                        _run_visual_detection_worker,
-                        video_path, frame_interval, visual_csv, duration, batch_size,
-                        verbose, version_pattern, start_time
+                    timing['transcription'] = time.time() - transcription_start
+
+                    if not transcript_success:
+                        print("Failed to generate audio transcript")
+                        return (False, timing)
+                else:  # 'visual' in tasks_to_run
+                    # Copy existing transcript CSV
+                    import shutil
+                    shutil.copy2(existing_transcript_csv, transcript_csv)
+                    timing['transcription'] = 0.0
+
+                    # Run visual detection
+                    visual_start = time.time()
+                    visual_success = process_video_visual(
+                        video_path, frame_interval, visual_csv,
+                        max_duration=duration, batch_size=batch_size, verbose=verbose,
+                        version_pattern=version_pattern, start_time=start_time, parallel=True
+                    )
+                    timing['visual_detection'] = time.time() - visual_start
+
+                    if not visual_success:
+                        print("Failed to generate visual detections")
+                        return (False, timing)
+
+            else:
+                # Both tasks needed - run in parallel (original logic)
+                if verbose:
+                    print("\n=== Running Audio Transcription and Visual Detection in Parallel (Multiprocessing) ===")
+
+                # Use ProcessPoolExecutor for true parallelism (bypasses GIL)
+                # Use 'spawn' method to avoid forking the entire parent process memory
+                try:
+                    # Set multiprocessing start method to 'spawn' to avoid memory bloat from fork()
+                    mp_context = multiprocessing.get_context('spawn')
+
+                    parallel_start = time.time()
+                    with ProcessPoolExecutor(max_workers=2, mp_context=mp_context) as executor:
+                        # Submit both tasks to separate processes
+                        audio_future = executor.submit(
+                            _run_audio_transcription_worker,
+                            video_path, transcript_csv, audio_model, duration, verbose, cache_audio_path
+                        )
+                        visual_future = executor.submit(
+                            _run_visual_detection_worker,
+                            video_path, frame_interval, visual_csv, duration, batch_size,
+                            verbose, version_pattern, start_time
+                        )
+
+                        # Wait for both to complete and get results (with individual times)
+                        transcript_success, transcription_time = audio_future.result()
+                        visual_success, visual_time = visual_future.result()
+
+                    parallel_elapsed = time.time() - parallel_start
+
+                    # Store individual task times
+                    timing['transcription'] = transcription_time
+                    timing['visual_detection'] = visual_time
+
+                    # Store parallel execution time
+                    timing['parallel_elapsed'] = parallel_elapsed
+
+                    # Calculate speedup
+                    sequential_time = transcription_time + visual_time
+                    speedup = sequential_time / parallel_elapsed if parallel_elapsed > 0 else 1.0
+                    timing['parallel_speedup'] = speedup
+
+                    if verbose:
+                        print(f"\n[Parallel Timing]")
+                        print(f"  Audio transcription: {transcription_time:.1f}s")
+                        print(f"  Visual detection: {visual_time:.1f}s")
+                        print(f"  Sequential would take: {sequential_time:.1f}s")
+                        print(f"  Parallel took: {parallel_elapsed:.1f}s")
+                        print(f"  Speedup: {speedup:.2f}x")
+
+                except Exception as e:
+                    print(f"Error in multiprocessing execution: {e}")
+                    print("Falling back to sequential processing...")
+                    # Fall back to sequential processing if multiprocessing fails
+                    return extract_google_meet_data(
+                        video_path, version_pattern, output_csv, audio_model,
+                        frame_interval, start_time, duration, batch_size, verbose, parallel=False,
+                        existing_transcript_csv=existing_transcript_csv,
+                        existing_visual_csv=existing_visual_csv
                     )
 
-                    # Wait for both to complete and get results (with individual times)
-                    transcript_success, transcription_time = audio_future.result()
-                    visual_success, visual_time = visual_future.result()
+                if not transcript_success:
+                    print("Failed to generate audio transcript")
+                    return (False, timing)
 
-                parallel_elapsed = time.time() - parallel_start
-
-                # Store individual task times
-                timing['transcription'] = transcription_time
-                timing['visual_detection'] = visual_time
-
-                # Store parallel execution time
-                timing['parallel_elapsed'] = parallel_elapsed
-
-                # Calculate speedup
-                sequential_time = transcription_time + visual_time
-                speedup = sequential_time / parallel_elapsed if parallel_elapsed > 0 else 1.0
-                timing['parallel_speedup'] = speedup
+                if not visual_success:
+                    print("Failed to generate visual detections")
+                    return (False, timing)
 
                 if verbose:
-                    print(f"\n[Parallel Timing]")
-                    print(f"  Audio transcription: {transcription_time:.1f}s")
-                    print(f"  Visual detection: {visual_time:.1f}s")
-                    print(f"  Sequential would take: {sequential_time:.1f}s")
-                    print(f"  Parallel took: {parallel_elapsed:.1f}s")
-                    print(f"  Speedup: {speedup:.2f}x")
-
-            except Exception as e:
-                print(f"Error in multiprocessing execution: {e}")
-                print("Falling back to sequential processing...")
-                # Fall back to sequential processing if multiprocessing fails
-                return extract_google_meet_data(
-                    video_path, version_pattern, output_csv, audio_model,
-                    frame_interval, start_time, duration, batch_size, verbose, parallel=False
-                )
-
-            if not transcript_success:
-                print("Failed to generate audio transcript")
-                return (False, timing)
-
-            if not visual_success:
-                print("Failed to generate visual detections")
-                return (False, timing)
-
-            if verbose:
-                print("[Multiprocessing] Both audio transcription and visual detection completed successfully")
-                print(f"Audio transcript saved to: {transcript_csv}")
-                print(f"Visual detections saved to: {visual_csv}")
+                    print("[Multiprocessing] Both audio transcription and visual detection completed successfully")
+                    print(f"Audio transcript saved to: {transcript_csv}")
+                    print(f"Visual detections saved to: {visual_csv}")
         
         else:
             # Sequential processing (original behavior)
-            # Step 1: Extract audio transcript
-            if verbose:
-                print("\n=== Step 1: Audio Transcription ===")
+            # Step 1: Extract audio transcript (or use existing)
+            if existing_transcript_csv:
+                # Skip audio transcription - use existing file
+                if verbose:
+                    print("\n=== Step 1: Audio Transcription (SKIPPED) ===")
+                    print(f"Using existing transcript: {existing_transcript_csv}")
 
-            transcription_start = time.time()
-            transcript_success = process_media_file(
-                video_path,
-                transcript_csv,
-                model_name=audio_model,
-                duration=duration,
-                verbose=verbose,
-                cache_audio_path=cache_audio_path
-            )
-            timing['transcription'] = time.time() - transcription_start
+                # Copy existing CSV to expected location
+                import shutil
+                shutil.copy2(existing_transcript_csv, transcript_csv)
+                timing['transcription'] = 0.0
 
-            if not transcript_success:
-                print("Failed to generate audio transcript")
-                return (False, timing)
+                if verbose:
+                    print(f"Copied to: {transcript_csv}")
+            else:
+                # Original audio transcription logic
+                if verbose:
+                    print("\n=== Step 1: Audio Transcription ===")
 
-            if verbose:
-                print(f"Audio transcript saved to: {transcript_csv}")
+                transcription_start = time.time()
+                transcript_success = process_media_file(
+                    video_path,
+                    transcript_csv,
+                    model_name=audio_model,
+                    duration=duration,
+                    verbose=verbose,
+                    cache_audio_path=cache_audio_path
+                )
+                timing['transcription'] = time.time() - transcription_start
 
-            # Step 2: Extract visual detections (speaker names + version IDs)
-            if verbose:
-                print("\n=== Step 2: Visual Detection ===")
+                if not transcript_success:
+                    print("Failed to generate audio transcript")
+                    return (False, timing)
 
-            visual_start = time.time()
-            visual_success = process_video_visual(
-                video_path,
-                frame_interval,
-                visual_csv,
-                max_duration=duration,
-                batch_size=batch_size,
-                verbose=verbose,
-                version_pattern=version_pattern,  # Always required
-                start_time=start_time,
-                parallel=False  # Sequential frame processing
-            )
-            timing['visual_detection'] = time.time() - visual_start
+                if verbose:
+                    print(f"Audio transcript saved to: {transcript_csv}")
 
-            if not visual_success:
-                print("Failed to generate visual detections")
-                return (False, timing)
+            # Step 2: Extract visual detections (or use existing)
+            if existing_visual_csv:
+                # Skip visual detection - use existing file
+                if verbose:
+                    print("\n=== Step 2: Visual Detection (SKIPPED) ===")
+                    print(f"Using existing visual: {existing_visual_csv}")
 
-            if verbose:
-                print(f"Visual detections saved to: {visual_csv}")
+                # Copy existing CSV to expected location
+                import shutil
+                shutil.copy2(existing_visual_csv, visual_csv)
+                timing['visual_detection'] = 0.0
+
+                if verbose:
+                    print(f"Copied to: {visual_csv}")
+            else:
+                # Original visual detection logic
+                if verbose:
+                    print("\n=== Step 2: Visual Detection ===")
+
+                visual_start = time.time()
+                visual_success = process_video_visual(
+                    video_path,
+                    frame_interval,
+                    visual_csv,
+                    max_duration=duration,
+                    batch_size=batch_size,
+                    verbose=verbose,
+                    version_pattern=version_pattern,  # Always required
+                    start_time=start_time,
+                    parallel=False  # Sequential frame processing
+                )
+                timing['visual_detection'] = time.time() - visual_start
+
+                if not visual_success:
+                    print("Failed to generate visual detections")
+                    return (False, timing)
+
+                if verbose:
+                    print(f"Visual detections saved to: {visual_csv}")
         
         # Step 3: Parse and synchronize data
         if verbose:
