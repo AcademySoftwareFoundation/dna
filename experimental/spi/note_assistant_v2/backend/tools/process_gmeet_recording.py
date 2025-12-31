@@ -457,8 +457,7 @@ def main():
                 transcript_data,
                 chronological_order,
                 sg_data,
-                args.reference_threshold,
-                version_column=args.version_column
+                args.reference_threshold
             )
 
             # Add remaining SG versions not in transcript
@@ -466,17 +465,17 @@ def main():
             for version_num in sorted(remaining_sg_versions, key=lambda x: int(x) if x.isdigit() else 0):
                 output_rows.append({
                     'shot': sg_data[version_num].get('shot', ''),
-                    args.version_column: sg_data[version_num].get('jts', ''),
+                    'version_id': version_num,
                     'notes': sg_data[version_num]['notes'],
                     'conversation': '',
                     'timestamp': '',
                     'reference_versions': '',
-                    'version_id': version_num
+                    'duration_seconds': 0
                 })
 
             # Write combined CSV
             with open(combined_csv, 'w', newline='', encoding='utf-8') as f:
-                fieldnames = ['shot', args.version_column, 'notes', 'conversation', 'timestamp', 'reference_versions', 'version_id']
+                fieldnames = ['shot', 'version_id', 'notes', 'conversation', 'timestamp', 'reference_versions', 'duration_seconds']
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(output_rows)

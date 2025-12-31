@@ -326,9 +326,11 @@ def analyze_version_discussions(chronological_order: List[Dict], sg_data: Dict[s
 def process_transcript_versions_with_time_analysis(transcript_data: Dict[str, List],
                                                  chronological_order: List,
                                                  sg_data: Dict[str, Dict],
-                                                 reference_threshold: int,
-                                                 version_column: str = 'jts') -> Tuple[List[Dict], Set[str]]:
-    """Process transcript versions using time-based analysis for references."""
+                                                 reference_threshold: int) -> Tuple[List[Dict], Set[str]]:
+    """Process transcript versions using time-based analysis for references.
+
+    Output always uses 'version_id' as the column name.
+    """
 
     # Analyze discussions with time-based logic
     discussions = analyze_version_discussions(chronological_order, sg_data, reference_threshold)
@@ -370,20 +372,22 @@ def process_transcript_versions_with_time_analysis(transcript_data: Dict[str, Li
             
             timestamp = get_earliest_timestamp(all_conversations)
             conversation_text = format_conversation(all_conversations)
-            notes = sg_data[version_num]['notes']  # Renamed from sg_summary
-            shot = sg_data[version_num].get('shot', '')  # NEW
-            version_col_value = sg_data[version_num].get('jts', '')  # NEW - original version column value
+            notes = sg_data[version_num]['notes']
+            shot = sg_data[version_num].get('shot', '')
             # Format reference versions with timestamps: "version_id:timestamp,..."
             ref_versions_str = ','.join([f"{v_id}:{ts}" for v_id, ts in discussion['reference_versions']]) if discussion['reference_versions'] else ''
 
+            # Calculate duration in seconds
+            duration_seconds = calculate_time_difference(discussion['start_time'], discussion['end_time'])
+
             output_rows.append({
                 'timestamp': timestamp,
-                'shot': shot,                              # NEW
-                version_column: version_col_value,         # NEW - uses dynamic column name
+                'shot': shot,
+                'version_id': version_num,
                 'reference_versions': ref_versions_str,
                 'conversation': conversation_text,         # Will be renamed to transcription in llm_service
                 'notes': notes,                            # Renamed from sg_summary
-                'version_id': version_num                  # Keep for internal processing
+                'duration_seconds': duration_seconds
             })
 
     return output_rows, processed_sg_versions
@@ -398,12 +402,9 @@ def main():
                        help='Path to ShotGrid CSV file')
     parser.add_argument('transcript_file',
                        help='Path to Google Meet transcript CSV file')
-    parser.add_argument('--version-columns', 
+    parser.add_argument('--version-column',
                        required=True,
-                       help='Comma-separated column names for version fields (sg_column,transcript_column)')
-    parser.add_argument('--version-pattern',
-                       default=r'(\d+)',
-                       help='Regex pattern to extract version numbers (default: (\\d+))')
+                       help='Column name for version field in ShotGrid CSV')
     parser.add_argument('--reference-threshold',
                        type=int,
                        default=30,
@@ -414,29 +415,28 @@ def main():
     
     args = parser.parse_args()
     
-    # Parse version columns
-    version_columns = args.version_columns.split(',')
-    if len(version_columns) != 2:
-        print("Error: --version-columns must contain exactly 2 comma-separated values", file=sys.stderr)
-        sys.exit(1)
-    
-    sg_version_column, transcript_version_column = [col.strip() for col in version_columns]
-    
+    # Parse version column - single value for SG, gmeet always uses 'version_id'
+    sg_version_column = args.version_column.strip()
+    transcript_version_column = 'version_id'  # gmeet_data.csv always uses this column name
+
+    # Use simple digit extraction pattern (assumes version columns contain plain numbers)
+    version_pattern = r'(\d+)'
+
     # Load data
     print(f"Loading ShotGrid data from {args.sg_file}...")
-    sg_data = load_sg_data(args.sg_file, sg_version_column, args.version_pattern)
+    sg_data = load_sg_data(args.sg_file, sg_version_column, version_pattern)
     print(f"Found {len(sg_data)} ShotGrid versions")
-    
+
     print(f"Loading transcript data from {args.transcript_file}...")
     transcript_data, chronological_order = load_transcript_data(
-        args.transcript_file, transcript_version_column, args.version_pattern
+        args.transcript_file, transcript_version_column, version_pattern
     )
     print(f"Found {len(transcript_data)} transcript versions")
     
     # Process transcript versions with time-based analysis
     print(f"Processing transcript with time-based reference detection (threshold: {args.reference_threshold}s)...")
     output_rows, processed_sg_versions = process_transcript_versions_with_time_analysis(
-        transcript_data, chronological_order, sg_data, args.reference_threshold, version_column=sg_version_column
+        transcript_data, chronological_order, sg_data, args.reference_threshold
     )
     
     # Add remaining SG versions that weren't discussed in transcript
@@ -448,17 +448,17 @@ def main():
         output_rows.append({
             'timestamp': '',
             'shot': sg_info.get('shot', ''),
-            sg_version_column: sg_info.get('jts', ''),
+            'version_id': version_num,
             'reference_versions': '',
             'conversation': '',
             'notes': sg_info['notes'],
-            'version_id': version_num
+            'duration_seconds': 0.0
         })
     
     # Write output CSV
     print(f"Writing combined data to {args.output}...")
     with open(args.output, 'w', newline='', encoding='utf-8') as f:
-        fieldnames = ['timestamp', 'shot', sg_version_column, 'reference_versions', 'conversation', 'notes', 'version_id']
+        fieldnames = ['timestamp', 'duration_seconds', 'shot', 'version_id', 'reference_versions', 'conversation', 'notes']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         
         writer.writeheader()
