@@ -66,7 +66,8 @@ from googleapiclient.errors import HttpError
 # Include both regular Drive and Shared Drives (Team Drives) access
 SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/drive.metadata.readonly'
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
+    'https://www.googleapis.com/auth/gmail.send'  # Added for email functionality
 ]
 
 # Regular expressions for parsing Google Drive URLs

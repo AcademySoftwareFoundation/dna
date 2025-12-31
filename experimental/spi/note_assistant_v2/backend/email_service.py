@@ -22,7 +22,11 @@ try:
 except ImportError:
     pass
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SCOPES = [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
+    'https://www.googleapis.com/auth/gmail.send'
+]
 # Get the directory of this script for relative paths
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CREDENTIALS_FILE = os.path.join(_SCRIPT_DIR, 'client_secret.json')
