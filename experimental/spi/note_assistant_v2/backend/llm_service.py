@@ -236,17 +236,30 @@ def load_llm_prompts():
     base_dir = os.path.dirname(__file__)
     user_config_path = os.path.join(base_dir, 'llm_prompts.yaml')
     factory_config_path = os.path.join(base_dir, 'llm_prompts.factory.yaml')
-    
+
     # Try to load user configuration first
     if os.path.exists(user_config_path):
         print(f"Loading user LLM prompts configuration from: {user_config_path}")
         with open(user_config_path, 'r') as f:
-            return yaml.safe_load(f)
-    
-    # Fall back to factory configuration
-    print(f"Loading factory LLM prompts configuration from: {factory_config_path}")
-    with open(factory_config_path, 'r') as f:
-        return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+    else:
+        # Fall back to factory configuration
+        print(f"Loading factory LLM prompts configuration from: {factory_config_path}")
+        with open(factory_config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+    # Post-process: join user_prompt_template_parts if present
+    for prompt_type in list(config.keys()):
+        if prompt_type == 'format_context':
+            continue  # Skip the anchor definition
+        if isinstance(config[prompt_type], dict) and 'user_prompt_template_parts' in config[prompt_type]:
+            # Join the parts into a single template
+            parts = config[prompt_type]['user_prompt_template_parts']
+            config[prompt_type]['user_prompt_template'] = '\n'.join(str(part) for part in parts)
+            # Remove the parts field
+            del config[prompt_type]['user_prompt_template_parts']
+
+    return config
 
 def load_llm_models():
     """Load LLM models configuration from YAML file. Checks for user config first, falls back to factory defaults."""
@@ -280,13 +293,13 @@ def get_model_config(provider, model=None, config=None, prompt_type="short"):
     """Get configuration for a specific provider/model, merging defaults with model-specific overrides."""
     if config is None:
         config = LLM_CONFIG
-    
-    # Start with default configuration from models config
-    models_config = load_llm_models()
+
+    # Use cached configurations to avoid redundant file I/O
+    models_config = get_cached_models_config()
     merged_config = models_config.get('default', {}).copy()
-    
+
     # Add prompts from the specified prompt type
-    prompts_config = load_llm_prompts()
+    prompts_config = get_cached_prompts_config()
     if prompt_type in prompts_config:
         merged_config.update(prompts_config[prompt_type])
     else:
@@ -295,11 +308,11 @@ def get_model_config(provider, model=None, config=None, prompt_type="short"):
         if available_prompt_types:
             fallback_prompt = available_prompt_types[0]
             merged_config.update(prompts_config[fallback_prompt])
-    
+
     # Apply model-specific overrides if specified
     if model and 'model_overrides' in models_config and model in models_config['model_overrides']:
         merged_config.update(models_config['model_overrides'][model])
-    
+
     return merged_config
 
 
@@ -350,6 +363,30 @@ def get_model_for_provider(provider):
 
 # Load configuration
 LLM_CONFIG = load_llm_config()
+
+# Cache for loaded configurations to avoid redundant file I/O
+_PROMPTS_CONFIG_CACHE = None
+_MODELS_CONFIG_CACHE = None
+
+def clear_config_cache():
+    """Clear configuration cache - useful for reloading after config changes."""
+    global _PROMPTS_CONFIG_CACHE, _MODELS_CONFIG_CACHE
+    _PROMPTS_CONFIG_CACHE = None
+    _MODELS_CONFIG_CACHE = None
+
+def get_cached_prompts_config():
+    """Get cached prompts configuration, loading once if needed."""
+    global _PROMPTS_CONFIG_CACHE
+    if _PROMPTS_CONFIG_CACHE is None:
+        _PROMPTS_CONFIG_CACHE = load_llm_prompts()
+    return _PROMPTS_CONFIG_CACHE
+
+def get_cached_models_config():
+    """Get cached models configuration, loading once if needed."""
+    global _MODELS_CONFIG_CACHE
+    if _MODELS_CONFIG_CACHE is None:
+        _MODELS_CONFIG_CACHE = load_llm_models()
+    return _MODELS_CONFIG_CACHE
 
 def summarize_openai(conversation, model, client, config):
     prompt = config['user_prompt_template'].format(conversation=conversation)
