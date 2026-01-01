@@ -586,7 +586,7 @@ If a version is discussed for less than the threshold (default: 30 seconds), it'
 **Basic usage:**
 ```bash
 python llm_service.py \
-    --csv-input combined_data.csv \
+    --csv-input gmeet_and_sg_data.csv \
     --csv-output with_summaries.csv \
     --provider google \
     --model gemini-2.0-flash-exp
@@ -871,7 +871,7 @@ python process_gmeet_recording.py \
 
 **Preserved files (in temp directory):**
 - `gmeet_data.csv` - Stage 1 output (transcript + visual detection)
-- `combined_data.csv` - Stage 2 output (merged with SG)
+- `gmeet_and_sg_data.csv` - Stage 2 output (merged with SG)
 - Visual detection intermediate files
 
 **Temp directory location** shown in output, e.g.:
@@ -1117,12 +1117,12 @@ When you use `--keep-intermediate`, the pipeline preserves temporary files. Here
    cat /tmp/gmeet_recording_abc123/gmeet_data.csv
 
    # Stage 2 output
-   cat /tmp/gmeet_recording_abc123/combined_data.csv
+   cat /tmp/gmeet_recording_abc123/gmeet_and_sg_data.csv
    ```
 
 3. **What to look for:**
    - **gmeet_data.csv**: Check if transcription is accurate, speaker names correct, version IDs detected
-   - **combined_data.csv**: Verify SG notes merged correctly, conversations grouped properly
+   - **gmeet_and_sg_data.csv**: Verify SG notes merged correctly, conversations grouped properly
 
 ---
 

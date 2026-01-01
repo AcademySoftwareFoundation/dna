@@ -49,6 +49,7 @@ from llm_service import (
     llm_clients
 )
 from email_service import send_csv_email
+from google_drive_utils import sanitize_filename
 
 
 def format_duration(seconds: float) -> str:
@@ -198,7 +199,7 @@ def main():
     parser.add_argument("--gmeet-csv", default=None,
                        help="Path to existing gmeet_data.csv to skip entire Stage 1")
     parser.add_argument("--combined-csv", default=None,
-                       help="Path to existing combined_data.csv to skip Stages 1-2")
+                       help="Path to existing gmeet_and_sg_data.csv to skip Stages 1-2")
 
     args = parser.parse_args()
 
@@ -251,8 +252,9 @@ def main():
             if output_dir_parent:
                 os.makedirs(output_dir_parent, exist_ok=True)
     else:
-        # No --output specified: use current directory (legacy behavior)
-        args.output = f"{sg_basename}_processed.csv"
+        # No --output specified: use email subject as filename
+        output_filename = sanitize_filename(args.email_subject)
+        args.output = f"{output_filename}.csv"
 
     # Infer provider from model name
     provider = None
@@ -304,7 +306,7 @@ def main():
             # This is needed for organizing output files properly
             if output_is_dir and args.video_input:
                 # Import here to avoid circular imports
-                from google_drive_utils import is_google_drive_url, get_file_id_from_url, sanitize_filename
+                from google_drive_utils import is_google_drive_url, get_file_id_from_url
 
                 if is_google_drive_url(args.video_input):
                     file_id = get_file_id_from_url(args.video_input)
@@ -323,14 +325,14 @@ def main():
 
         elif args.combined_csv:
             # Skip both Stage 1 and Stage 2
-            print("=== Stages 1-2: Using existing combined_data.csv ===")
+            print("=== Stages 1-2: Using existing gmeet_and_sg_data.csv ===")
             print(f"Input: {args.combined_csv}")
             gmeet_csv = None  # Won't be used
             timing['stage1'] = 0.0
 
             # Still process video_input for recording_dir if in output_dir mode
             if output_is_dir and args.video_input:
-                from google_drive_utils import is_google_drive_url, get_file_id_from_url, sanitize_filename
+                from google_drive_utils import is_google_drive_url, get_file_id_from_url
 
                 if is_google_drive_url(args.video_input):
                     file_id = get_file_id_from_url(args.video_input)
@@ -408,8 +410,9 @@ def main():
 
         # If we got a recording directory, update output paths
         if recording_dir and output_is_dir:
-            # Update final CSV path
-            args.output = os.path.join(recording_dir, f"{sg_basename}_processed.csv")
+            # Update final CSV path using email subject
+            output_filename = sanitize_filename(args.email_subject)
+            args.output = os.path.join(recording_dir, f"{output_filename}.csv")
 
             # Update timeline CSV path if specified
             if args.timeline_csv and not os.path.dirname(args.timeline_csv):
@@ -420,7 +423,7 @@ def main():
         # ===================================================================
         if args.combined_csv:
             # Use provided combined CSV instead of processing
-            print("=== Stage 2: Using existing combined_data.csv ===")
+            print("=== Stage 2: Using existing gmeet_and_sg_data.csv ===")
             print(f"Input: {args.combined_csv}")
             combined_csv = args.combined_csv
             timing['stage2'] = 0.0
@@ -431,7 +434,7 @@ def main():
 
         else:
             # Run Stage 2 normally
-            combined_csv = os.path.join(temp_dir, "combined_data.csv")
+            combined_csv = os.path.join(temp_dir, "gmeet_and_sg_data.csv")
 
             print("=== Stage 2: Combining with ShotGrid Data ===")
             stage2_start = time.time()
@@ -591,21 +594,36 @@ def main():
                 # Determine which intermediate files to copy based on what was generated
                 files_to_copy = []
 
+                # Always copy the input ShotGrid CSV for reference
+                sg_csv_basename = os.path.basename(args.sg_playlist_csv)
+                if os.path.exists(args.sg_playlist_csv):
+                    files_to_copy.append(('input ShotGrid CSV', args.sg_playlist_csv, sg_csv_basename))
+
                 # Only copy gmeet_data.csv if we actually ran Stage 1
                 if not args.gmeet_csv and not args.combined_csv:
                     files_to_copy.append('gmeet_data.csv')
 
-                # Only copy combined_data.csv if we actually ran Stage 2
+                # Only copy gmeet_and_sg_data.csv if we actually ran Stage 2
                 if not args.combined_csv:
-                    files_to_copy.append('combined_data.csv')
+                    files_to_copy.append('gmeet_and_sg_data.csv')
 
-                # Copy files that exist in temp_dir
-                for filename in files_to_copy:
-                    src = os.path.join(temp_dir, filename)
-                    if os.path.exists(src):
-                        dst = os.path.join(intermediate_dir, filename)
-                        shutil.copy2(src, dst)
-                        print(f"Copied {filename} to intermediate/")
+                # Copy files that exist
+                for item in files_to_copy:
+                    if isinstance(item, tuple):
+                        # Tuple format: (label, source_path, dest_filename)
+                        label, src, dest_filename = item
+                        if os.path.exists(src):
+                            dst = os.path.join(intermediate_dir, dest_filename)
+                            shutil.copy2(src, dst)
+                            print(f"Copied {label} to intermediate/{dest_filename}")
+                    else:
+                        # String format: filename in temp_dir
+                        filename = item
+                        src = os.path.join(temp_dir, filename)
+                        if os.path.exists(src):
+                            dst = os.path.join(intermediate_dir, filename)
+                            shutil.copy2(src, dst)
+                            print(f"Copied {filename} to intermediate/")
 
                 # Clean up temp directory after copying
                 shutil.rmtree(temp_dir)

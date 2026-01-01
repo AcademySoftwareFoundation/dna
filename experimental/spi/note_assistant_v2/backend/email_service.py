@@ -44,6 +44,9 @@ SMTP_TLS = os.getenv('SMTP_TLS', 'false').lower() == 'true'
 router = APIRouter()
 
 
+import re
+
+
 def timestamp_to_seconds(timestamp_str: str) -> int:
     """
     Convert HH:MM:SS timestamp to total seconds.
@@ -110,6 +113,48 @@ def create_timestamped_drive_url(drive_url: str, timestamp_str: str):
     # Add timestamp parameter to URL
     separator = '&' if '?' in drive_url else '?'
     return f"{drive_url}{separator}t={seconds}s"
+
+
+def replace_version_markers_with_links(text: str, drive_url: str = None) -> str:
+    """
+    Replace version markers [version_number, timestamp] in text with clickable HTML links.
+
+    Args:
+        text: Text containing version markers in format [version_number, timestamp]
+        drive_url: Optional Google Drive URL for creating timestamp links
+
+    Returns:
+        Text with version markers replaced by HTML links (if drive_url provided) or bold text
+
+    Example:
+        >>> replace_version_markers_with_links(
+        ...     "Review of [1234, 00:15:30] looks good",
+        ...     "https://drive.google.com/file/d/ABC123/view"
+        ... )
+        "Review of <a href='...' target='_blank'>1234</a> looks good"
+    """
+    if not text:
+        return text
+
+    # Pattern matches [version_number, timestamp] where:
+    # - version_number is one or more digits
+    # - timestamp is HH:MM:SS or MM:SS format
+    pattern = r'\[(\d+),\s*(\d{1,2}:\d{2}:\d{2})\]'
+
+    def replacer(match):
+        version_num = match.group(1)
+        timestamp = match.group(2)
+
+        if drive_url:
+            # Create clickable link with timestamp
+            timestamped_url = create_timestamped_drive_url(drive_url, timestamp)
+            if timestamped_url:
+                return f'<a href="{html.escape(timestamped_url)}" target="_blank" style="color:#0066cc;text-decoration:underline;font-weight:bold;">{html.escape(version_num)}</a>'
+
+        # Fallback to bold text if no drive URL
+        return f'<span style="font-weight:bold;">{html.escape(version_num)}</span>'
+
+    return re.sub(pattern, replacer, text)
 
 
 class EmailNotesRequest(BaseModel):
@@ -332,7 +377,7 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
         version_id = row.get('version_id', '')
         timestamp = row.get('timestamp', '')
         reference_versions = row.get('reference_versions', '')
-        summary = html.escape(row.get('summary', ''))  # Renamed from llm_summary
+        summary = row.get('summary', '')  # Don't escape yet - need to process version markers first
         notes = html.escape(row.get('notes', ''))      # Renamed from sg_summary
         # transcription = row.get('transcription', '')  # Renamed from conversation
 
@@ -342,7 +387,12 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
         #     conversation_preview += "..."
         # conversation_preview = html.escape(conversation_preview)
 
-        # Replace newlines with <br> tags for proper HTML display
+        # Replace version markers with clickable links BEFORE escaping HTML
+        summary = replace_version_markers_with_links(summary, drive_url)
+
+        # Now escape any remaining HTML and replace newlines with <br> tags
+        # Note: The version markers have already been converted to HTML links,
+        # so we need to be careful not to double-escape them
         summary = summary.replace('\n', '<br>')
         notes = notes.replace('\n', '<br>')
         # transcription_preview = transcription_preview.replace('\n', '<br>')
@@ -463,12 +513,22 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
     </p>
     '''
 
+    # Prepare attachments (used by both SMTP and Gmail)
+    attachments = []
+    main_csv_filename = os.path.basename(csv_file_path)
+    attachments.append((main_csv_filename, csv_file_path))
+
+    # Add timeline CSV if provided
+    if timeline_csv_path and os.path.exists(timeline_csv_path):
+        timeline_filename = os.path.basename(timeline_csv_path)
+        attachments.append((timeline_filename, timeline_csv_path))
+
     # Send email based on provider
     if EMAIL_PROVIDER == 'smtp':
         print("Sending email using SMTP...")
         try:
-            send_smtp_email(recipient_email, SUBJECT, html_content)
-            print(f"Email sent successfully to {recipient_email} with {len(rows)} records.")
+            send_smtp_email(recipient_email, SUBJECT, html_content, attachments=attachments)
+            print(f"Email sent successfully to {recipient_email} with {len(rows)} records and {len(attachments)} attachment(s).")
             return True
         except Exception as e:
             print(f"SMTP email failed: {e}")
@@ -485,16 +545,6 @@ def send_csv_email(recipient_email: str, csv_file_path: str, drive_url: str = No
                 with open(TOKEN_FILE, 'w') as token:
                     token.write(creds.to_json())
                 print("token.json created.")
-
-            # Prepare attachments
-            attachments = []
-            main_csv_filename = os.path.basename(csv_file_path)
-            attachments.append((main_csv_filename, csv_file_path))
-
-            # Add timeline CSV if provided
-            if timeline_csv_path and os.path.exists(timeline_csv_path):
-                timeline_filename = os.path.basename(timeline_csv_path)
-                attachments.append((timeline_filename, timeline_csv_path))
 
             service = get_gmail_service()
             message = create_gmail_message(FROM_EMAIL, recipient_email, SUBJECT, html_content, attachments=attachments)
