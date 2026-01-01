@@ -1017,7 +1017,7 @@ async def process_past_recording(
 
 # --- CSV PROCESSING FUNCTIONS ---
 
-def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=None, prompt_type="short"):
+def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=None, prompt_type="short", limit=None):
     """
     Process a CSV file by adding LLM summaries for conversation data.
 
@@ -1027,6 +1027,7 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
         provider: LLM provider to use (optional)
         model: Specific model to use (optional)
         prompt_type: Type of prompt to use for summaries
+        limit: Maximum number of entries to process (optional, for experimentation)
 
     Returns:
         Tuple of (success: bool, llm_time: float) where llm_time is total LLM processing time in seconds
@@ -1092,7 +1093,11 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
     provider_name = client_info['provider']
     
     print(f"Using LLM: {provider_name} with model: {model_name}")
-    
+
+    # Apply limit if specified
+    if limit is not None and limit > 0:
+        print(f"Limiting processing to first {limit} entries with conversation data")
+
     # Process each row with conversation data
     processed_count = 0
     for index, row in df.iterrows():
@@ -1101,7 +1106,12 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
         # Skip empty conversations
         if not conversation or conversation.lower() in ['nan', 'null', '']:
             continue
-        
+
+        # Check if we've reached the limit
+        if limit is not None and limit > 0 and processed_count >= limit:
+            print(f"Reached limit of {limit} entries, stopping processing")
+            break
+
         print(f"Processing row {index + 1}/{len(df)}: version_id={row.get('version_id', 'N/A')}")
         
         try:
@@ -1141,8 +1151,8 @@ def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=N
     
     # Rename columns for final output
     df = df.rename(columns={
-        'conversation': 'transcription',
         'llm_summary': 'summary'
+        # Keep 'conversation' column as-is (don't rename to 'transcription')
         # 'notes' already renamed in combine stage
         # 'shot' and version column already present
     })
@@ -1171,6 +1181,7 @@ if __name__ == "__main__":
     parser.add_argument('--csv-output', type=str, help='Output CSV file path for batch processing results')
     parser.add_argument('--model', type=str, help='Specific model to use (e.g., gemini-1.5-pro)')
     parser.add_argument('--prompt-type', type=str, default='short', help='Prompt type to use for summaries')
+    parser.add_argument('--limit', type=int, help='Maximum number of entries to process from CSV (useful for experimentation)')
     
     args = parser.parse_args()
 
@@ -1186,7 +1197,8 @@ if __name__ == "__main__":
             output_path=args.csv_output,
             provider=args.provider,
             model=args.model,
-            prompt_type=args.prompt_type
+            prompt_type=args.prompt_type,
+            limit=args.limit
         )
         
         if success:
