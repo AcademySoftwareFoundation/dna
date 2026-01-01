@@ -91,18 +91,27 @@ def load_transcript_data(filepath: str, version_column: str, pattern: str) -> Tu
 
 
 def format_conversation(conversations: List[Dict]) -> str:
-    """Format conversation entries into a readable string."""
+    """Format conversation entries into a readable string with version markers."""
     if not conversations:
         return ""
-    
+
     # Sort by timestamp to maintain chronological order
     sorted_conversations = sorted(conversations, key=lambda x: x.get('timestamp', ''))
-    
+
     formatted_lines = []
+    previous_version = None
+
     for conv in sorted_conversations:
         speaker = conv.get('speaker', 'Unknown')
         text = conv.get('text', '').strip()
-        
+        version_num = conv.get('version_num')
+        timestamp = conv.get('timestamp', '')
+
+        # Insert version marker when version changes
+        if version_num and version_num != previous_version:
+            formatted_lines.append(f"[{version_num}, {timestamp}]")
+            previous_version = version_num
+
         if text:
             # We have actual transcript text
             formatted_lines.append(f"{speaker}: {text}")
@@ -110,7 +119,7 @@ def format_conversation(conversations: List[Dict]) -> str:
             # We don't have transcript text but we have speaker info
             # This indicates a conversation occurred but text wasn't captured
             formatted_lines.append(f"{speaker}: [conversation occurred]")
-    
+
     return '\n'.join(formatted_lines)
 
 
