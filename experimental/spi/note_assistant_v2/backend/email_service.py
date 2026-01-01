@@ -528,7 +528,7 @@ async def email_notes(data: EmailNotesRequest):
         html += f"<tr>"
         html += f"<td>{row.get('shot','')}</td>"
         html += f"<td>{row.get('notes','').replace(chr(10),'<br>')}</td>"
-        html += f"<td>{row.get('transcription','').replace(chr(10),'<br>')}</td>"
+        html += f"<td>{row.get('conversation','').replace(chr(10),'<br>')}</td>"
         html += f"<td>{row.get('summary','').replace(chr(10),'<br>')}</td>"
         html += "</tr>"
     html += "</tbody></table>"
