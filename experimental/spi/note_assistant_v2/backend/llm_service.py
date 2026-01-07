@@ -2,13 +2,27 @@
 import os
 import random
 import requests
-from fastapi import APIRouter, HTTPException
+import pandas as pd
+import sys
+import tempfile
+import shutil
+import subprocess
+import csv
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
 router = APIRouter()
 
 class LLMSummaryRequest(BaseModel):
     text: str
+
+class ProcessRecordingRequest(BaseModel):
+    recording_url: str
+    recipient_email: str
+    shotgrid_data: list  # Array of {shot, notes, transcription, ...}
+    selected_project_name: str = ""  # Optional selected project name from UI
+    playlist_name: str = ""  # Optional playlist name for email subject
 
 # --- LLM IMPLEMENTATION CODE ---
 
@@ -24,6 +38,9 @@ from dotenv import load_dotenv
 import json
 import types
 from datetime import datetime
+
+# Load environment variables at module level
+load_dotenv()
 
 # === Gemini Response Debugging ===
 
@@ -219,17 +236,30 @@ def load_llm_prompts():
     base_dir = os.path.dirname(__file__)
     user_config_path = os.path.join(base_dir, 'llm_prompts.yaml')
     factory_config_path = os.path.join(base_dir, 'llm_prompts.factory.yaml')
-    
+
     # Try to load user configuration first
     if os.path.exists(user_config_path):
         print(f"Loading user LLM prompts configuration from: {user_config_path}")
         with open(user_config_path, 'r') as f:
-            return yaml.safe_load(f)
-    
-    # Fall back to factory configuration
-    print(f"Loading factory LLM prompts configuration from: {factory_config_path}")
-    with open(factory_config_path, 'r') as f:
-        return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+    else:
+        # Fall back to factory configuration
+        print(f"Loading factory LLM prompts configuration from: {factory_config_path}")
+        with open(factory_config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+    # Post-process: join user_prompt_template_parts if present
+    for prompt_type in list(config.keys()):
+        if prompt_type == 'format_context':
+            continue  # Skip the anchor definition
+        if isinstance(config[prompt_type], dict) and 'user_prompt_template_parts' in config[prompt_type]:
+            # Join the parts into a single template
+            parts = config[prompt_type]['user_prompt_template_parts']
+            config[prompt_type]['user_prompt_template'] = '\n'.join(str(part) for part in parts)
+            # Remove the parts field
+            del config[prompt_type]['user_prompt_template_parts']
+
+    return config
 
 def load_llm_models():
     """Load LLM models configuration from YAML file. Checks for user config first, falls back to factory defaults."""
@@ -263,13 +293,13 @@ def get_model_config(provider, model=None, config=None, prompt_type="short"):
     """Get configuration for a specific provider/model, merging defaults with model-specific overrides."""
     if config is None:
         config = LLM_CONFIG
-    
-    # Start with default configuration from models config
-    models_config = load_llm_models()
+
+    # Use cached configurations to avoid redundant file I/O
+    models_config = get_cached_models_config()
     merged_config = models_config.get('default', {}).copy()
-    
+
     # Add prompts from the specified prompt type
-    prompts_config = load_llm_prompts()
+    prompts_config = get_cached_prompts_config()
     if prompt_type in prompts_config:
         merged_config.update(prompts_config[prompt_type])
     else:
@@ -278,11 +308,11 @@ def get_model_config(provider, model=None, config=None, prompt_type="short"):
         if available_prompt_types:
             fallback_prompt = available_prompt_types[0]
             merged_config.update(prompts_config[fallback_prompt])
-    
+
     # Apply model-specific overrides if specified
     if model and 'model_overrides' in models_config and model in models_config['model_overrides']:
         merged_config.update(models_config['model_overrides'][model])
-    
+
     return merged_config
 
 
@@ -333,6 +363,30 @@ def get_model_for_provider(provider):
 
 # Load configuration
 LLM_CONFIG = load_llm_config()
+
+# Cache for loaded configurations to avoid redundant file I/O
+_PROMPTS_CONFIG_CACHE = None
+_MODELS_CONFIG_CACHE = None
+
+def clear_config_cache():
+    """Clear configuration cache - useful for reloading after config changes."""
+    global _PROMPTS_CONFIG_CACHE, _MODELS_CONFIG_CACHE
+    _PROMPTS_CONFIG_CACHE = None
+    _MODELS_CONFIG_CACHE = None
+
+def get_cached_prompts_config():
+    """Get cached prompts configuration, loading once if needed."""
+    global _PROMPTS_CONFIG_CACHE
+    if _PROMPTS_CONFIG_CACHE is None:
+        _PROMPTS_CONFIG_CACHE = load_llm_prompts()
+    return _PROMPTS_CONFIG_CACHE
+
+def get_cached_models_config():
+    """Get cached models configuration, loading once if needed."""
+    global _MODELS_CONFIG_CACHE
+    if _MODELS_CONFIG_CACHE is None:
+        _MODELS_CONFIG_CACHE = load_llm_models()
+    return _MODELS_CONFIG_CACHE
 
 def summarize_openai(conversation, model, client, config):
     prompt = config['user_prompt_template'].format(conversation=conversation)
@@ -667,23 +721,539 @@ async def llm_summary(request: dict):
         # Return error in summary field instead of raising exception
         return {"summary": f"Error: {str(e)}", "provider": provider, "model": model, "prompt_type": prompt_type, "routed": False, "error": True}
 
+# --- GOOGLE MEET RECORDING PROCESSING ---
+
+def process_recording_task(recording_url: str, recipient_email: str, shotgrid_data: list, selected_project_name: str = "", playlist_name: str = ""):
+    """
+    Background task: Process Google Meet recording and email results.
+    This function runs asynchronously in the background.
+
+    Strategy: Call the existing process_gmeet_recording.py script as a subprocess.
+    All logic (downloading, extracting, LLM processing, emailing) is already there.
+    """
+    temp_dir = None
+    log_file_path = None
+
+    try:
+        # Create temporary directory for ShotGrid CSV and logs
+        temp_dir = tempfile.mkdtemp(prefix="past_recording_")
+        sg_csv_path = os.path.join(temp_dir, "shotgrid_playlist.csv")
+
+        # Create timestamped log file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file_path = os.path.join(logs_dir, f"past_recording_{timestamp}.log")
+
+        print(f"Log file: {log_file_path}")
+
+        # Extract project name from uploaded ShotGrid data
+        # Look for version field in the first row (e.g., "project-123" -> "project")
+        project_name = ''
+        if shotgrid_data and len(shotgrid_data) > 0:
+            first_row = shotgrid_data[0]
+            shot_field = first_row.get('shot', '')
+
+            # Try to extract from shot field (format: "shot_name/version_name")
+            if '/' in shot_field:
+                version_name = shot_field.split('/', 1)[1]
+                # Extract project prefix from version name (e.g., "project-123" -> "project")
+                if '-' in version_name:
+                    project_name = version_name.split('-')[0]
+
+        # Fallback to selected project from UI parameter
+        if not project_name and selected_project_name:
+            project_name = selected_project_name
+
+        print(f"Extracted project name: {project_name or '(none)'}")
+
+        # Build command to run process_gmeet_recording.py
+        tools_dir = os.path.join(os.path.dirname(__file__), 'tools')
+        script_path = os.path.join(tools_dir, 'process_gmeet_recording.py')
+
+        # Determine which LLM model to use (first available)
+        if not llm_clients:
+            raise Exception("No LLM clients available")
+
+        client_key = list(llm_clients.keys())[0]
+        client_info = llm_clients[client_key]
+        model_name = client_info['model']
+
+        # Read configuration from environment variables
+        version_pattern = os.getenv('GMEET_VERSION_PATTERN', r'(\d+)')
+
+        # Replace {project} or $project placeholder with actual project name
+        if project_name:
+            version_pattern = version_pattern.replace('{project}', project_name)
+            version_pattern = version_pattern.replace('$project', project_name)
+
+        version_column = os.getenv('SG_CSV_VERSION_FIELD', 'jts').split(',')[0]  # Use first field
+        audio_model = os.getenv('GMEET_AUDIO_MODEL', 'base')
+        frame_interval = os.getenv('GMEET_FRAME_INTERVAL', '5.0')
+        batch_size = os.getenv('GMEET_BATCH_SIZE', '20')
+        reference_threshold = os.getenv('GMEET_REFERENCE_THRESHOLD', '30')
+        parallel = os.getenv('GMEET_PARALLEL', 'false').lower() == 'true'
+        prompt_type = os.getenv('GMEET_PROMPT_TYPE', 'short')
+        thumbnail_url = os.getenv('GMEET_THUMBNAIL_URL', '')
+        duration = os.getenv('GMEET_DURATION', '')
+        # Build email subject from playlist name if available
+        if playlist_name:
+            # Strip .csv extension if present
+            email_subject = playlist_name[:-4] if playlist_name.endswith('.csv') else playlist_name
+        else:
+            email_subject = os.getenv('GMEET_EMAIL_SUBJECT', 'Dailies Review Data - Version Notes and Summaries')
+
+        # Replace {project} or $project placeholder in thumbnail URL
+        if project_name and thumbnail_url:
+            thumbnail_url = thumbnail_url.replace('{project}', project_name)
+            thumbnail_url = thumbnail_url.replace('$project', project_name)
+
+        # Update the CSV to use the correct version column name
+        # Re-create the CSV with the correct column name for version_column
+        print(f"Re-creating ShotGrid CSV with version column '{version_column}'...")
+        with open(sg_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+            # Use the version_column name from config instead of generic 'Version'
+            fieldnames = ['shot', version_column, 'notes']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            # Write each row from shotgrid_data
+            for row in shotgrid_data:
+                # Parse shot field which might contain "shot_name/version_name"
+                shot_field = row.get('shot', '')
+                if '/' in shot_field:
+                    shot_name, version_name = shot_field.split('/', 1)
+                else:
+                    shot_name = shot_field
+                    version_name = ''
+
+                writer.writerow({
+                    'shot': shot_name,
+                    version_column: version_name,  # Use the correct column name
+                    'notes': row.get('notes', '')
+                })
+
+        # Build command arguments
+        cmd = [
+            sys.executable,  # Use current Python interpreter
+            script_path,
+            recording_url,  # Google Drive URL (script handles download)
+            sg_csv_path,  # ShotGrid playlist CSV
+            recipient_email,  # Email address (positional arg - must come before optional flags)
+            '--version-pattern', version_pattern,
+            '--version-column', version_column,
+            '--model', model_name,
+            '--drive-url', recording_url,  # For clickable timestamps
+            '--audio-model', audio_model,
+            '--frame-interval', frame_interval,
+            '--batch-size', batch_size,
+            '--reference-threshold', reference_threshold,
+            '--prompt-type', prompt_type,
+            '--email-subject', email_subject,
+            '--verbose'
+        ]
+
+        # Add optional arguments
+        if parallel:
+            cmd.append('--parallel')
+
+        # Keep intermediate files if configured
+        keep_intermediate = os.getenv('GMEET_KEEP_INTERMEDIATE', 'false').lower() == 'true'
+        if keep_intermediate:
+            cmd.append('--keep-intermediate')
+
+        # Add duration limit if configured
+        if duration:
+            try:
+                duration_seconds = float(duration)
+                if duration_seconds > 0:
+                    cmd.extend(['--duration', str(duration_seconds)])
+                    print(f"Duration limit enabled: processing first {duration_seconds} seconds")
+            except ValueError:
+                print(f"Warning: Invalid GMEET_DURATION value '{duration}', ignoring")
+
+        if thumbnail_url:
+            cmd.extend(['--thumbnail-url', thumbnail_url])
+
+        # Enable caching if GMEET_CACHE_DIR is configured
+        cache_dir = os.getenv('GMEET_CACHE_DIR', '')
+        if cache_dir and project_name:
+            # Convert relative path to absolute path (relative to backend directory)
+            if not os.path.isabs(cache_dir):
+                cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), cache_dir))
+
+            cmd.extend(['--output', cache_dir])
+            cmd.extend(['--project', project_name])
+            print(f"Cache enabled: recordings will be cached in {cache_dir}/{project_name}/")
+        else:
+            print("Cache disabled: using temporary files only")
+            if not cache_dir:
+                print("  Reason: GMEET_CACHE_DIR not set")
+            if not project_name:
+                print("  Reason: project_name not available")
+
+        print(f"Running command: {' '.join(cmd)}")
+
+        print(f"Command: {' '.join(cmd)}")
+        print(f"Log file: {log_file_path}")
+        print(f"Temp ShotGrid CSV: {sg_csv_path}")
+        #return  # TEMPORARY: Remove this return to actually execute the command
+
+        # Run the subprocess and capture output to log file
+        import time
+        start_time = time.time()
+
+        with open(log_file_path, 'w') as log_file:
+            log_file.write(f"=== Google Meet Past Recording Processing ===\n")
+            log_file.write(f"Started: {datetime.now().isoformat()}\n")
+            log_file.write(f"Recording URL: {recording_url}\n")
+            log_file.write(f"Recipient: {recipient_email}\n")
+            log_file.write(f"Shots: {len(shotgrid_data)}\n")
+            log_file.write(f"Command: {' '.join(cmd)}\n")
+            log_file.write(f"\n{'='*60}\n\n")
+            log_file.flush()
+
+            # Run subprocess with output redirected to log file
+            process = subprocess.Popen(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=tools_dir
+            )
+
+            # Wait for completion
+            return_code = process.wait()
+
+            # Calculate execution time
+            elapsed_seconds = time.time() - start_time
+            hours = int(elapsed_seconds // 3600)
+            minutes = int((elapsed_seconds % 3600) // 60)
+            seconds = int(elapsed_seconds % 60)
+
+            if hours > 0:
+                elapsed_str = f"{hours}h {minutes}m {seconds}s"
+            elif minutes > 0:
+                elapsed_str = f"{minutes}m {seconds}s"
+            else:
+                elapsed_str = f"{seconds}s"
+
+            log_file.write(f"\n{'='*60}\n")
+            log_file.write(f"Completed: {datetime.now().isoformat()}\n")
+            log_file.write(f"Duration: {elapsed_str} ({elapsed_seconds:.2f} seconds)\n")
+            log_file.write(f"Return code: {return_code}\n")
+
+        if return_code != 0:
+            raise Exception(f"Processing failed with return code {return_code}. Check log: {log_file_path}")
+
+        print(f"Processing completed in {elapsed_str}! Log: {log_file_path}")
+
+    except Exception as e:
+        error_msg = f"Error processing Google Meet recording: {str(e)}"
+        print(error_msg)
+
+        # Log the error
+        if log_file_path:
+            try:
+                with open(log_file_path, 'a') as log_file:
+                    log_file.write(f"\n{'='*60}\n")
+                    log_file.write(f"ERROR: {error_msg}\n")
+                    log_file.write(f"{'='*60}\n")
+            except:
+                pass
+
+        # Note: Error email would be sent by the process_gmeet_recording.py script if it fails
+        # We don't need to send error notification here
+
+    finally:
+        # Clean up temporary directory (ShotGrid CSV)
+        # Keep log file for debugging
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+                print(f"Cleaned up temporary directory: {temp_dir}")
+            except Exception as e:
+                print(f"Failed to clean up temp directory: {e}")
+
+@router.post("/process-past-recording")
+async def process_past_recording(
+    request: ProcessRecordingRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Process a past Google Meet recording asynchronously.
+
+    The recording will be downloaded, processed, and results emailed.
+    This endpoint returns immediately; processing happens in background.
+    """
+    # Validate inputs
+    if not request.recording_url or not request.recording_url.strip():
+        raise HTTPException(status_code=400, detail="recording_url is required")
+
+    if not request.recipient_email or not request.recipient_email.strip():
+        raise HTTPException(status_code=400, detail="recipient_email is required")
+
+    if not request.shotgrid_data or len(request.shotgrid_data) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="shotgrid_data is required. Please upload a ShotGrid playlist first."
+        )
+
+    # Validate Google Drive URL format
+    if "drive.google.com" not in request.recording_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Google Drive URL. Must be a drive.google.com link"
+        )
+
+    # Pre-validate project name extraction (before background task starts)
+    version_pattern = os.getenv('GMEET_VERSION_PATTERN', r'(\d+)')
+    has_placeholder = '{project}' in version_pattern or '$project' in version_pattern
+
+    if has_placeholder:
+        # Tier 1: Try to extract project name from uploaded CSV data
+        project_name = ''
+        if request.shotgrid_data and len(request.shotgrid_data) > 0:
+            first_row = request.shotgrid_data[0]
+            shot_field = first_row.get('shot', '')
+
+            # Try to extract from shot field (format: "shot_name/version_name")
+            if '/' in shot_field:
+                version_name = shot_field.split('/', 1)[1]
+                # Extract project prefix from version name (e.g., "project-123" -> "project")
+                if '-' in version_name:
+                    project_name = version_name.split('-')[0]
+
+        # Tier 2: Fallback to selected project from UI
+        if not project_name and request.selected_project_name:
+            project_name = request.selected_project_name
+
+        # If pattern requires project name but we couldn't get it from either source, fail early
+        if not project_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not determine project name. Please select a project in the ShotGrid panel (Import tab) before submitting."
+            )
+
+    # Add background task
+    background_tasks.add_task(
+        process_recording_task,
+        request.recording_url,
+        request.recipient_email,
+        request.shotgrid_data,
+        request.selected_project_name,
+        request.playlist_name
+    )
+
+    return {
+        "status": "success",
+        "message": "Processing started. You will receive an email when complete.",
+        "recipient_email": request.recipient_email,
+        "shots_count": len(request.shotgrid_data)
+    }
+
+# --- CSV PROCESSING FUNCTIONS ---
+
+def process_csv_with_llm_summaries(csv_path, output_path, provider=None, model=None, prompt_type="short", limit=None):
+    """
+    Process a CSV file by adding LLM summaries for conversation data.
+
+    Args:
+        csv_path: Path to input CSV file
+        output_path: Path to output CSV file with summaries
+        provider: LLM provider to use (optional)
+        model: Specific model to use (optional)
+        prompt_type: Type of prompt to use for summaries
+        limit: Maximum number of entries to process (optional, for experimentation)
+
+    Returns:
+        Tuple of (success: bool, llm_time: float) where llm_time is total LLM processing time in seconds
+    """
+    import time
+    llm_start_time = time.time()
+
+    print(f"Loading CSV from: {csv_path}")
+    
+    # Read the CSV file
+    try:
+        df = pd.read_csv(csv_path)
+        print(f"Loaded {len(df)} rows from CSV")
+    except Exception as e:
+        print(f"Error reading CSV file: {e}")
+        return (False, 0.0)
+
+    # Check if conversation column exists
+    if 'conversation' not in df.columns:
+        print("Error: 'conversation' column not found in CSV")
+        print(f"Available columns: {list(df.columns)}")
+        return (False, 0.0)
+    
+    # Initialize new columns for LLM results
+    df['llm_summary'] = ''
+    df['llm_provider'] = ''
+    df['llm_model'] = ''
+    df['llm_prompt_type'] = ''
+    df['llm_error'] = ''
+    
+    # Choose the LLM client to use
+    selected_client_key = None
+    
+    if model:
+        # Try to find specific model
+        if model in llm_clients:
+            selected_client_key = model
+        else:
+            # Try to find model by matching the model name part
+            for key, client_info in llm_clients.items():
+                if client_info['model'] == model:
+                    selected_client_key = key
+                    break
+    
+    if not selected_client_key and provider:
+        # Find first model for this provider
+        for key in llm_clients.keys():
+            if llm_clients[key]['provider'] == provider:
+                selected_client_key = key
+                break
+    
+    if not selected_client_key and llm_clients:
+        # Use first available
+        selected_client_key = list(llm_clients.keys())[0]
+    
+    if not selected_client_key:
+        print("No LLM clients available for processing")
+        return (False, 0.0)
+    
+    client_info = llm_clients[selected_client_key]
+    client = client_info['client']
+    model_name = client_info['model']
+    provider_name = client_info['provider']
+    
+    print(f"Using LLM: {provider_name} with model: {model_name}")
+
+    # Apply limit if specified
+    if limit is not None and limit > 0:
+        print(f"Limiting processing to first {limit} entries with conversation data")
+
+    # Process each row with conversation data
+    processed_count = 0
+    for index, row in df.iterrows():
+        conversation = str(row['conversation']).strip()
+        
+        # Skip empty conversations
+        if not conversation or conversation.lower() in ['nan', 'null', '']:
+            continue
+
+        # Check if we've reached the limit
+        if limit is not None and limit > 0 and processed_count >= limit:
+            print(f"Reached limit of {limit} entries, stopping processing")
+            break
+
+        print(f"Processing row {index + 1}/{len(df)}: version_id={row.get('version_id', 'N/A')}")
+        
+        try:
+            # Get model configuration
+            config = get_model_config(provider_name, model_name, prompt_type=prompt_type)
+            
+            # Generate summary based on provider
+            if provider_name == 'openai':
+                summary = summarize_openai(conversation, model_name, client, config)
+            elif provider_name == 'anthropic':
+                summary = summarize_claude(conversation, model_name, client, config)
+            elif provider_name == 'ollama':
+                summary = summarize_ollama(conversation, model_name, client, config)
+            elif provider_name == 'google':
+                summary = summarize_gemini(conversation, model_name, client, config)
+            else:
+                raise ValueError(f"Unsupported provider: {provider_name}")
+            
+            # Store results
+            df.at[index, 'llm_summary'] = summary
+            df.at[index, 'llm_provider'] = provider_name
+            df.at[index, 'llm_model'] = model_name
+            df.at[index, 'llm_prompt_type'] = prompt_type
+            df.at[index, 'llm_error'] = ''
+            
+            processed_count += 1
+            print(f"  ✓ Generated summary: {summary[:100]}...")
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"  ✗ Error generating summary: {error_msg}")
+            df.at[index, 'llm_summary'] = f"Error: {error_msg}"
+            df.at[index, 'llm_provider'] = provider_name
+            df.at[index, 'llm_model'] = model_name
+            df.at[index, 'llm_prompt_type'] = prompt_type
+            df.at[index, 'llm_error'] = error_msg
+    
+    # Rename columns for final output
+    df = df.rename(columns={
+        'llm_summary': 'summary'
+        # Keep 'conversation' column as-is (don't rename to 'transcription')
+        # 'notes' already renamed in combine stage
+        # 'shot' and version column already present
+    })
+
+    # Save the results to output CSV
+    try:
+        df.to_csv(output_path, index=False)
+        llm_total_time = time.time() - llm_start_time
+        print(f"\nResults saved to: {output_path}")
+        print(f"Processed {processed_count} conversations successfully")
+        return (True, llm_total_time)
+    except Exception as e:
+        print(f"Error saving output CSV: {e}")
+        llm_total_time = time.time() - llm_start_time
+        return (False, llm_total_time)
+
 if __name__ == "__main__":
     import sys
     import argparse
     load_dotenv()
-    parser = argparse.ArgumentParser(description="Test LLM summary functions.")
+    
+    parser = argparse.ArgumentParser(description="Test LLM summary functions or process CSV files.")
     parser.add_argument('--provider', choices=['openai', 'claude', 'gemini', 'ollama'], default='gemini', help='LLM provider to test')
     parser.add_argument('--text', type=str, default='Artist submitted new lighting pass for shot 101. Lead: Looks good, but highlights are too strong. Artist: Will reduce highlight gain and resubmit.', help='Conversation text to summarize')
+    parser.add_argument('--csv-input', type=str, help='Input CSV file path for batch processing')
+    parser.add_argument('--csv-output', type=str, help='Output CSV file path for batch processing results')
+    parser.add_argument('--model', type=str, help='Specific model to use (e.g., gemini-1.5-pro)')
+    parser.add_argument('--prompt-type', type=str, default='short', help='Prompt type to use for summaries')
+    parser.add_argument('--limit', type=int, help='Maximum number of entries to process from CSV (useful for experimentation)')
+    
     args = parser.parse_args()
 
+    # CSV processing mode
+    if args.csv_input:
+        if not args.csv_output:
+            print("Error: --csv-output is required when using --csv-input")
+            sys.exit(1)
+        
+        print(f"Processing CSV file: {args.csv_input}")
+        success = process_csv_with_llm_summaries(
+            csv_path=args.csv_input,
+            output_path=args.csv_output,
+            provider=args.provider,
+            model=args.model,
+            prompt_type=args.prompt_type,
+            limit=args.limit
+        )
+        
+        if success:
+            print("CSV processing completed successfully!")
+            sys.exit(0)
+        else:
+            print("CSV processing failed!")
+            sys.exit(1)
+    
+    # Single text processing mode (original functionality)
     provider = args.provider
     text = args.text
-    model = get_model_for_provider(provider)
+    model = args.model or get_model_for_provider(provider)
     api_key = os.getenv(f'{provider.upper()}_API_KEY')
     print(f"Testing {provider} summary with model {model}...")
     try:
         client = create_llm_client(provider, api_key=api_key, model=model)
-        config = get_model_config(provider, model)
+        config = get_model_config(provider, model, prompt_type=args.prompt_type)
         print(f"Using config: temperature={config['temperature']}, max_tokens={config['max_tokens']}")
         if provider == 'openai':
             summary = summarize_openai(text, model, client, config)
