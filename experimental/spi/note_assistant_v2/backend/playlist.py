@@ -64,7 +64,7 @@ async def export_notes(request: NotesExportRequest):
     lines = []
     
     # Create header with configurable field names
-    header = [csv_shot_field, csv_version_field, csv_notes_field, 'transcription', 'summary']
+    header = [csv_shot_field, csv_version_field, csv_notes_field, 'conversation', 'summary']
     lines.append(','.join(f'"{h}"' for h in header))
     
     # Process each note
@@ -91,7 +91,7 @@ async def export_notes(request: NotesExportRequest):
             escape_csv(shot_value),
             escape_csv(version_value),
             escape_csv(note.get('notes', '')),
-            escape_csv(note.get('transcription', '')),
+            escape_csv(note.get('conversation', '')),
             escape_csv(note.get('summary', ''))
         ]
         lines.append(','.join(row))

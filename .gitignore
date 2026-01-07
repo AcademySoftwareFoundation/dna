@@ -4,7 +4,15 @@ node_modules/
 dist/
 .DS_Store
 .vscode/
+.claude/
 .env
+.env.local
+*.mp3
+*.mp4
+*.csv
+*.json
+*.png
+*.log
 experimental/spi/note_assistant_v2/backend/client_secret.json
 experimental/spi/note_assistant_v2/backend/token.json
 experimental/spi/note_assistant_v2/frontend/.env.local

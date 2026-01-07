@@ -1,23 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { useShotGrid } from '../../hooks/useShotGrid';
 import StatusBadge from '../StatusBadge';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex, setOriginalFilename }) {
+function ShotGridPanel({
+  config,
+  configLoaded,
+  setRows,
+  setCurrentIndex,
+  setOriginalFilename,
+  sgProjects,
+  selectedProjectId,
+  setSelectedProjectId,
+  sgPlaylists,
+  selectedPlaylistId,
+  setSelectedPlaylistId,
+  sgLoading,
+  sgError
+}) {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [playlistStatus, setPlaylistStatus] = useState({ msg: "", type: "info" });
   const [playlistItemsLoading, setPlaylistItemsLoading] = useState(false);
-  const {
-    sgProjects,
-    selectedProjectId,
-    setSelectedProjectId,
-    sgPlaylists,
-    selectedPlaylistId,
-    setSelectedPlaylistId,
-    sgLoading,
-    sgError
-  } = useShotGrid(config, configLoaded);
 
   const extractPlaylistIdFromUrl = (value) => {
     if (!value) return "";
@@ -53,13 +56,11 @@ function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex, setOrig
           //console.log('Fetched playlist items:', data.items);
           setRows(data.items.map(v => ({ shot: v, transcription: "", summary: "", notes: "" })));
           setCurrentIndex(0);
-          // Set original filename for ShotGrid playlists with project name
+          // Set original filename to the ShotGrid playlist name
           if (setOriginalFilename) {
-            const project = sgProjects.find(p => String(p.id) === String(selectedProjectId));
-            const projectName = project?.code || 'unknown_project';
-            // Clean up the project name for filename
-            const cleanProjectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
-            setOriginalFilename(`${cleanProjectName}_playlist_${selectedPlaylistId}`);
+            // Use the playlist_name returned from the API (works for both dropdown selection and URL paste)
+            const playlistName = data.playlist_name || `playlist_${selectedPlaylistId}`;
+            setOriginalFilename(playlistName);
           }
         }
       })

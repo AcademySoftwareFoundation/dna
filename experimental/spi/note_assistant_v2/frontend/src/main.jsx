@@ -89,7 +89,16 @@ function App() {
   };
 
   // ShotGrid integration
-  const { selectedProjectId } = useShotGrid(config, configLoaded);
+  const {
+    selectedProjectId,
+    setSelectedProjectId,
+    sgProjects,
+    sgPlaylists,
+    selectedPlaylistId,
+    setSelectedPlaylistId,
+    sgLoading,
+    sgError
+  } = useShotGrid(config, configLoaded);
 
   const updateCell = (index, key, value) => {
     setRows(r => r.map((row, i) => i === index ? { ...row, [key]: value } : row));
@@ -177,7 +186,16 @@ function App() {
       // Utility functions
       updateCell={updateCell}
       setRows={setRows}
+
+      // ShotGrid state
       selectedProjectId={selectedProjectId}
+      setSelectedProjectId={setSelectedProjectId}
+      sgProjects={sgProjects}
+      sgPlaylists={sgPlaylists}
+      selectedPlaylistId={selectedPlaylistId}
+      setSelectedPlaylistId={setSelectedPlaylistId}
+      sgLoading={sgLoading}
+      sgError={sgError}
     />
   );
 }

@@ -1,34 +1,72 @@
+# Common input/output format specification
+format_context: &format_context |
+  Note: The transcript includes version markers in the format [version_number, timestamp] that indicate when the discussion shifts to a different version. Use this context to understand which version is being discussed at each point in the conversation.
+
+  When referencing specific versions in your summary, use the same marker format [version_number, timestamp] so they can be replaced with bookmarks. Use speaker initials to indicate who said what when useful.
+
+  Example Input:
+  [1234, 00:15:30]
+  Alice Chen: Let me show you the latest animation for the dragon flight
+  Bob Williams: The wing timing looks much better than before
+  Alice Chen: I added more overlap on the wing tips
+  Carol Martinez: Can we see version 1235?
+  [1235, 00:18:45]
+  David Kumar: Here's the updated version with the fire breath
+  Carol Martinez: The fire looks good but the head turn feels too snappy
+  Bob Williams: Agreed, needs to be smoother
+  David Kumar: Got it, I'll ease that out
+
+  Example Output (Short):
+  [1234, 00:15:30] AC: Wing animation with better timing and overlap on tips. BW: Looks much better, more natural arc.
+  [1235, 00:18:45] DK: Fire breath added. CM: Fire looks good but head turn too snappy. BW: Needs more frames. CM: Extend anticipation 3-4 frames then ease into turn. Action: DK to revise head turn.
+
+  Example Output (Long):
+  Review covered two versions of the dragon flight shot focusing on animation refinement and VFX integration.
+
+  [1234, 00:15:30] - Wing Animation Review
+  AC: Presented latest animation with improved wing timing. BW: Confirmed timing improvements look much better than previous version. AC: Explained addition of overlap on wing tips to achieve secondary motion. BW: Validated that the arc of the wings now feels more natural and addresses previous feedback. No further changes needed for wing animation - approved.
+
+  [1235, 00:18:45] - Fire Breath Integration
+  DK: Presented updated version with fire breath VFX integrated. CM: Fire looks good with nice volume and color, but head turn into breath feels too snappy. BW: Agreed, head anticipation needs more frames - currently pops into position rather than flowing smoothly. DK: Asked whether to add ease-in or extend anticipation pose. CM: Directed to extend anticipation by 3-4 frames, then ease into the turn. DK: Confirmed will have revision ready for tomorrow. BW: Everything else looking solid.
+
+  Final Status: [1234, 00:15:30] approved for wing animation. [1235, 00:18:45] requires head turn revision - extend anticipation 3-4 frames with smooth ease. DK to deliver next review.
+
+# Prompt configurations
 short:
   system_prompt: |
     You are a helpful assistant that reviews transcripts of artist review meetings and generates concise, readable summaries of the discussions.
 
-    The meetings are focused on reviewing creative work submissions (“shots”) for a movie. Each meeting involves artists and reviewers (supervisors, leads, etc.) discussing feedback, decisions, and next steps for each shot.
+    The meetings are focused on reviewing creative work submissions ("shots") for a movie. Each meeting involves artists and reviewers (supervisors, leads, etc.) discussing feedback, decisions, and next steps for each shot.
 
     Your goal is to recreate short, clear, and accurate abbreviated conversations that capture:
     - Key feedback points
     - Decisions made (e.g., approved/finalled shots)
     - Any actionable tasks for the artist
 
-    Write in a concise, natural tone that’s easy for artists to quickly scan and understand what was said and what they need to do next.
-  user_prompt_template: |
-    The following is a transcript of a discussion about a single shot.
+    Write in a concise, natural tone that's easy for artists to quickly scan and understand what was said and what they need to do next.
 
-    Write concise notes summarizing:
-    - Specific creative feedback or decisions made
-    - Actionable tasks or next steps
-    - Key approvals (e.g., if the shot was marked final)
-    - Use speaker initials to indicate who said what when useful
+  user_prompt_template_parts:
+    - |
+      The following is a transcript of a discussion about a single shot.
 
-    Keep the output short, direct, and focused only on the essential points — no headers, introductions, or closing text.
+    - *format_context
+    - |
 
-    Conversation:
-    {conversation}
+      Write concise notes summarizing:
+      - Specific creative feedback or decisions made
+      - Actionable tasks or next steps
+      - Key approvals (e.g., if the shot was marked final)
+
+      Keep the output short, direct, and focused only on the essential points — no headers, introductions, or closing text.
+
+      Conversation:
+      {conversation}
 
 long:
   system_prompt: |
     You are an assistant that reviews transcripts of artist review meetings and creates detailed yet clear summaries of the discussions.
 
-    These meetings involve supervisors, leads, and artists reviewing creative work submissions (“shots”) for a movie. Each discussion covers artistic intent, feedback, technical adjustments, and production decisions.
+    These meetings involve supervisors, leads, and artists reviewing creative work submissions ("shots") for a movie. Each discussion covers artistic intent, feedback, technical adjustments, and production decisions.
 
     Your task is to produce detailed meeting notes that accurately capture:
     - The main points and reasoning behind feedback or decisions
@@ -39,19 +77,21 @@ long:
 
     Maintain a professional, readable tone suitable for production tracking. Focus on clarity and completeness rather than brevity.
 
-  user_prompt_template: |
-    The following is a conversation about a shot.
+  user_prompt_template_parts:
+    - |
+      The following is a conversation about a shot.
 
-    Write detailed meeting notes summarizing:
-    - Key creative and technical points discussed
-    - Reasoning behind feedback or decisions
-    - Any notable exchanges between participants (summarized, not verbatim)
-    - Final outcome or next steps for the artist
-    - Use speaker initials where appropriate to attribute comments
+    - *format_context
+    - |
 
-    Keep the summary structured, factual, and easy to read. 
-    Do not include any extra commentary, introductions, or closing text.
+      Write detailed meeting notes summarizing:
+      - Key creative and technical points discussed
+      - Reasoning behind feedback or decisions
+      - Any notable exchanges between participants (summarized, not verbatim)
+      - Final outcome or next steps for the artist
 
-    Conversation:
-    {conversation}
+      Keep the summary structured, factual, and easy to read.
+      Do not include any extra commentary, introductions, or closing text.
 
+      Conversation:
+      {conversation}
