@@ -1,0 +1,26 @@
+{
+  "name": "dna-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@dna/app",
+    "build": "npm run build --workspaces",
+    "build:core": "npm run build --workspace=@dna/core",
+    "build:app": "npm run build --workspace=@dna/app",
+    "test": "npm run test --workspaces",
+    "test:run": "npm run test:run --workspaces",
+    "test:coverage": "npm run test:coverage --workspaces",
+    "lint": "npm run lint --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "format": "prettier --write \"**/*.{ts,tsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,css,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.9.3"
+  }
+}
