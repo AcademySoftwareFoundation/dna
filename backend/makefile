@@ -1,30 +1,30 @@
 build:
-	docker-compose build --no-cache
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml build --no-cache
 
 start-local:
-	docker-compose up --build
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml up --build
 
 stop-local:
-	docker-compose down
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml down
 
 logs-local:
-	docker-compose logs -f
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml logs -f
 
 restart-local:
 	make stop-local
 	make start-local
 
 shell:
-	docker-compose run --rm api bash
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api bash
 
 test:
-	docker-compose run --rm api python -m pytest
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 
 test-cov:
-	docker-compose run --rm api python -m pytest
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 
 test-cov-html:
-	docker-compose run --rm api python -m pytest
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 	@echo "Coverage report available at htmlcov/index.html"
 
 venv-lint:

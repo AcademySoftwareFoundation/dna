@@ -35,3 +35,6 @@ coverage.xml
 dmypy.json
 *.log
 .DS_Store
+
+# Local environment files
+docker-compose.local.yml

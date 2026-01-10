@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 
+# Add src to Python path so 'dna' package is importable
+ENV PYTHONPATH="/app/src:${PYTHONPATH}"
+
 # Expose port
 EXPOSE 8000
 

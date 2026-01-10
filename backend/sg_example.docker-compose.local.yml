@@ -1,0 +1,8 @@
+services:
+  api:
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SHOTGRID_URL=https://your-shotgrid-url.com
+      - SHOTGRID_API_KEY=your-shotgrid-api-key
+      - SHOTGRID_SCRIPT_NAME=your-shotgrid-script-name
+
