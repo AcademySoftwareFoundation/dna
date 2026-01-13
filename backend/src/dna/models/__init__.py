@@ -10,22 +10,33 @@ from dna.models.entity import (
     EntityBase,
     Note,
     Playlist,
+    Project,
     Shot,
     Task,
+    User,
     Version,
 )
-from dna.models.requests import CreateNoteRequest, EntityLink
+from dna.models.requests import (
+    CreateNoteRequest,
+    EntityLink,
+    FilterCondition,
+    FindRequest,
+)
 
 __all__ = [
     "EntityBase",
+    "Project",
     "Shot",
     "Asset",
     "Note",
     "Task",
     "Version",
     "Playlist",
+    "User",
     "DNAEntity",
     "ENTITY_MODELS",
     "EntityLink",
     "CreateNoteRequest",
+    "FilterCondition",
+    "FindRequest",
 ]

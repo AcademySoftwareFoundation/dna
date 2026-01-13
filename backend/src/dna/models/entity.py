@@ -53,6 +53,15 @@ class EntityBase(BaseModel):
             return value
 
 
+class Project(EntityBase):
+    """Project entity model.
+
+    Represents a project in the production tracking system.
+    """
+
+    name: Optional[str] = Field(default=None, description="Project name")
+
+
 class Task(EntityBase):
     """Task entity model.
 
@@ -153,6 +162,9 @@ class Version(EntityBase):
     frame_path: Optional[str] = Field(
         default=None, description="Path to frame sequence"
     )
+    thumbnail: Optional[str] = Field(
+        default=None, description="URL to thumbnail image (signed URL from ShotGrid)"
+    )
     project: Optional[dict[str, Any]] = Field(
         default=None, description="Project information"
     )
@@ -200,15 +212,28 @@ class Playlist(EntityBase):
         return v if v is not None else []
 
 
+class User(EntityBase):
+    """User entity model.
+
+    Represents a human user in the production tracking system.
+    """
+
+    name: Optional[str] = Field(default=None, description="User's full name")
+    email: Optional[str] = Field(default=None, description="User's email address")
+    login: Optional[str] = Field(default=None, description="User's login/username")
+
+
 # Type alias for any DNA entity
-DNAEntity = Union[Shot, Asset, Note, Task, Version, Playlist]
+DNAEntity = Union[Project, Shot, Asset, Note, Task, Version, Playlist, User]
 
 # Entity type name to model class mapping
 ENTITY_MODELS: dict[str, type[EntityBase]] = {
+    "project": Project,
     "shot": Shot,
     "asset": Asset,
     "note": Note,
     "task": Task,
     "version": Version,
     "playlist": Playlist,
+    "user": User,
 }

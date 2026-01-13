@@ -1,50 +1,77 @@
-import { useQuery } from '@tanstack/react-query';
-import { Box, Heading, Text, Card } from '@radix-ui/themes';
-import { formatDate, isValidUrl } from '@dna/core';
+import { useState } from 'react';
+import { Playlist, Project, Version } from '@dna/core';
+import { Layout, ContentArea, ProjectSelector, clearUserSession } from './components';
+import { useGetVersionsForPlaylist } from './api';
 
 function App() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['example'],
-    queryFn: async () => {
-      // Example API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return { message: 'Hello from DNA App!' };
-    },
-  });
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
+    null
+  );
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
+
+  const { data: versions = [], refetch } = useGetVersionsForPlaylist(
+    selectedPlaylist?.id ?? null
+  );
+
+  const handleRefresh = async () => {
+    const result = await refetch();
+    if (result.data && selectedVersion) {
+      const updatedVersion = result.data.find(v => v.id === selectedVersion.id);
+      if (updatedVersion) {
+        setSelectedVersion(updatedVersion);
+      }
+    }
+  };
+
+  const handleSelectionComplete = (
+    project: Project,
+    playlist: Playlist,
+    email: string
+  ) => {
+    setSelectedProject(project);
+    setSelectedPlaylist(playlist);
+    setUserEmail(email);
+  };
+
+  const handleReplacePlaylist = () => {
+    setSelectedPlaylist(null);
+    setSelectedVersion(null);
+  };
+
+  const handleLogout = () => {
+    clearUserSession();
+    setSelectedProject(null);
+    setSelectedPlaylist(null);
+    setUserEmail(null);
+    setSelectedVersion(null);
+  };
+
+  const handleVersionSelect = (version: Version) => {
+    setSelectedVersion(version);
+  };
+
+  if (!selectedProject || !selectedPlaylist || !userEmail) {
+    return <ProjectSelector onSelectionComplete={handleSelectionComplete} />;
+  }
 
   return (
-    <Box p="6">
-      <Heading size="8" mb="4">
-        DNA Application
-      </Heading>
-
-      <Box mb="4">
-        <Card>
-          <Box p="4">
-            <Text size="3">{isLoading ? 'Loading...' : data?.message}</Text>
-          </Box>
-        </Card>
-      </Box>
-
-      <Card>
-        <Box p="4">
-          <Heading size="4" mb="2">
-            Core Package Demo
-          </Heading>
-          <Text size="2" color="gray">
-            Date formatter: {formatDate(new Date().toISOString())}
-          </Text>
-          <Text
-            size="2"
-            color="gray"
-            style={{ display: 'block', marginTop: '8px' }}
-          >
-            URL validator:{' '}
-            {isValidUrl('https://example.com') ? 'Valid' : 'Invalid'}
-          </Text>
-        </Box>
-      </Card>
-    </Box>
+    <Layout
+      onReplacePlaylist={handleReplacePlaylist}
+      playlistId={selectedPlaylist.id}
+      selectedVersionId={selectedVersion?.id}
+      onVersionSelect={handleVersionSelect}
+      userEmail={userEmail}
+      onLogout={handleLogout}
+    >
+      <ContentArea
+        version={selectedVersion}
+        versions={versions}
+        onVersionSelect={handleVersionSelect}
+        onRefresh={handleRefresh}
+      />
+    </Layout>
   );
 }
 

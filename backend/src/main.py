@@ -9,14 +9,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from dna.models import (
     Asset,
     CreateNoteRequest,
+    FindRequest,
     Note,
     Playlist,
+    Project,
     Shot,
     Task,
+    User,
     Version,
 )
-from dna.models.entity import EntityBase
-from dna.prodtrack_providers.shotgrid import ShotgridProvider
+from dna.models.entity import ENTITY_MODELS, EntityBase
+from dna.prodtrack_providers.prodtrack_provider_base import (
+    ProdtrackProviderBase,
+    get_prodtrack_provider,
+)
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -74,6 +80,14 @@ tags_metadata = [
         "description": "Operations for managing notes",
     },
     {
+        "name": "Projects",
+        "description": "Operations for managing projects",
+    },
+    {
+        "name": "Users",
+        "description": "Operations for managing users",
+    },
+    {
         "name": "Transcription",
         "description": "Audio transcription services",
     },
@@ -113,12 +127,14 @@ app.add_middleware(
 
 
 @lru_cache
-def get_shotgrid_provider() -> ShotgridProvider:
-    """Get or create the ShotGrid provider singleton."""
-    return ShotgridProvider()
+def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
+    """Get or create the production tracking provider singleton."""
+    return get_prodtrack_provider()
 
 
-ShotGridDep = Annotated[ShotgridProvider, Depends(get_shotgrid_provider)]
+ProdtrackProviderDep = Annotated[
+    ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
+]
 
 
 # -----------------------------------------------------------------------------
@@ -162,7 +178,7 @@ async def health():
     description="Retrieve version information from the production tracking system.",
     response_model=Version,
 )
-async def get_version(version_id: int, provider: ShotGridDep) -> Version:
+async def get_version(version_id: int, provider: ProdtrackProviderDep) -> Version:
     """Get a version entity by its ID."""
     try:
         return cast(Version, provider.get_entity("version", version_id))
@@ -177,7 +193,7 @@ async def get_version(version_id: int, provider: ShotGridDep) -> Version:
     description="Retrieve playlist information including linked versions.",
     response_model=Playlist,
 )
-async def get_playlist(playlist_id: int, provider: ShotGridDep) -> Playlist:
+async def get_playlist(playlist_id: int, provider: ProdtrackProviderDep) -> Playlist:
     """Get a playlist entity by its ID."""
     try:
         return cast(Playlist, provider.get_entity("playlist", playlist_id))
@@ -192,7 +208,7 @@ async def get_playlist(playlist_id: int, provider: ShotGridDep) -> Playlist:
     description="Retrieve shot information from the production tracking system.",
     response_model=Shot,
 )
-async def get_shot(shot_id: int, provider: ShotGridDep) -> Shot:
+async def get_shot(shot_id: int, provider: ProdtrackProviderDep) -> Shot:
     """Get a shot entity by its ID."""
     try:
         return cast(Shot, provider.get_entity("shot", shot_id))
@@ -207,7 +223,7 @@ async def get_shot(shot_id: int, provider: ShotGridDep) -> Shot:
     description="Retrieve asset information from the production tracking system.",
     response_model=Asset,
 )
-async def get_asset(asset_id: int, provider: ShotGridDep) -> Asset:
+async def get_asset(asset_id: int, provider: ProdtrackProviderDep) -> Asset:
     """Get an asset entity by its ID."""
     try:
         return cast(Asset, provider.get_entity("asset", asset_id))
@@ -222,7 +238,7 @@ async def get_asset(asset_id: int, provider: ShotGridDep) -> Asset:
     description="Retrieve task information from the production tracking system.",
     response_model=Task,
 )
-async def get_task(task_id: int, provider: ShotGridDep) -> Task:
+async def get_task(task_id: int, provider: ProdtrackProviderDep) -> Task:
     """Get a task entity by its ID."""
     try:
         return cast(Task, provider.get_entity("task", task_id))
@@ -237,7 +253,7 @@ async def get_task(task_id: int, provider: ShotGridDep) -> Task:
     description="Retrieve note information from the production tracking system.",
     response_model=Note,
 )
-async def get_note(note_id: int, provider: ShotGridDep) -> Note:
+async def get_note(note_id: int, provider: ProdtrackProviderDep) -> Note:
     """Get a note entity by its ID."""
     try:
         return cast(Note, provider.get_entity("note", note_id))
@@ -277,7 +293,9 @@ def _create_stub_entity(entity_type: str, entity_id: int) -> EntityBase:
     response_model=Note,
     status_code=201,
 )
-async def create_note(request: CreateNoteRequest, provider: ShotGridDep) -> Note:
+async def create_note(
+    request: CreateNoteRequest, provider: ProdtrackProviderDep
+) -> Note:
     """Create a new note entity."""
     try:
         note_links = []
@@ -295,3 +313,111 @@ async def create_note(request: CreateNoteRequest, provider: ShotGridDep) -> Note
         return cast(Note, provider.add_entity("note", note))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# -----------------------------------------------------------------------------
+# Find endpoint
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/find",
+    tags=["Entities"],
+    summary="Find entities",
+    description="Search for entities matching the given filters.",
+    response_model=list[EntityBase],
+)
+async def find_entities(
+    request: FindRequest, provider: ProdtrackProviderDep
+) -> list[EntityBase]:
+    """Find entities matching the given filters."""
+    entity_type = request.entity_type.lower()
+
+    if entity_type not in ENTITY_MODELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported entity type: '{request.entity_type}'. "
+            f"Supported types: {list(ENTITY_MODELS.keys())}",
+        )
+
+    try:
+        filters = [f.model_dump() for f in request.filters]
+        return provider.find(entity_type, filters)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# -----------------------------------------------------------------------------
+# User endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.get(
+    "/users/{user_email}",
+    tags=["Users"],
+    summary="Get user by email",
+    description="Retrieve user information by their email address.",
+    response_model=User,
+)
+async def get_user_by_email(user_email: str, provider: ProdtrackProviderDep) -> User:
+    """Get a user by their email address."""
+    try:
+        return provider.get_user_by_email(user_email)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# -----------------------------------------------------------------------------
+# Project endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.get(
+    "/projects/user/{user_email}",
+    tags=["Projects"],
+    summary="Get projects for a user",
+    description="Retrieve all projects accessible by the specified user email.",
+    response_model=list[Project],
+)
+async def get_projects_for_user(
+    user_email: str, provider: ProdtrackProviderDep
+) -> list[Project]:
+    """Get projects for a user by their email address."""
+    try:
+        return provider.get_projects_for_user(user_email)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get(
+    "/projects/{project_id}/playlists",
+    tags=["Playlists"],
+    summary="Get playlists for a project",
+    description="Retrieve all playlists for the specified project.",
+    response_model=list[Playlist],
+)
+async def get_playlists_for_project(
+    project_id: int, provider: ProdtrackProviderDep
+) -> list[Playlist]:
+    """Get playlists for a project."""
+    try:
+        return provider.get_playlists_for_project(project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get(
+    "/playlists/{playlist_id}/versions",
+    tags=["Versions"],
+    summary="Get versions for a playlist",
+    description="Retrieve all versions in the specified playlist.",
+    response_model=list[Version],
+)
+async def get_versions_for_playlist(
+    playlist_id: int, provider: ProdtrackProviderDep
+) -> list[Version]:
+    """Get versions for a playlist."""
+    try:
+        return provider.get_versions_for_playlist(playlist_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

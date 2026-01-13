@@ -3,7 +3,7 @@
  */
 
 /**
- * Formats a date string to a readable format
+ * Formats a date string to a readable format (in UTC)
  */
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -11,6 +11,7 @@ export function formatDate(dateString: string): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'UTC',
   });
 }
 

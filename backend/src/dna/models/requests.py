@@ -23,3 +23,22 @@ class CreateNoteRequest(BaseModel):
     note_links: Optional[list[EntityLink]] = Field(
         default=None, description="Entities to link this note to"
     )
+
+
+class FilterCondition(BaseModel):
+    """A single filter condition for entity queries."""
+
+    field: str = Field(description="DNA field name to filter on")
+    operator: str = Field(description="Filter operator (e.g., 'is', 'contains', 'in')")
+    value: Any = Field(description="Value to filter by")
+
+
+class FindRequest(BaseModel):
+    """Request model for finding entities."""
+
+    entity_type: str = Field(
+        description="DNA entity type to search (e.g., 'project', 'shot', 'version')"
+    )
+    filters: list[FilterCondition] = Field(
+        default_factory=list, description="List of filter conditions"
+    )

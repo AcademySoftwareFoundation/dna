@@ -627,6 +627,30 @@ class TestProdtrackProviderBase:
         with pytest.raises(NotImplementedError, match="Subclasses must implement"):
             provider.add_entity("shot", shot)
 
+    def test_find_raises_not_implemented(self):
+        """Test that find raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.find("shot", [])
+
+    def test_get_projects_for_user_raises_not_implemented(self):
+        """Test that get_projects_for_user raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.get_projects_for_user("testuser")
+
+    def test_get_playlists_for_project_raises_not_implemented(self):
+        """Test that get_playlists_for_project raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.get_playlists_for_project(1)
+
+    def test_get_versions_for_playlist_raises_not_implemented(self):
+        """Test that get_versions_for_playlist raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.get_versions_for_playlist(1)
+
 
 class TestGetProdtrackProvider:
     """Tests for the get_prodtrack_provider function."""
@@ -788,3 +812,447 @@ class TestGetDnaEntityType:
         """Test _get_dna_entity_type raises ValueError for unknown type."""
         with pytest.raises(ValueError, match="Unknown entity type: UnknownType"):
             _get_dna_entity_type("UnknownType")
+
+    def test_get_dna_entity_type_for_project(self):
+        """Test _get_dna_entity_type returns correct type for Project."""
+        assert _get_dna_entity_type("Project") == "project"
+
+
+# ============================================================================
+# ShotGrid find method tests
+# ============================================================================
+
+
+class TestShotgridProviderFind:
+    """Tests for the ShotgridProvider.find method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_find_returns_empty_list_when_no_results(self, shotgrid_provider):
+        """Test that find returns an empty list when no results found."""
+        shotgrid_provider.sg.find.return_value = []
+
+        results = shotgrid_provider.find("project", [])
+
+        assert results == []
+        shotgrid_provider.sg.find.assert_called_once()
+
+    def test_find_returns_project_entities(self, shotgrid_provider):
+        """Test that find returns properly converted Project entities."""
+        shotgrid_provider.sg.find.return_value = [
+            {"id": 1, "name": "Project One"},
+            {"id": 2, "name": "Project Two"},
+        ]
+
+        results = shotgrid_provider.find("project", [])
+
+        assert len(results) == 2
+        assert results[0].id == 1
+        assert results[0].name == "Project One"
+        assert results[1].id == 2
+        assert results[1].name == "Project Two"
+
+    def test_find_converts_dna_filters_to_sg_filters(self, shotgrid_provider):
+        """Test that find converts DNA field names to SG field names in filters."""
+        shotgrid_provider.sg.find.return_value = [{"id": 1, "name": "Test Project"}]
+
+        filters = [{"field": "name", "operator": "contains", "value": "Test"}]
+        shotgrid_provider.find("project", filters)
+
+        call_args = shotgrid_provider.sg.find.call_args
+        sg_filters = call_args[1]["filters"]
+        assert sg_filters == [["name", "contains", "Test"]]
+
+    def test_find_converts_version_filters(self, shotgrid_provider):
+        """Test that find converts version-specific DNA fields to SG fields."""
+        shotgrid_provider.sg.find.return_value = []
+
+        filters = [
+            {"field": "name", "operator": "is", "value": "v001"},
+            {"field": "status", "operator": "is", "value": "apr"},
+        ]
+        shotgrid_provider.find("version", filters)
+
+        call_args = shotgrid_provider.sg.find.call_args
+        sg_filters = call_args[1]["filters"]
+        assert ["code", "is", "v001"] in sg_filters
+        assert ["sg_status_list", "is", "apr"] in sg_filters
+
+    def test_find_converts_shot_filters(self, shotgrid_provider):
+        """Test that find converts shot-specific DNA fields to SG fields."""
+        shotgrid_provider.sg.find.return_value = []
+
+        filters = [{"field": "name", "operator": "contains", "value": "010"}]
+        shotgrid_provider.find("shot", filters)
+
+        call_args = shotgrid_provider.sg.find.call_args
+        sg_filters = call_args[1]["filters"]
+        assert sg_filters == [["code", "contains", "010"]]
+
+    def test_find_requests_all_dna_fields(self, shotgrid_provider):
+        """Test that find requests all mapped fields from ShotGrid."""
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.find("project", [])
+
+        call_args = shotgrid_provider.sg.find.call_args
+        sg_fields = call_args[1]["fields"]
+        assert "id" in sg_fields
+        assert "name" in sg_fields
+
+    def test_find_uses_correct_sg_entity_type(self, shotgrid_provider):
+        """Test that find queries the correct SG entity type."""
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.find("version", [])
+
+        call_args = shotgrid_provider.sg.find.call_args
+        sg_entity_type = call_args[0][0]
+        assert sg_entity_type == "Version"
+
+    def test_find_raises_error_for_unsupported_entity_type(self, shotgrid_provider):
+        """Test that find raises ValueError for unsupported entity types."""
+        with pytest.raises(ValueError, match="Unsupported entity type: unknown"):
+            shotgrid_provider.find("unknown", [])
+
+    def test_find_raises_error_for_unknown_field(self, shotgrid_provider):
+        """Test that find raises ValueError for unknown DNA fields in filters."""
+        filters = [{"field": "nonexistent_field", "operator": "is", "value": "test"}]
+
+        with pytest.raises(
+            ValueError, match="Unknown field 'nonexistent_field' for entity type"
+        ):
+            shotgrid_provider.find("project", filters)
+
+    def test_find_raises_error_when_not_connected(self):
+        """Test that find raises error when not connected to ShotGrid."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.find("project", [])
+
+    def test_find_with_multiple_filters(self, shotgrid_provider):
+        """Test find with multiple filter conditions."""
+        shotgrid_provider.sg.find.return_value = []
+
+        filters = [
+            {"field": "name", "operator": "contains", "value": "hero"},
+            {"field": "description", "operator": "is_not", "value": None},
+            {"field": "id", "operator": "greater_than", "value": 100},
+        ]
+        shotgrid_provider.find("shot", filters)
+
+        call_args = shotgrid_provider.sg.find.call_args
+        sg_filters = call_args[1]["filters"]
+        assert len(sg_filters) == 3
+        assert ["code", "contains", "hero"] in sg_filters
+        assert ["description", "is_not", None] in sg_filters
+        assert ["id", "greater_than", 100] in sg_filters
+
+    def test_find_returns_fully_converted_entities(self, shotgrid_provider):
+        """Test that find returns entities with all fields properly converted."""
+        shotgrid_provider.sg.find.return_value = [
+            {
+                "id": 100,
+                "code": "shot_010",
+                "description": "First shot",
+                "project": {"type": "Project", "id": 1, "name": "Test"},
+            }
+        ]
+
+        results = shotgrid_provider.find("shot", [])
+
+        assert len(results) == 1
+        shot = results[0]
+        assert shot.id == 100
+        assert shot.name == "shot_010"
+        assert shot.description == "First shot"
+        assert shot.project == {"type": "Project", "id": 1, "name": "Test"}
+
+
+# ============================================================================
+# ShotGrid get_projects_for_user tests
+# ============================================================================
+
+
+class TestShotgridProviderGetProjectsForUser:
+    """Tests for the ShotgridProvider.get_projects_for_user method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_get_projects_for_user_returns_projects(self, shotgrid_provider):
+        """Test that get_projects_for_user returns properly converted Project entities."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "email": "test@example.com",
+            "name": "Test User",
+        }
+        shotgrid_provider.sg.find.return_value = [
+            {"id": 10, "name": "Project Alpha"},
+            {"id": 20, "name": "Project Beta"},
+        ]
+
+        results = shotgrid_provider.get_projects_for_user("test@example.com")
+
+        assert len(results) == 2
+        assert results[0].id == 10
+        assert results[0].name == "Project Alpha"
+        assert results[1].id == 20
+        assert results[1].name == "Project Beta"
+
+    def test_get_projects_for_user_queries_correct_user(self, shotgrid_provider):
+        """Test that get_projects_for_user queries the correct user by email."""
+        user_data = {"id": 1, "email": "jsmith@example.com", "name": "John Smith"}
+        shotgrid_provider.sg.find_one.return_value = user_data
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_projects_for_user("jsmith@example.com")
+
+        shotgrid_provider.sg.find_one.assert_called_once_with(
+            "HumanUser",
+            filters=[["email", "is", "jsmith@example.com"]],
+            fields=["id", "email", "name"],
+        )
+
+    def test_get_projects_for_user_filters_by_user(self, shotgrid_provider):
+        """Test that get_projects_for_user filters projects by user."""
+        user_data = {"id": 42, "email": "test@example.com", "name": "Test User"}
+        shotgrid_provider.sg.find_one.return_value = user_data
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_projects_for_user("test@example.com")
+
+        shotgrid_provider.sg.find.assert_called_once_with(
+            "Project",
+            filters=[["users", "is", user_data]],
+            fields=["id", "name"],
+        )
+
+    def test_get_projects_for_user_raises_error_when_not_connected(self):
+        """Test that get_projects_for_user raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.get_projects_for_user("testuser")
+
+    def test_get_projects_for_user_raises_error_when_user_not_found(
+        self, shotgrid_provider
+    ):
+        """Test that get_projects_for_user raises error when user not found."""
+        shotgrid_provider.sg.find_one.return_value = None
+
+        with pytest.raises(ValueError, match="User not found: unknown@example.com"):
+            shotgrid_provider.get_projects_for_user("unknown@example.com")
+
+    def test_get_projects_for_user_returns_empty_list_when_no_projects(
+        self, shotgrid_provider
+    ):
+        """Test that get_projects_for_user returns empty list when user has no projects."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "email": "newuser@example.com",
+            "name": "New User",
+        }
+        shotgrid_provider.sg.find.return_value = []
+
+        results = shotgrid_provider.get_projects_for_user("newuser@example.com")
+
+        assert results == []
+
+
+# ============================================================================
+# ShotGrid get_playlists_for_project tests
+# ============================================================================
+
+
+class TestShotgridProviderGetPlaylistsForProject:
+    """Tests for the ShotgridProvider.get_playlists_for_project method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_get_playlists_for_project_returns_playlists(self, shotgrid_provider):
+        """Test that get_playlists_for_project returns properly converted Playlist entities."""
+        shotgrid_provider.sg.find.return_value = [
+            {"id": 10, "code": "Dailies Review", "description": "Daily review"},
+            {"id": 20, "code": "Final Review", "description": "Final approval"},
+        ]
+
+        results = shotgrid_provider.get_playlists_for_project(1)
+
+        assert len(results) == 2
+        assert results[0].id == 10
+        assert results[0].code == "Dailies Review"
+        assert results[1].id == 20
+        assert results[1].code == "Final Review"
+
+    def test_get_playlists_for_project_filters_by_project(self, shotgrid_provider):
+        """Test that get_playlists_for_project filters by project."""
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_playlists_for_project(42)
+
+        shotgrid_provider.sg.find.assert_called_once_with(
+            "Playlist",
+            filters=[
+                ["project", "is", {"type": "Project", "id": 42}],
+            ],
+            fields=[
+                "id",
+                "code",
+                "description",
+                "project",
+                "created_at",
+                "updated_at",
+            ],
+        )
+
+    def test_get_playlists_for_project_raises_error_when_not_connected(self):
+        """Test that get_playlists_for_project raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.get_playlists_for_project(1)
+
+    def test_get_playlists_for_project_returns_empty_list_when_no_playlists(
+        self, shotgrid_provider
+    ):
+        """Test that get_playlists_for_project returns empty list when no playlists found."""
+        shotgrid_provider.sg.find.return_value = []
+
+        results = shotgrid_provider.get_playlists_for_project(999)
+
+        assert results == []
+
+
+# ============================================================================
+# ShotGrid get_versions_for_playlist tests
+# ============================================================================
+
+
+class TestShotgridProviderGetVersionsForPlaylist:
+    """Tests for the ShotgridProvider.get_versions_for_playlist method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_get_versions_for_playlist_returns_versions(self, shotgrid_provider):
+        """Test that get_versions_for_playlist returns properly converted Version entities."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "versions": [{"type": "Version", "id": 10}, {"type": "Version", "id": 20}],
+        }
+        shotgrid_provider.sg.find.return_value = [
+            {"id": 10, "code": "shot_010_v001", "sg_status_list": "rev"},
+            {"id": 20, "code": "shot_020_v002", "sg_status_list": "apr"},
+        ]
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert len(results) == 2
+        assert results[0].id == 10
+        assert results[0].name == "shot_010_v001"
+        assert results[1].id == 20
+        assert results[1].name == "shot_020_v002"
+
+    def test_get_versions_for_playlist_queries_playlist_first(self, shotgrid_provider):
+        """Test that get_versions_for_playlist queries the playlist to get version IDs."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 42,
+            "versions": [{"type": "Version", "id": 100}],
+        }
+        shotgrid_provider.sg.find.return_value = [{"id": 100, "code": "v001"}]
+
+        shotgrid_provider.get_versions_for_playlist(42)
+
+        shotgrid_provider.sg.find_one.assert_called_once_with(
+            "Playlist",
+            filters=[["id", "is", 42]],
+            fields=["versions"],
+        )
+
+    def test_get_versions_for_playlist_queries_versions_by_ids(self, shotgrid_provider):
+        """Test that get_versions_for_playlist queries versions by their IDs."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "versions": [{"type": "Version", "id": 10}, {"type": "Version", "id": 20}],
+        }
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_versions_for_playlist(1)
+
+        call_args = shotgrid_provider.sg.find.call_args
+        assert call_args[0][0] == "Version"
+        filters = call_args[1]["filters"]
+        assert filters == [["id", "in", [10, 20]]]
+
+    def test_get_versions_for_playlist_raises_error_when_not_connected(self):
+        """Test that get_versions_for_playlist raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.get_versions_for_playlist(1)
+
+    def test_get_versions_for_playlist_returns_empty_list_when_no_versions(
+        self, shotgrid_provider
+    ):
+        """Test that get_versions_for_playlist returns empty list when playlist has no versions."""
+        shotgrid_provider.sg.find_one.return_value = {"id": 1, "versions": []}
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert results == []
+
+    def test_get_versions_for_playlist_returns_empty_list_when_playlist_not_found(
+        self, shotgrid_provider
+    ):
+        """Test that get_versions_for_playlist returns empty list when playlist not found."""
+        shotgrid_provider.sg.find_one.return_value = None
+
+        results = shotgrid_provider.get_versions_for_playlist(999)
+
+        assert results == []
+
+    def test_get_versions_for_playlist_returns_empty_list_when_versions_null(
+        self, shotgrid_provider
+    ):
+        """Test that get_versions_for_playlist returns empty list when versions field is null."""
+        shotgrid_provider.sg.find_one.return_value = {"id": 1, "versions": None}
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert results == []

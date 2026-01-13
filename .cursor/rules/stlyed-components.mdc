@@ -1,0 +1,8 @@
+---
+name: stlyed-components
+description: Use styled components for the frontend framework.
+---
+
+# Overview
+
+When working in the frontend, use styled components for the frontend framework. Only create custom components if absolutely necessary. Always check the latest styled components documentation for the best practices. Use a common file for variables and mixins but keep component specific styles in the component file.

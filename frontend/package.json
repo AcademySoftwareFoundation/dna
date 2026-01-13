@@ -12,6 +12,7 @@
     "build:core": "npm run build --workspace=@dna/core",
     "build:app": "npm run build --workspace=@dna/app",
     "test": "npm run test --workspaces",
+    "test-ci": "npm run test --workspaces -- --run --watch=false",
     "test:run": "npm run test:run --workspaces",
     "test:coverage": "npm run test:coverage --workspaces",
     "lint": "npm run lint --workspaces",
