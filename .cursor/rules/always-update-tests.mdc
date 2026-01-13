@@ -1,0 +1,10 @@
+---
+name: always-update-tests
+description: Always run tests when making changes to the code.
+globs:
+alwaysApply: true
+---
+
+# Overview
+
+Always run tests when making changes to the code. For the Frontend, use npm run test. For the Backend, use make test.

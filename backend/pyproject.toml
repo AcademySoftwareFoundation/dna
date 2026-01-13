@@ -1,7 +1,7 @@
 [tool.isort]
 profile = "black"
-src_paths = ["src", "tests"]
-known_first_party = ["src", "dna"]
+src_paths = ["dna", "tests"]
+known_first_party = ["dna"]
 
 [tool.black]
 line-length = 88

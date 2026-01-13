@@ -40,6 +40,22 @@ To setup the backend, you need to have the following:
 - An LLM provider (OpenAI, Anthropic, Google, etc.)
 - A transcription provider (Vexa, etc.)
 
+### ShotGrid Configuration
+
+To configure ShotGrid credentials, create a local docker-compose override file:
+
+1. Copy the example file:
+   ```bash
+   cp sg_example.docker-compose.local.yml docker-compose.local.yml
+   ```
+
+2. Edit `docker-compose.local.yml` and update the environment variables with your ShotGrid credentials:
+   - `SHOTGRID_URL`: Your ShotGrid site URL (e.g., `https://your-studio.shotgrid.autodesk.com`)
+   - `SHOTGRID_API_KEY`: Your ShotGrid API key
+   - `SHOTGRID_SCRIPT_NAME`: Your ShotGrid script name
+
+3. The `docker-compose.local.yml` file is gitignored, so your credentials will not be committed to the repository.
+
 ### Running the Backend
 
 To run the backend, you need to have the following:

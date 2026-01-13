@@ -1,0 +1,10 @@
+---
+name: run-formatting
+description: Run formatting when making changes to the code.
+globs:
+alwaysApply: true
+---
+
+# Overview
+
+When making changes to the backend, run `make format-python` to format the code after you are done making changes as a final step.
