@@ -1,6 +1,6 @@
 """FastAPI application entry point."""
 
-from functools import lru_cache
+
 from typing import Annotated, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Header
@@ -173,29 +173,7 @@ ProdtrackProviderDep = Annotated[
 async def login(request: LoginRequest):
     """Login to ShotGrid."""
     try:
-        # We need a provider instance to access the static method if we want to keep it clean,
-        # or just import the class. We imported ShotgridProvider above.
-        # But we need the URL from the environment or default provider.
-        # Let's instantiate a default provider to get config, or just use the class method
-        # and assume env vars are set for URL if not passed?
-        # The static method requires URL.
-        
-        # Helper to get base URL
-        import os
-        url = os.getenv("SHOTGRID_URL")
-        if not url:
-             raise HTTPException(status_code=500, detail="SHOTGRID_URL not configured")
-
-        token = ShotgridProvider.authenticate_user(url, request.username, request.password)
-        
-        # Create a provider with this token to fetch the user details (email)
-        provider = ShotgridProvider(url=url, session_token=token)
-        user = provider.get_user_by_login(request.username)
-        
-        if not user.email:
-             raise HTTPException(status_code=400, detail="User has no email address configured")
-
-        return {"token": token, "email": user.email}
+        return ShotgridProvider.authenticate_user(request.username, request.password)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 

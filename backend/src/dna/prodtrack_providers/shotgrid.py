@@ -578,37 +578,38 @@ class ShotgridProvider(ProdtrackProviderBase):
 
 
     @staticmethod
-    def authenticate_user(url: str, login: str, password: str) -> str:
-        """Authenticate a user with ShotGrid and return a session token.
+    def authenticate_user(username: str, password: str) -> dict[str, Any]:
+        """Authenticate a user with ShotGrid and return session token and user info.
 
         Args:
-            url: ShotGrid server URL
-            login: User login/username
+            username: User login/username
             password: User password
 
         Returns:
-            Session token string
+            Dictionary containing 'token' and 'email'
 
         Raises:
             ValueError: If authentication fails
         """
+        url = os.getenv("SHOTGRID_URL")
+        if not url:
+            raise ValueError("SHOTGRID_URL not configured")
+
         try:
-            # Shotgun.authenticate_human_user returns the user object, but we need the session_token.
-            # However, the standard way to get a token is to just create a connection which validates creds.
-            # But wait, Shotgun API structure specifically for auth:
-            # We can use the simple authentication helper or instantiate to get token.
-            # Actually, standard shotgun_api3 doesn't easily expose 'authenticate_human_user' to get a token string directly
-            # without internals.
-            # Let's instantiate a connection to verify and get session_token if available or standard auth flow.
-            # The pattern usually is: sg = Shotgun(url, login=login, password=password) then sg.get_session_token().
-            
-            # Note: shotgun_api3 v3.3.0+ supports `login` and `password` in constructor for script-based auth,
-            # but for human user relying on session token:
-            
-            sg = Shotgun(url, login=login, password=password)
-            # This establishes connection. Now implementation detail: how to get the token?
-            # The 'get_session_token()' method provides it.
-            return sg.get_session_token()
+            # Initialize connection to verify credentials and get token
+            sg = Shotgun(url, login=username, password=password)
+            token = sg.get_session_token()
+
+            # Create a provider instance with the new token to fetch user details
+            # This reuses the existing entity mapping logic
+            provider = ShotgridProvider(url=url, session_token=token)
+            user = provider.get_user_by_login(username)
+
+            if not user.email:
+                raise ValueError("User has no email address configured")
+
+            return {"token": token, "email": user.email}
+
         except Exception as e:
             raise ValueError(f"Authentication failed: {str(e)}")
 

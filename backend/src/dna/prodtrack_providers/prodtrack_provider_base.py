@@ -89,8 +89,8 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
     @staticmethod
-    def authenticate_user(url: str, login: str, password: str) -> str:
-        """Authenticate a user and return a session token."""
+    def authenticate_user(username: str, password: str) -> dict[str, Any]:
+        """Authenticate a user and return a session token and user info."""
         raise NotImplementedError("Subclasses must implement this method.")
 
 
