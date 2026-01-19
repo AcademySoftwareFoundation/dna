@@ -51,6 +51,10 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def get_user_by_login(self, login: str) -> "User":
+        """Get a user by their login/username."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_projects_for_user(self, user_email: str) -> list["Project"]:
         """Get projects accessible by a user.
 
@@ -84,12 +88,17 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    @staticmethod
+    def authenticate_user(url: str, login: str, password: str) -> str:
+        """Authenticate a user and return a session token."""
+        raise NotImplementedError("Subclasses must implement this method.")
 
-def get_prodtrack_provider() -> ProdtrackProviderBase:
+
+def get_prodtrack_provider(session_token: str | None = None) -> ProdtrackProviderBase:
     """Get the production tracking provider."""
     from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
     if provider_type == "shotgrid":
-        return ShotgridProvider()
+        return ShotgridProvider(session_token=session_token)
     raise ValueError(f"Unknown production tracking provider: {provider_type}")

@@ -3,8 +3,9 @@
 from functools import lru_cache
 from typing import Annotated, cast
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from dna.models import (
     Asset,
@@ -23,6 +24,13 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
+from dna.prodtrack_providers.shotgrid import ShotgridProvider
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -47,6 +55,10 @@ API_VERSION = "0.1.0"
 
 # Define API tags for organizing endpoints
 tags_metadata = [
+    {
+        "name": "Auth",
+        "description": "Authentication endpoints",
+    },
     {
         "name": "Health",
         "description": "Health check and status endpoints",
@@ -126,15 +138,67 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 
 
-@lru_cache
-def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
-    """Get or create the production tracking provider singleton."""
-    return get_prodtrack_provider()
+def get_token_header(authorization: Annotated[str | None, Header()] = None) -> str | None:
+    """Extract token from Authorization header."""
+    if not authorization:
+        return None
+    if authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    return authorization
+
+
+def get_prodtrack_provider_dep(
+    token: Annotated[str | None, Depends(get_token_header)],
+) -> ProdtrackProviderBase:
+    """Get the production tracking provider with user session."""
+    return get_prodtrack_provider(session_token=token)
 
 
 ProdtrackProviderDep = Annotated[
-    ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
+    ProdtrackProviderBase, Depends(get_prodtrack_provider_dep)
 ]
+
+
+# -----------------------------------------------------------------------------
+# Auth endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/auth/login",
+    tags=["Auth"],
+    summary="Login to Production Tracking",
+    description="Authenticate with username and password to get a session token.",
+)
+async def login(request: LoginRequest):
+    """Login to ShotGrid."""
+    try:
+        # We need a provider instance to access the static method if we want to keep it clean,
+        # or just import the class. We imported ShotgridProvider above.
+        # But we need the URL from the environment or default provider.
+        # Let's instantiate a default provider to get config, or just use the class method
+        # and assume env vars are set for URL if not passed?
+        # The static method requires URL.
+        
+        # Helper to get base URL
+        import os
+        url = os.getenv("SHOTGRID_URL")
+        if not url:
+             raise HTTPException(status_code=500, detail="SHOTGRID_URL not configured")
+
+        token = ShotgridProvider.authenticate_user(url, request.username, request.password)
+        
+        # Create a provider with this token to fetch the user details (email)
+        provider = ShotgridProvider(url=url, session_token=token)
+        user = provider.get_user_by_login(request.username)
+        
+        if not user.email:
+             raise HTTPException(status_code=400, detail="User has no email address configured")
+
+        return {"token": token, "email": user.email}
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
 
 
 # -----------------------------------------------------------------------------

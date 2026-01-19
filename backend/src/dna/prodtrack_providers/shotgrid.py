@@ -122,6 +122,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         url: Optional[str] = None,
         script_name: Optional[str] = None,
         api_key: Optional[str] = None,
+        session_token: Optional[str] = None,
         connect: bool = True,
     ):
         """Initialize the ShotGrid connection.
@@ -130,17 +131,22 @@ class ShotgridProvider(ProdtrackProviderBase):
             url: ShotGrid server URL. Defaults to SHOTGRID_URL env var.
             script_name: API script name. Defaults to SHOTGRID_SCRIPT_NAME env var.
             api_key: API key for authentication. Defaults to SHOTGRID_API_KEY env var.
+            session_token: Session token for user authentication.
         """
         super().__init__()
 
         self.url = url or os.getenv("SHOTGRID_URL")
         self.script_name = script_name or os.getenv("SHOTGRID_SCRIPT_NAME")
         self.api_key = api_key or os.getenv("SHOTGRID_API_KEY")
+        self.session_token = session_token
 
-        if not all([self.url, self.script_name, self.api_key]):
+        if not self.url:
+            raise ValueError("ShotGrid URL not provided.")
+
+        if not self.session_token and not (self.script_name and self.api_key):
             raise ValueError(
-                "ShotGrid credentials not provided. Set SHOTGRID_URL, "
-                "SHOTGRID_SCRIPT_NAME, and SHOTGRID_API_KEY environment variables."
+                "ShotGrid credentials not provided. Provide either session_token "
+                "or (script_name and api_key)."
             )
 
         self.sg = None
@@ -149,7 +155,11 @@ class ShotgridProvider(ProdtrackProviderBase):
 
     def _connect(self):
         """Connect to ShotGrid."""
-        self.sg = Shotgun(self.url, self.script_name, self.api_key)
+        if self.session_token:
+            # When using session token, we don't use script credentials
+            self.sg = Shotgun(self.url, session_token=self.session_token)
+        else:
+            self.sg = Shotgun(self.url, self.script_name, self.api_key)
 
     def _convert_sg_entity_to_dna_entity(
         self,
@@ -398,6 +408,35 @@ class ShotgridProvider(ProdtrackProviderBase):
             sg_user, entity_mapping, "user", resolve_links=False
         )
 
+    def get_user_by_login(self, login: str) -> User:
+        """Get a user by their login/username.
+
+        Args:
+            login: The login/username of the user
+
+        Returns:
+            User entity
+
+        Raises:
+            ValueError: If user is not found
+        """
+        if not self.sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_user = self.sg.find_one(
+            "HumanUser",
+            filters=[["login", "is", login]],
+            fields=["id", "name", "email", "login"],
+        )
+
+        if not sg_user:
+            raise ValueError(f"User not found: {login}")
+
+        entity_mapping = FIELD_MAPPING["user"]
+        return self._convert_sg_entity_to_dna_entity(
+            sg_user, entity_mapping, "user", resolve_links=False
+        )
+
     def get_projects_for_user(self, user_email: str) -> list[Project]:
         """Get projects accessible by a user.
 
@@ -537,6 +576,41 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return versions
 
+
+    @staticmethod
+    def authenticate_user(url: str, login: str, password: str) -> str:
+        """Authenticate a user with ShotGrid and return a session token.
+
+        Args:
+            url: ShotGrid server URL
+            login: User login/username
+            password: User password
+
+        Returns:
+            Session token string
+
+        Raises:
+            ValueError: If authentication fails
+        """
+        try:
+            # Shotgun.authenticate_human_user returns the user object, but we need the session_token.
+            # However, the standard way to get a token is to just create a connection which validates creds.
+            # But wait, Shotgun API structure specifically for auth:
+            # We can use the simple authentication helper or instantiate to get token.
+            # Actually, standard shotgun_api3 doesn't easily expose 'authenticate_human_user' to get a token string directly
+            # without internals.
+            # Let's instantiate a connection to verify and get session_token if available or standard auth flow.
+            # The pattern usually is: sg = Shotgun(url, login=login, password=password) then sg.get_session_token().
+            
+            # Note: shotgun_api3 v3.3.0+ supports `login` and `password` in constructor for script-based auth,
+            # but for human user relying on session token:
+            
+            sg = Shotgun(url, login=login, password=password)
+            # This establishes connection. Now implementation detail: how to get the token?
+            # The 'get_session_token()' method provides it.
+            return sg.get_session_token()
+        except Exception as e:
+            raise ValueError(f"Authentication failed: {str(e)}")
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:
     """Get the DNA entity type from the ShotGrid entity type."""

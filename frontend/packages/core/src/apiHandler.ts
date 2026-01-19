@@ -4,6 +4,7 @@ import {
   GetPlaylistsForProjectParams,
   GetVersionsForPlaylistParams,
   GetUserByEmailParams,
+  LoginParams,
   Playlist,
   Project,
   User as DNAUser,
@@ -102,6 +103,10 @@ class ApiHandler {
 
   async getUserByEmail(params: GetUserByEmailParams): Promise<DNAUser> {
     return this.get<DNAUser>(`/users/${encodeURIComponent(params.userEmail)}`);
+  }
+
+  async login(params: LoginParams): Promise<{ token: string }> {
+    return this.post<{ token: string }>('/auth/login', params);
   }
 }
 
