@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_prodtrack_provider_cached
+from main import app, get_prodtrack_provider_dep
 
 client = TestClient(app)
 
@@ -46,7 +46,7 @@ class TestCreateNoteEndpoint:
             project={"type": "Project", "id": 85},
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -75,7 +75,7 @@ class TestCreateNoteEndpoint:
             project={"type": "Project", "id": 85},
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -101,7 +101,7 @@ class TestCreateNoteEndpoint:
 
     def test_create_note_missing_project_returns_422(self, mock_provider):
         """Test that missing required project field returns 422."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -133,7 +133,7 @@ class TestFindEndpoint:
             Project(id=2, name="Project Two"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -159,7 +159,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Shot(id=100, name="shot_010")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -188,7 +188,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Project(id=1, name="Test")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -206,7 +206,7 @@ class TestFindEndpoint:
 
     def test_find_unsupported_entity_type_returns_400(self, mock_provider):
         """Test that find returns 400 for unsupported entity types."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -227,7 +227,7 @@ class TestFindEndpoint:
         """Test that find returns empty list when no entities match."""
         mock_provider.find.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -249,7 +249,7 @@ class TestFindEndpoint:
         """Test that find returns 400 when provider raises ValueError."""
         mock_provider.find.side_effect = ValueError("Unknown field 'bad_field'")
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -269,7 +269,7 @@ class TestFindEndpoint:
 
     def test_find_missing_entity_type_returns_422(self, mock_provider):
         """Test that find returns 422 when entity_type is missing."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -288,7 +288,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Version(id=1, name="v001", status="apr")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -315,7 +315,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Project(id=1, name="Test")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -394,7 +394,7 @@ class TestGetProjectsForUserEndpoint:
             Project(id=2, name="Project Two"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/projects/user/testuser")
@@ -416,7 +416,7 @@ class TestGetProjectsForUserEndpoint:
             Project(id=1, name="Test Project")
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             client.get("/projects/user/jsmith@example.com")
@@ -430,7 +430,7 @@ class TestGetProjectsForUserEndpoint:
         """Test that get_projects_for_user returns empty list when user has no projects."""
         mock_provider.get_projects_for_user.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/projects/user/newuser")
@@ -446,7 +446,7 @@ class TestGetProjectsForUserEndpoint:
             "User not found: unknownuser"
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/projects/user/unknownuser")
@@ -474,7 +474,7 @@ class TestGetPlaylistsForProjectEndpoint:
             Playlist(id=2, code="Final Review"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/projects/42/playlists")
@@ -498,7 +498,7 @@ class TestGetPlaylistsForProjectEndpoint:
             Playlist(id=1, code="Test Playlist")
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             client.get("/projects/123/playlists")
@@ -510,7 +510,7 @@ class TestGetPlaylistsForProjectEndpoint:
         """Test that get_playlists_for_project returns empty list when no playlists."""
         mock_provider.get_playlists_for_project.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/projects/999/playlists")
@@ -526,7 +526,7 @@ class TestGetPlaylistsForProjectEndpoint:
             "Project not found"
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/projects/999/playlists")
@@ -554,7 +554,7 @@ class TestGetVersionsForPlaylistEndpoint:
             Version(id=2, name="shot_020_v002", status="apr"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/playlists/42/versions")
@@ -578,7 +578,7 @@ class TestGetVersionsForPlaylistEndpoint:
             Version(id=1, name="v001")
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             client.get("/playlists/123/versions")
@@ -590,7 +590,7 @@ class TestGetVersionsForPlaylistEndpoint:
         """Test that get_versions_for_playlist returns empty list when no versions."""
         mock_provider.get_versions_for_playlist.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/playlists/999/versions")
@@ -606,7 +606,7 @@ class TestGetVersionsForPlaylistEndpoint:
             "Playlist not found"
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_provider_dep] = lambda: mock_provider
 
         try:
             response = client.get("/playlists/999/versions")
@@ -615,3 +615,35 @@ class TestGetVersionsForPlaylistEndpoint:
             assert "Playlist not found" in data["detail"]
         finally:
             app.dependency_overrides.clear()
+
+class TestAuthEndpoints:
+    """Tests for authentication endpoints."""
+
+    def test_login_success(self):
+        """Test successful login returns token and email."""
+        with mock.patch("main.ShotgridProvider.authenticate_user") as mock_auth:
+            mock_auth.return_value = {"token": "fake-token", "email": "test@example.com"}
+            
+            response = client.post(
+                "/auth/login",
+                json={"username": "testuser", "password": "password"},
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["token"] == "fake-token"
+            assert data["email"] == "test@example.com"
+            mock_auth.assert_called_once_with("testuser", "password")
+
+    def test_login_failure(self):
+        """Test failed login returns 401."""
+        with mock.patch("main.ShotgridProvider.authenticate_user") as mock_auth:
+            mock_auth.side_effect = ValueError("Invalid credentials")
+            
+            response = client.post(
+                "/auth/login",
+                json={"username": "testuser", "password": "wrong-password"},
+            )
+            
+            assert response.status_code == 401
+            assert "Invalid credentials" in response.json()["detail"]
