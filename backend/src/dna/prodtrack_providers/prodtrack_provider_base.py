@@ -88,10 +88,7 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    @staticmethod
-    def authenticate_user(username: str, password: str) -> dict[str, Any]:
-        """Authenticate a user and return a session token and user info."""
-        raise NotImplementedError("Subclasses must implement this method.")
+    # Removed authenticate_user static method as it is now handled by the module-level factory function below.
 
 
 def get_prodtrack_provider(session_token: str | None = None) -> ProdtrackProviderBase:
@@ -101,4 +98,16 @@ def get_prodtrack_provider(session_token: str | None = None) -> ProdtrackProvide
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
     if provider_type == "shotgrid":
         return ShotgridProvider(session_token=session_token)
+    raise ValueError(f"Unknown production tracking provider: {provider_type}")
+
+
+def authenticate_user(username: str, password: str) -> dict[str, Any]:
+    """Authenticate a user using the configured provider."""
+    provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
+
+    if provider_type == "shotgrid":
+        from dna.prodtrack_providers.shotgrid_auth import ShotgridAuthenticationProvider
+
+        return ShotgridAuthenticationProvider.authenticate(username, password)
+
     raise ValueError(f"Unknown production tracking provider: {provider_type}")

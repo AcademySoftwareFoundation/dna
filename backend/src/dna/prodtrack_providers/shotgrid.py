@@ -577,42 +577,6 @@ class ShotgridProvider(ProdtrackProviderBase):
         return versions
 
 
-    @staticmethod
-    def authenticate_user(username: str, password: str) -> dict[str, Any]:
-        """Authenticate a user with ShotGrid and return session token and user info.
-
-        Args:
-            username: User login/username
-            password: User password
-
-        Returns:
-            Dictionary containing 'token' and 'email'
-
-        Raises:
-            ValueError: If authentication fails
-        """
-        url = os.getenv("SHOTGRID_URL")
-        if not url:
-            raise ValueError("SHOTGRID_URL not configured")
-
-        try:
-            # Initialize connection to verify credentials and get token
-            sg = Shotgun(url, login=username, password=password)
-            token = sg.get_session_token()
-
-            # Create a provider instance with the new token to fetch user details
-            # This reuses the existing entity mapping logic
-            provider = ShotgridProvider(url=url, session_token=token)
-            user = provider.get_user_by_login(username)
-
-            if not user.email:
-                raise ValueError("User has no email address configured")
-
-            return {"token": token, "email": user.email}
-
-        except Exception as e:
-            raise ValueError(f"Authentication failed: {str(e)}")
-
 def _get_dna_entity_type(sg_entity_type: str) -> str:
     """Get the DNA entity type from the ShotGrid entity type."""
     for entity_type, entity_data in FIELD_MAPPING.items():

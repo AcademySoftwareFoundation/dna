@@ -616,19 +616,23 @@ class TestGetVersionsForPlaylistEndpoint:
         finally:
             app.dependency_overrides.clear()
 
+
 class TestAuthEndpoints:
     """Tests for authentication endpoints."""
 
     def test_login_success(self):
         """Test successful login returns token and email."""
-        with mock.patch("main.ShotgridProvider.authenticate_user") as mock_auth:
-            mock_auth.return_value = {"token": "fake-token", "email": "test@example.com"}
-            
+        with mock.patch("main.authenticate_user") as mock_auth:
+            mock_auth.return_value = {
+                "token": "fake-token",
+                "email": "test@example.com",
+            }
+
             response = client.post(
                 "/auth/login",
                 json={"username": "testuser", "password": "password"},
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             assert data["token"] == "fake-token"
@@ -637,13 +641,13 @@ class TestAuthEndpoints:
 
     def test_login_failure(self):
         """Test failed login returns 401."""
-        with mock.patch("main.ShotgridProvider.authenticate_user") as mock_auth:
+        with mock.patch("main.authenticate_user") as mock_auth:
             mock_auth.side_effect = ValueError("Invalid credentials")
-            
+
             response = client.post(
                 "/auth/login",
                 json={"username": "testuser", "password": "wrong-password"},
             )
-            
+
             assert response.status_code == 401
             assert "Invalid credentials" in response.json()["detail"]

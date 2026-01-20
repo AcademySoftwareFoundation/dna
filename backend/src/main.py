@@ -1,9 +1,8 @@
 """FastAPI application entry point."""
 
-
 from typing import Annotated, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Header
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -22,9 +21,9 @@ from dna.models import (
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
+    authenticate_user,
     get_prodtrack_provider,
 )
-from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
 
 class LoginRequest(BaseModel):
@@ -138,7 +137,9 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 
 
-def get_token_header(authorization: Annotated[str | None, Header()] = None) -> str | None:
+def get_token_header(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str | None:
     """Extract token from Authorization header."""
     if not authorization:
         return None
@@ -173,10 +174,9 @@ ProdtrackProviderDep = Annotated[
 async def login(request: LoginRequest):
     """Login to ShotGrid."""
     try:
-        return ShotgridProvider.authenticate_user(request.username, request.password)
+        return authenticate_user(request.username, request.password)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
-
 
 
 # -----------------------------------------------------------------------------
