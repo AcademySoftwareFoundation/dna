@@ -1,10 +1,10 @@
 """FastAPI application entry point."""
 
-from functools import lru_cache
 from typing import Annotated, cast
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from dna.models import (
     Asset,
@@ -21,8 +21,15 @@ from dna.models import (
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
+    authenticate_user,
     get_prodtrack_provider,
 )
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -47,6 +54,10 @@ API_VERSION = "0.1.0"
 
 # Define API tags for organizing endpoints
 tags_metadata = [
+    {
+        "name": "Auth",
+        "description": "Authentication endpoints",
+    },
     {
         "name": "Health",
         "description": "Health check and status endpoints",
@@ -126,15 +137,46 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 
 
-@lru_cache
-def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
-    """Get or create the production tracking provider singleton."""
-    return get_prodtrack_provider()
+def get_token_header(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str | None:
+    """Extract token from Authorization header."""
+    if not authorization:
+        return None
+    if authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    return authorization
+
+
+def get_prodtrack_provider_dep(
+    token: Annotated[str | None, Depends(get_token_header)],
+) -> ProdtrackProviderBase:
+    """Get the production tracking provider with user session."""
+    return get_prodtrack_provider(session_token=token)
 
 
 ProdtrackProviderDep = Annotated[
-    ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
+    ProdtrackProviderBase, Depends(get_prodtrack_provider_dep)
 ]
+
+
+# -----------------------------------------------------------------------------
+# Auth endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/auth/login",
+    tags=["Auth"],
+    summary="Login to Production Tracking",
+    description="Authenticate with username and password to get a session token.",
+)
+async def login(request: LoginRequest):
+    """Login to ShotGrid."""
+    try:
+        return authenticate_user(request.username, request.password)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 # -----------------------------------------------------------------------------

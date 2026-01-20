@@ -140,3 +140,13 @@ export interface GetVersionsForPlaylistParams {
 export interface GetUserByEmailParams {
   userEmail: string;
 }
+
+export interface LoginParams {
+  username: string;
+  password?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  email: string;
+}

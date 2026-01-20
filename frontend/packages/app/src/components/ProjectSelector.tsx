@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Button, Flex, Select, Spinner } from '@radix-ui/themes';
 import { Playlist, Project } from '@dna/core';
-import { useGetProjectsForUser, useGetPlaylistsForProject } from '../api';
+import { useGetProjectsForUser, useGetPlaylistsForProject, apiHandler } from '../api';
 import { Logo } from './Logo';
 import {
   StyledTextField,
@@ -13,6 +13,7 @@ import {
 export const STORAGE_KEYS = {
   USER_EMAIL: 'dna_user_email',
   PROJECT: 'dna_selected_project',
+  TOKEN: 'dna_user_token',
 };
 
 interface ProjectSelectorProps {
@@ -207,14 +208,42 @@ function clearStoredProject(): void {
   }
 }
 
+function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.TOKEN);
+  } catch {
+    return null;
+  }
+}
+
+function saveToken(token: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearStoredToken(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function clearUserSession(): void {
   clearStoredEmail();
   clearStoredProject();
+  clearStoredToken();
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   const [step, setStep] = useState<Step>('loading');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('');
@@ -222,13 +251,19 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   useEffect(() => {
     const storedEmail = getStoredEmail();
     const storedProject = getStoredProject();
+    const storedToken = getStoredToken();
 
-    if (storedEmail && storedProject) {
+    // Restore session if token exists
+    if (storedToken && storedEmail) {
+      apiHandler.setUser({ id: '0', email: storedEmail, token: storedToken });
+    }
+
+    if (storedEmail && storedProject && storedToken) {
       setSubmittedEmail(storedEmail);
       setEmail(storedEmail);
       setSelectedProject(storedProject);
       setStep('playlist');
-    } else if (storedEmail) {
+    } else if (storedEmail && storedToken) {
       setSubmittedEmail(storedEmail);
       setEmail(storedEmail);
       setStep('project');
@@ -251,13 +286,29 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     error: playlistsError,
   } = useGetPlaylistsForProject(selectedProject?.id ?? null);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      const trimmedEmail = email.trim();
-      setSubmittedEmail(trimmedEmail);
-      saveEmail(trimmedEmail);
-      setStep('project');
+    setLoginError(null);
+    setIsLoggingIn(true);
+
+    try {
+      if (email.trim() && password.trim()) {
+        const { token, email: userEmail } = await apiHandler.login({
+          username: email.trim(),
+          password: password.trim(),
+        });
+
+        apiHandler.setUser({ id: '0', email: userEmail, token }); // ID is not returned by login yet, using stub or need to update user interface/login response
+
+        setSubmittedEmail(userEmail);
+        saveEmail(userEmail);
+        saveToken(token);
+        setStep('project');
+      }
+    } catch (err: any) {
+      setLoginError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -329,26 +380,39 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
         <Subtitle>Dailies Notes Assistant</Subtitle>
 
         {step === 'email' && (
-          <StyledForm onSubmit={handleEmailSubmit}>
+          <StyledForm onSubmit={handleLogin}>
             <FormSection>
-              <Label htmlFor="email">Enter your email</Label>
+              <Label htmlFor="email">Username / Login</Label>
               <StyledTextField
                 id="email"
-                placeholder="you@example.com"
-                type="email"
+                placeholder="username"
+                type="text"
                 size="3"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              <Label htmlFor="password">Password</Label>
+              <StyledTextField
+                id="password"
+                placeholder="••••••••"
+                type="password"
+                size="3"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </FormSection>
+
+            {loginError && <ErrorText>{loginError}</ErrorText>}
+
             <Button
               type="submit"
               size="3"
-              disabled={!email.trim()}
+              disabled={!email.trim() || !password.trim() || isLoggingIn}
               style={{ marginTop: '8px' }}
             >
-              Continue
+              {isLoggingIn ? <Spinner /> : 'Login'}
             </Button>
           </StyledForm>
         )}
