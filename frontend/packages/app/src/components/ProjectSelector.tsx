@@ -28,12 +28,13 @@ const PageWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(
-      ellipse 80% 50% at 50% -20%,
-      ${({ theme }) => theme.colors.accent.subtle},
-      transparent
-    )
-    fixed,
+  background:
+    radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        ${({ theme }) => theme.colors.accent.subtle},
+        transparent
+      )
+      fixed,
     ${({ theme }) => theme.colors.bg.base};
 `;
 

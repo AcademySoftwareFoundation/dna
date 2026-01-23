@@ -1,9 +1,15 @@
 import styled from 'styled-components';
 import * as Tabs from '@radix-ui/react-tabs';
 import { AssistantNote } from './AssistantNote';
+import { OtherNotesPanel } from './OtherNotesPanel';
+import { TranscriptPanel } from './TranscriptPanel';
 
 interface AssistantPanelProps {
   activeTab?: string;
+  playlistId?: number | null;
+  versionId?: number | null;
+  userEmail?: string | null;
+  onInsertNote?: (content: string) => void;
 }
 
 const PanelWrapper = styled.div`
@@ -49,35 +55,42 @@ const StyledTabsContent = styled(Tabs.Content)`
   padding: 16px 0;
 `;
 
-const EmptyContent = styled.div`
-  padding: 24px;
-  text-align: center;
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.text.muted};
-`;
-
 export function AssistantPanel({
   activeTab = 'assistant',
+  playlistId,
+  versionId,
+  userEmail,
+  onInsertNote,
 }: AssistantPanelProps) {
   return (
     <PanelWrapper>
       <StyledTabsRoot defaultValue={activeTab}>
         <StyledTabsList>
-          <StyledTabsTrigger value="assistant">AI Assistent</StyledTabsTrigger>
+          <StyledTabsTrigger value="assistant">AI Assistant</StyledTabsTrigger>
           <StyledTabsTrigger value="transcript">Transcript</StyledTabsTrigger>
-          <StyledTabsTrigger value="other">Other Notes</StyledTabsTrigger>
+          <StyledTabsTrigger value="other">
+            Other Pending Notes
+          </StyledTabsTrigger>
         </StyledTabsList>
 
         <StyledTabsContent value="assistant">
-          <AssistantNote />
+          <AssistantNote onInsertNote={onInsertNote} />
         </StyledTabsContent>
 
         <StyledTabsContent value="transcript">
-          <EmptyContent>Transcript content will appear here</EmptyContent>
+          <TranscriptPanel
+            playlistId={playlistId ?? null}
+            versionId={versionId ?? null}
+          />
         </StyledTabsContent>
 
         <StyledTabsContent value="other">
-          <EmptyContent>Other notes will appear here</EmptyContent>
+          <OtherNotesPanel
+            playlistId={playlistId}
+            versionId={versionId}
+            userEmail={userEmail}
+            onInsertNote={onInsertNote}
+          />
         </StyledTabsContent>
       </StyledTabsRoot>
     </PanelWrapper>

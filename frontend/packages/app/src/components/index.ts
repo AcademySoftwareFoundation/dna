@@ -14,9 +14,12 @@ export { VersionHeader } from './VersionHeader';
 export { NoteEditor } from './NoteEditor';
 export { AssistantNote } from './AssistantNote';
 export { AssistantPanel } from './AssistantPanel';
+export { OtherNotesPanel } from './OtherNotesPanel';
 export { ContentArea } from './ContentArea';
 export {
   StyledTextField,
   StyledSelectTrigger,
   StyledSelectContent,
 } from './FormInputs';
+export { TranscriptionMenu } from './TranscriptionMenu';
+export { TranscriptPanel } from './TranscriptPanel';

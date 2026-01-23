@@ -1,12 +1,16 @@
+import { useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import type { Version } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
-import { NoteEditor } from './NoteEditor';
+import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
+import { usePlaylistMetadata, useSetInReview } from '../hooks';
 
 interface ContentAreaProps {
   version?: Version | null;
   versions?: Version[];
+  playlistId?: number | null;
+  userEmail?: string | null;
   onVersionSelect?: (version: Version) => void;
   onRefresh?: () => void;
 }
@@ -65,12 +69,33 @@ function getStatusLabel(status?: string): string {
 
 const IN_REVIEW_STATUS = 'rev';
 
-export function ContentArea({ version, versions = [], onVersionSelect, onRefresh }: ContentAreaProps) {
-  const currentIndex = version ? versions.findIndex(v => v.id === version.id) : -1;
+export function ContentArea({
+  version,
+  versions = [],
+  playlistId,
+  userEmail,
+  onVersionSelect,
+  onRefresh,
+}: ContentAreaProps) {
+  const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const currentIndex = version
+    ? versions.findIndex((v) => v.id === version.id)
+    : -1;
   const canGoBack = currentIndex > 0;
   const canGoNext = currentIndex >= 0 && currentIndex < versions.length - 1;
-  const inReviewVersion = versions.find(v => v.status === IN_REVIEW_STATUS);
+
+  const { data: playlistMetadata } = usePlaylistMetadata(playlistId ?? null);
+  const { setInReview, isLoading: isSettingInReview } = useSetInReview(
+    playlistId ?? null
+  );
+
+  const inReviewVersionId = playlistMetadata?.in_review;
+  const inReviewVersion = inReviewVersionId
+    ? versions.find((v) => v.id === inReviewVersionId)
+    : versions.find((v) => v.status === IN_REVIEW_STATUS);
   const hasInReview = !!inReviewVersion;
+  const isCurrentVersionInReview =
+    version && inReviewVersionId ? version.id === inReviewVersionId : false;
 
   const handleBack = () => {
     if (canGoBack && onVersionSelect) {
@@ -90,6 +115,16 @@ export function ContentArea({ version, versions = [], onVersionSelect, onRefresh
     }
   };
 
+  const handleSetInReview = async () => {
+    if (version && playlistId) {
+      await setInReview(version.id);
+    }
+  };
+
+  const handleInsertNote = useCallback((content: string) => {
+    noteEditorRef.current?.appendContent(content);
+  }, []);
+
   if (!version) {
     return (
       <ContentWrapper>
@@ -104,7 +139,10 @@ export function ContentArea({ version, versions = [], onVersionSelect, onRefresh
   }
 
   const entityName = version.entity?.name || '';
-  const versionNumber = version.name?.replace(entityName, '').replace(/^[\s\-_]+/, '') || version.name || '';
+  const versionNumber =
+    version.name?.replace(entityName, '').replace(/^[\s\-_]+/, '') ||
+    version.name ||
+    '';
   const links: string[] = [];
   if (version.task?.pipeline_step?.name) {
     links.push(version.task.pipeline_step.name);
@@ -126,13 +164,26 @@ export function ContentArea({ version, versions = [], onVersionSelect, onRefresh
         onBack={handleBack}
         onNext={handleNext}
         onInReview={handleInReview}
+        onSetInReview={handleSetInReview}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         hasInReview={hasInReview}
+        isCurrentVersionInReview={isCurrentVersionInReview}
+        isSettingInReview={isSettingInReview}
         onRefresh={onRefresh}
       />
-      <NoteEditor />
-      <AssistantPanel />
+      <NoteEditor
+        ref={noteEditorRef}
+        playlistId={playlistId}
+        versionId={version.id}
+        userEmail={userEmail}
+      />
+      <AssistantPanel
+        playlistId={playlistId}
+        versionId={version.id}
+        userEmail={userEmail}
+        onInsertNote={handleInsertNote}
+      />
     </ContentWrapper>
   );
 }

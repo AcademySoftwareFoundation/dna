@@ -11,6 +11,7 @@ describe('ApiHandler', () => {
     get: ReturnType<typeof vi.fn>;
     post: ReturnType<typeof vi.fn>;
     put: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
     interceptors: {
       request: { use: ReturnType<typeof vi.fn> };
     };
@@ -26,6 +27,7 @@ describe('ApiHandler', () => {
       get: vi.fn(),
       post: vi.fn(),
       put: vi.fn(),
+      delete: vi.fn(),
       interceptors: {
         request: {
           use: vi.fn((interceptor) => {
@@ -379,6 +381,298 @@ describe('ApiHandler', () => {
       await expect(
         api.getVersionsForPlaylist({ playlistId: 999 })
       ).rejects.toThrow('Playlist not found');
+    });
+  });
+
+  describe('delete', () => {
+    it('should make DELETE request and return data', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockData = { deleted: true };
+      mockAxiosInstance.delete.mockResolvedValue({ data: mockData });
+
+      const result = await api.delete<typeof mockData>('/test/1');
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
+        '/test/1',
+        undefined
+      );
+      expect(result).toEqual(mockData);
+    });
+
+    it('should pass config to DELETE request', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.delete.mockResolvedValue({ data: {} });
+      const config = { headers: { 'X-Custom': 'value' } };
+
+      await api.delete('/test/1', config);
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/test/1', config);
+    });
+
+    it('should propagate errors from DELETE requests', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const error = new Error('Not found');
+      mockAxiosInstance.delete.mockRejectedValue(error);
+
+      await expect(api.delete('/test/1')).rejects.toThrow('Not found');
+    });
+  });
+
+  describe('getDraftNote', () => {
+    it('should make GET request to correct endpoint', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockDraftNote = {
+        _id: 'abc123',
+        user_email: 'test@example.com',
+        playlist_id: 1,
+        version_id: 2,
+        content: 'Test content',
+        subject: 'Test subject',
+        to: '',
+        cc: '',
+        links: [],
+        version_status: '',
+        updated_at: '2025-01-15T00:00:00Z',
+        created_at: '2025-01-15T00:00:00Z',
+      };
+      mockAxiosInstance.get.mockResolvedValue({ data: mockDraftNote });
+
+      const result = await api.getDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'test@example.com',
+      });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes/test%40example.com',
+        undefined
+      );
+      expect(result).toEqual(mockDraftNote);
+    });
+
+    it('should return null when no draft note exists', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({ data: null });
+
+      const result = await api.getDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'test@example.com',
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('should encode special characters in email', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({ data: null });
+
+      await api.getDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'user+test@example.com',
+      });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes/user%2Btest%40example.com',
+        undefined
+      );
+    });
+  });
+
+  describe('upsertDraftNote', () => {
+    it('should make PUT request to correct endpoint with data', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockDraftNote = {
+        _id: 'abc123',
+        user_email: 'test@example.com',
+        playlist_id: 1,
+        version_id: 2,
+        content: 'Updated content',
+        subject: 'Updated subject',
+        to: '',
+        cc: '',
+        links: [],
+        version_status: 'pending',
+        updated_at: '2025-01-15T00:00:00Z',
+        created_at: '2025-01-15T00:00:00Z',
+      };
+      mockAxiosInstance.put.mockResolvedValue({ data: mockDraftNote });
+
+      const updateData = {
+        content: 'Updated content',
+        subject: 'Updated subject',
+        version_status: 'pending',
+      };
+
+      const result = await api.upsertDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'test@example.com',
+        data: updateData,
+      });
+
+      expect(mockAxiosInstance.put).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes/test%40example.com',
+        updateData,
+        undefined
+      );
+      expect(result).toEqual(mockDraftNote);
+    });
+
+    it('should encode special characters in email', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.put.mockResolvedValue({ data: {} });
+
+      await api.upsertDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'user+test@example.com',
+        data: { content: 'test' },
+      });
+
+      expect(mockAxiosInstance.put).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes/user%2Btest%40example.com',
+        { content: 'test' },
+        undefined
+      );
+    });
+
+    it('should propagate errors', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const error = new Error('Server error');
+      mockAxiosInstance.put.mockRejectedValue(error);
+
+      await expect(
+        api.upsertDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+          data: { content: 'test' },
+        })
+      ).rejects.toThrow('Server error');
+    });
+  });
+
+  describe('deleteDraftNote', () => {
+    it('should make DELETE request to correct endpoint', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.delete.mockResolvedValue({ data: true });
+
+      const result = await api.deleteDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'test@example.com',
+      });
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes/test%40example.com',
+        undefined
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should encode special characters in email', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.delete.mockResolvedValue({ data: true });
+
+      await api.deleteDraftNote({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'user+test@example.com',
+      });
+
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes/user%2Btest%40example.com',
+        undefined
+      );
+    });
+
+    it('should propagate errors', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const error = new Error('Not found');
+      mockAxiosInstance.delete.mockRejectedValue(error);
+
+      await expect(
+        api.deleteDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        })
+      ).rejects.toThrow('Not found');
+    });
+  });
+
+  describe('getAllDraftNotes', () => {
+    it('should make GET request to correct endpoint', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockDraftNotes = [
+        {
+          _id: 'abc123',
+          user_email: 'user1@example.com',
+          playlist_id: 1,
+          version_id: 2,
+          content: 'Note 1',
+          subject: '',
+          to: '',
+          cc: '',
+          links: [],
+          version_status: '',
+          updated_at: '2025-01-15T00:00:00Z',
+          created_at: '2025-01-15T00:00:00Z',
+        },
+        {
+          _id: 'def456',
+          user_email: 'user2@example.com',
+          playlist_id: 1,
+          version_id: 2,
+          content: 'Note 2',
+          subject: '',
+          to: '',
+          cc: '',
+          links: [],
+          version_status: '',
+          updated_at: '2025-01-15T00:00:00Z',
+          created_at: '2025-01-15T00:00:00Z',
+        },
+      ];
+      mockAxiosInstance.get.mockResolvedValue({ data: mockDraftNotes });
+
+      const result = await api.getAllDraftNotes({
+        playlistId: 1,
+        versionId: 2,
+      });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/draft-notes',
+        undefined
+      );
+      expect(result).toEqual(mockDraftNotes);
+    });
+
+    it('should return empty array when no draft notes exist', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+
+      const result = await api.getAllDraftNotes({
+        playlistId: 1,
+        versionId: 2,
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it('should propagate errors', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const error = new Error('Server error');
+      mockAxiosInstance.get.mockRejectedValue(error);
+
+      await expect(
+        api.getAllDraftNotes({
+          playlistId: 1,
+          versionId: 2,
+        })
+      ).rejects.toThrow('Server error');
     });
   });
 });

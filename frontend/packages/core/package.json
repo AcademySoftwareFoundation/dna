@@ -27,6 +27,7 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.0.0",
     "axios": "^1.13.2"
   }
 }

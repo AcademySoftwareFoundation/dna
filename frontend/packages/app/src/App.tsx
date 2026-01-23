@@ -1,9 +1,16 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Playlist, Project, Version } from '@dna/core';
-import { Layout, ContentArea, ProjectSelector, clearUserSession } from './components';
+import {
+  Layout,
+  ContentArea,
+  ProjectSelector,
+  clearUserSession,
+} from './components';
 import { useGetVersionsForPlaylist } from './api';
 
 function App() {
+  const queryClient = useQueryClient();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -16,9 +23,14 @@ function App() {
   );
 
   const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['allDraftNotes'] });
+    await queryClient.invalidateQueries({ queryKey: ['draftNote'] });
+
     const result = await refetch();
     if (result.data && selectedVersion) {
-      const updatedVersion = result.data.find(v => v.id === selectedVersion.id);
+      const updatedVersion = result.data.find(
+        (v) => v.id === selectedVersion.id
+      );
       if (updatedVersion) {
         setSelectedVersion(updatedVersion);
       }
@@ -68,6 +80,8 @@ function App() {
       <ContentArea
         version={selectedVersion}
         versions={versions}
+        playlistId={selectedPlaylist.id}
+        userEmail={userEmail}
         onVersionSelect={handleVersionSelect}
         onRefresh={handleRefresh}
       />

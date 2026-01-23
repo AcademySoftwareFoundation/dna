@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import { ChevronLeft, Eye, ChevronRight, RotateCw } from 'lucide-react';
+import { ChevronLeft, Eye, ChevronRight, RotateCw, Target } from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 
 interface VersionHeaderProps {
@@ -15,9 +15,12 @@ interface VersionHeaderProps {
   onNext?: () => void;
   onInReview?: () => void;
   onRefresh?: () => void;
+  onSetInReview?: () => void;
   canGoBack?: boolean;
   canGoNext?: boolean;
   hasInReview?: boolean;
+  isCurrentVersionInReview?: boolean;
+  isSettingInReview?: boolean;
 }
 
 const HeaderWrapper = styled.div`
@@ -142,6 +145,13 @@ const MainContent = styled.div`
   gap: 24px;
 `;
 
+const ThumbnailWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+`;
+
 const Thumbnail = styled.div`
   width: 280px;
   height: 180px;
@@ -154,6 +164,44 @@ const Thumbnail = styled.div`
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+`;
+
+const SetInReviewButton = styled.button<{ $isInReview?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme, $isInReview }) =>
+    $isInReview ? theme.colors.accent.main : theme.colors.text.secondary};
+  background: ${({ theme, $isInReview }) =>
+    $isInReview ? theme.colors.accent.main + '15' : 'transparent'};
+  border: 1px ${({ $isInReview }) => ($isInReview ? 'solid' : 'dashed')}
+    ${({ theme, $isInReview }) =>
+      $isInReview ? theme.colors.accent.main : theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: ${({ $isInReview }) => ($isInReview ? 'default' : 'pointer')};
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover:not(:disabled) {
+    background: ${({ theme, $isInReview }) =>
+      $isInReview
+        ? theme.colors.accent.main + '15'
+        : theme.colors.bg.surfaceHover};
+    color: ${({ theme, $isInReview }) =>
+      $isInReview ? theme.colors.accent.main : theme.colors.text.primary};
+    border-color: ${({ theme, $isInReview }) =>
+      $isInReview ? theme.colors.accent.main : theme.colors.border.strong};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -239,13 +287,14 @@ export function VersionHeader({
   onNext,
   onInReview,
   onRefresh,
+  onSetInReview,
   canGoBack = true,
   canGoNext = true,
   hasInReview = true,
+  isCurrentVersionInReview = false,
+  isSettingInReview = false,
 }: VersionHeaderProps) {
-  const displayTitle = shotCode && versionNumber 
-    ? `${shotCode} - ` 
-    : '';
+  const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
   const displayCode = versionNumber || shotCode || 'Untitled Version';
 
   return (
@@ -270,12 +319,34 @@ export function VersionHeader({
         </TopBarActions>
       </TopBar>
       <MainContent>
-        <Thumbnail>
-          {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
-        </Thumbnail>
+        <ThumbnailWrapper>
+          <Thumbnail>
+            {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
+          </Thumbnail>
+          <SetInReviewButton
+            $isInReview={isCurrentVersionInReview}
+            onClick={onSetInReview}
+            disabled={isCurrentVersionInReview || isSettingInReview}
+          >
+            {isSettingInReview ? (
+              <>Setting...</>
+            ) : isCurrentVersionInReview ? (
+              <>
+                <Eye size={14} />
+                In Review
+              </>
+            ) : (
+              <>
+                <Target size={14} />
+                Set In Review
+              </>
+            )}
+          </SetInReviewButton>
+        </ThumbnailWrapper>
         <MetadataSection>
           <VersionTitle>
-            {displayTitle}<VersionTitleCode>{displayCode}</VersionTitleCode>
+            {displayTitle}
+            <VersionTitleCode>{displayCode}</VersionTitleCode>
           </VersionTitle>
           <MetadataRow>
             <MetadataLabel>Submitted by:</MetadataLabel>

@@ -1256,3 +1256,167 @@ class TestShotgridProviderGetVersionsForPlaylist:
         results = shotgrid_provider.get_versions_for_playlist(1)
 
         assert results == []
+
+    def test_get_versions_for_playlist_with_task_enrichment(self, shotgrid_provider):
+        """Test that get_versions_for_playlist enriches versions with task data."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "versions": [{"type": "Version", "id": 100}],
+        }
+
+        shotgrid_provider.sg.find.side_effect = [
+            [
+                {
+                    "id": 100,
+                    "code": "shot_010_v001",
+                    "sg_status_list": "rev",
+                    "sg_task": {"type": "Task", "id": 500},
+                    "entity": None,
+                    "user": None,
+                    "created_at": None,
+                    "updated_at": None,
+                    "sg_path_to_movie": None,
+                    "sg_path_to_frames": None,
+                    "notes": None,
+                    "project": None,
+                    "image": None,
+                }
+            ],
+            [
+                {
+                    "id": 500,
+                    "content": "Animation",
+                    "sg_status_list": "ip",
+                    "step": {"type": "Step", "id": 10, "name": "Anim"},
+                }
+            ],
+        ]
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert len(results) == 1
+        assert results[0].task is not None
+        assert results[0].task.id == 500
+        assert results[0].task.name == "Animation"
+
+
+# ============================================================================
+# ShotGrid get_user_by_email tests
+# ============================================================================
+
+
+class TestShotgridProviderGetUserByEmail:
+    """Tests for the ShotgridProvider.get_user_by_email method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_get_user_by_email_returns_user(self, shotgrid_provider):
+        """Test that get_user_by_email returns properly converted User entity."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 42,
+            "name": "John Doe",
+            "email": "jdoe@example.com",
+            "login": "jdoe",
+        }
+
+        result = shotgrid_provider.get_user_by_email("jdoe@example.com")
+
+        assert result.id == 42
+        assert result.name == "John Doe"
+        assert result.email == "jdoe@example.com"
+        assert result.login == "jdoe"
+
+    def test_get_user_by_email_raises_error_when_not_connected(self):
+        """Test that get_user_by_email raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.get_user_by_email("test@example.com")
+
+    def test_get_user_by_email_raises_error_when_user_not_found(
+        self, shotgrid_provider
+    ):
+        """Test that get_user_by_email raises error when user not found."""
+        shotgrid_provider.sg.find_one.return_value = None
+
+        with pytest.raises(ValueError, match="User not found: unknown@example.com"):
+            shotgrid_provider.get_user_by_email("unknown@example.com")
+
+
+# ============================================================================
+# ShotGrid shallow link conversion tests
+# ============================================================================
+
+
+class TestShotgridProviderShallowLinks:
+    """Tests for shallow link conversion methods."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_convert_shallow_link_with_single_dict(self, shotgrid_provider):
+        """Test _convert_shallow_link with a single dict."""
+        data = {"type": "Shot", "id": 100, "name": "shot_010"}
+        result = shotgrid_provider._convert_shallow_link(data)
+
+        assert result is not None
+        assert result.id == 100
+        assert result.name == "shot_010"
+
+    def test_convert_shallow_link_with_list(self, shotgrid_provider):
+        """Test _convert_shallow_link with a list of dicts."""
+        data = [
+            {"type": "Version", "id": 1, "name": "v001"},
+            {"type": "Version", "id": 2, "name": "v002"},
+        ]
+        result = shotgrid_provider._convert_shallow_link(data)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0].id == 1
+        assert result[1].id == 2
+
+    def test_convert_shallow_link_with_none(self, shotgrid_provider):
+        """Test _convert_shallow_link with None."""
+        result = shotgrid_provider._convert_shallow_link(None)
+        assert result is None
+
+    def test_convert_shallow_link_filters_none_items(self, shotgrid_provider):
+        """Test _convert_shallow_link filters None items from lists."""
+        data = [
+            {"type": "Version", "id": 1, "name": "v001"},
+            None,
+            {"type": "Version", "id": 2, "name": "v002"},
+        ]
+        result = shotgrid_provider._convert_shallow_link(data)
+
+        assert len(result) == 2
+
+    def test_create_shallow_entity_for_playlist(self, shotgrid_provider):
+        """Test _create_shallow_entity creates Playlist with code instead of name."""
+        data = {"type": "Playlist", "id": 50, "name": "Daily Review"}
+        result = shotgrid_provider._create_shallow_entity(data)
+
+        assert result.id == 50
+        assert result.code == "Daily Review"
+
+    def test_create_shallow_entity_for_non_playlist(self, shotgrid_provider):
+        """Test _create_shallow_entity creates entity with name for non-playlists."""
+        data = {"type": "Shot", "id": 100, "name": "shot_010"}
+        result = shotgrid_provider._create_shallow_entity(data)
+
+        assert result.id == 100
+        assert result.name == "shot_010"

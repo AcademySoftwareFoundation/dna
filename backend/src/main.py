@@ -1,20 +1,31 @@
 """FastAPI application entry point."""
 
 from functools import lru_cache
-from typing import Annotated, cast
+from typing import Annotated, Optional, cast
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from dna.events import EventPublisher, EventType, get_event_publisher
 from dna.models import (
     Asset,
+    BotSession,
+    BotStatus,
     CreateNoteRequest,
+    DispatchBotRequest,
+    DraftNote,
+    DraftNoteUpdate,
     FindRequest,
     Note,
+    Platform,
     Playlist,
+    PlaylistMetadata,
+    PlaylistMetadataUpdate,
     Project,
     Shot,
+    StoredSegment,
     Task,
+    Transcript,
     User,
     Version,
 )
@@ -22,6 +33,14 @@ from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
+)
+from dna.storage_providers.storage_provider_base import (
+    StorageProviderBase,
+    get_storage_provider,
+)
+from dna.transcription_providers.transcription_provider_base import (
+    TranscriptionProviderBase,
+    get_transcription_provider,
 )
 
 # API metadata for Swagger documentation
@@ -95,6 +114,14 @@ tags_metadata = [
         "name": "LLM",
         "description": "LLM-powered note generation",
     },
+    {
+        "name": "Draft Notes",
+        "description": "Operations for managing draft notes",
+    },
+    {
+        "name": "Playlist Metadata",
+        "description": "Operations for managing playlist metadata (in-review version and meeting ID)",
+    },
 ]
 
 app = FastAPI(
@@ -132,9 +159,38 @@ def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
     return get_prodtrack_provider()
 
 
+@lru_cache
+def get_storage_provider_cached() -> StorageProviderBase:
+    """Get or create the storage provider singleton."""
+    return get_storage_provider()
+
+
+@lru_cache
+def get_transcription_provider_cached() -> TranscriptionProviderBase:
+    """Get or create the transcription provider singleton."""
+    return get_transcription_provider()
+
+
 ProdtrackProviderDep = Annotated[
     ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
 ]
+
+StorageProviderDep = Annotated[
+    StorageProviderBase, Depends(get_storage_provider_cached)
+]
+
+TranscriptionProviderDep = Annotated[
+    TranscriptionProviderBase, Depends(get_transcription_provider_cached)
+]
+
+
+@lru_cache
+def get_event_publisher_cached() -> EventPublisher:
+    """Get or create the event publisher singleton."""
+    return get_event_publisher()
+
+
+EventPublisherDep = Annotated[EventPublisher, Depends(get_event_publisher_cached)]
 
 
 # -----------------------------------------------------------------------------
@@ -421,3 +477,262 @@ async def get_versions_for_playlist(
         return provider.get_versions_for_playlist(playlist_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# -----------------------------------------------------------------------------
+# Draft Notes endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.get(
+    "/playlists/{playlist_id}/versions/{version_id}/draft-notes",
+    tags=["Draft Notes"],
+    summary="Get all draft notes for a version",
+    description="Retrieve all users' draft notes for the specified playlist/version.",
+    response_model=list[DraftNote],
+)
+async def get_all_draft_notes(
+    playlist_id: int,
+    version_id: int,
+    provider: StorageProviderDep,
+) -> list[DraftNote]:
+    """Get all users' draft notes for this playlist/version."""
+    return await provider.get_draft_notes_for_version(playlist_id, version_id)
+
+
+@app.get(
+    "/playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}",
+    tags=["Draft Notes"],
+    summary="Get draft note for a user",
+    description="Retrieve a specific user's draft note for the playlist/version.",
+    response_model=Optional[DraftNote],
+)
+async def get_draft_note(
+    playlist_id: int,
+    version_id: int,
+    user_email: str,
+    provider: StorageProviderDep,
+) -> Optional[DraftNote]:
+    """Get a specific user's draft note."""
+    return await provider.get_draft_note(user_email, playlist_id, version_id)
+
+
+@app.put(
+    "/playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}",
+    tags=["Draft Notes"],
+    summary="Create or update a draft note",
+    description="Create or update a user's draft note for the playlist/version.",
+    response_model=DraftNote,
+)
+async def upsert_draft_note(
+    playlist_id: int,
+    version_id: int,
+    user_email: str,
+    data: DraftNoteUpdate,
+    provider: StorageProviderDep,
+) -> DraftNote:
+    """Create or update a user's draft note."""
+    return await provider.upsert_draft_note(user_email, playlist_id, version_id, data)
+
+
+@app.delete(
+    "/playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}",
+    tags=["Draft Notes"],
+    summary="Delete a draft note",
+    description="Delete a user's draft note for the playlist/version.",
+    response_model=bool,
+)
+async def delete_draft_note(
+    playlist_id: int,
+    version_id: int,
+    user_email: str,
+    provider: StorageProviderDep,
+) -> bool:
+    """Delete a user's draft note."""
+    deleted = await provider.delete_draft_note(user_email, playlist_id, version_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Draft note not found")
+    return True
+
+
+# -----------------------------------------------------------------------------
+# Playlist Metadata endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.get(
+    "/playlists/{playlist_id}/metadata",
+    tags=["Playlist Metadata"],
+    summary="Get playlist metadata",
+    description="Retrieve metadata for a playlist including in-review version and meeting ID.",
+    response_model=Optional[PlaylistMetadata],
+)
+async def get_playlist_metadata(
+    playlist_id: int,
+    provider: StorageProviderDep,
+) -> Optional[PlaylistMetadata]:
+    """Get playlist metadata."""
+    return await provider.get_playlist_metadata(playlist_id)
+
+
+@app.put(
+    "/playlists/{playlist_id}/metadata",
+    tags=["Playlist Metadata"],
+    summary="Create or update playlist metadata",
+    description="Create or update metadata for a playlist (in-review version and meeting ID).",
+    response_model=PlaylistMetadata,
+)
+async def upsert_playlist_metadata(
+    playlist_id: int,
+    data: PlaylistMetadataUpdate,
+    provider: StorageProviderDep,
+) -> PlaylistMetadata:
+    """Create or update playlist metadata."""
+    return await provider.upsert_playlist_metadata(playlist_id, data)
+
+
+@app.delete(
+    "/playlists/{playlist_id}/metadata",
+    tags=["Playlist Metadata"],
+    summary="Delete playlist metadata",
+    description="Delete metadata for a playlist.",
+    response_model=bool,
+)
+async def delete_playlist_metadata(
+    playlist_id: int,
+    provider: StorageProviderDep,
+) -> bool:
+    """Delete playlist metadata."""
+    deleted = await provider.delete_playlist_metadata(playlist_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Playlist metadata not found")
+    return True
+
+
+# -----------------------------------------------------------------------------
+# Transcription endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/transcription/bot",
+    tags=["Transcription"],
+    summary="Dispatch a bot to a meeting",
+    description="Start a transcription bot that joins the specified meeting.",
+    response_model=BotSession,
+    status_code=201,
+)
+async def dispatch_bot(
+    request: DispatchBotRequest,
+    transcription_provider: TranscriptionProviderDep,
+    storage_provider: StorageProviderDep,
+    event_publisher: EventPublisherDep,
+) -> BotSession:
+    """Dispatch a transcription bot to a meeting."""
+    try:
+        session = await transcription_provider.dispatch_bot(
+            platform=request.platform,
+            meeting_id=request.meeting_id,
+            playlist_id=request.playlist_id,
+            passcode=request.passcode,
+            bot_name=request.bot_name,
+            language=request.language,
+        )
+
+        await storage_provider.upsert_playlist_metadata(
+            request.playlist_id,
+            PlaylistMetadataUpdate(
+                meeting_id=request.meeting_id,
+                platform=request.platform.value,
+                vexa_meeting_id=session.vexa_meeting_id,
+            ),
+        )
+
+        await event_publisher.publish(
+            EventType.TRANSCRIPTION_SUBSCRIBE,
+            {
+                "playlist_id": request.playlist_id,
+                "meeting_id": request.meeting_id,
+                "platform": request.platform.value,
+            },
+        )
+
+        return session
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete(
+    "/transcription/bot/{platform}/{meeting_id}",
+    tags=["Transcription"],
+    summary="Stop a transcription bot",
+    description="Stop a transcription bot that is currently in a meeting.",
+    response_model=bool,
+)
+async def stop_bot(
+    platform: Platform,
+    meeting_id: str,
+    transcription_provider: TranscriptionProviderDep,
+) -> bool:
+    """Stop a transcription bot."""
+    try:
+        return await transcription_provider.stop_bot(platform, meeting_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get(
+    "/transcription/bot/{platform}/{meeting_id}/status",
+    tags=["Transcription"],
+    summary="Get bot status",
+    description="Get the current status of a transcription bot.",
+    response_model=BotStatus,
+)
+async def get_bot_status(
+    platform: Platform,
+    meeting_id: str,
+    transcription_provider: TranscriptionProviderDep,
+) -> BotStatus:
+    """Get the status of a transcription bot."""
+    try:
+        return await transcription_provider.get_bot_status(platform, meeting_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get(
+    "/transcription/transcript/{platform}/{meeting_id}",
+    tags=["Transcription"],
+    summary="Get transcript",
+    description="Get the full transcript for a meeting.",
+    response_model=Transcript,
+)
+async def get_transcript(
+    platform: Platform,
+    meeting_id: str,
+    transcription_provider: TranscriptionProviderDep,
+) -> Transcript:
+    """Get the transcript for a meeting."""
+    try:
+        return await transcription_provider.get_transcript(platform, meeting_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get(
+    "/transcription/segments/{playlist_id}/{version_id}",
+    tags=["Transcription"],
+    summary="Get segments for a version",
+    description="Get all stored transcript segments for a specific playlist version.",
+    response_model=list[StoredSegment],
+)
+async def get_segments_for_version(
+    playlist_id: int,
+    version_id: int,
+    storage_provider: StorageProviderDep,
+) -> list[StoredSegment]:
+    """Get all transcript segments for a version."""
+    try:
+        return await storage_provider.get_segments_for_version(playlist_id, version_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

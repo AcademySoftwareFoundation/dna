@@ -2,10 +2,10 @@ build:
 	docker-compose -f docker-compose.yml -f docker-compose.local.yml build --no-cache
 
 start-local:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml up --build
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml up --build
 
 stop-local:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml down
+	docker-compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml down
 
 logs-local:
 	docker-compose -f docker-compose.yml -f docker-compose.local.yml logs -f

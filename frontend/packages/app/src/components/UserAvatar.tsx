@@ -1,4 +1,10 @@
-import { AlertDialog, Avatar, Button, Flex, IconButton } from '@radix-ui/themes';
+import {
+  AlertDialog,
+  Avatar,
+  Button,
+  Flex,
+  IconButton,
+} from '@radix-ui/themes';
 
 interface UserAvatarProps {
   name?: string;

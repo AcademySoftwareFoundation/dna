@@ -1,6 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import MDEditor, { commands } from '@uiw/react-md-editor';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import TurndownService from 'turndown';
+import {
+  Bold,
+  Italic,
+  Strikethrough,
+  Code,
+  Heading1,
+  Heading2,
+  List,
+  ListOrdered,
+  Quote,
+  Minus,
+} from 'lucide-react';
 
 interface MarkdownEditorProps {
   value?: string;
@@ -9,117 +24,182 @@ interface MarkdownEditorProps {
   minHeight?: number;
 }
 
+const turndownService = new TurndownService({
+  headingStyle: 'atx',
+  codeBlockStyle: 'fenced',
+});
+
+function markdownToHtml(markdown: string): string {
+  if (!markdown) return '';
+  let html = markdown
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+    .replace(/\*\*\*(.*?)\*\*\*/gim, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+    .replace(/~~(.*?)~~/gim, '<s>$1</s>')
+    .replace(/`([^`]+)`/gim, '<code>$1</code>')
+    .replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>')
+    .replace(/^---$/gim, '<hr>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2">$1</a>');
+
+  const lines = html.split('\n');
+  const result: string[] = [];
+  let inList = false;
+  let listType = '';
+
+  for (const line of lines) {
+    const ulMatch = line.match(/^[\-\*] (.*)$/);
+    const olMatch = line.match(/^\d+\. (.*)$/);
+
+    if (ulMatch) {
+      if (!inList || listType !== 'ul') {
+        if (inList) result.push(`</${listType}>`);
+        result.push('<ul>');
+        inList = true;
+        listType = 'ul';
+      }
+      result.push(`<li>${ulMatch[1]}</li>`);
+    } else if (olMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) result.push(`</${listType}>`);
+        result.push('<ol>');
+        inList = true;
+        listType = 'ol';
+      }
+      result.push(`<li>${olMatch[1]}</li>`);
+    } else {
+      if (inList) {
+        result.push(`</${listType}>`);
+        inList = false;
+        listType = '';
+      }
+      if (line.trim() && !line.startsWith('<')) {
+        result.push(`<p>${line}</p>`);
+      } else {
+        result.push(line);
+      }
+    }
+  }
+  if (inList) result.push(`</${listType}>`);
+
+  return result.join('');
+}
+
+function htmlToMarkdown(html: string): string {
+  if (!html) return '';
+  return turndownService.turndown(html);
+}
+
 const EditorWrapper = styled.div<{ $minHeight: number }>`
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: ${({ $minHeight }) => $minHeight}px;
+  background: ${({ theme }) => theme.colors.bg.base};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+  overflow: hidden;
 
-  .w-md-editor {
-    background: ${({ theme }) => theme.colors.bg.base};
-    border: 1px solid ${({ theme }) => theme.colors.border.default};
-    border-radius: ${({ theme }) => theme.radii.md};
-    box-shadow: none;
-    font-family: ${({ theme }) => theme.fonts.sans};
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    height: auto !important;
-    min-height: ${({ $minHeight }) => $minHeight}px;
-
-    &:focus-within {
-      border-color: ${({ theme }) => theme.colors.accent.main};
-      box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.accent.subtle};
-    }
+  &:focus-within {
+    border-color: ${({ theme }) => theme.colors.border.strong};
   }
+`;
 
-  .w-md-editor-toolbar {
-    background: ${({ theme }) => theme.colors.bg.overlay};
-    border-top: 1px solid ${({ theme }) => theme.colors.border.subtle};
-    border-bottom: none;
-    padding: 4px 6px;
-    min-height: auto;
-  }
+const Toolbar = styled.div`
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: ${({ theme }) => theme.colors.bg.overlay};
+  border-top: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  flex-wrap: wrap;
+`;
 
-  .w-md-editor-toolbar li > button {
-    color: ${({ theme }) => theme.colors.text.secondary};
-    height: 22px;
-    width: 22px;
-    padding: 2px;
-    margin: 0;
-    border-radius: ${({ theme }) => theme.radii.sm};
+const ToolbarButton = styled.button<{ $active?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.bg.surfaceHover : 'transparent'};
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.text.primary : theme.colors.text.secondary};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
 
-    svg {
-      width: 14px;
-      height: 14px;
-    }
-
-    &:hover {
-      background: ${({ theme }) => theme.colors.bg.surfaceHover};
-      color: ${({ theme }) => theme.colors.text.primary};
-    }
-
-    &:disabled {
-      color: ${({ theme }) => theme.colors.text.muted};
-    }
-  }
-
-  .w-md-editor-toolbar li.active > button {
-    background: ${({ theme }) => theme.colors.accent.subtle};
-    color: ${({ theme }) => theme.colors.accent.main};
-  }
-
-  .w-md-editor-toolbar-divider {
-    background: ${({ theme }) => theme.colors.border.subtle};
-    height: 12px;
-    margin: 0 4px;
-  }
-
-  .w-md-editor-content {
-    background: ${({ theme }) => theme.colors.bg.base};
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .w-md-editor-text-input,
-  .w-md-editor-text-pre > code,
-  .w-md-editor-text {
-    font-size: 14px;
-    line-height: 1.6;
-    font-family: ${({ theme }) => theme.fonts.sans};
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
     color: ${({ theme }) => theme.colors.text.primary};
   }
 
-  .w-md-editor-text-pre > code {
-    font-family: ${({ theme }) => theme.fonts.mono};
+  &:disabled {
+    color: ${({ theme }) => theme.colors.text.muted};
+    cursor: not-allowed;
   }
 
-  .w-md-editor-preview {
-    background: ${({ theme }) => theme.colors.bg.base};
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const Divider = styled.div`
+  width: 1px;
+  height: 20px;
+  background: ${({ theme }) => theme.colors.border.subtle};
+  margin: 4px 4px;
+`;
+
+const EditorContent_ = styled(EditorContent)`
+  flex: 1;
+  overflow-y: auto;
+
+  .tiptap {
     padding: 12px;
+    min-height: 100%;
+    outline: none;
+    font-family: ${({ theme }) => theme.fonts.sans};
     font-size: 14px;
     line-height: 1.6;
     color: ${({ theme }) => theme.colors.text.primary};
 
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-      color: ${({ theme }) => theme.colors.text.primary};
-      margin-top: 16px;
-      margin-bottom: 8px;
+    > * + * {
+      margin-top: 0.5em;
+    }
+
+    p.is-editor-empty:first-child::before {
+      content: attr(data-placeholder);
+      float: left;
+      color: ${({ theme }) => theme.colors.text.muted};
+      pointer-events: none;
+      height: 0;
+    }
+
+    h1 {
+      font-size: 1.75em;
+      font-weight: 700;
+      margin-top: 1em;
+    }
+
+    h2 {
+      font-size: 1.4em;
       font-weight: 600;
+      margin-top: 0.8em;
     }
 
-    p {
-      margin-bottom: 12px;
+    h3 {
+      font-size: 1.15em;
+      font-weight: 600;
+      margin-top: 0.6em;
     }
 
-    a {
-      color: ${({ theme }) => theme.colors.accent.main};
+    strong {
+      font-weight: 600;
     }
 
     code {
@@ -127,7 +207,7 @@ const EditorWrapper = styled.div<{ $minHeight: number }>`
       padding: 2px 6px;
       border-radius: 4px;
       font-family: ${({ theme }) => theme.fonts.mono};
-      font-size: 13px;
+      font-size: 0.9em;
     }
 
     pre {
@@ -143,8 +223,8 @@ const EditorWrapper = styled.div<{ $minHeight: number }>`
     }
 
     blockquote {
-      border-left: 3px solid ${({ theme }) => theme.colors.accent.main};
-      margin: 12px 0;
+      border-left: 3px solid ${({ theme }) => theme.colors.border.strong};
+      margin: 0.5em 0;
       padding-left: 12px;
       color: ${({ theme }) => theme.colors.text.secondary};
     }
@@ -152,7 +232,6 @@ const EditorWrapper = styled.div<{ $minHeight: number }>`
     ul,
     ol {
       padding-left: 24px;
-      margin-bottom: 12px;
     }
 
     li {
@@ -162,95 +241,134 @@ const EditorWrapper = styled.div<{ $minHeight: number }>`
     hr {
       border: none;
       border-top: 1px solid ${({ theme }) => theme.colors.border.default};
-      margin: 16px 0;
+      margin: 1em 0;
     }
 
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 12px;
+    a {
+      color: ${({ theme }) => theme.colors.text.primary};
+      text-decoration: underline;
+      cursor: pointer;
     }
-
-    th,
-    td {
-      border: 1px solid ${({ theme }) => theme.colors.border.default};
-      padding: 8px 12px;
-      text-align: left;
-    }
-
-    th {
-      background: ${({ theme }) => theme.colors.bg.overlay};
-      font-weight: 600;
-    }
-  }
-
-  .w-md-editor-area {
-    padding: 12px;
-    flex: 1;
-  }
-
-  .w-md-editor-input {
-    color: ${({ theme }) => theme.colors.text.primary};
-  }
-
-  .wmde-markdown-color {
-    background: transparent;
-  }
-
-  textarea::placeholder {
-    color: ${({ theme }) => theme.colors.text.muted};
   }
 `;
 
 export function MarkdownEditor({
-  value: controlledValue,
+  value,
   onChange,
-  placeholder = 'Write your notes here... (supports **markdown**)',
+  placeholder = 'Write your notes here...',
   minHeight = 80,
 }: MarkdownEditorProps) {
-  const [internalValue, setInternalValue] = useState(controlledValue ?? '');
-  const value = controlledValue !== undefined ? controlledValue : internalValue;
+  const isUpdatingRef = useRef(false);
+  const lastValueRef = useRef(value);
 
-  const handleChange = (val?: string) => {
-    const newValue = val ?? '';
-    if (controlledValue === undefined) {
-      setInternalValue(newValue);
-    }
-    onChange?.(newValue);
-  };
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
+      Placeholder.configure({ placeholder }),
+    ],
+    content: value ? markdownToHtml(value) : '',
+    onUpdate: ({ editor }) => {
+      if (isUpdatingRef.current) return;
+      const html = editor.getHTML();
+      const markdown = htmlToMarkdown(html);
+      lastValueRef.current = markdown;
+      onChange?.(markdown);
+    },
+  });
 
-  const toolbarCommands = [
-    commands.bold,
-    commands.italic,
-    commands.strikethrough,
-    commands.divider,
-    commands.title,
-    commands.divider,
-    commands.link,
-    commands.quote,
-    commands.code,
-    commands.codeBlock,
-    commands.divider,
-    commands.unorderedListCommand,
-    commands.orderedListCommand,
-    commands.checkedListCommand,
-  ];
+  useEffect(() => {
+    if (!editor || value === lastValueRef.current) return;
+    lastValueRef.current = value;
+    isUpdatingRef.current = true;
+    const html = value ? markdownToHtml(value) : '';
+    editor.commands.setContent(html);
+    isUpdatingRef.current = false;
+  }, [value, editor]);
+
+  if (!editor) return null;
 
   return (
-    <EditorWrapper data-color-mode="dark" $minHeight={minHeight}>
-      <MDEditor
-        value={value}
-        onChange={handleChange}
-        preview="edit"
-        height={minHeight}
-        visibleDragbar={false}
-        toolbarBottom
-        commands={toolbarCommands}
-        extraCommands={[]}
-        textareaProps={{
-          placeholder,
-        }}
-      />
+    <EditorWrapper $minHeight={minHeight}>
+      <EditorContent_ editor={editor} />
+      <Toolbar>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          $active={editor.isActive('bold')}
+          title="Bold"
+        >
+          <Bold />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          $active={editor.isActive('italic')}
+          title="Italic"
+        >
+          <Italic />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          $active={editor.isActive('strike')}
+          title="Strikethrough"
+        >
+          <Strikethrough />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          $active={editor.isActive('code')}
+          title="Inline Code"
+        >
+          <Code />
+        </ToolbarButton>
+        <Divider />
+        <ToolbarButton
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 1 }).run()
+          }
+          $active={editor.isActive('heading', { level: 1 })}
+          title="Heading 1"
+        >
+          <Heading1 />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }
+          $active={editor.isActive('heading', { level: 2 })}
+          title="Heading 2"
+        >
+          <Heading2 />
+        </ToolbarButton>
+        <Divider />
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          $active={editor.isActive('bulletList')}
+          title="Bullet List"
+        >
+          <List />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          $active={editor.isActive('orderedList')}
+          title="Numbered List"
+        >
+          <ListOrdered />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          $active={editor.isActive('blockquote')}
+          title="Quote"
+        >
+          <Quote />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          title="Horizontal Rule"
+        >
+          <Minus />
+        </ToolbarButton>
+      </Toolbar>
     </EditorWrapper>
   );
 }

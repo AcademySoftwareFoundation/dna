@@ -209,11 +209,6 @@ export function NoteOptionsInline({
   onVersionStatusChange,
 }: NoteOptionsInlineProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [localTo, setLocalTo] = useState(toValue);
-  const [localCc, setLocalCc] = useState(ccValue);
-  const [localSubject, setLocalSubject] = useState(subjectValue);
-  const [localLinks, setLocalLinks] = useState(linksValue);
-  const [localStatus, setLocalStatus] = useState(versionStatus);
 
   if (isEditing) {
     return (
@@ -232,11 +227,8 @@ export function NoteOptionsInline({
               <TextInput
                 type="text"
                 placeholder="Recipients..."
-                value={localTo}
-                onChange={(e) => {
-                  setLocalTo(e.target.value);
-                  onToChange?.(e.target.value);
-                }}
+                value={toValue}
+                onChange={(e) => onToChange?.(e.target.value)}
               />
             </FieldGroup>
             <FieldGroup>
@@ -244,11 +236,8 @@ export function NoteOptionsInline({
               <TextInput
                 type="text"
                 placeholder="CC..."
-                value={localCc}
-                onChange={(e) => {
-                  setLocalCc(e.target.value);
-                  onCcChange?.(e.target.value);
-                }}
+                value={ccValue}
+                onChange={(e) => onCcChange?.(e.target.value)}
               />
             </FieldGroup>
           </FieldRow>
@@ -259,11 +248,8 @@ export function NoteOptionsInline({
               <TextInput
                 type="text"
                 placeholder="Subject..."
-                value={localSubject}
-                onChange={(e) => {
-                  setLocalSubject(e.target.value);
-                  onSubjectChange?.(e.target.value);
-                }}
+                value={subjectValue}
+                onChange={(e) => onSubjectChange?.(e.target.value)}
               />
             </FieldGroup>
             <FieldGroup>
@@ -271,11 +257,8 @@ export function NoteOptionsInline({
               <TextInput
                 type="text"
                 placeholder="Links..."
-                value={localLinks}
-                onChange={(e) => {
-                  setLocalLinks(e.target.value);
-                  onLinksChange?.(e.target.value);
-                }}
+                value={linksValue}
+                onChange={(e) => onLinksChange?.(e.target.value)}
               />
             </FieldGroup>
           </FieldRow>
@@ -284,11 +267,8 @@ export function NoteOptionsInline({
             <FieldLabel>Version Status</FieldLabel>
             <SelectWrapper>
               <StyledSelect
-                value={localStatus}
-                onChange={(e) => {
-                  setLocalStatus(e.target.value);
-                  onVersionStatusChange?.(e.target.value);
-                }}
+                value={versionStatus}
+                onChange={(e) => onVersionStatusChange?.(e.target.value)}
               >
                 <option value="">Select...</option>
                 <option value="pending">Pending Review</option>
@@ -311,40 +291,42 @@ export function NoteOptionsInline({
       <DisplayRow>
         <OptionChip>
           <ChipLabel>To:</ChipLabel>
-          {localTo ? (
-            <ChipValue>{localTo}</ChipValue>
+          {toValue ? (
+            <ChipValue>{toValue}</ChipValue>
           ) : (
             <EmptyValue>—</EmptyValue>
           )}
         </OptionChip>
         <OptionChip>
           <ChipLabel>CC:</ChipLabel>
-          {localCc ? (
-            <ChipValue>{localCc}</ChipValue>
+          {ccValue ? (
+            <ChipValue>{ccValue}</ChipValue>
           ) : (
             <EmptyValue>—</EmptyValue>
           )}
         </OptionChip>
         <OptionChip>
           <ChipLabel>Subject:</ChipLabel>
-          {localSubject ? (
-            <ChipValue>{localSubject}</ChipValue>
+          {subjectValue ? (
+            <ChipValue>{subjectValue}</ChipValue>
           ) : (
             <EmptyValue>—</EmptyValue>
           )}
         </OptionChip>
         <OptionChip>
           <ChipLabel>Links:</ChipLabel>
-          {localLinks ? (
-            <ChipValue>{localLinks}</ChipValue>
+          {linksValue ? (
+            <ChipValue>{linksValue}</ChipValue>
           ) : (
             <EmptyValue>—</EmptyValue>
           )}
         </OptionChip>
         <OptionChip>
           <ChipLabel>Status:</ChipLabel>
-          {localStatus ? (
-            <ChipValue>{statusLabels[localStatus] || localStatus}</ChipValue>
+          {versionStatus ? (
+            <ChipValue>
+              {statusLabels[versionStatus] || versionStatus}
+            </ChipValue>
           ) : (
             <EmptyValue>—</EmptyValue>
           )}
