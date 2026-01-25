@@ -1,8 +1,11 @@
+import { forwardRef } from 'react';
 import styled from 'styled-components';
 import * as Tabs from '@radix-ui/react-tabs';
-import { AssistantNote } from './AssistantNote';
+import { AssistantNote, type AssistantNoteHandle } from './AssistantNote';
 import { OtherNotesPanel } from './OtherNotesPanel';
 import { TranscriptPanel } from './TranscriptPanel';
+
+export type { AssistantNoteHandle };
 
 interface AssistantPanelProps {
   activeTab?: string;
@@ -55,13 +58,13 @@ const StyledTabsContent = styled(Tabs.Content)`
   padding: 16px 0;
 `;
 
-export function AssistantPanel({
-  activeTab = 'assistant',
-  playlistId,
-  versionId,
-  userEmail,
-  onInsertNote,
-}: AssistantPanelProps) {
+export const AssistantPanel = forwardRef<
+  AssistantNoteHandle,
+  AssistantPanelProps
+>(function AssistantPanel(
+  { activeTab = 'assistant', playlistId, versionId, userEmail, onInsertNote },
+  ref
+) {
   return (
     <PanelWrapper>
       <StyledTabsRoot defaultValue={activeTab}>
@@ -74,7 +77,7 @@ export function AssistantPanel({
         </StyledTabsList>
 
         <StyledTabsContent value="assistant">
-          <AssistantNote onInsertNote={onInsertNote} />
+          <AssistantNote ref={ref} onInsertNote={onInsertNote} />
         </StyledTabsContent>
 
         <StyledTabsContent value="transcript">
@@ -95,4 +98,4 @@ export function AssistantPanel({
       </StyledTabsRoot>
     </PanelWrapper>
   );
-}
+});

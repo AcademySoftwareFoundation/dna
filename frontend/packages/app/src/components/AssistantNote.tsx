@@ -1,8 +1,13 @@
+import { forwardRef, useImperativeHandle } from 'react';
 import styled from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
 import { Bot, MessageSquare, Copy, ArrowDownToLine } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SplitButton } from './SplitButton';
+
+export interface AssistantNoteHandle {
+  insert: () => void;
+}
 
 interface AssistantNoteProps {
   noteContent?: string;
@@ -202,10 +207,16 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
-export function AssistantNote({
-  noteContent = "David thought that the lighting has come a long way. The flames could throw more light onto Indie's face. Add more high frequency noise to the flames coming off the torch.",
-  onInsertNote,
-}: AssistantNoteProps) {
+export const AssistantNote = forwardRef<
+  AssistantNoteHandle,
+  AssistantNoteProps
+>(function AssistantNote(
+  {
+    noteContent = "David thought that the lighting has come a long way. The flames could throw more light onto Indie's face. Add more high frequency noise to the flames coming off the torch.",
+    onInsertNote,
+  },
+  ref
+) {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(noteContent);
@@ -217,6 +228,10 @@ export function AssistantNote({
   const handleInsert = () => {
     onInsertNote?.(noteContent);
   };
+
+  useImperativeHandle(ref, () => ({
+    insert: handleInsert,
+  }));
 
   if (!noteContent) {
     return <EmptyState>No AI assistant note available</EmptyState>;
@@ -264,4 +279,4 @@ export function AssistantNote({
       </ContentColumn>
     </NoteCard>
   );
-}
+});

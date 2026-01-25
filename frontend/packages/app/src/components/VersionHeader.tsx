@@ -35,7 +35,7 @@ const TopBar = styled.div`
   justify-content: space-between;
 `;
 
-const BackButton = styled.button`
+const PreviousVersionButton = styled.button`
   display: flex;
   align-items: center;
   gap: 4px;
@@ -300,10 +300,10 @@ export function VersionHeader({
   return (
     <HeaderWrapper>
       <TopBar>
-        <BackButton onClick={onBack} disabled={!canGoBack}>
+        <PreviousVersionButton onClick={onBack} disabled={!canGoBack}>
           <ChevronLeft size={16} />
-          Back
-        </BackButton>
+          Previous Version
+        </PreviousVersionButton>
         <TopBarActions>
           <InReviewButton onClick={onInReview} disabled={!hasInReview}>
             <Eye size={14} />
