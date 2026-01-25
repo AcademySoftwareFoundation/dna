@@ -1,9 +1,10 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import type { Version } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
-import { AssistantPanel } from './AssistantPanel';
+import { AssistantPanel, type AssistantNoteHandle } from './AssistantPanel';
+import { useKeybindings, type KeyCombo } from './SettingsDialog';
 import { usePlaylistMetadata, useSetInReview } from '../hooks';
 
 interface ContentAreaProps {
@@ -78,6 +79,8 @@ export function ContentArea({
   onRefresh,
 }: ContentAreaProps) {
   const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const assistantNoteRef = useRef<AssistantNoteHandle>(null);
+  const keybindings = useKeybindings();
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)
     : -1;
@@ -97,17 +100,17 @@ export function ContentArea({
   const isCurrentVersionInReview =
     version && inReviewVersionId ? version.id === inReviewVersionId : false;
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (canGoBack && onVersionSelect) {
       onVersionSelect(versions[currentIndex - 1]);
     }
-  };
+  }, [canGoBack, onVersionSelect, versions, currentIndex]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (canGoNext && onVersionSelect) {
       onVersionSelect(versions[currentIndex + 1]);
     }
-  };
+  }, [canGoNext, onVersionSelect, versions, currentIndex]);
 
   const handleInReview = () => {
     if (inReviewVersion && onVersionSelect) {
@@ -124,6 +127,54 @@ export function ContentArea({
   const handleInsertNote = useCallback((content: string) => {
     noteEditorRef.current?.appendContent(content);
   }, []);
+
+  useEffect(() => {
+    const matchesCombo = (e: KeyboardEvent, combo: KeyCombo): boolean => {
+      if (!combo || !combo.key) return false;
+
+      return (
+        e.key === combo.key &&
+        !!e.ctrlKey === !!combo.ctrl &&
+        !!e.shiftKey === !!combo.shift &&
+        !!e.altKey === !!combo.alt &&
+        !!e.metaKey === !!combo.meta
+      );
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        keybindings?.nextVersion &&
+        matchesCombo(e, keybindings.nextVersion) &&
+        canGoNext
+      ) {
+        e.preventDefault();
+        handleNext();
+      } else if (
+        keybindings?.previousVersion &&
+        matchesCombo(e, keybindings.previousVersion) &&
+        canGoBack
+      ) {
+        e.preventDefault();
+        handleBack();
+      } else if (
+        keybindings?.aiInsert &&
+        matchesCombo(e, keybindings.aiInsert)
+      ) {
+        e.preventDefault();
+        assistantNoteRef.current?.insert();
+      } else if (
+        keybindings?.aiRegenerate &&
+        matchesCombo(e, keybindings.aiRegenerate)
+      ) {
+        e.preventDefault();
+        // TODO: Implement regenerate functionality
+        console.log('AI Regenerate requested');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [keybindings, canGoNext, canGoBack, handleNext, handleBack]);
 
   if (!version) {
     return (
@@ -179,6 +230,7 @@ export function ContentArea({
         userEmail={userEmail}
       />
       <AssistantPanel
+        ref={assistantNoteRef}
         playlistId={playlistId}
         versionId={version.id}
         userEmail={userEmail}

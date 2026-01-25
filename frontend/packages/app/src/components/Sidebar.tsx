@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
@@ -17,6 +17,11 @@ import { ExpandableSearch } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
+import {
+  SettingsDialog,
+  useKeybindings,
+  type KeyCombo,
+} from './SettingsDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata } from '../hooks';
 
@@ -241,8 +246,10 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const keybindings = useKeybindings();
 
   const {
     data: versions,
@@ -276,6 +283,33 @@ export function Sidebar({
       }
     }, 50);
   };
+
+  useEffect(() => {
+    const matchesCombo = (e: KeyboardEvent, combo: KeyCombo): boolean => {
+      if (!combo || !combo.key) return false;
+
+      return (
+        e.key === combo.key &&
+        !!e.ctrlKey === !!combo.ctrl &&
+        !!e.shiftKey === !!combo.shift &&
+        !!e.altKey === !!combo.alt &&
+        !!e.metaKey === !!combo.meta
+      );
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        keybindings?.openSettings &&
+        matchesCombo(e, keybindings.openSettings)
+      ) {
+        e.preventDefault();
+        setIsSettingsOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [keybindings]);
 
   const renderVersionList = () => {
     if (!playlistId) {
@@ -412,7 +446,10 @@ export function Sidebar({
             <Upload />
             Publish
           </SquareButton>
-          <SquareButton variant="neutral">
+          <SquareButton
+            variant="neutral"
+            onClick={() => setIsSettingsOpen(true)}
+          >
             <Settings />
             Settings
           </SquareButton>
@@ -420,12 +457,14 @@ export function Sidebar({
       ) : (
         <Footer $collapsed={collapsed}>
           <TranscriptionMenu playlistId={playlistId} />
-          <SettingsButton>
+          <SettingsButton onClick={() => setIsSettingsOpen(true)}>
             <Settings size={16} />
             Settings
           </SettingsButton>
         </Footer>
       )}
+
+      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
     </SidebarWrapper>
   );
 }

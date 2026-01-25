@@ -20,3 +20,4 @@ experimental/cameron/backend/.env
 experimental/cameron/backend/venv
 experimental/cameron/frontend_v2/venv
 experimental/cameron/frontend_v3/venv
+backend/docker-compose.override.yml
