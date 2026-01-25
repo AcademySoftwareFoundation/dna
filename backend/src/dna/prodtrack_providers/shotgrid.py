@@ -210,12 +210,20 @@ class ShotgridProvider(ProdtrackProviderBase):
             return model_class(id=entity_id, code=name)
         return model_class(id=entity_id, name=name)
 
-    def get_entity(self, entity_type: str, entity_id: int) -> EntityBase:
+    def get_entity(
+        self, entity_type: str, entity_id: int, resolve_links: bool = True
+    ) -> EntityBase:
         """
         Get an entity by its ID.
 
         Using the field mapping, we get the entity from ShotGrid and then
         create the Pydantic entity object.
+
+        Args:
+            entity_type: The type of entity to fetch
+            entity_id: The ID of the entity
+            resolve_links: If True, recursively fetch linked entities.
+                If False, only include shallow links with id/name.
         """
         if not self.sg:
             raise ValueError("Not connected to ShotGrid")
@@ -242,7 +250,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError(f"Entity not found: {entity_type} {entity_id}")
 
         return self._convert_sg_entity_to_dna_entity(
-            sg_entity, entity_mapping, entity_type
+            sg_entity, entity_mapping, entity_type, resolve_links=resolve_links
         )
 
     def _resolve_linked_field(self, data):

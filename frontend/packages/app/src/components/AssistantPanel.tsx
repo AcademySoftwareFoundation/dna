@@ -3,6 +3,10 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { AssistantNote } from './AssistantNote';
 import { OtherNotesPanel } from './OtherNotesPanel';
 import { TranscriptPanel } from './TranscriptPanel';
+import { PromptDebugPanel } from './PromptDebugPanel';
+import { useAISuggestion } from '../hooks';
+
+const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 
 interface AssistantPanelProps {
   activeTab?: string;
@@ -62,6 +66,12 @@ export function AssistantPanel({
   userEmail,
   onInsertNote,
 }: AssistantPanelProps) {
+  const { suggestion, prompt, context, isLoading, error, regenerate } = useAISuggestion({
+    playlistId: playlistId ?? null,
+    versionId: versionId ?? null,
+    userEmail: userEmail ?? null,
+  });
+
   return (
     <PanelWrapper>
       <StyledTabsRoot defaultValue={activeTab}>
@@ -71,10 +81,19 @@ export function AssistantPanel({
           <StyledTabsTrigger value="other">
             Other Pending Notes
           </StyledTabsTrigger>
+          {isDevMode && (
+            <StyledTabsTrigger value="debug">Prompt Debug</StyledTabsTrigger>
+          )}
         </StyledTabsList>
 
         <StyledTabsContent value="assistant">
-          <AssistantNote onInsertNote={onInsertNote} />
+          <AssistantNote
+            suggestion={suggestion}
+            isLoading={isLoading}
+            error={error}
+            onRegenerate={regenerate}
+            onInsertNote={onInsertNote}
+          />
         </StyledTabsContent>
 
         <StyledTabsContent value="transcript">
@@ -92,6 +111,12 @@ export function AssistantPanel({
             onInsertNote={onInsertNote}
           />
         </StyledTabsContent>
+
+        {isDevMode && (
+          <StyledTabsContent value="debug">
+            <PromptDebugPanel prompt={prompt} context={context} />
+          </StyledTabsContent>
+        )}
       </StyledTabsRoot>
     </PanelWrapper>
   );

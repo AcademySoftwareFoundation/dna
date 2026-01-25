@@ -5,10 +5,11 @@ services:
       - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
-      - VEXA_API_KEY=eezu5UIFx7PL3nK0qk4WhMLw4GV6fsk3SLuZVJOL
+      - VEXA_API_KEY=your-vexa-api-key
       - VEXA_API_URL=http://vexa:8056
+      - OPENAI_API_KEY=your-openai-api-key
 
   worker:
     environment:
-      - VEXA_API_KEY=eezu5UIFx7PL3nK0qk4WhMLw4GV6fsk3SLuZVJOL
+      - VEXA_API_KEY=your-vexa-api-key
       - VEXA_API_URL=http://vexa:8056

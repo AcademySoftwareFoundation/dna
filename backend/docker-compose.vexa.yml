@@ -10,7 +10,7 @@ services:
       - DATABASE_URL=postgresql://vexa:vexa@vexa-db:5432/vexa
       - ADMIN_API_TOKEN=your-admin-token
       - TRANSCRIBER_URL=https://transcription.vexa.ai/v1/audio/transcriptions
-      - TRANSCRIBER_API_KEY=Ovlykv20X5bGKgxrKAMNrjxbcYzU4irGK6aLy1HPiyo
+      - TRANSCRIBER_API_KEY=${TRANSCRIBER_API_KEY}
     depends_on:
       - vexa-db
 

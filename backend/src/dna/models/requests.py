@@ -42,3 +42,19 @@ class FindRequest(BaseModel):
     filters: list[FilterCondition] = Field(
         default_factory=list, description="List of filter conditions"
     )
+
+
+class GenerateNoteRequest(BaseModel):
+    """Request model for generating an AI note suggestion."""
+
+    playlist_id: int = Field(description="Playlist ID")
+    version_id: int = Field(description="Version ID")
+    user_email: str = Field(description="User email address")
+
+
+class GenerateNoteResponse(BaseModel):
+    """Response model for AI note generation."""
+
+    suggestion: str = Field(description="The generated note suggestion")
+    prompt: str = Field(description="The full prompt with values substituted")
+    context: str = Field(description="The version context used for generation")

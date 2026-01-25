@@ -15,8 +15,17 @@ class ProdtrackProviderBase:
 
         return ENTITY_MODELS.get(object_type, EntityBase)
 
-    def get_entity(self, entity_type: str, entity_id: int) -> "EntityBase":
-        """Get an entity by its ID."""
+    def get_entity(
+        self, entity_type: str, entity_id: int, resolve_links: bool = True
+    ) -> "EntityBase":
+        """Get an entity by its ID.
+
+        Args:
+            entity_type: The type of entity to fetch
+            entity_id: The ID of the entity
+            resolve_links: If True, recursively fetch linked entities.
+                If False, only include shallow links with id/name.
+        """
         raise NotImplementedError("Subclasses must implement this method.")
 
     def add_entity(self, entity_type: str, entity: "EntityBase") -> "EntityBase":

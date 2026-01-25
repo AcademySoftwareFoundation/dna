@@ -1,0 +1,8 @@
+---
+name: always-use-providers
+description: Always use providers when making API calls.
+---
+
+# Overview
+
+Always use providers when interacting with apis outside of the backend. For example, when accessing storage or vexa use the providers defined in the backend. If there is no provider for the api, tell me so we can create one. 

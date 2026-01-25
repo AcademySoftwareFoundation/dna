@@ -23,3 +23,4 @@ export {
 } from './FormInputs';
 export { TranscriptionMenu } from './TranscriptionMenu';
 export { TranscriptPanel } from './TranscriptPanel';
+export { SettingsModal } from './SettingsModal';

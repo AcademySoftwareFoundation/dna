@@ -1,5 +1,7 @@
 """Tests for base provider classes and additional coverage."""
 
+import pytest
+
 from dna.llm_providers.llm_provider_base import LLMProviderBase
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
@@ -9,23 +11,29 @@ from dna.transcription_providers.transcription_provider_base import (
 class TestLLMProviderBase:
     """Tests for the LLMProviderBase class."""
 
-    def test_init_stores_model_and_api_key(self):
-        """Test that LLMProviderBase stores model and api_key."""
-        provider = LLMProviderBase(model="gpt-4", api_key="test-key")
-        assert provider.model == "gpt-4"
-        assert provider.api_key == "test-key"
+    def test_instantiation(self):
+        """Test that LLMProviderBase can be instantiated."""
+        provider = LLMProviderBase()
+        assert provider is not None
 
-    def test_connect_does_nothing(self):
-        """Test that connect method exists and can be called."""
-        provider = LLMProviderBase(model="gpt-4", api_key="test-key")
-        result = provider.connect()
+    @pytest.mark.asyncio
+    async def test_generate_note_raises_not_implemented(self):
+        """Test that generate_note raises NotImplementedError by default."""
+        provider = LLMProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.generate_note(
+                prompt="test prompt",
+                transcript="test transcript",
+                context="test context",
+                existing_notes="test notes",
+            )
+
+    @pytest.mark.asyncio
+    async def test_close_does_nothing(self):
+        """Test that close method exists and can be called."""
+        provider = LLMProviderBase()
+        result = await provider.close()
         assert result is None
-
-    def test_generate_notes_returns_empty_string(self):
-        """Test that generate_notes returns empty string by default."""
-        provider = LLMProviderBase(model="gpt-4", api_key="test-key")
-        result = provider.generate_notes("Generate notes for this transcript")
-        assert result == ""
 
 
 class TestTranscriptionProviderBase:

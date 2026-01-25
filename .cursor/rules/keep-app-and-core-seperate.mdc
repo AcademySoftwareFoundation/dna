@@ -1,0 +1,8 @@
+---
+name: keep-app-and-core-seperate
+description: Keep the app and core seperate. Bussness logic interfaces, and API calls should be in the core package. The Visuals and react specific logic should be in the app package.
+---
+
+# Overview
+
+Keep the app and core seperate. Bussness logic interfaces, and API calls should be in the core package. The Visuals and react specific logic should be in the app package.

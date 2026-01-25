@@ -1,11 +1,14 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
-import { Bot, MessageSquare, Copy, ArrowDownToLine } from 'lucide-react';
+import { Bot, MessageSquare, Copy, ArrowDownToLine, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SplitButton } from './SplitButton';
 
 interface AssistantNoteProps {
-  noteContent?: string;
+  suggestion?: string | null;
+  isLoading?: boolean;
+  error?: Error | null;
+  onRegenerate?: () => void;
   onInsertNote?: (content: string) => void;
 }
 
@@ -152,6 +155,18 @@ const NoteContent = styled.div`
     color: ${({ theme }) => theme.colors.accent.main};
     text-decoration: underline;
   }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const EmptyState = styled.div`
+  padding: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.text.muted};
 `;
 
 const ActionBar = styled.div`
@@ -183,7 +198,7 @@ const ActionButton = styled.button`
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
 
-  &:hover {
+  &:hover:not(:disabled) {
     color: ${({ theme }) => theme.colors.text.primary};
     background: ${({ theme }) => theme.colors.bg.surfaceHover};
     border-color: ${({ theme }) => theme.colors.border.default};
@@ -202,25 +217,59 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
+const spin = keyframes`
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+`;
+
+const SpinnerIcon = styled(Loader2)`
+  animation: ${spin} 1s linear infinite;
+`;
+
+const LoadingState = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
+const ErrorState = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.status.error};
+`;
+
 export function AssistantNote({
-  noteContent = "David thought that the lighting has come a long way. The flames could throw more light onto Indie's face. Add more high frequency noise to the flames coming off the torch.",
+  suggestion,
+  isLoading = false,
+  error,
+  onRegenerate,
   onInsertNote,
 }: AssistantNoteProps) {
   const handleCopy = async () => {
+    if (!suggestion) return;
     try {
-      await navigator.clipboard.writeText(noteContent);
+      await navigator.clipboard.writeText(suggestion);
     } catch {
       console.error('Failed to copy to clipboard');
     }
   };
 
   const handleInsert = () => {
-    onInsertNote?.(noteContent);
+    if (!suggestion) return;
+    onInsertNote?.(suggestion);
   };
 
-  if (!noteContent) {
-    return <EmptyState>No AI assistant note available</EmptyState>;
-  }
+  const handleRegenerate = () => {
+    onRegenerate?.();
+  };
+
+  const hasSuggestion = suggestion != null && suggestion.length > 0;
+  const showEmptyState = !hasSuggestion && !isLoading && !error;
 
   return (
     <NoteCard>
@@ -232,35 +281,65 @@ export function AssistantNote({
       <ContentColumn>
         <NoteHeader>
           <NoteTitle>AI Assistant</NoteTitle>
-          <SplitButton rightSlot={<MessageSquare size={14} />}>
-            Regenerate
+          <SplitButton
+            rightSlot={
+              isLoading ? <SpinnerIcon size={14} /> : <MessageSquare size={14} />
+            }
+            onClick={handleRegenerate}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Generating...' : 'Regenerate'}
           </SplitButton>
         </NoteHeader>
-        <NoteContent>
-          <ReactMarkdown>{noteContent}</ReactMarkdown>
-        </NoteContent>
-        <ActionBar>
-          <ActionButtons>
-            <Tooltip content="Copy to clipboard">
-              <ActionButton
-                onClick={handleCopy}
-                aria-label="Copy note to clipboard"
-              >
-                <Copy size={12} />
-                Copy
-              </ActionButton>
-            </Tooltip>
-            <Tooltip content="Insert below your note">
-              <ActionButton
-                onClick={handleInsert}
-                aria-label="Insert note below yours"
-              >
-                <ArrowDownToLine size={12} />
-                Insert
-              </ActionButton>
-            </Tooltip>
-          </ActionButtons>
-        </ActionBar>
+
+        {isLoading && (
+          <LoadingState>
+            <SpinnerIcon size={16} />
+            Generating note suggestion...
+          </LoadingState>
+        )}
+
+        {error && !isLoading && (
+          <ErrorState>
+            Failed to generate note: {error.message}
+          </ErrorState>
+        )}
+
+        {showEmptyState && (
+          <EmptyState>
+            No note has been generated yet. Click Regenerate to create an AI-powered note suggestion.
+          </EmptyState>
+        )}
+
+        {hasSuggestion && !isLoading && (
+          <>
+            <NoteContent>
+              <ReactMarkdown>{suggestion}</ReactMarkdown>
+            </NoteContent>
+            <ActionBar>
+              <ActionButtons>
+                <Tooltip content="Copy to clipboard">
+                  <ActionButton
+                    onClick={handleCopy}
+                    aria-label="Copy note to clipboard"
+                  >
+                    <Copy size={12} />
+                    Copy
+                  </ActionButton>
+                </Tooltip>
+                <Tooltip content="Insert below your note">
+                  <ActionButton
+                    onClick={handleInsert}
+                    aria-label="Insert note below yours"
+                  >
+                    <ArrowDownToLine size={12} />
+                    Insert
+                  </ActionButton>
+                </Tooltip>
+              </ActionButtons>
+            </ActionBar>
+          </>
+        )}
       </ContentColumn>
     </NoteCard>
   );

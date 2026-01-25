@@ -315,3 +315,58 @@ export interface GetSegmentsParams {
   playlistId: number;
   versionId: number;
 }
+
+export interface UserSettings {
+  _id: string;
+  user_email: string;
+  note_prompt: string;
+  regenerate_on_version_change: boolean;
+  regenerate_on_transcript_update: boolean;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface UserSettingsUpdate {
+  note_prompt?: string;
+  regenerate_on_version_change?: boolean;
+  regenerate_on_transcript_update?: boolean;
+}
+
+export interface GetUserSettingsParams {
+  userEmail: string;
+}
+
+export interface UpsertUserSettingsParams {
+  userEmail: string;
+  data: UserSettingsUpdate;
+}
+
+export interface DeleteUserSettingsParams {
+  userEmail: string;
+}
+
+export interface GenerateNoteParams {
+  playlistId: number;
+  versionId: number;
+  userEmail: string;
+}
+
+export interface GenerateNoteResponse {
+  suggestion: string;
+  prompt: string;
+  context: string;
+}
+
+export interface AISuggestionState {
+  suggestion: string | null;
+  prompt: string | null;
+  context: string | null;
+  isLoading: boolean;
+  error: Error | null;
+}
+
+export type AISuggestionStateChangeCallback = (
+  playlistId: number,
+  versionId: number,
+  state: AISuggestionState
+) => void;

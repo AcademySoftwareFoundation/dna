@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
+    from dna.models.user_settings import UserSettings, UserSettingsUpdate
 
 
 class StorageProviderBase:
@@ -79,6 +80,20 @@ class StorageProviderBase:
         self, playlist_id: int, version_id: int
     ) -> list["StoredSegment"]:
         """Get all segments for a version, ordered by start time."""
+        raise NotImplementedError()
+
+    async def get_user_settings(self, user_email: str) -> Optional["UserSettings"]:
+        """Get user settings by email."""
+        raise NotImplementedError()
+
+    async def upsert_user_settings(
+        self, user_email: str, data: "UserSettingsUpdate"
+    ) -> "UserSettings":
+        """Create or update user settings."""
+        raise NotImplementedError()
+
+    async def delete_user_settings(self, user_email: str) -> bool:
+        """Delete user settings. Returns True if deleted."""
         raise NotImplementedError()
 
 

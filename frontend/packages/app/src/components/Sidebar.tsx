@@ -17,6 +17,7 @@ import { ExpandableSearch } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
+import { SettingsModal } from './SettingsModal';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata } from '../hooks';
 
@@ -412,18 +413,28 @@ export function Sidebar({
             <Upload />
             Publish
           </SquareButton>
-          <SquareButton variant="neutral">
-            <Settings />
-            Settings
-          </SquareButton>
+          <SettingsModal
+            userEmail={userEmail}
+            trigger={
+              <SquareButton variant="neutral">
+                <Settings />
+                Settings
+              </SquareButton>
+            }
+          />
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
           <TranscriptionMenu playlistId={playlistId} />
-          <SettingsButton>
-            <Settings size={16} />
-            Settings
-          </SettingsButton>
+          <SettingsModal
+            userEmail={userEmail}
+            trigger={
+              <SettingsButton>
+                <Settings size={16} />
+                Settings
+              </SettingsButton>
+            }
+          />
         </Footer>
       )}
     </SidebarWrapper>

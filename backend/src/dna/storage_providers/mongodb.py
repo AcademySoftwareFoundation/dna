@@ -12,6 +12,7 @@ from pymongo import AsyncMongoClient, ReturnDocument
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
 from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
 from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
+from dna.models.user_settings import UserSettings, UserSettingsUpdate
 from dna.storage_providers.storage_provider_base import StorageProviderBase
 
 
@@ -43,6 +44,10 @@ class MongoDBStorageProvider(StorageProviderBase):
     @property
     def segments_collection(self) -> Any:
         return self.db.segments
+
+    @property
+    def user_settings_collection(self) -> Any:
+        return self.db.user_settings
 
     def _build_query(
         self, user_email: str, playlist_id: int, version_id: int
@@ -83,7 +88,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         query = self._build_query(user_email, playlist_id, version_id)
 
         update: dict[str, Any] = {
-            "$set": {**data.model_dump(), "updated_at": now},
+            "$set": {**data.model_dump(exclude_none=True), "updated_at": now},
             "$setOnInsert": {
                 "created_at": now,
                 "user_email": user_email,
@@ -192,3 +197,47 @@ class MongoDBStorageProvider(StorageProviderBase):
             doc["_id"] = str(doc["_id"])
             results.append(StoredSegment(**doc))
         return results
+
+    async def get_user_settings(self, user_email: str) -> Optional[UserSettings]:
+        """Get user settings by email."""
+        query = {"user_email": user_email}
+        doc = await self.user_settings_collection.find_one(query)
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return UserSettings(**doc)
+        return None
+
+    async def upsert_user_settings(
+        self, user_email: str, data: UserSettingsUpdate
+    ) -> UserSettings:
+        """Create or update user settings."""
+        now = datetime.now(timezone.utc)
+        query = {"user_email": user_email}
+        update_fields = {k: v for k, v in data.model_dump().items() if v is not None}
+        defaults = {
+            "note_prompt": "",
+            "regenerate_on_version_change": False,
+            "regenerate_on_transcript_update": False,
+        }
+        set_on_insert = {
+            "created_at": now,
+            "user_email": user_email,
+        }
+        for key, value in defaults.items():
+            if key not in update_fields:
+                set_on_insert[key] = value
+        update: dict[str, Any] = {
+            "$set": {**update_fields, "updated_at": now},
+            "$setOnInsert": set_on_insert,
+        }
+        result = await self.user_settings_collection.find_one_and_update(
+            query, update, upsert=True, return_document=ReturnDocument.AFTER
+        )
+        result["_id"] = str(result["_id"])
+        return UserSettings(**result)
+
+    async def delete_user_settings(self, user_email: str) -> bool:
+        """Delete user settings. Returns True if deleted."""
+        query = {"user_email": user_email}
+        result = await self.user_settings_collection.delete_one(query)
+        return result.deleted_count > 0

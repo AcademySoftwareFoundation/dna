@@ -34,3 +34,9 @@ export type { SegmentEvent } from './useDNAEvents';
 
 export { useSegments } from './useSegments';
 export type { UseSegmentsOptions, UseSegmentsResult } from './useSegments';
+
+export { useAISuggestion } from './useAISuggestion';
+export type {
+  UseAISuggestionOptions,
+  UseAISuggestionResult,
+} from './useAISuggestion';

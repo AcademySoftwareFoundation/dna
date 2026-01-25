@@ -4,7 +4,12 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_prodtrack_provider_cached
+from main import (
+    app,
+    get_llm_provider_cached,
+    get_prodtrack_provider_cached,
+    get_storage_provider_cached,
+)
 
 client = TestClient(app)
 
@@ -613,5 +618,214 @@ class TestGetVersionsForPlaylistEndpoint:
             assert response.status_code == 404
             data = response.json()
             assert "Playlist not found" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestGenerateNoteEndpoint:
+    """Tests for POST /generate-note endpoint."""
+
+    @pytest.fixture
+    def mock_storage_provider(self):
+        """Create a mock storage provider."""
+        provider = mock.AsyncMock()
+        return provider
+
+    @pytest.fixture
+    def mock_prodtrack_provider(self):
+        """Create a mock prodtrack provider."""
+        provider = mock.MagicMock()
+        return provider
+
+    @pytest.fixture
+    def mock_llm_provider(self):
+        """Create a mock LLM provider."""
+        provider = mock.AsyncMock()
+        return provider
+
+    def test_generate_note_returns_200(
+        self, mock_storage_provider, mock_prodtrack_provider, mock_llm_provider
+    ):
+        """Test that generate_note returns 200 with valid request."""
+        from datetime import datetime, timezone
+
+        from dna.models.entity import Version
+        from dna.models.user_settings import UserSettings
+
+        mock_storage_provider.get_user_settings.return_value = UserSettings(
+            _id="test-id",
+            user_email="test@example.com",
+            note_prompt="Test prompt {{ transcript }}",
+            regenerate_on_version_change=False,
+            regenerate_on_transcript_update=False,
+            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+        )
+        mock_storage_provider.get_segments_for_version.return_value = []
+        mock_storage_provider.get_draft_note.return_value = None
+
+        mock_prodtrack_provider.get_entity.return_value = Version(
+            id=1, name="shot_010_v001"
+        )
+
+        mock_llm_provider.generate_note.return_value = "Generated suggestion"
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = (
+            lambda: mock_prodtrack_provider
+        )
+        app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
+
+        try:
+            response = client.post(
+                "/generate-note",
+                json={
+                    "playlist_id": 1,
+                    "version_id": 1,
+                    "user_email": "test@example.com",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["suggestion"] == "Generated suggestion"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_generate_note_uses_default_prompt_when_no_user_settings(
+        self, mock_storage_provider, mock_prodtrack_provider, mock_llm_provider
+    ):
+        """Test that generate_note uses default prompt when user has no settings."""
+        from dna.models.entity import Version
+
+        mock_storage_provider.get_user_settings.return_value = None
+        mock_storage_provider.get_segments_for_version.return_value = []
+        mock_storage_provider.get_draft_note.return_value = None
+
+        mock_prodtrack_provider.get_entity.return_value = Version(
+            id=1, name="shot_010_v001"
+        )
+
+        mock_llm_provider.generate_note.return_value = "Default prompt result"
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = (
+            lambda: mock_prodtrack_provider
+        )
+        app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
+
+        try:
+            response = client.post(
+                "/generate-note",
+                json={
+                    "playlist_id": 1,
+                    "version_id": 1,
+                    "user_email": "test@example.com",
+                },
+            )
+            assert response.status_code == 200
+            mock_llm_provider.generate_note.assert_called_once()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_generate_note_builds_transcript_from_segments(
+        self, mock_storage_provider, mock_prodtrack_provider, mock_llm_provider
+    ):
+        """Test that generate_note builds transcript from segments."""
+        from datetime import datetime, timezone
+
+        from dna.models.entity import Version
+        from dna.models.stored_segment import StoredSegment
+
+        mock_storage_provider.get_user_settings.return_value = None
+        mock_storage_provider.get_segments_for_version.return_value = [
+            StoredSegment(
+                id="seg1",
+                segment_id="seg1",
+                playlist_id=1,
+                version_id=1,
+                text="Hello world",
+                speaker="Alice",
+                absolute_start_time="2024-01-01T00:00:00Z",
+                absolute_end_time="2024-01-01T00:00:05Z",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            StoredSegment(
+                id="seg2",
+                segment_id="seg2",
+                playlist_id=1,
+                version_id=1,
+                text="How are you?",
+                speaker="Bob",
+                absolute_start_time="2024-01-01T00:00:05Z",
+                absolute_end_time="2024-01-01T00:00:10Z",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+        ]
+        mock_storage_provider.get_draft_note.return_value = None
+
+        mock_prodtrack_provider.get_entity.return_value = Version(
+            id=1, name="shot_010_v001"
+        )
+
+        mock_llm_provider.generate_note.return_value = "Generated"
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = (
+            lambda: mock_prodtrack_provider
+        )
+        app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
+
+        try:
+            client.post(
+                "/generate-note",
+                json={
+                    "playlist_id": 1,
+                    "version_id": 1,
+                    "user_email": "test@example.com",
+                },
+            )
+            call_args = mock_llm_provider.generate_note.call_args
+            transcript_arg = call_args.kwargs.get("transcript") or call_args[1].get(
+                "transcript", call_args[0][1] if len(call_args[0]) > 1 else ""
+            )
+            assert "Alice: Hello world" in transcript_arg
+            assert "Bob: How are you?" in transcript_arg
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_generate_note_returns_400_on_error(
+        self, mock_storage_provider, mock_prodtrack_provider, mock_llm_provider
+    ):
+        """Test that generate_note returns 400 on error."""
+        mock_storage_provider.get_user_settings.side_effect = Exception("DB Error")
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = (
+            lambda: mock_prodtrack_provider
+        )
+        app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
+
+        try:
+            response = client.post(
+                "/generate-note",
+                json={
+                    "playlist_id": 1,
+                    "version_id": 1,
+                    "user_email": "test@example.com",
+                },
+            )
+            assert response.status_code == 400
+            data = response.json()
+            assert "DB Error" in data["detail"]
         finally:
             app.dependency_overrides.clear()
