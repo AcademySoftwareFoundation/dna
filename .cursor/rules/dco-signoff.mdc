@@ -1,0 +1,27 @@
+---
+description: DCO Signoff for all git commits
+globs:
+alwaysApply: true
+---
+
+# DCO Signoff Requirement
+
+When making git commits in this repository, **always** include the DCO (Developer Certificate of Origin) signoff.
+
+## Rules
+
+1. When using the `mcp_GitKraken_git_add_or_commit` tool or any git commit operation, always add the signoff line to the commit message.
+
+2. The signoff line format is:
+   ```
+   Signed-off-by: Name <email@example.com>
+   ```
+
+3. When crafting commit messages, append a blank line followed by the signoff at the end of the message.
+
+4. If running git commands directly in the terminal, always use the `-s` or `--signoff` flag:
+   ```bash
+   git commit -s -m "commit message"
+   ```
+
+This ensures compliance with the Developer Certificate of Origin as required by this project.

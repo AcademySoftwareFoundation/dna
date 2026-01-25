@@ -155,7 +155,7 @@ def upload_csv_file(generator: SummaryGenerator, file_path: str) -> List[Dict[st
                 shot = {
                     'Shot': item.get('name', ''),
                     'Notes': item.get('notes', ''),
-                    'Transcription': item.get('transcription', ''),
+                    'Transcription': item.get('conversation', ''),  # Changed from 'transcription' to 'conversation'
                     'Summary': ''  # Will be populated by LLM
                 }
                 shots.append(shot)

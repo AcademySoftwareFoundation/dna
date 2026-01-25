@@ -1,0 +1,38 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+      working-directory: backend
+        
+    - name: Run tests with coverage
+      run: |
+        python -m pytest --cov-fail-under=90
+      working-directory: backend
+      env:
+        SHOTGRID_URL: https://mock-shotgrid.example.com
+        SHOTGRID_SCRIPT_NAME: mock_script
+        SHOTGRID_API_KEY: mock_api_key

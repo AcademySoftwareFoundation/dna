@@ -1,0 +1,38 @@
+name: Backend Code Formatting
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**/*.py'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**/*.py'
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install black and isort
+      run: |
+        pip install black isort
+        
+    - name: Check code formatting with black
+      run: |
+        black --check src/ tests/
+      working-directory: backend
+        
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only src/ tests/
+      working-directory: backend

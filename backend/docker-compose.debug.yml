@@ -1,0 +1,34 @@
+services:
+  vexa-dashboard:
+    image: synapsr/vexa-dashboard:latest
+    container_name: vexa-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - VEXA_API_URL=http://vexa:8056
+      - VEXA_ADMIN_API_URL=http://vexa:8057
+      - VEXA_ADMIN_API_KEY=your-admin-token
+    restart: unless-stopped
+
+  rabbitmq-ui:
+    image: rabbitmq:3-management
+    container_name: dna-rabbitmq-debug
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - rabbitmq_debug_data:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=dna
+      - RABBITMQ_DEFAULT_PASS=dna
+      - RABBITMQ_DEFAULT_VHOST=dna
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  rabbitmq_debug_data:

@@ -55,7 +55,16 @@ function AppLayout({
   // Utility functions
   updateCell,
   setRows,
-  selectedProjectId
+
+  // ShotGrid state
+  selectedProjectId,
+  setSelectedProjectId,
+  sgProjects,
+  sgPlaylists,
+  selectedPlaylistId,
+  setSelectedPlaylistId,
+  sgLoading,
+  sgError
 }) {
   // Separate state for import sub-tabs vs shot table row tabs
   const [importSubTab, setImportSubTab] = React.useState(config.shotgrid_enabled ? 'shotgrid' : 'upload');
@@ -244,6 +253,14 @@ function AppLayout({
                       setRows={setRows}
                       setCurrentIndex={setCurrentIndex}
                       setOriginalFilename={setOriginalFilename}
+                      sgProjects={sgProjects}
+                      selectedProjectId={selectedProjectId}
+                      setSelectedProjectId={setSelectedProjectId}
+                      sgPlaylists={sgPlaylists}
+                      selectedPlaylistId={selectedPlaylistId}
+                      setSelectedPlaylistId={setSelectedPlaylistId}
+                      sgLoading={sgLoading}
+                      sgError={sgError}
                     />
                   )}
                   
@@ -267,6 +284,10 @@ function AppLayout({
                 botIsActive={botIsActive}
                 submitting={submitting}
                 waitingForActive={waitingForActive}
+                rows={rows}
+                selectedProjectId={selectedProjectId}
+                sgProjects={sgProjects}
+                originalFilename={originalFilename}
               />
             )}
 

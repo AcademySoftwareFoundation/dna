@@ -1,0 +1,8 @@
+---
+name: use-radix-themes-and-primitives
+description: Always use radix themes and primitives for the frontend framework. 
+---
+
+# Overview
+
+ Always use radix themes and primitives for the frontend framework. Only create custom components if absolutely necessary. Always check the latest radix themes and primitives documentation for the best practices.
