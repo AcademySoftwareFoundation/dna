@@ -111,8 +111,13 @@ export function SplitButton({
       );
     }
 
+    const handleRightClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onRightClick?.();
+    };
+
     return (
-      <TriggerButton onClick={onRightClick}>
+      <TriggerButton onClick={handleRightClick}>
         {rightSlot ?? <ChevronDown size={14} />}
       </TriggerButton>
     );

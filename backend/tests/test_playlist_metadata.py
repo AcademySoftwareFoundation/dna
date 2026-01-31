@@ -22,6 +22,7 @@ class TestPlaylistMetadataModels:
         update = PlaylistMetadataUpdate()
         assert update.in_review is None
         assert update.meeting_id is None
+        assert update.transcription_paused is None
 
     def test_playlist_metadata_update_with_values(self):
         """Test PlaylistMetadataUpdate with values."""
@@ -64,6 +65,31 @@ class TestPlaylistMetadataModels:
         assert metadata.playlist_id == 20
         assert metadata.in_review is None
         assert metadata.meeting_id is None
+
+    def test_playlist_metadata_transcription_paused_default(self):
+        """Test PlaylistMetadata transcription_paused defaults to False."""
+        metadata = PlaylistMetadata(
+            _id="abc123",
+            playlist_id=10,
+        )
+        assert metadata.transcription_paused is False
+
+    def test_playlist_metadata_transcription_paused_true(self):
+        """Test PlaylistMetadata with transcription_paused set to True."""
+        metadata = PlaylistMetadata(
+            _id="abc123",
+            playlist_id=10,
+            transcription_paused=True,
+        )
+        assert metadata.transcription_paused is True
+
+    def test_playlist_metadata_update_transcription_paused(self):
+        """Test PlaylistMetadataUpdate with transcription_paused."""
+        update = PlaylistMetadataUpdate(transcription_paused=True)
+        assert update.transcription_paused is True
+
+        update2 = PlaylistMetadataUpdate(transcription_paused=False)
+        assert update2.transcription_paused is False
 
 
 class TestPlaylistMetadataEndpoints:
@@ -187,6 +213,30 @@ class TestPlaylistMetadataEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["meeting_id"] == "meeting-only"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_upsert_playlist_metadata_transcription_paused(self, mock_storage_provider):
+        """Test PUT with transcription_paused."""
+        mock_storage_provider.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id=10,
+            in_review=100,
+            transcription_paused=True,
+        )
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+
+        try:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"transcription_paused": True},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["transcription_paused"] is True
         finally:
             app.dependency_overrides.clear()
 

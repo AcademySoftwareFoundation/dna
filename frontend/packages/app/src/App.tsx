@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Playlist, Project, Version } from '@dna/core';
 import {
@@ -8,6 +8,7 @@ import {
   clearUserSession,
 } from './components';
 import { useGetVersionsForPlaylist } from './api';
+import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';
 
 function App() {
   const queryClient = useQueryClient();
@@ -21,6 +22,25 @@ function App() {
   const { data: versions = [], refetch } = useGetVersionsForPlaylist(
     selectedPlaylist?.id ?? null
   );
+
+  const { data: playlistMetadata } = usePlaylistMetadata(
+    selectedPlaylist?.id ?? null
+  );
+
+  useEffect(() => {
+    if (versions.length > 0 && !selectedVersion) {
+      const inReviewVersionId = playlistMetadata?.in_review;
+      const inReviewVersion = inReviewVersionId
+        ? versions.find((v) => v.id === inReviewVersionId)
+        : null;
+
+      if (inReviewVersion) {
+        setSelectedVersion(inReviewVersion);
+      } else {
+        setSelectedVersion(versions[0]);
+      }
+    }
+  }, [versions, selectedVersion, playlistMetadata]);
 
   const handleRefresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['allDraftNotes'] });
