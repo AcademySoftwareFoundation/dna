@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import axios from 'axios';
 import { createApiHandler, ApiHandler, User } from './apiHandler';
 
@@ -37,7 +37,7 @@ describe('ApiHandler', () => {
       },
     };
 
-    mockedAxios.create.mockReturnValue(
+    (mockedAxios.create as Mock).mockReturnValue(
       mockAxiosInstance as unknown as ReturnType<typeof axios.create>
     );
   });
