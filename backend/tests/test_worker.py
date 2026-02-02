@@ -502,6 +502,59 @@ class TestOnTranscriptionUpdated:
         call_kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
         assert call_kwargs["data"].speaker == "Unknown"
 
+    @pytest.mark.asyncio
+    async def test_skips_segments_when_transcription_paused(
+        self, worker, mock_storage_provider, sample_vexa_segments, caplog
+    ):
+        """Test that segments are not saved when transcription is paused."""
+        import logging
+
+        caplog.set_level(logging.DEBUG)
+        worker._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
+        paused_metadata = PlaylistMetadata(
+            _id="meta123",
+            playlist_id=42,
+            in_review=5,
+            meeting_id="abc-def-ghi",
+            platform="google_meet",
+            vexa_meeting_id=123,
+            transcription_paused=True,
+        )
+        mock_storage_provider.get_playlist_metadata.return_value = paused_metadata
+
+        payload = {
+            "platform": "google_meet",
+            "meeting_id": "abc-def-ghi",
+            "segments": sample_vexa_segments,
+        }
+
+        await worker.on_transcription_updated(payload)
+
+        mock_storage_provider.upsert_segment.assert_not_called()
+        assert "Transcription paused for playlist" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_saves_segments_when_transcription_not_paused(
+        self, worker, mock_storage_provider, sample_vexa_segments, sample_metadata
+    ):
+        """Test that segments are saved when transcription is not paused."""
+        worker._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
+        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
+        mock_storage_provider.upsert_segment.return_value = (
+            MagicMock(spec=StoredSegment),
+            True,
+        )
+
+        payload = {
+            "platform": "google_meet",
+            "meeting_id": "abc-def-ghi",
+            "segments": sample_vexa_segments,
+        }
+
+        await worker.on_transcription_updated(payload)
+
+        assert mock_storage_provider.upsert_segment.call_count == 2
+
 
 class TestOnVexaEvent:
     """Tests for Vexa event forwarding."""

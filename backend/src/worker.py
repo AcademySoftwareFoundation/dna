@@ -305,6 +305,13 @@ class EventWorker:
             )
             return
 
+        if metadata.transcription_paused:
+            logger.debug(
+                "Transcription paused for playlist %s, skipping segment storage",
+                playlist_id,
+            )
+            return
+
         version_id = metadata.in_review
 
         for segment_data in segments:
