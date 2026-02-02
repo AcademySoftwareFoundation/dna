@@ -15,6 +15,20 @@ This is a monorepo containing the DNA frontend packages.
 npm install
 ```
 
+```
+
+### Configuration
+
+The frontend requires connection to the backend API.
+Create a `.env` file in `packages/app/` with the following content:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+Ensure the backend is running before starting the frontend development server.
+See [backend/README.md](../backend/README.md) for instructions on running the backend.
+
 ### Development
 
 Run the React app in development mode:
