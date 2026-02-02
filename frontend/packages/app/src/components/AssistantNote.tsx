@@ -210,12 +210,7 @@ const ActionButton = styled.button`
   }
 `;
 
-const EmptyState = styled.div`
-  padding: 24px;
-  text-align: center;
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.text.muted};
-`;
+
 
 const spin = keyframes`
   from {
