@@ -377,6 +377,87 @@ class ShotgridProvider(ProdtrackProviderBase):
             for sg_entity in sg_results
         ]
 
+    def search(
+        self,
+        query: str,
+        entity_types: list[str],
+        project_id: int | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Search for entities across multiple entity types.
+
+        Args:
+            query: Text to search for (searches name field)
+            entity_types: List of entity types to search (e.g., ['user', 'shot', 'asset'])
+            project_id: Optional project ID to scope non-user entities
+            limit: Maximum results per entity type
+
+        Returns:
+            List of lightweight entity representations with type, id, name, and
+            type-specific fields (email for users, description for shots/assets/versions)
+        """
+        if not self.sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        results = []
+
+        for entity_type in entity_types:
+            # Validate entity type
+            entity_mapping = FIELD_MAPPING.get(entity_type)
+            if entity_mapping is None:
+                raise ValueError(f"Unsupported entity type: {entity_type}")
+
+            # Build filters for name search
+            filters = [{"field": "name", "operator": "contains", "value": query}]
+
+            # Add project filter for non-user entities
+            if entity_type != "user" and project_id is not None:
+                filters.append({
+                    "field": "project",
+                    "operator": "is",
+                    "value": {"type": "Project", "id": project_id}
+                })
+
+            # Find entities with shallow link resolution for performance
+            try:
+                entities = self.find(entity_type, filters)
+            except ValueError:
+                # Skip entity types that don't support the filters
+                continue
+
+            # Limit results
+            entities = entities[:limit]
+
+            # Convert to lightweight search results
+            for entity in entities:
+                result = {
+                    "type": entity.__class__.__name__,
+                    "id": entity.id,
+                    "name": getattr(entity, 'name', getattr(entity, 'code', None)),
+                }
+
+                # Add type-specific fields
+                if entity_type == "user":
+                    result["email"] = getattr(entity, 'email', None)
+                else:
+                    # Add description for entities that have it
+                    if hasattr(entity, 'description'):
+                        result["description"] = entity.description
+
+                    # Add project reference for project-scoped entities
+                    if hasattr(entity, 'project') and entity.project:
+                        if isinstance(entity.project, EntityBase):
+                            result["project"] = {
+                                "type": entity.project.__class__.__name__,
+                                "id": entity.project.id
+                            }
+                        elif isinstance(entity.project, dict):
+                            result["project"] = entity.project
+
+                results.append(result)
+
+        return results
+
     def get_user_by_email(self, user_email: str) -> User:
         """Get a user by their email address.
 
