@@ -27,6 +27,8 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    SearchRequest,
+    SearchResult,
     Shot,
     StoredSegment,
     Task,
@@ -418,6 +420,38 @@ async def find_entities(
     try:
         filters = [f.model_dump() for f in request.filters]
         return provider.find(entity_type, filters)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post(
+    "/search",
+    tags=["Entities"],
+    summary="Search entities across multiple types",
+    description="Unified search endpoint for @mentions and entity linking.",
+    response_model=dict[str, list[SearchResult]],
+)
+async def search_entities(
+    request: SearchRequest, provider: ProdtrackProviderDep
+) -> dict[str, list[SearchResult]]:
+    """Search for entities across multiple entity types."""
+    # Validate entity types
+    for entity_type in request.entity_types:
+        if entity_type.lower() not in ENTITY_MODELS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported entity type: '{entity_type}'. "
+                f"Supported types: {list(ENTITY_MODELS.keys())}",
+            )
+
+    try:
+        results = provider.search(
+            query=request.query,
+            entity_types=[et.lower() for et in request.entity_types],
+            project_id=request.project_id,
+            limit=request.limit,
+        )
+        return {"results": results}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -34,6 +34,8 @@ from dna.models.requests import (
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
+    SearchRequest,
+    SearchResult,
 )
 from dna.models.stored_segment import (
     StoredSegment,
@@ -72,6 +74,8 @@ __all__ = [
     "FindRequest",
     "GenerateNoteRequest",
     "GenerateNoteResponse",
+    "SearchRequest",
+    "SearchResult",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",
