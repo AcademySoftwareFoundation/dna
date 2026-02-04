@@ -453,8 +453,9 @@ class ShotgridProvider(ProdtrackProviderBase):
             )
 
             # Convert to lightweight search results directly from SG response
-            # Use DNA entity type instead of SG type
-            dna_type = entity_type.capitalize()
+            # Use DNA model class name for proper type mapping
+            model_class = ENTITY_MODELS.get(entity_type)
+            dna_type = model_class.__name__ if model_class else entity_type.capitalize()
             for sg_entity in sg_results:
                 result = {
                     "type": dna_type,
