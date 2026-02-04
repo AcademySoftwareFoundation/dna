@@ -79,13 +79,17 @@ export function useTranscription({
   const previousStatusRef = useRef<BotStatusEnum | null>(null);
   const waitingRoomToastIdRef = useRef<string | null>(null);
 
-  const { data: metadata, isLoading: isLoadingMetadata } = usePlaylistMetadata(playlistId);
+  const { data: metadata, isLoading: isLoadingMetadata } =
+    usePlaylistMetadata(playlistId);
 
-  const meetingPlatform = session?.platform ?? (metadata?.platform as Platform | null);
+  const meetingPlatform =
+    session?.platform ?? (metadata?.platform as Platform | null);
   const meetingId = session?.meeting_id ?? metadata?.meeting_id;
 
   const isActiveStatus = (statusValue: BotStatusEnum): boolean => {
-    return ['joining', 'waiting_room', 'in_call', 'transcribing'].includes(statusValue);
+    return ['joining', 'waiting_room', 'in_call', 'transcribing'].includes(
+      statusValue
+    );
   };
 
   const isConnectingStatus = (statusValue: BotStatusEnum): boolean => {
@@ -206,11 +210,7 @@ export function useTranscription({
     return unsubscribe;
   }, [eventClient, meetingPlatform, meetingId, session, refetchStatus]);
 
-  const dispatchMutation = useMutation<
-    BotSession,
-    Error,
-    DispatchBotRequest
-  >({
+  const dispatchMutation = useMutation<BotSession, Error, DispatchBotRequest>({
     mutationFn: (request) => apiHandler.dispatchBot({ request }),
     onMutate: (request) => {
       setSession({

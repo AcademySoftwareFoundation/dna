@@ -351,6 +351,7 @@ export interface GenerateNoteParams {
   playlistId: number;
   versionId: number;
   userEmail: string;
+  additionalInstructions?: string;
 }
 
 export interface GenerateNoteResponse {

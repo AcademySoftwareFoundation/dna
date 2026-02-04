@@ -15,6 +15,7 @@ interface SplitButtonProps {
   onRightClick?: () => void;
   leftSlot?: ReactNode;
   rightSlot?: ReactNode;
+  disabled?: boolean;
 }
 
 const SplitButtonWrapper = styled.div`
@@ -45,15 +46,20 @@ const MainButton = styled.button`
   transition: all ${({ theme }) => theme.transitions.fast};
   white-space: nowrap;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.bg.surfaceHover};
     color: ${({ theme }) => theme.colors.text.primary};
     border-color: ${({ theme }) => theme.colors.border.strong};
   }
 
-  &:active {
+  &:active:not(:disabled) {
     background: ${({ theme }) => theme.colors.bg.overlay};
     transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -90,6 +96,7 @@ export function SplitButton({
   onRightClick,
   leftSlot,
   rightSlot,
+  disabled = false,
 }: SplitButtonProps) {
   const renderRightButton = () => {
     if (menuItems && menuItems.length > 0) {
@@ -125,7 +132,7 @@ export function SplitButton({
 
   return (
     <SplitButtonWrapper>
-      <MainButton onClick={onClick}>
+      <MainButton onClick={onClick} disabled={disabled}>
         {leftSlot}
         {children}
       </MainButton>

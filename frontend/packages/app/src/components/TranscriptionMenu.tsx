@@ -12,7 +12,12 @@ import {
 } from 'lucide-react';
 import { Button, TextField, Popover, Text } from '@radix-ui/themes';
 import type { BotStatusEnum } from '@dna/core';
-import { useTranscription, parseMeetingUrl, usePlaylistMetadata, useUpsertPlaylistMetadata } from '../hooks';
+import {
+  useTranscription,
+  parseMeetingUrl,
+  usePlaylistMetadata,
+  useUpsertPlaylistMetadata,
+} from '../hooks';
 import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
@@ -63,9 +68,12 @@ const StatusIndicator = styled.div<{ $status: BotStatusEnum }>`
     }
   }};
   animation: ${({ $status }) =>
-    $status === 'joining' || $status === 'transcribing' || $status === 'waiting_room'
-      ? pulse
-      : 'none'} 1.5s ease-in-out infinite;
+      $status === 'joining' ||
+      $status === 'transcribing' ||
+      $status === 'waiting_room'
+        ? pulse
+        : 'none'}
+    1.5s ease-in-out infinite;
 `;
 
 const StatusText = styled.span`
@@ -99,7 +107,10 @@ const ButtonRow = styled.div`
 
 type PhoneStatus = 'disconnected' | 'connecting' | 'connected';
 
-const TriggerButton = styled.button<{ $isActive: boolean; $phoneStatus: PhoneStatus }>`
+const TriggerButton = styled.button<{
+  $isActive: boolean;
+  $phoneStatus: PhoneStatus;
+}>`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -150,13 +161,18 @@ const LiveIndicator = styled.span`
 const SpinnerIcon = styled(Loader2)`
   animation: spin 1s linear infinite;
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 `;
 
 const PulsingPhone = styled(Phone)<{ $shouldPulse: boolean }>`
-  animation: ${({ $shouldPulse }) => ($shouldPulse ? pulse : 'none')} 1.5s ease-in-out infinite;
+  animation: ${({ $shouldPulse }) => ($shouldPulse ? pulse : 'none')} 1.5s
+    ease-in-out infinite;
 `;
 
 const CollapsedTriggerButton = styled.button<{ $phoneStatus: PhoneStatus }>`
@@ -221,7 +237,10 @@ function getStatusLabel(status: BotStatusEnum, isPaused: boolean): string {
   }
 }
 
-function getButtonStatusLabel(status: BotStatusEnum, isPaused: boolean): string {
+function getButtonStatusLabel(
+  status: BotStatusEnum,
+  isPaused: boolean
+): string {
   switch (status) {
     case 'joining':
       return 'Joining...';
@@ -269,7 +288,10 @@ function getStatusIcon(status: BotStatusEnum) {
   }
 }
 
-export function TranscriptionMenu({ playlistId, collapsed = false }: TranscriptionMenuProps) {
+export function TranscriptionMenu({
+  playlistId,
+  collapsed = false,
+}: TranscriptionMenuProps) {
   const [meetingUrl, setMeetingUrl] = useState('');
   const [passcode, setPasscode] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -290,12 +312,18 @@ export function TranscriptionMenu({ playlistId, collapsed = false }: Transcripti
   const { mutate: upsertMetadata } = useUpsertPlaylistMetadata(playlistId);
 
   const currentStatus = status?.status ?? session?.status ?? 'idle';
-  const isActive = ['joining', 'waiting_room', 'in_call', 'transcribing'].includes(currentStatus);
+  const isActive = [
+    'joining',
+    'waiting_room',
+    'in_call',
+    'transcribing',
+  ].includes(currentStatus);
   const phoneStatus = getPhoneStatus(currentStatus);
   const needsPasscode = parseMeetingUrl(meetingUrl)?.platform === 'teams';
   const isPaused = metadata?.transcription_paused ?? false;
 
-  const isLiveButPaused = isPaused && ['in_call', 'transcribing'].includes(currentStatus);
+  const isLiveButPaused =
+    isPaused && ['in_call', 'transcribing'].includes(currentStatus);
   const isAwaitingAdmission = currentStatus === 'waiting_room';
   const shouldPulseYellow = isLiveButPaused || isAwaitingAdmission;
 
@@ -400,9 +428,7 @@ export function TranscriptionMenu({ playlistId, collapsed = false }: Transcripti
   return (
     <Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
       <Popover.Trigger asChild>
-        <div style={{ display: 'inline-block' }}>
-          {renderTrigger()}
-        </div>
+        <div style={{ display: 'inline-block' }}>{renderTrigger()}</div>
       </Popover.Trigger>
       <Popover.Content side="top" align="start" sideOffset={8}>
         <MenuContainer>

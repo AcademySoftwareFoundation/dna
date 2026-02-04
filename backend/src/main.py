@@ -848,7 +848,11 @@ def _build_transcript_text(segments: list[StoredSegment]) -> str:
 
 
 def _build_full_prompt(
-    prompt: str, transcript: str, context: str, existing_notes: str
+    prompt: str,
+    transcript: str,
+    context: str,
+    existing_notes: str,
+    additional_instructions: str | None = None,
 ) -> str:
     """Build the full prompt with template values substituted."""
     result = prompt
@@ -858,6 +862,8 @@ def _build_full_prompt(
     result = result.replace("{{context}}", context)
     result = result.replace("{{ notes }}", existing_notes)
     result = result.replace("{{notes}}", existing_notes)
+    if additional_instructions:
+        result += f"\n\nAdditional Instructions: {additional_instructions}"
     return result
 
 
@@ -901,13 +907,16 @@ async def generate_note(
         )
         existing_notes = draft_note.content if draft_note else ""
 
-        full_prompt = _build_full_prompt(prompt, transcript, context, existing_notes)
+        full_prompt = _build_full_prompt(
+            prompt, transcript, context, existing_notes, request.additional_instructions
+        )
 
         suggestion = await llm_provider.generate_note(
             prompt=prompt,
             transcript=transcript,
             context=context,
             existing_notes=existing_notes,
+            additional_instructions=request.additional_instructions,
         )
 
         return GenerateNoteResponse(

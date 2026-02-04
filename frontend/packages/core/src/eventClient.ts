@@ -32,7 +32,10 @@ export interface BotStatusEventPayload {
 }
 
 export type EventCallback<T = unknown> = (event: DNAEvent<T>) => void;
-export type ConnectionStateCallback = (connected: boolean, error?: Error) => void;
+export type ConnectionStateCallback = (
+  connected: boolean,
+  error?: Error
+) => void;
 
 export interface DNAEventClientConfig {
   brokerURL: string;
@@ -173,7 +176,10 @@ export class DNAEventClient {
       try {
         callback(connected, error);
       } catch (err) {
-        console.error('[DNAEventClient] Error in connection state callback:', err);
+        console.error(
+          '[DNAEventClient] Error in connection state callback:',
+          err
+        );
       }
     });
   }
@@ -221,10 +227,16 @@ export class DNAEventClient {
   ): () => void {
     const filteredCallback = (event: DNAEvent<SegmentEventPayload>) => {
       const payload = event.payload;
-      if (filter?.playlistId != null && payload.playlist_id !== filter.playlistId) {
+      if (
+        filter?.playlistId != null &&
+        payload.playlist_id !== filter.playlistId
+      ) {
         return;
       }
-      if (filter?.versionId != null && payload.version_id !== filter.versionId) {
+      if (
+        filter?.versionId != null &&
+        payload.version_id !== filter.versionId
+      ) {
         return;
       }
       callback(event);
@@ -245,7 +257,10 @@ export class DNAEventClient {
       if (filter?.platform != null && payload.platform !== filter.platform) {
         return;
       }
-      if (filter?.meetingId != null && payload.meeting_id !== filter.meetingId) {
+      if (
+        filter?.meetingId != null &&
+        payload.meeting_id !== filter.meetingId
+      ) {
         return;
       }
       callback(event);
@@ -260,7 +275,9 @@ export class DNAEventClient {
 
 let defaultClient: DNAEventClient | null = null;
 
-export function createEventClient(config: DNAEventClientConfig): DNAEventClient {
+export function createEventClient(
+  config: DNAEventClientConfig
+): DNAEventClient {
   return new DNAEventClient(config);
 }
 
