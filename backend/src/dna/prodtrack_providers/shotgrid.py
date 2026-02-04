@@ -321,13 +321,16 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return created_entity
 
-    def find(self, entity_type: str, filters: list[dict[str, Any]]) -> list[EntityBase]:
+    def find(
+        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+    ) -> list[EntityBase]:
         """Find entities matching the given filters.
 
         Args:
             entity_type: The DNA entity type to search for
             filters: List of filter conditions in DNA format.
                 Each filter is a dict with 'field', 'operator', and 'value' keys.
+            limit: Maximum number of entities to return. Defaults to 0 (no limit).
 
         Returns:
             List of matching DNA entities
@@ -367,6 +370,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             entity_mapping["entity_id"],
             filters=sg_filters,
             fields=sg_fields,
+            limit=limit,
         )
 
         # Convert SG entities to DNA entities
@@ -407,52 +411,74 @@ class ShotgridProvider(ProdtrackProviderBase):
             if entity_mapping is None:
                 raise ValueError(f"Unsupported entity type: {entity_type}")
 
-            # Build filters for name search
-            filters = [{"field": "name", "operator": "contains", "value": query}]
+            sg_entity_type = entity_mapping["entity_id"]
+
+            # Determine the name field for this entity type (code or name)
+            # and build minimal fields list for performance
+            fields_mapping = entity_mapping["fields"]
+            name_sg_field = None
+            for sg_field, dna_field in fields_mapping.items():
+                if dna_field == "name":
+                    name_sg_field = sg_field
+                    break
+
+            if name_sg_field is None:
+                continue
+
+            # Build minimal fields list: only what we need for search results
+            sg_fields = ["id", name_sg_field]
+            if entity_type == "user":
+                sg_fields.append("email")
+            else:
+                if "description" in fields_mapping:
+                    sg_fields.append("description")
+                if "project" in fields_mapping:
+                    sg_fields.append("project")
+
+            # Build ShotGrid filters
+            sg_filters = [[name_sg_field, "contains", query]]
 
             # Add project filter for non-user entities
             if entity_type != "user" and project_id is not None:
-                filters.append({
-                    "field": "project",
-                    "operator": "is",
-                    "value": {"type": "Project", "id": project_id}
-                })
+                sg_filters.append(
+                    ["project", "is", {"type": "Project", "id": project_id}]
+                )
 
-            # Find entities with shallow link resolution for performance
+            # Query ShotGrid directly with minimal fields for performance
             try:
-                entities = self.find(entity_type, filters)
-            except ValueError:
-                # Skip entity types that don't support the filters
+                sg_results = self.sg.find(
+                    sg_entity_type,
+                    filters=sg_filters,
+                    fields=sg_fields,
+                    limit=limit,
+                )
+            except Exception:
+                # Skip entity types that fail
                 continue
 
-            # Limit results
-            entities = entities[:limit]
-
-            # Convert to lightweight search results
-            for entity in entities:
+            # Convert to lightweight search results directly from SG response
+            for sg_entity in sg_results:
                 result = {
-                    "type": entity.__class__.__name__,
-                    "id": entity.id,
-                    "name": getattr(entity, 'name', getattr(entity, 'code', None)),
+                    "type": sg_entity_type,
+                    "id": sg_entity.get("id"),
+                    "name": sg_entity.get(name_sg_field),
                 }
 
                 # Add type-specific fields
                 if entity_type == "user":
-                    result["email"] = getattr(entity, 'email', None)
+                    result["email"] = sg_entity.get("email")
                 else:
-                    # Add description for entities that have it
-                    if hasattr(entity, 'description'):
-                        result["description"] = entity.description
+                    # Add description if present
+                    if "description" in sg_entity:
+                        result["description"] = sg_entity.get("description")
 
-                    # Add project reference for project-scoped entities
-                    if hasattr(entity, 'project') and entity.project:
-                        if isinstance(entity.project, EntityBase):
-                            result["project"] = {
-                                "type": entity.project.__class__.__name__,
-                                "id": entity.project.id
-                            }
-                        elif isinstance(entity.project, dict):
-                            result["project"] = entity.project
+                    # Add project reference if present
+                    project_data = sg_entity.get("project")
+                    if project_data:
+                        result["project"] = {
+                            "type": project_data.get("type"),
+                            "id": project_data.get("id"),
+                        }
 
                 results.append(result)
 

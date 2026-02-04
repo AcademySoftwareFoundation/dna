@@ -33,13 +33,14 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
     def find(
-        self, entity_type: str, filters: list[dict[str, Any]]
+        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
     ) -> list["EntityBase"]:
         """Find entities matching the given filters.
 
         Args:
             entity_type: The DNA entity type to search for (e.g., 'shot', 'version')
             filters: List of filter conditions in DNA format
+            limit: Maximum number of entities to return. Defaults to 0 (no limit).
 
         Returns:
             List of matching entities
