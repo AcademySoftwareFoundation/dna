@@ -62,3 +62,34 @@ class GenerateNoteResponse(BaseModel):
     suggestion: str = Field(description="The generated note suggestion")
     prompt: str = Field(description="The full prompt with values substituted")
     context: str = Field(description="The version context used for generation")
+
+
+class SearchRequest(BaseModel):
+    """Request model for unified entity search."""
+
+    query: str = Field(description="Text to search for (searches name field)")
+    entity_types: list[str] = Field(
+        description="Entity types to search: user, shot, asset, version, task, playlist"
+    )
+    project_id: Optional[int] = Field(
+        default=None,
+        description="Scope results to a specific project (recommended for non-user entities)",
+    )
+    limit: int = Field(
+        default=10, description="Max results per entity type (default: 10)"
+    )
+
+
+class SearchResult(BaseModel):
+    """Lightweight entity representation for search results."""
+
+    type: str = Field(description="Entity type (e.g., 'User', 'Shot', 'Asset')")
+    id: int = Field(description="Entity ID")
+    name: str = Field(description="Entity name")
+    description: Optional[str] = Field(
+        default=None, description="Entity description (for shots/assets/versions)"
+    )
+    email: Optional[str] = Field(default=None, description="Email (for users)")
+    project: Optional[dict[str, Any]] = Field(
+        default=None, description="Project reference (for project-scoped entities)"
+    )

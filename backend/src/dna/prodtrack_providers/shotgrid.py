@@ -321,13 +321,16 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return created_entity
 
-    def find(self, entity_type: str, filters: list[dict[str, Any]]) -> list[EntityBase]:
+    def find(
+        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+    ) -> list[EntityBase]:
         """Find entities matching the given filters.
 
         Args:
             entity_type: The DNA entity type to search for
             filters: List of filter conditions in DNA format.
                 Each filter is a dict with 'field', 'operator', and 'value' keys.
+            limit: Maximum number of entities to return. Defaults to 0 (no limit).
 
         Returns:
             List of matching DNA entities
@@ -367,6 +370,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             entity_mapping["entity_id"],
             filters=sg_filters,
             fields=sg_fields,
+            limit=limit,
         )
 
         # Convert SG entities to DNA entities
@@ -376,6 +380,108 @@ class ShotgridProvider(ProdtrackProviderBase):
             )
             for sg_entity in sg_results
         ]
+
+    def search(
+        self,
+        query: str,
+        entity_types: list[str],
+        project_id: int | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Search for entities across multiple entity types.
+
+        Args:
+            query: Text to search for (searches name field)
+            entity_types: List of entity types to search (e.g., ['user', 'shot', 'asset'])
+            project_id: Optional project ID to scope non-user entities
+            limit: Maximum results per entity type
+
+        Returns:
+            List of lightweight entity representations with type, id, name, and
+            type-specific fields (email for users, description for shots/assets/versions)
+        """
+        if not self.sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        results = []
+
+        for entity_type in entity_types:
+            # Validate entity type
+            entity_mapping = FIELD_MAPPING.get(entity_type)
+            if entity_mapping is None:
+                raise ValueError(f"Unsupported entity type: {entity_type}")
+
+            sg_entity_type = entity_mapping["entity_id"]
+
+            # Determine the name field for this entity type (code or name)
+            # and build minimal fields list for performance
+            fields_mapping = entity_mapping["fields"]
+            name_sg_field = None
+            for sg_field, dna_field in fields_mapping.items():
+                if dna_field == "name":
+                    name_sg_field = sg_field
+                    break
+
+            if name_sg_field is None:
+                continue
+
+            # Build minimal fields list: only what we need for search results
+            sg_fields = ["id", name_sg_field]
+            if entity_type == "user":
+                sg_fields.append("email")
+            else:
+                if "description" in fields_mapping:
+                    sg_fields.append("description")
+                if "project" in fields_mapping:
+                    sg_fields.append("project")
+
+            # Build ShotGrid filters
+            sg_filters = [[name_sg_field, "contains", query]]
+
+            # Add project filter for non-user entities
+            if entity_type != "user" and project_id is not None:
+                sg_filters.append(
+                    ["project", "is", {"type": "Project", "id": project_id}]
+                )
+
+            # Query ShotGrid directly with minimal fields for performance
+            sg_results = self.sg.find(
+                sg_entity_type,
+                filters=sg_filters,
+                fields=sg_fields,
+                limit=limit,
+            )
+
+            # Convert to lightweight search results directly from SG response
+            # Use DNA model class name for proper type mapping
+            model_class = ENTITY_MODELS.get(entity_type)
+            dna_type = model_class.__name__ if model_class else entity_type.capitalize()
+            for sg_entity in sg_results:
+                result = {
+                    "type": dna_type,
+                    "id": sg_entity.get("id"),
+                    "name": sg_entity.get(name_sg_field),
+                }
+
+                # Add type-specific fields
+                if entity_type == "user":
+                    result["email"] = sg_entity.get("email")
+                else:
+                    # Add description if present
+                    if "description" in sg_entity:
+                        result["description"] = sg_entity.get("description")
+
+                    # Add project reference if present
+                    project_data = sg_entity.get("project")
+                    if project_data:
+                        result["project"] = {
+                            "type": project_data.get("type"),
+                            "id": project_data.get("id"),
+                        }
+
+                results.append(result)
+
+        return results
 
     def get_user_by_email(self, user_email: str) -> User:
         """Get a user by their email address.

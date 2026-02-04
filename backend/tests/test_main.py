@@ -335,6 +335,291 @@ class TestFindEndpoint:
             app.dependency_overrides.clear()
 
 
+class TestSearchEndpoint:
+    """Tests for POST /search endpoint."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        """Create a mock ShotGrid provider."""
+        return mock.MagicMock()
+
+    def test_search_returns_200_with_results(self, mock_provider):
+        """Test that search returns 200 with matching entities."""
+        mock_provider.search.return_value = [
+            {
+                "type": "User",
+                "id": 1,
+                "name": "John Smith",
+                "email": "john@example.com",
+            },
+            {
+                "type": "Shot",
+                "id": 100,
+                "name": "shot_010_0020",
+                "description": "Hero enters frame",
+                "project": {"type": "Project", "id": 85},
+            },
+        ]
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "john",
+                    "entity_types": ["user", "shot"],
+                    "project_id": 85,
+                    "limit": 10,
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "results" in data
+            assert len(data["results"]) == 2
+            assert data["results"][0]["type"] == "User"
+            assert data["results"][0]["name"] == "John Smith"
+            assert data["results"][1]["type"] == "Shot"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_calls_provider_with_correct_args(self, mock_provider):
+        """Test that search passes correct arguments to provider."""
+        mock_provider.search.return_value = []
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            client.post(
+                "/search",
+                json={
+                    "query": "test",
+                    "entity_types": ["user", "shot", "asset"],
+                    "project_id": 123,
+                    "limit": 5,
+                },
+            )
+
+            mock_provider.search.assert_called_once_with(
+                query="test",
+                entity_types=["user", "shot", "asset"],
+                project_id=123,
+                limit=5,
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_normalizes_entity_types_to_lowercase(self, mock_provider):
+        """Test that search normalizes entity types to lowercase."""
+        mock_provider.search.return_value = []
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            client.post(
+                "/search",
+                json={
+                    "query": "test",
+                    "entity_types": ["USER", "Shot", "ASSET"],
+                },
+            )
+
+            mock_provider.search.assert_called_once()
+            call_args = mock_provider.search.call_args
+            assert call_args.kwargs["entity_types"] == ["user", "shot", "asset"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_without_project_id(self, mock_provider):
+        """Test that search works without project_id (for global user search)."""
+        mock_provider.search.return_value = [
+            {
+                "type": "User",
+                "id": 1,
+                "name": "John Smith",
+                "email": "john@example.com",
+            }
+        ]
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "john",
+                    "entity_types": ["user"],
+                },
+            )
+            assert response.status_code == 200
+            mock_provider.search.assert_called_once_with(
+                query="john",
+                entity_types=["user"],
+                project_id=None,
+                limit=10,
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_uses_default_limit(self, mock_provider):
+        """Test that search uses default limit of 10."""
+        mock_provider.search.return_value = []
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            client.post(
+                "/search",
+                json={
+                    "query": "test",
+                    "entity_types": ["shot"],
+                },
+            )
+
+            call_args = mock_provider.search.call_args
+            assert call_args.kwargs["limit"] == 10
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_returns_empty_results_when_no_matches(self, mock_provider):
+        """Test that search returns empty results when no entities match."""
+        mock_provider.search.return_value = []
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "nonexistent",
+                    "entity_types": ["user", "shot"],
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["results"] == []
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_unsupported_entity_type_returns_400(self, mock_provider):
+        """Test that search returns 400 for unsupported entity types."""
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "test",
+                    "entity_types": ["unsupported_type"],
+                },
+            )
+            assert response.status_code == 400
+            data = response.json()
+            assert "Unsupported entity type" in data["detail"]
+            assert "unsupported_type" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_partial_unsupported_entity_types_returns_400(self, mock_provider):
+        """Test that search returns 400 if any entity type is unsupported."""
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "test",
+                    "entity_types": ["user", "invalid_type", "shot"],
+                },
+            )
+            assert response.status_code == 400
+            data = response.json()
+            assert "Unsupported entity type" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_provider_error_returns_400(self, mock_provider):
+        """Test that search returns 400 when provider raises ValueError."""
+        mock_provider.search.side_effect = ValueError("Search error")
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "test",
+                    "entity_types": ["user"],
+                },
+            )
+            assert response.status_code == 400
+            data = response.json()
+            assert "Search error" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_missing_query_returns_422(self, mock_provider):
+        """Test that search returns 422 when query is missing."""
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "entity_types": ["user"],
+                },
+            )
+            assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_missing_entity_types_returns_422(self, mock_provider):
+        """Test that search returns 422 when entity_types is missing."""
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "test",
+                },
+            )
+            assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_with_multiple_entity_types(self, mock_provider):
+        """Test search across multiple entity types."""
+        mock_provider.search.return_value = [
+            {"type": "User", "id": 1, "name": "John", "email": "john@example.com"},
+            {"type": "Shot", "id": 2, "name": "john_shot", "description": "Test"},
+            {"type": "Asset", "id": 3, "name": "johnny_rig", "description": "Rig"},
+        ]
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/search",
+                json={
+                    "query": "joh",
+                    "entity_types": ["user", "shot", "asset", "version"],
+                    "project_id": 123,
+                    "limit": 5,
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["results"]) == 3
+
+            types = [r["type"] for r in data["results"]]
+            assert "User" in types
+            assert "Shot" in types
+            assert "Asset" in types
+        finally:
+            app.dependency_overrides.clear()
+
+
 class TestRequestModels:
     """Tests for request model validation."""
 
