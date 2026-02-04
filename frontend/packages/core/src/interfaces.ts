@@ -200,12 +200,14 @@ export interface PlaylistMetadata {
   in_review: number | null;
   meeting_id: string | null;
   platform: Platform | null;
+  transcription_paused: boolean;
 }
 
 export interface PlaylistMetadataUpdate {
   in_review?: number | null;
   meeting_id?: string | null;
   platform?: Platform | null;
+  transcription_paused?: boolean;
 }
 
 export interface GetPlaylistMetadataParams {
@@ -349,6 +351,7 @@ export interface GenerateNoteParams {
   playlistId: number;
   versionId: number;
   userEmail: string;
+  additionalInstructions?: string;
 }
 
 export interface GenerateNoteResponse {

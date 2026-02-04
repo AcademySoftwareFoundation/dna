@@ -50,6 +50,10 @@ class GenerateNoteRequest(BaseModel):
     playlist_id: int = Field(description="Playlist ID")
     version_id: int = Field(description="Version ID")
     user_email: str = Field(description="User email address")
+    additional_instructions: Optional[str] = Field(
+        default=None,
+        description="Optional additional instructions to append to the prompt",
+    )
 
 
 class GenerateNoteResponse(BaseModel):

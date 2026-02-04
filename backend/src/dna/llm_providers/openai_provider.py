@@ -60,11 +60,15 @@ class OpenAIProvider(LLMProviderBase):
         transcript: str,
         context: str,
         existing_notes: str,
+        additional_instructions: Optional[str] = None,
     ) -> str:
         """Generate a note suggestion using OpenAI."""
         user_message = self._substitute_template(
             prompt, transcript, context, existing_notes
         )
+
+        if additional_instructions:
+            user_message += f"\n\nAdditional Instructions: {additional_instructions}"
 
         response = await self.client.chat.completions.create(
             model=self.model,

@@ -1,6 +1,10 @@
 import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { StoredSegment, type DNAEvent, type SegmentEventPayload } from '@dna/core';
+import {
+  StoredSegment,
+  type DNAEvent,
+  type SegmentEventPayload,
+} from '@dna/core';
 import { apiHandler } from '../api';
 import { useSegmentEvents } from './useDNAEvents';
 

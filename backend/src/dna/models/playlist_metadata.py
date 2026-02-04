@@ -19,6 +19,9 @@ class PlaylistMetadataUpdate(BaseModel):
     vexa_meeting_id: Optional[int] = Field(
         default=None, description="Internal Vexa meeting ID"
     )
+    transcription_paused: Optional[bool] = Field(
+        default=None, description="Whether transcription storage is paused"
+    )
 
 
 class PlaylistMetadata(BaseModel):
@@ -32,3 +35,4 @@ class PlaylistMetadata(BaseModel):
     meeting_id: Optional[str] = None
     platform: Optional[str] = None
     vexa_meeting_id: Optional[int] = None
+    transcription_paused: bool = False

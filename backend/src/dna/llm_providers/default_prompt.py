@@ -137,6 +137,9 @@ The layout is good. We need to add a few more details to the environment.
 - The note must be free of any analysis. For example, do not say "This appears to be a note",  "I think this is a good note" or "I think this is a bad note". Just output the header and note.
 - The note should follow the guidelines for formatting. 
 - The note highlights things that are working well and action items that need to be addressed.
+- Use the transcript to help you understand the notes already taken. Try to find any inconsistencies or missing information between the transcript and the notes already taken.
+- If the transcript is not provided, you are not allowed to create a note. Return an empty string.
+- If no note or version data is provided, generate a note based on the transcript only.
 
 
 
@@ -151,6 +154,5 @@ Version Data:
 
 Notes taken on this version already: 
 {{{{ notes }}}}
-
 
 """

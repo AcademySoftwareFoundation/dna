@@ -1,5 +1,11 @@
 import * as Toast from '@radix-ui/react-toast';
-import { createContext, useCallback, useContext, useState, ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  ReactNode,
+} from 'react';
 import styled from 'styled-components';
 
 type ToastType = 'info' | 'success' | 'warning' | 'error';
@@ -159,7 +165,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           >
             <ToastTitle $type={toast.type}>{toast.title}</ToastTitle>
             {toast.description && (
-              <ToastDescription $type={toast.type}>{toast.description}</ToastDescription>
+              <ToastDescription $type={toast.type}>
+                {toast.description}
+              </ToastDescription>
             )}
           </ToastRoot>
         ))}

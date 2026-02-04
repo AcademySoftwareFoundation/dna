@@ -5,7 +5,10 @@
  */
 
 import type { ApiHandler } from './apiHandler';
-import type { AISuggestionState, AISuggestionStateChangeCallback } from './interfaces';
+import type {
+  AISuggestionState,
+  AISuggestionStateChangeCallback,
+} from './interfaces';
 
 export interface AISuggestionManagerOptions {
   debounceMs?: number;
@@ -31,10 +34,14 @@ export class AISuggestionManager {
   private apiHandler: ApiHandler;
   private states: StateMap = new Map();
   private listeners: Set<AISuggestionStateChangeCallback> = new Set();
-  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> =
+    new Map();
   private debounceMs: number;
 
-  constructor(apiHandler: ApiHandler, options: AISuggestionManagerOptions = {}) {
+  constructor(
+    apiHandler: ApiHandler,
+    options: AISuggestionManagerOptions = {}
+  ) {
     this.apiHandler = apiHandler;
     this.debounceMs = options.debounceMs ?? 1000;
   }
@@ -93,7 +100,8 @@ export class AISuggestionManager {
   async generateSuggestion(
     playlistId: number,
     versionId: number,
-    userEmail: string
+    userEmail: string,
+    additionalInstructions?: string
   ): Promise<string> {
     const key = buildKey(playlistId, versionId);
 
@@ -113,6 +121,7 @@ export class AISuggestionManager {
         playlistId,
         versionId,
         userEmail,
+        additionalInstructions,
       });
 
       this.setState(playlistId, versionId, {
@@ -137,7 +146,8 @@ export class AISuggestionManager {
   scheduleRegeneration(
     playlistId: number,
     versionId: number,
-    userEmail: string
+    userEmail: string,
+    additionalInstructions?: string
   ): void {
     const key = buildKey(playlistId, versionId);
 
@@ -148,7 +158,12 @@ export class AISuggestionManager {
 
     const timer = setTimeout(() => {
       this.debounceTimers.delete(key);
-      this.generateSuggestion(playlistId, versionId, userEmail).catch(() => {
+      this.generateSuggestion(
+        playlistId,
+        versionId,
+        userEmail,
+        additionalInstructions
+      ).catch(() => {
         // Error is already captured in state
       });
     }, this.debounceMs);
