@@ -445,21 +445,19 @@ class ShotgridProvider(ProdtrackProviderBase):
                 )
 
             # Query ShotGrid directly with minimal fields for performance
-            try:
-                sg_results = self.sg.find(
-                    sg_entity_type,
-                    filters=sg_filters,
-                    fields=sg_fields,
-                    limit=limit,
-                )
-            except Exception:
-                # Skip entity types that fail
-                continue
+            sg_results = self.sg.find(
+                sg_entity_type,
+                filters=sg_filters,
+                fields=sg_fields,
+                limit=limit,
+            )
 
             # Convert to lightweight search results directly from SG response
+            # Use DNA entity type instead of SG type
+            dna_type = entity_type.capitalize()
             for sg_entity in sg_results:
                 result = {
-                    "type": sg_entity_type,
+                    "type": dna_type,
                     "id": sg_entity.get("id"),
                     "name": sg_entity.get(name_sg_field),
                 }
