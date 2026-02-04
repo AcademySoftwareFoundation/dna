@@ -23,7 +23,7 @@ export interface UseAISuggestionResult {
   context: string | null;
   isLoading: boolean;
   error: Error | null;
-  regenerate: () => void;
+  regenerate: (additionalInstructions?: string) => void;
 }
 
 const managerInstance = new AISuggestionManager(apiHandler, {
@@ -42,7 +42,13 @@ export function useAISuggestion({
   const [state, setState] = useState<AISuggestionState>(() =>
     isEnabled
       ? managerInstance.getSnapshot(playlistId!, versionId!)
-      : { suggestion: null, prompt: null, context: null, isLoading: false, error: null }
+      : {
+          suggestion: null,
+          prompt: null,
+          context: null,
+          isLoading: false,
+          error: null,
+        }
   );
 
   const { data: userSettings } = useQuery<UserSettings | null>({
@@ -56,20 +62,24 @@ export function useAISuggestion({
 
   useEffect(() => {
     if (!isEnabled) {
-      setState({ suggestion: null, prompt: null, context: null, isLoading: false, error: null });
+      setState({
+        suggestion: null,
+        prompt: null,
+        context: null,
+        isLoading: false,
+        error: null,
+      });
       return;
     }
 
     const currentState = managerInstance.getSnapshot(playlistId!, versionId!);
     setState(currentState);
 
-    const unsubscribe = managerInstance.onStateChange(
-      (pId, vId, newState) => {
-        if (pId === playlistId && vId === versionId) {
-          setState(newState);
-        }
+    const unsubscribe = managerInstance.onStateChange((pId, vId, newState) => {
+      if (pId === playlistId && vId === versionId) {
+        setState(newState);
       }
-    );
+    });
 
     return unsubscribe;
   }, [playlistId, versionId, isEnabled]);
@@ -84,9 +94,11 @@ export function useAISuggestion({
       prevVersionRef.current !== null &&
       prevVersionRef.current !== versionId
     ) {
-      managerInstance.generateSuggestion(playlistId!, versionId!, userEmail!).catch(() => {
-        // Error is captured in state
-      });
+      managerInstance
+        .generateSuggestion(playlistId!, versionId!, userEmail!)
+        .catch(() => {
+          // Error is captured in state
+        });
     }
 
     prevVersionRef.current = versionId;
@@ -109,13 +121,23 @@ export function useAISuggestion({
     enabled: isEnabled && !!userSettings?.regenerate_on_transcript_update,
   });
 
-  const regenerate = useCallback(() => {
-    if (!isEnabled) return;
+  const regenerate = useCallback(
+    (additionalInstructions?: string) => {
+      if (!isEnabled) return;
 
-    managerInstance.generateSuggestion(playlistId!, versionId!, userEmail!).catch(() => {
-      // Error is captured in state
-    });
-  }, [playlistId, versionId, userEmail, isEnabled]);
+      managerInstance
+        .generateSuggestion(
+          playlistId!,
+          versionId!,
+          userEmail!,
+          additionalInstructions
+        )
+        .catch(() => {
+          // Error is captured in state
+        });
+    },
+    [playlistId, versionId, userEmail, isEnabled]
+  );
 
   return useMemo(
     () => ({
@@ -126,6 +148,13 @@ export function useAISuggestion({
       error: state.error,
       regenerate,
     }),
-    [state.suggestion, state.prompt, state.context, state.isLoading, state.error, regenerate]
+    [
+      state.suggestion,
+      state.prompt,
+      state.context,
+      state.isLoading,
+      state.error,
+      regenerate,
+    ]
   );
 }

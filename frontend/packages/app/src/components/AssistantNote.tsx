@@ -1,6 +1,13 @@
+import { useState, useRef, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
-import { Bot, MessageSquare, Copy, ArrowDownToLine, Loader2 } from 'lucide-react';
+import {
+  Bot,
+  MessageSquare,
+  Copy,
+  ArrowDownToLine,
+  Loader2,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SplitButton } from './SplitButton';
 
@@ -8,7 +15,7 @@ interface AssistantNoteProps {
   suggestion?: string | null;
   isLoading?: boolean;
   error?: Error | null;
-  onRegenerate?: () => void;
+  onRegenerate?: (additionalInstructions?: string) => void;
   onInsertNote?: (content: string) => void;
 }
 
@@ -236,6 +243,27 @@ const ErrorState = styled.div`
   color: ${({ theme }) => theme.colors.status.error};
 `;
 
+const InstructionsInput = styled.input`
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.primary};
+  background: ${({ theme }) => theme.colors.bg.overlay};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  outline: none;
+  transition: border-color ${({ theme }) => theme.transitions.fast};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.accent.main};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.text.muted};
+  }
+`;
+
 export function AssistantNote({
   suggestion,
   isLoading = false,
@@ -243,6 +271,16 @@ export function AssistantNote({
   onRegenerate,
   onInsertNote,
 }: AssistantNoteProps) {
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructions, setInstructions] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showInstructions && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [showInstructions]);
+
   const handleCopy = async () => {
     if (!suggestion) return;
     try {
@@ -261,6 +299,21 @@ export function AssistantNote({
     onRegenerate?.();
   };
 
+  const handleRightClick = () => {
+    setShowInstructions((prev) => !prev);
+  };
+
+  const handleInstructionsKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === 'Enter' && !isLoading) {
+      const trimmedInstructions = instructions.trim();
+      onRegenerate?.(trimmedInstructions || undefined);
+      setInstructions('');
+      setShowInstructions(false);
+    }
+  };
+
   const hasSuggestion = suggestion != null && suggestion.length > 0;
   const showEmptyState = !hasSuggestion && !isLoading && !error;
 
@@ -276,14 +329,31 @@ export function AssistantNote({
           <NoteTitle>AI Assistant</NoteTitle>
           <SplitButton
             rightSlot={
-              isLoading ? <SpinnerIcon size={14} /> : <MessageSquare size={14} />
+              isLoading ? (
+                <SpinnerIcon size={14} />
+              ) : (
+                <MessageSquare size={14} />
+              )
             }
             onClick={handleRegenerate}
+            onRightClick={handleRightClick}
             disabled={isLoading}
           >
             {isLoading ? 'Generating...' : 'Regenerate'}
           </SplitButton>
         </NoteHeader>
+
+        {showInstructions && (
+          <InstructionsInput
+            ref={inputRef}
+            type="text"
+            placeholder="Additional instructions for the AI..."
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            onKeyDown={handleInstructionsKeyDown}
+            disabled={isLoading}
+          />
+        )}
 
         {isLoading && (
           <LoadingState>
@@ -293,14 +363,13 @@ export function AssistantNote({
         )}
 
         {error && !isLoading && (
-          <ErrorState>
-            Failed to generate note: {error.message}
-          </ErrorState>
+          <ErrorState>Failed to generate note: {error.message}</ErrorState>
         )}
 
         {showEmptyState && (
           <EmptyState>
-            No note has been generated yet. Click Regenerate to create an AI-powered note suggestion.
+            No note has been generated yet. Click Regenerate to create an
+            AI-powered note suggestion.
           </EmptyState>
         )}
 

@@ -18,6 +18,7 @@ class LLMProviderBase:
         transcript: str,
         context: str,
         existing_notes: str,
+        additional_instructions: Optional[str] = None,
     ) -> str:
         """Generate a note suggestion from the given inputs.
 
@@ -26,6 +27,7 @@ class LLMProviderBase:
             transcript: The transcript text for the version.
             context: Version context (entity name, task, status, etc.).
             existing_notes: Any notes the user has already written.
+            additional_instructions: Optional additional instructions to append.
 
         Returns:
             The generated note suggestion.

@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import styled from 'styled-components';
-import { Dialog, Button, Checkbox, Text, TextArea, Flex, Tooltip } from '@radix-ui/themes';
+import {
+  Dialog,
+  Button,
+  Checkbox,
+  Text,
+  TextArea,
+  Flex,
+  Tooltip,
+} from '@radix-ui/themes';
 import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UserSettings, UserSettingsUpdate } from '@dna/core';

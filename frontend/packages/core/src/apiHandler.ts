@@ -245,11 +245,14 @@ class ApiHandler {
     );
   }
 
-  async generateNote(params: GenerateNoteParams): Promise<GenerateNoteResponse> {
+  async generateNote(
+    params: GenerateNoteParams
+  ): Promise<GenerateNoteResponse> {
     return this.post<GenerateNoteResponse>('/generate-note', {
       playlist_id: params.playlistId,
       version_id: params.versionId,
       user_email: params.userEmail,
+      additional_instructions: params.additionalInstructions,
     });
   }
 }

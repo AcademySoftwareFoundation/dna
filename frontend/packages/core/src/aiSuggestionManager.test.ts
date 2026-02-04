@@ -42,7 +42,9 @@ describe('AISuggestionManager', () => {
 
   describe('generateSuggestion', () => {
     it('calls API and updates state on success', async () => {
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         suggestion: 'Generated note',
         prompt: 'Test prompt',
         context: 'Test context',
@@ -60,19 +62,33 @@ describe('AISuggestionManager', () => {
     });
 
     it('sets loading state during API call', async () => {
-      let resolvePromise: (value: { suggestion: string; prompt: string; context: string }) => void;
-      const promise = new Promise<{ suggestion: string; prompt: string; context: string }>((resolve) => {
+      let resolvePromise: (value: {
+        suggestion: string;
+        prompt: string;
+        context: string;
+      }) => void;
+      const promise = new Promise<{
+        suggestion: string;
+        prompt: string;
+        context: string;
+      }>((resolve) => {
         resolvePromise = resolve;
       });
 
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockReturnValue(promise);
+      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockReturnValue(
+        promise
+      );
 
       const stateChanges: boolean[] = [];
       manager.onStateChange((_, __, state) => {
         stateChanges.push(state.isLoading);
       });
 
-      const generatePromise = manager.generateSuggestion(1, 1, 'test@example.com');
+      const generatePromise = manager.generateSuggestion(
+        1,
+        1,
+        'test@example.com'
+      );
 
       expect(stateChanges).toContain(true);
 
@@ -84,7 +100,9 @@ describe('AISuggestionManager', () => {
 
     it('captures error in state on API failure', async () => {
       const error = new Error('API Error');
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockRejectedValue(error);
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockRejectedValue(error);
 
       await expect(
         manager.generateSuggestion(1, 1, 'test@example.com')
@@ -98,7 +116,9 @@ describe('AISuggestionManager', () => {
 
   describe('clearSuggestion', () => {
     it('clears suggestion and error', async () => {
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         suggestion: 'Note',
         prompt: 'Test prompt',
         context: 'Test context',
@@ -115,7 +135,9 @@ describe('AISuggestionManager', () => {
 
   describe('onStateChange', () => {
     it('notifies listeners on state changes', async () => {
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         suggestion: 'Note',
         prompt: 'Test prompt',
         context: 'Test context',
@@ -137,7 +159,9 @@ describe('AISuggestionManager', () => {
     });
 
     it('unsubscribes correctly', async () => {
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         suggestion: 'Note',
         prompt: 'Test prompt',
         context: 'Test context',
@@ -158,7 +182,9 @@ describe('AISuggestionManager', () => {
     it('debounces API calls', async () => {
       vi.useFakeTimers();
 
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         suggestion: 'Note',
         prompt: 'Test prompt',
         context: 'Test context',
@@ -180,7 +206,9 @@ describe('AISuggestionManager', () => {
 
   describe('destroy', () => {
     it('clears all state and listeners', async () => {
-      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
         suggestion: 'Note',
         prompt: 'Test prompt',
         context: 'Test context',

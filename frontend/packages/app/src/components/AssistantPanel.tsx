@@ -66,11 +66,12 @@ export function AssistantPanel({
   userEmail,
   onInsertNote,
 }: AssistantPanelProps) {
-  const { suggestion, prompt, context, isLoading, error, regenerate } = useAISuggestion({
-    playlistId: playlistId ?? null,
-    versionId: versionId ?? null,
-    userEmail: userEmail ?? null,
-  });
+  const { suggestion, prompt, context, isLoading, error, regenerate } =
+    useAISuggestion({
+      playlistId: playlistId ?? null,
+      versionId: versionId ?? null,
+      userEmail: userEmail ?? null,
+    });
 
   return (
     <PanelWrapper>
