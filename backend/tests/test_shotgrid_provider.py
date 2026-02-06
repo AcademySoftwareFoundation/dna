@@ -65,7 +65,7 @@ class TestShotgridProviderRefactor:
                 "https://test.shotgunstudio.com",
                 "test_script",
                 "test_key",
-                sudo_user="admin",
+                sudo_as_login="admin",
             )
             assert provider.sudo_user == "admin"
 
@@ -81,7 +81,7 @@ class TestShotgridProviderRefactor:
             "https://test.shotgunstudio.com",
             "test_script",
             "test_key",
-            sudo_user="new_admin",
+            sudo_as_login="new_admin",
         )
 
     def test_sudo_context_manager(self, provider, mock_shotgun):
@@ -102,7 +102,7 @@ class TestShotgridProviderRefactor:
                 "https://test.shotgunstudio.com",
                 "test_script",
                 "test_key",
-                sudo_user="temp_user",
+                sudo_as_login="temp_user",
             )
 
             # Verify logic uses _sg (mocked Find call)
