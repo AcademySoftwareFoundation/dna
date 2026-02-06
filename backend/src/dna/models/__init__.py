@@ -33,7 +33,6 @@ from dna.models.requests import (
     FilterCondition,
     FindRequest,
     GenerateNoteRequest,
-    GenerateNoteRequest,
     GenerateNoteResponse,
     PublishNotesRequest,
     PublishNotesResponse,

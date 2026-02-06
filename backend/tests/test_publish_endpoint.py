@@ -5,10 +5,10 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
+from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 from dna.models.draft_note import DraftNote
 from dna.models.requests import PublishNotesRequest
-from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 
 class TestPublishNotesEndpoint:
