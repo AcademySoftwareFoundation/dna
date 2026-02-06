@@ -77,13 +77,10 @@ __all__ = [
     "FindRequest",
     "GenerateNoteRequest",
     "GenerateNoteResponse",
-<<<<<<< HEAD
     "SearchRequest",
     "SearchResult",
-=======
     "PublishNotesRequest",
     "PublishNotesResponse",
->>>>>>> 9de213f (feat(backend): implement note publishing to ShotGrid)
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",
