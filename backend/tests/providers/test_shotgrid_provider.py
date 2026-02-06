@@ -62,14 +62,12 @@ def test_connect_creates_shotgun_instance():
             url="https://test.shotgunstudio.com",
             script_name="test_script",
             api_key="test_key",
-            connect=True,
-            sudo_as_login="admin",
+            connect=True
         )
         mock_shotgun.assert_called_once_with(
             "https://test.shotgunstudio.com",
             "test_script",
-            "test_key",
-            sudo_as_login="admin",
+            "test_key"
         )
         assert provider.sg == mock_shotgun.return_value
 
