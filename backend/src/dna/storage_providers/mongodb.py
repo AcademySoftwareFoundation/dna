@@ -113,7 +113,7 @@ class MongoDBStorageProvider(StorageProviderBase):
             "version_id": version_id,
         }
         if "published" not in update_data:
-            set_on_insert["published"] = False
+            update_data["published"] = False
 
         update: dict[str, Any] = {
             "$set": {**update_data, "updated_at": now},
