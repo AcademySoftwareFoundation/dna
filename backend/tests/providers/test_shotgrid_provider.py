@@ -63,6 +63,7 @@ def test_connect_creates_shotgun_instance():
             script_name="test_script",
             api_key="test_key",
             connect=True,
+            sudo_as_login="admin",
         )
         mock_shotgun.assert_called_once_with(
             "https://test.shotgunstudio.com",
