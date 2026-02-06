@@ -600,6 +600,7 @@ class TestMongoDBStorageProvider:
         result = await provider_with_mock.delete_draft_note("user@example.com", 10, 100)
 
         assert result is False
+
     @pytest.mark.anyio
     async def test_upsert_draft_note_resets_published_flag(
         self, provider_with_mock, mock_collection
@@ -627,7 +628,7 @@ class TestMongoDBStorageProvider:
 
         # Update without specifying published status
         update_data = DraftNoteUpdate(content="New content")
-        
+
         await provider_with_mock.upsert_draft_note(
             "user@example.com", 10, 100, update_data
         )
@@ -635,7 +636,7 @@ class TestMongoDBStorageProvider:
         # Check the update call arguments
         call_args = mock_collection.find_one_and_update.call_args
         _, update_arg = call_args[0]  # query is first arg, update is second
-        
+
         # Verify published: False is in the $set dictionary
         assert "published" in update_arg["$set"]
         assert update_arg["$set"]["published"] is False

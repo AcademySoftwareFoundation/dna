@@ -704,7 +704,6 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return versions
 
-
     def publish_note(
         self,
         version_id: int,
@@ -755,9 +754,11 @@ class ShotgridProvider(ProdtrackProviderBase):
             ["subject", "is", subject],
             ["content", "is", content],
         ]
-        
+
         # Use find_one for efficiency, we just need to know if ANY exists
-        existing_note = self._sg.find_one("Note", filters=duplicate_filters, fields=["id"])
+        existing_note = self._sg.find_one(
+            "Note", filters=duplicate_filters, fields=["id"]
+        )
         if existing_note:
             return existing_note["id"]
 
@@ -793,7 +794,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             except ValueError:
                 # Author not found in SG, fallback to default user? or fail?
                 # Ideally we log a warning but proceed as current user (or default API user)
-                # But requirements say "Author attribution". 
+                # But requirements say "Author attribution".
                 # If we proceed without sudo, the note is created by API user.
                 pass
 

@@ -22,9 +22,7 @@ class StorageProviderBase:
         """Get all draft notes for a playlist/version (all users)."""
         raise NotImplementedError()
 
-    async def get_draft_notes_for_playlist(
-        self, playlist_id: int
-    ) -> list["DraftNote"]:
+    async def get_draft_notes_for_playlist(self, playlist_id: int) -> list["DraftNote"]:
         """Get all draft notes for a playlist (all users, all versions)."""
         raise NotImplementedError()
 

@@ -94,6 +94,7 @@ class SearchResult(BaseModel):
         default=None, description="Project reference (for project-scoped entities)"
     )
 
+
 class PublishNotesRequest(BaseModel):
     """Request model for publishing draft notes."""
 

@@ -33,4 +33,3 @@ except ImportError:
     mock_bson = MagicMock()
     mock_bson.ObjectId = lambda: "mock_object_id"
     sys.modules["bson"] = mock_bson
-

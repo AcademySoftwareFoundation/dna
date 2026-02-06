@@ -71,9 +71,7 @@ class MongoDBStorageProvider(StorageProviderBase):
             results.append(DraftNote(**doc))
         return results
 
-    async def get_draft_notes_for_playlist(
-        self, playlist_id: int
-    ) -> list[DraftNote]:
+    async def get_draft_notes_for_playlist(self, playlist_id: int) -> list[DraftNote]:
         """Get all draft notes for a playlist (all users, all versions)."""
         query = {"playlist_id": playlist_id}
         cursor = self.draft_notes.find(query)

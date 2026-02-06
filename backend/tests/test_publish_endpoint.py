@@ -35,7 +35,9 @@ class TestPublishNotesEndpoint:
         yield
         app.dependency_overrides.clear()
 
-    def test_publish_notes_success(self, client, mock_storage, mock_prodtrack, override_deps):
+    def test_publish_notes_success(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
         """Test successful publishing of notes."""
         # Setup mock data
         draft_note = DraftNote(
@@ -47,7 +49,7 @@ class TestPublishNotesEndpoint:
             subject="Test subject",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
-            published=False
+            published=False,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [draft_note]
         mock_prodtrack.publish_note.return_value = 500
@@ -55,7 +57,7 @@ class TestPublishNotesEndpoint:
         # Execute request
         response = client.post(
             "/playlists/100/publish-notes",
-            json={"user_email": "user@example.com", "include_others": False}
+            json={"user_email": "user@example.com", "include_others": False},
         )
 
         # Verify response
@@ -63,14 +65,14 @@ class TestPublishNotesEndpoint:
         data = response.json()
         assert data["published_count"] == 1
         assert data["total"] == 1
-        
+
         # Verify provider called
         mock_prodtrack.publish_note.assert_called_once()
         args = mock_prodtrack.publish_note.call_args[1]
         assert args["version_id"] == 101
         assert args["content"] == "Test note"
         assert args["author_email"] == "user@example.com"
-        
+
         # Verify storage update
         mock_storage.upsert_draft_note.assert_called_once()
         call_args = mock_storage.upsert_draft_note.call_args
@@ -78,7 +80,9 @@ class TestPublishNotesEndpoint:
         assert call_args[1]["data"].published is True
         assert call_args[1]["data"].published_note_id == 500
 
-    def test_publish_notes_skips_published(self, client, mock_storage, mock_prodtrack, override_deps):
+    def test_publish_notes_skips_published(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
         """Test skipping already published notes."""
         published_note = DraftNote(
             _id="note2",
@@ -89,23 +93,25 @@ class TestPublishNotesEndpoint:
             subject="Sub",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
-            published=True # ALREADY PUBLISHED
+            published=True,  # ALREADY PUBLISHED
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [published_note]
 
         response = client.post(
             "/playlists/100/publish-notes",
-            json={"user_email": "user@example.com", "include_others": False}
+            json={"user_email": "user@example.com", "include_others": False},
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["published_count"] == 0
-        assert data["total"] == 0 # because filtered out
-        
+        assert data["total"] == 0  # because filtered out
+
         mock_prodtrack.publish_note.assert_not_called()
 
-    def test_publish_notes_filters_users(self, client, mock_storage, mock_prodtrack, override_deps):
+    def test_publish_notes_filters_users(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
         """Test filtering users unless include_others is True."""
         other_note = DraftNote(
             _id="note3",
@@ -122,15 +128,15 @@ class TestPublishNotesEndpoint:
         # 1. include_others = False
         response = client.post(
             "/playlists/100/publish-notes",
-            json={"user_email": "user@example.com", "include_others": False}
+            json={"user_email": "user@example.com", "include_others": False},
         )
         data = response.json()
         assert data["published_count"] == 0
-        
+
         # 2. include_others = True
         response = client.post(
             "/playlists/100/publish-notes",
-            json={"user_email": "user@example.com", "include_others": True}
+            json={"user_email": "user@example.com", "include_others": True},
         )
         data = response.json()
         assert data["published_count"] == 1

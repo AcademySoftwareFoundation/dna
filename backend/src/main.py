@@ -556,7 +556,7 @@ async def publish_notes(
     for note in all_draft_notes:
         if note.published:
             continue
-        
+
         # specific user check
         if not request.include_others and note.user_email != request.user_email:
             continue
@@ -567,7 +567,7 @@ async def publish_notes(
     published_count = 0
     failed_count = 0
     skipped_count = 0
-    
+
     from datetime import datetime, timezone
 
     for note in notes_to_publish:
@@ -579,40 +579,40 @@ async def publish_notes(
                     model_class = ENTITY_MODELS.get(link.entity_type)
                     if model_class:
                         links.append(model_class(id=link.entity_id))
-            
+
             # Ensure playlist is included in links
             playlist_link_exists = any(
                 isinstance(l, Playlist) and l.id == playlist_id for l in links
             )
             if not playlist_link_exists:
                 links.append(_create_stub_entity("Playlist", playlist_id))
-            
+
             note_id = prodtrack.publish_note(
                 version_id=note.version_id,
                 content=note.content,
                 subject=note.subject,
-                to_users=[], # TODO: Parse to/cc
-                cc_users=[], 
+                to_users=[],  # TODO: Parse to/cc
+                cc_users=[],
                 links=links,
                 author_email=note.user_email,
             )
-            
+
             # Update draft note as published
             update_data = DraftNoteUpdate(
                 published=True,
                 published_at=datetime.now(timezone.utc),
-                published_note_id=note_id
+                published_note_id=note_id,
             )
-            
+
             await storage.upsert_draft_note(
                 user_email=note.user_email,
                 playlist_id=note.playlist_id,
                 version_id=note.version_id,
-                data=update_data
+                data=update_data,
             )
-            
+
             published_count += 1
-            
+
         except Exception as e:
             print(f"Failed to publish note {note.id}: {e}")
             failed_count += 1
@@ -621,7 +621,7 @@ async def publish_notes(
         published_count=published_count,
         skipped_count=skipped_count,
         failed_count=failed_count,
-        total=len(notes_to_publish)
+        total=len(notes_to_publish),
     )
 
 

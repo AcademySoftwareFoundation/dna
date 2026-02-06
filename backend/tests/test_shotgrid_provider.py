@@ -73,9 +73,9 @@ class TestShotgridProviderRefactor:
         """Test that set_sudo_user updates sudo_user and reconnects."""
         # Reset mock to clear init call
         mock_shotgun.reset_mock()
-        
+
         provider.set_sudo_user("new_admin")
-        
+
         assert provider.sudo_user == "new_admin"
         mock_shotgun.assert_called_once_with(
             "https://test.shotgunstudio.com",
@@ -88,7 +88,7 @@ class TestShotgridProviderRefactor:
         """Test that sudo context manager temporarily switches user."""
         # Main connection
         assert provider._sg == provider.sg
-        
+
         # Reset mock to clear previous calls
         mock_shotgun.reset_mock()
 
@@ -96,7 +96,7 @@ class TestShotgridProviderRefactor:
             # Inside context, _sg should be the temporary connection
             assert provider._sg != provider.sg
             assert provider._sudo_connection is not None
-            
+
             # Verify temporary connection was created with correct user
             mock_shotgun.assert_called_with(
                 "https://test.shotgunstudio.com",
@@ -104,7 +104,7 @@ class TestShotgridProviderRefactor:
                 "test_key",
                 sudo_user="temp_user",
             )
-            
+
             # Verify logic uses _sg (mocked Find call)
             provider._sg.find.return_value = []
             provider.find("shot", [])
@@ -117,13 +117,13 @@ class TestShotgridProviderRefactor:
     def test_sudo_context_manager_nested_or_exception(self, provider, mock_shotgun):
         """Test sudo context manager cleanup on exception."""
         original_sg = provider.sg
-        
+
         try:
             with provider.sudo("error_user"):
                 raise ValueError("Oops")
         except ValueError:
             pass
-            
+
         # Should cleanly revert
         assert provider._sg == original_sg
         assert provider._sudo_connection is None
@@ -133,7 +133,7 @@ class TestShotgridProviderRefactor:
         # Setup mocks
         mock_sg_instance = mock_shotgun.return_value
         provider._sg = mock_sg_instance
-        
+
         # Mock version find
         mock_sg_instance.find_one.side_effect = [
             # 1. Version lookup
@@ -142,9 +142,9 @@ class TestShotgridProviderRefactor:
             None,
             # 3. User lookup (if applicable) - skipped if email is None
         ]
-        
+
         mock_sg_instance.create.return_value = {"id": 200}
-        
+
         # Execute
         note_id = provider.publish_note(
             version_id=101,
@@ -154,7 +154,7 @@ class TestShotgridProviderRefactor:
             cc_users=[],
             links=[],
         )
-        
+
         assert note_id == 200
         mock_sg_instance.create.assert_called_once()
         call_args = mock_sg_instance.create.call_args
@@ -168,14 +168,14 @@ class TestShotgridProviderRefactor:
         """Test publish_note returns existing ID if duplicate found."""
         mock_sg_instance = mock_shotgun.return_value
         provider._sg = mock_sg_instance
-        
+
         mock_sg_instance.find_one.side_effect = [
             # 1. Version lookup
             {"id": 101, "project": {"type": "Project", "id": 1}},
             # 2. Duplicate check (Finds existing)
             {"id": 999},
         ]
-        
+
         note_id = provider.publish_note(
             version_id=101,
             content="Check",
@@ -184,7 +184,7 @@ class TestShotgridProviderRefactor:
             cc_users=[],
             links=[],
         )
-        
+
         assert note_id == 999
         mock_sg_instance.create.assert_not_called()
 
@@ -195,30 +195,30 @@ class TestShotgridProviderRefactor:
         # provider._sg accesses self._sudo_connection or self.sg.
         # self.sg comes from init.
         # We need to ensure logic flow works.
-        
+
         # Mock find calls
         # We need flexible side_effect because sudo() might trigger new Shotgun() calls
-        
+
         # Let's mock the main connection's methods
         provider.sg.find_one.side_effect = [
-             # 1. Version lookup (main conn)
+            # 1. Version lookup (main conn)
             {"id": 101, "project": {"type": "Project", "id": 1}},
-             # 2. Duplicate check (main conn)
+            # 2. Duplicate check (main conn)
             None,
         ]
-        
+
         # Mock get_user_by_email
         with mock.patch.object(provider, "get_user_by_email") as mock_get_user:
             mock_user = mock.Mock()
             mock_user.login = "author_login"
             mock_get_user.return_value = mock_user
-            
+
             # Use real sudo logic which creates new Shotgun instance
             # We want to verify that create is called on the NEW instance
-            
+
             # Because sudo context manager instantiates Shotgun(), mock_shotgun (the class) will be called again.
             # We need to capture that instance.
-            
+
             note_id = provider.publish_note(
                 version_id=101,
                 content="C",
@@ -226,15 +226,14 @@ class TestShotgridProviderRefactor:
                 to_users=[],
                 cc_users=[],
                 links=[],
-                author_email="auth@ex.com"
+                author_email="auth@ex.com",
             )
-            
+
             # verify sudo call
             # mock_shotgun was called for init, then for sudo.
-             # last call to Shotgun class should have sudo_user='author_login'
+            # last call to Shotgun class should have sudo_user='author_login'
             assert mock_shotgun.call_args[1]["sudo_user"] == "author_login"
-            
+
             # Verify create called on the returned instance
             sudo_instance = mock_shotgun.return_value
             sudo_instance.create.assert_called()
-
