@@ -46,7 +46,7 @@ class TestShotgridProviderRefactor:
                 "https://test.shotgunstudio.com",
                 "test_script",
                 "test_key",
-                sudo_user=None,
+                sudo_as_login=None,
             )
             assert provider.sg is not None
 
@@ -88,6 +88,11 @@ class TestShotgridProviderRefactor:
         """Test that sudo context manager temporarily switches user."""
         # Main connection
         assert provider._sg == provider.sg
+
+        # Configure mock_shotgun to return valid mocks that are different
+        # We need this because provider.sudo() creates a NEW Shotgun instance
+        # and we leverage that reference equality to check if we switched connections
+        mock_shotgun.side_effect = [mock.MagicMock(), mock.MagicMock()]
 
         # Reset mock to clear previous calls
         mock_shotgun.reset_mock()
@@ -132,7 +137,7 @@ class TestShotgridProviderRefactor:
         """Test publish_note creates a note with correct data."""
         # Setup mocks
         mock_sg_instance = mock_shotgun.return_value
-        provider._sg = mock_sg_instance
+        provider.sg = mock_sg_instance
 
         # Mock version find
         mock_sg_instance.find_one.side_effect = [
@@ -167,7 +172,7 @@ class TestShotgridProviderRefactor:
     def test_publish_note_handles_duplicate(self, provider, mock_shotgun):
         """Test publish_note returns existing ID if duplicate found."""
         mock_sg_instance = mock_shotgun.return_value
-        provider._sg = mock_sg_instance
+        provider.sg = mock_sg_instance
 
         mock_sg_instance.find_one.side_effect = [
             # 1. Version lookup
@@ -231,8 +236,8 @@ class TestShotgridProviderRefactor:
 
             # verify sudo call
             # mock_shotgun was called for init, then for sudo.
-            # last call to Shotgun class should have sudo_user='author_login'
-            assert mock_shotgun.call_args[1]["sudo_user"] == "author_login"
+            # last call to Shotgun class should have sudo_as_login='author_login'
+            assert mock_shotgun.call_args[1]["sudo_as_login"] == "author_login"
 
             # Verify create called on the returned instance
             sudo_instance = mock_shotgun.return_value
