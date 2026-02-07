@@ -66,7 +66,10 @@ def test_connect_creates_shotgun_instance():
             sudo_user=None,
         )
         mock_shotgun.assert_called_once_with(
-            "https://test.shotgunstudio.com", "test_script", "test_key", sudo_as_login=None
+            "https://test.shotgunstudio.com",
+            "test_script",
+            "test_key",
+            sudo_as_login=None,
         )
         assert provider.sg == mock_shotgun.return_value
 
