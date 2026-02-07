@@ -8,6 +8,7 @@ services:
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
+      - GEMINI_API_KEY=your-gemini-api-key
 
   worker:
     environment:
