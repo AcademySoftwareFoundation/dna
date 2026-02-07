@@ -37,6 +37,8 @@ services:
       - SHOTGRID_SCRIPT_NAME=your-script-name
       - VEXA_API_KEY=your-vexa-api-key
       - OPENAI_API_KEY=your-openai-api-key
+      - GEMINI_API_KEY=your-gemini-api-key
+      - LLM_PROVIDER=openai  # or 'gemini'
 
   worker:
     environment:
@@ -95,10 +97,14 @@ The React app will be available at `http://localhost:5173`.
 | `RABBITMQ_URL` | No | `amqp://dna:dna@rabbitmq:5672/dna` | RabbitMQ connection string |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
 | `VEXA_API_URL` | No | `http://vexa:8056` | Vexa REST API URL |
-| `OPENAI_API_KEY` | Yes | - | OpenAI API key for LLM features |
+| `OPENAI_API_KEY` | Yes* | - | OpenAI API key for LLM features |
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
-| `LLM_PROVIDER` | No | `openai` | LLM provider (openai) |
+| `GEMINI_API_KEY` | Yes* | - | Gemini API key for LLM features |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model to use |
+| `LLM_PROVIDER` | No | `openai` | LLM provider (`openai` or `gemini`) |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
+
+*Only the API key for your chosen `LLM_PROVIDER` is required.
 
 ### Worker (`worker` service)
 

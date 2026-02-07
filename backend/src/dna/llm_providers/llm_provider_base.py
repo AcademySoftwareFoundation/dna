@@ -48,4 +48,9 @@ def get_llm_provider() -> LLMProviderBase:
 
         return OpenAIProvider()
 
+    if provider_type == "gemini":
+        from dna.llm_providers.gemini_provider import GeminiProvider
+
+        return GeminiProvider()
+
     raise ValueError(f"Unknown LLM provider: {provider_type}")
