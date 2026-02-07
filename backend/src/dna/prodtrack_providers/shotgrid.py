@@ -14,7 +14,10 @@ from dna.models.entity import (
     User,
     Version,
 )
-from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBase
+from dna.prodtrack_providers.prodtrack_provider_base import (
+    ProdtrackProviderBase,
+    UserNotFoundError,
+)
 
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
@@ -791,12 +794,11 @@ class ShotgridProvider(ProdtrackProviderBase):
                 author_user = self.get_user_by_email(author_email)
                 if author_user and author_user.login:
                     author_login = author_user.login
-            except ValueError:
-                # Author not found in SG, fallback to default user? or fail?
-                # Ideally we log a warning but proceed as current user (or default API user)
-                # But requirements say "Author attribution".
-                # If we proceed without sudo, the note is created by API user.
-                pass
+            except ValueError as e:
+                # Wrap the ValueError in a specific UserNotFoundError
+                raise UserNotFoundError(
+                    f"Author not found in ShotGrid: {author_email}"
+                ) from e
 
         if author_login:
             with self.sudo(author_login):

@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 from shotgun_api3 import Shotgun
 
+from dna.prodtrack_providers.prodtrack_provider_base import UserNotFoundError
 from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
 
@@ -221,9 +222,6 @@ class TestShotgridProviderRefactor:
             # Use real sudo logic which creates new Shotgun instance
             # We want to verify that create is called on the NEW instance
 
-            # Because sudo context manager instantiates Shotgun(), mock_shotgun (the class) will be called again.
-            # We need to capture that instance.
-
             note_id = provider.publish_note(
                 version_id=101,
                 content="C",
@@ -242,3 +240,38 @@ class TestShotgridProviderRefactor:
             # Verify create called on the returned instance
             sudo_instance = mock_shotgun.return_value
             sudo_instance.create.assert_called()
+
+    def test_publish_note_raises_error_when_author_not_found(
+        self, provider, mock_shotgun
+    ):
+        """Test publish_note raises error when author email is not found."""
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+
+        # Mock find calls
+        provider.sg.find_one.side_effect = [
+            # 1. Version lookup
+            {"id": 101, "project": {"type": "Project", "id": 1}},
+            # 2. Duplicate check (None = no duplicate)
+            None,
+            # 3. User lookup (raising ValueError)
+        ]
+
+        # Mock get_user_by_email to raise ValueError
+        with mock.patch.object(provider, "get_user_by_email") as mock_get_user:
+            mock_get_user.side_effect = ValueError("User not found")
+
+            # Expect UserNotFoundError (which wraps the ValueError)
+            with pytest.raises(
+                UserNotFoundError,
+                match="Author not found in ShotGrid: unknown@example.com",
+            ):
+                provider.publish_note(
+                    version_id=101,
+                    content="Test",
+                    subject="Test",
+                    to_users=[],
+                    cc_users=[],
+                    links=[],
+                    author_email="unknown@example.com",
+                )

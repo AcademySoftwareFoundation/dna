@@ -5,6 +5,12 @@ if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
 
 
+class UserNotFoundError(Exception):
+    """Raised when a user is not found in the production tracking system."""
+
+    pass
+
+
 class ProdtrackProviderBase:
     def __init__(self):
         pass
