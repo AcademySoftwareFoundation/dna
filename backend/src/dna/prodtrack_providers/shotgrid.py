@@ -651,8 +651,9 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return versions
 
-
-    def get_version_statuses(self, project_id: int | None = None) -> list[dict[str, str]]:
+    def get_version_statuses(
+        self, project_id: int | None = None
+    ) -> list[dict[str, str]]:
         """Get valid status values for Versions.
 
         Args:
@@ -678,10 +679,12 @@ class ShotgridProvider(ProdtrackProviderBase):
         display_values = properties.get("display_values", {}).get("value", {})
         statuses = []
         for code in valid_values:
-            statuses.append({
-                "code": code,
-                "name": display_values.get(code, code),
-            })
+            statuses.append(
+                {
+                    "code": code,
+                    "name": display_values.get(code, code),
+                }
+            )
 
         return statuses
 
