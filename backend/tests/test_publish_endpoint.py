@@ -124,6 +124,7 @@ class TestPublishNotesEndpoint:
             updated_at=datetime.now(timezone.utc),
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [other_note]
+        mock_prodtrack.publish_note.return_value = 500
 
         # 1. include_others = False
         response = client.post(
