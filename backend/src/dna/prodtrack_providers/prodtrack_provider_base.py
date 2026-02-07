@@ -115,6 +115,19 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def get_version_statuses(
+        self, project_id: int | None = None
+    ) -> list[dict[str, str]]:
+        """Get valid status values for Versions.
+
+        Args:
+            project_id: Optional project ID to scope status values
+
+        Returns:
+            List of status dicts with 'code' and 'name' keys
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
 
 def get_prodtrack_provider() -> ProdtrackProviderBase:
     """Get the production tracking provider."""
