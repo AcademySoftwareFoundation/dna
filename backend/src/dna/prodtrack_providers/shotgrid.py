@@ -652,6 +652,40 @@ class ShotgridProvider(ProdtrackProviderBase):
         return versions
 
 
+    def get_version_statuses(self, project_id: int | None = None) -> list[dict[str, str]]:
+        """Get valid status values for Versions.
+
+        Args:
+            project_id: Optional project ID to scope status values
+
+        Returns:
+            List of status dicts with 'code' and 'name' keys
+        """
+        if not self.sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        # Get schema for Version.sg_status_list field
+        schema = self.sg.schema_field_read("Version", "sg_status_list", project_id)
+
+        if not schema or "sg_status_list" not in schema:
+            return []
+
+        field_info = schema["sg_status_list"]
+        properties = field_info.get("properties", {})
+        valid_values = properties.get("valid_values", {}).get("value", [])
+
+        # Build list of status dicts
+        display_values = properties.get("display_values", {}).get("value", {})
+        statuses = []
+        for code in valid_values:
+            statuses.append({
+                "code": code,
+                "name": display_values.get(code, code),
+            })
+
+        return statuses
+
+
 def _get_dna_entity_type(sg_entity_type: str) -> str:
     """Get the DNA entity type from the ShotGrid entity type."""
     for entity_type, entity_data in FIELD_MAPPING.items():

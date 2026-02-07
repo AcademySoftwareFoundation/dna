@@ -1,5 +1,6 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useImperativeHandle, useMemo } from 'react';
 import styled from 'styled-components';
+import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
 import { useDraftNote } from '../hooks';
@@ -8,6 +9,9 @@ interface NoteEditorProps {
   playlistId?: number | null;
   versionId?: number | null;
   userEmail?: string | null;
+  projectId?: number | null;
+  /** Current version being reviewed */
+  currentVersion?: Version | null;
 }
 
 export interface NoteEditorHandle {
@@ -54,7 +58,10 @@ const EditorTitle = styled.h2`
 `;
 
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
-  function NoteEditor({ playlistId, versionId, userEmail }, ref) {
+  function NoteEditor(
+    { playlistId, versionId, userEmail, projectId, currentVersion },
+    ref
+  ) {
     const { draftNote, updateDraftNote } = useDraftNote({
       playlistId,
       versionId,
@@ -73,15 +80,35 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       [draftNote?.content, updateDraftNote]
     );
 
+    // Convert current version to SearchResult for locked entity in Links
+    const currentVersionAsSearchResult: SearchResult | undefined = useMemo(() => {
+      if (!currentVersion) return undefined;
+      return {
+        type: 'Version',
+        id: currentVersion.id,
+        name: currentVersion.name || `Version ${currentVersion.id}`,
+      };
+    }, [currentVersion]);
+
+    // Auto-populate version submitter as default To recipient
+    const versionSubmitter: SearchResult | undefined = useMemo(() => {
+      if (!currentVersion?.user) return undefined;
+      return {
+        type: 'User',
+        id: currentVersion.user.id,
+        name: currentVersion.user.name || '',
+      };
+    }, [currentVersion?.user]);
+
     const handleContentChange = (value: string) => {
       updateDraftNote({ content: value });
     };
 
-    const handleToChange = (value: string) => {
+    const handleToChange = (value: SearchResult[]) => {
       updateDraftNote({ to: value });
     };
 
-    const handleCcChange = (value: string) => {
+    const handleCcChange = (value: SearchResult[]) => {
       updateDraftNote({ cc: value });
     };
 
@@ -89,13 +116,22 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       updateDraftNote({ subject: value });
     };
 
-    const handleLinksChange = (value: string) => {
-      updateDraftNote({ linksText: value });
+    const handleLinksChange = (value: SearchResult[]) => {
+      updateDraftNote({ links: value });
     };
 
     const handleVersionStatusChange = (value: string) => {
       updateDraftNote({ versionStatus: value });
     };
+
+    // Auto-add version submitter to To if empty and submitter exists
+    const effectiveToValue = useMemo(() => {
+      const toValue = draftNote?.to ?? [];
+      if (toValue.length === 0 && versionSubmitter) {
+        return [versionSubmitter];
+      }
+      return toValue;
+    }, [draftNote?.to, versionSubmitter]);
 
     return (
       <EditorWrapper>
@@ -104,11 +140,13 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             <EditorTitle>New Note</EditorTitle>
           </TitleRow>
           <NoteOptionsInline
-            toValue={draftNote?.to ?? ''}
-            ccValue={draftNote?.cc ?? ''}
+            toValue={effectiveToValue}
+            ccValue={draftNote?.cc ?? []}
             subjectValue={draftNote?.subject ?? ''}
-            linksValue={draftNote?.linksText ?? ''}
+            linksValue={draftNote?.links ?? []}
             versionStatus={draftNote?.versionStatus ?? ''}
+            projectId={projectId ?? undefined}
+            currentVersion={currentVersionAsSearchResult}
             onToChange={handleToChange}
             onCcChange={handleCcChange}
             onSubjectChange={handleSubjectChange}

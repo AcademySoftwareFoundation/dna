@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DraftNote, DraftNoteUpdate } from '@dna/core';
+import { DraftNote, DraftNoteUpdate, SearchResult } from '@dna/core';
 import { apiHandler } from '../api';
 
 export interface LocalDraftNote {
   content: string;
   subject: string;
-  to: string;
-  cc: string;
-  linksText: string;
+  to: SearchResult[];
+  cc: SearchResult[];
+  links: SearchResult[];
   versionStatus: string;
 }
 
@@ -30,31 +30,61 @@ function createEmptyDraft(): LocalDraftNote {
   return {
     content: '',
     subject: '',
-    to: '',
-    cc: '',
-    linksText: '',
+    to: [],
+    cc: [],
+    links: [],
     versionStatus: '',
   };
 }
 
+// Parse JSON array from string, with fallback for legacy comma-separated format
+function parseEntitiesFromString(str: string): SearchResult[] {
+  if (!str) return [];
+  try {
+    const parsed = JSON.parse(str);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Fallback: treat as comma-separated names (legacy format)
+    // Can't recover full entity data, so return empty
+  }
+  return [];
+}
+
 function backendToLocal(note: DraftNote): LocalDraftNote {
+  // Convert links from DraftNoteLink[] to SearchResult[]
+  const links: SearchResult[] = (note.links || []).map((link) => ({
+    type: link.entity_type,
+    id: link.entity_id,
+    name: '', // Name not stored in backend, will need to be fetched or cached
+  }));
+
   return {
     content: note.content,
     subject: note.subject,
-    to: note.to,
-    cc: note.cc,
-    linksText: '',
+    to: parseEntitiesFromString(note.to),
+    cc: parseEntitiesFromString(note.cc),
+    links,
     versionStatus: note.version_status,
   };
 }
 
 function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
+  // Store to/cc as JSON strings to preserve entity data
+  const toJson = local.to.length > 0 ? JSON.stringify(local.to) : '';
+  const ccJson = local.cc.length > 0 ? JSON.stringify(local.cc) : '';
+
+  // Convert links to DraftNoteLink format
+  const links = local.links.map((entity) => ({
+    entity_type: entity.type,
+    entity_id: entity.id,
+  }));
+
   return {
     content: local.content,
     subject: local.subject,
-    to: local.to,
-    cc: local.cc,
-    links: [],
+    to: toJson,
+    cc: ccJson,
+    links,
     version_status: local.versionStatus,
   };
 }
