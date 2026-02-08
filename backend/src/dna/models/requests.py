@@ -93,3 +93,10 @@ class SearchResult(BaseModel):
     project: Optional[dict[str, Any]] = Field(
         default=None, description="Project reference (for project-scoped entities)"
     )
+
+
+class StatusOption(BaseModel):
+    """A status option from ShotGrid schema."""
+
+    code: str = Field(description="Status code (e.g., 'rev', 'apr', 'rej')")
+    name: str = Field(description="Display name (e.g., 'Pending Review', 'Approved')")
