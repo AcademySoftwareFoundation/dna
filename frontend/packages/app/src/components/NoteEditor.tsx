@@ -10,7 +10,6 @@ interface NoteEditorProps {
   versionId?: number | null;
   userEmail?: string | null;
   projectId?: number | null;
-  /** Current version being reviewed */
   currentVersion?: Version | null;
 }
 
@@ -100,28 +99,11 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       };
     }, [currentVersion?.user]);
 
-    const handleContentChange = (value: string) => {
-      updateDraftNote({ content: value });
-    };
-
-    const handleToChange = (value: SearchResult[]) => {
-      updateDraftNote({ to: value });
-    };
-
-    const handleCcChange = (value: SearchResult[]) => {
-      updateDraftNote({ cc: value });
-    };
-
-    const handleSubjectChange = (value: string) => {
-      updateDraftNote({ subject: value });
-    };
-
-    const handleLinksChange = (value: SearchResult[]) => {
-      updateDraftNote({ links: value });
-    };
-
-    const handleVersionStatusChange = (value: string) => {
-      updateDraftNote({ versionStatus: value });
+    const handleFieldChange = <K extends keyof NonNullable<typeof draftNote>>(
+      key: K,
+      value: NonNullable<typeof draftNote>[K]
+    ) => {
+      updateDraftNote({ [key]: value });
     };
 
     // Auto-add version submitter to To if empty and submitter exists
@@ -147,18 +129,18 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             versionStatus={draftNote?.versionStatus ?? ''}
             projectId={projectId ?? undefined}
             currentVersion={currentVersionAsSearchResult}
-            onToChange={handleToChange}
-            onCcChange={handleCcChange}
-            onSubjectChange={handleSubjectChange}
-            onLinksChange={handleLinksChange}
-            onVersionStatusChange={handleVersionStatusChange}
+            onToChange={(v) => handleFieldChange('to', v)}
+            onCcChange={(v) => handleFieldChange('cc', v)}
+            onSubjectChange={(v) => handleFieldChange('subject', v)}
+            onLinksChange={(v) => handleFieldChange('links', v)}
+            onVersionStatusChange={(v) => handleFieldChange('versionStatus', v)}
           />
         </EditorHeader>
 
         <EditorContent>
           <MarkdownEditor
             value={draftNote?.content ?? ''}
-            onChange={handleContentChange}
+            onChange={(v) => handleFieldChange('content', v)}
             placeholder="Write your notes here... (supports **markdown**)"
             minHeight={120}
           />

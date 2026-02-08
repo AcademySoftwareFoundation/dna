@@ -24,8 +24,5 @@ export {
 export { TranscriptionMenu } from './TranscriptionMenu';
 export { TranscriptPanel } from './TranscriptPanel';
 export { SettingsModal } from './SettingsModal';
-<<<<<<< Updated upstream
-=======
 export { EntityPill } from './EntityPill';
 export { EntitySearchInput } from './EntitySearchInput';
->>>>>>> Stashed changes
