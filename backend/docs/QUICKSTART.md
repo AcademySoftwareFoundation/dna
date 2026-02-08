@@ -106,6 +106,21 @@ The React app will be available at `http://localhost:5173`.
 
 *Only the API key for your chosen `LLM_PROVIDER` is required.
 
+#### Getting API Keys
+
+**OpenAI API Key:**
+1. Go to [platform.openai.com](https://platform.openai.com/)
+2. Sign in or create an account
+3. Navigate to **API Keys** in the left sidebar
+4. Click **Create new secret key** and copy it
+
+**Gemini API Key:**
+1. Go to [Google AI Studio](https://aistudio.google.com/)
+2. Sign in with your Google account
+3. Click **Get API Key** in the left sidebar
+4. Click **Create API Key** and select a Google Cloud project (or create one)
+5. Copy your API key
+
 ### Worker (`worker` service)
 
 | Variable | Required | Default | Description |

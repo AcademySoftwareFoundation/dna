@@ -38,23 +38,6 @@ class GeminiProvider(LLMProviderBase):
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
-    def _substitute_template(
-        self,
-        prompt: str,
-        transcript: str,
-        context: str,
-        existing_notes: str,
-    ) -> str:
-        """Substitute template placeholders in the prompt."""
-        result = prompt
-        result = result.replace("{{ transcript }}", transcript)
-        result = result.replace("{{transcript}}", transcript)
-        result = result.replace("{{ context }}", context)
-        result = result.replace("{{context}}", context)
-        result = result.replace("{{ notes }}", existing_notes)
-        result = result.replace("{{notes}}", existing_notes)
-        return result
-
     async def generate_note(
         self,
         prompt: str,
