@@ -5,11 +5,18 @@ services:
       - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
-      - VEXA_API_KEY=your-vexa-api-key
+      - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
 
   worker:
     environment:
-      - VEXA_API_KEY=your-vexa-api-key
+      - VEXA_API_KEY=****************
       - VEXA_API_URL=http://vexa:8056
+  
+  vexa:
+    environment:
+      # From https://staging.vexa.ai/dashboard/transcription
+      # More details: https://github.com/Vexa-ai/vexa/blob/main/docs/vexa-lite-deployment.md
+      - TRANSCRIBER_API_KEY=**********************
+      - TRANSCRIBER_URL=https://transcription.vexa.ai/v1/audio/transcriptions
