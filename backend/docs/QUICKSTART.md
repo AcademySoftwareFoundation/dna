@@ -37,6 +37,8 @@ services:
       - SHOTGRID_SCRIPT_NAME=your-script-name
       - VEXA_API_KEY=your-vexa-api-key
       - OPENAI_API_KEY=your-openai-api-key
+      - GEMINI_API_KEY=your-gemini-api-key
+      - LLM_PROVIDER=openai  # or 'gemini'
 
   worker:
     environment:
@@ -95,10 +97,29 @@ The React app will be available at `http://localhost:5173`.
 | `RABBITMQ_URL` | No | `amqp://dna:dna@rabbitmq:5672/dna` | RabbitMQ connection string |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
 | `VEXA_API_URL` | No | `http://vexa:8056` | Vexa REST API URL |
-| `OPENAI_API_KEY` | Yes | - | OpenAI API key for LLM features |
+| `OPENAI_API_KEY` | Yes* | - | OpenAI API key for LLM features |
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
-| `LLM_PROVIDER` | No | `openai` | LLM provider (openai) |
+| `GEMINI_API_KEY` | Yes* | - | Gemini API key for LLM features |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model to use |
+| `LLM_PROVIDER` | No | `openai` | LLM provider (`openai` or `gemini`) |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
+
+*Only the API key for your chosen `LLM_PROVIDER` is required.
+
+#### Getting API Keys
+
+**OpenAI API Key:**
+1. Go to [platform.openai.com](https://platform.openai.com/)
+2. Sign in or create an account
+3. Navigate to **API Keys** in the left sidebar
+4. Click **Create new secret key** and copy it
+
+**Gemini API Key:**
+1. Go to [Google AI Studio](https://aistudio.google.com/)
+2. Sign in with your Google account
+3. Click **Get API Key** in the left sidebar
+4. Click **Create API Key** and select a Google Cloud project (or create one)
+5. Copy your API key
 
 ### Worker (`worker` service)
 

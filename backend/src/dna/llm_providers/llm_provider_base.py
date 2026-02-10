@@ -12,6 +12,26 @@ class LLMProviderBase:
 
     DEFAULT_PROMPT = """Generate notes on the following conversation, notes that were taken, and context for the version. transcript: {{{{ transcript }}}}, context: {{{{ context }}}}, notes: {{{{ notes }}}}"""
 
+    def _substitute_template(
+        self,
+        prompt: str,
+        transcript: str,
+        context: str,
+        existing_notes: str,
+    ) -> str:
+        """Substitute template placeholders in the prompt.
+
+        Supports both spaced ({{ var }}) and non-spaced ({{var}}) placeholders.
+        """
+        result = prompt
+        result = result.replace("{{ transcript }}", transcript)
+        result = result.replace("{{transcript}}", transcript)
+        result = result.replace("{{ context }}", context)
+        result = result.replace("{{context}}", context)
+        result = result.replace("{{ notes }}", existing_notes)
+        result = result.replace("{{notes}}", existing_notes)
+        return result
+
     async def generate_note(
         self,
         prompt: str,
@@ -47,5 +67,10 @@ def get_llm_provider() -> LLMProviderBase:
         from dna.llm_providers.openai_provider import OpenAIProvider
 
         return OpenAIProvider()
+
+    if provider_type == "gemini":
+        from dna.llm_providers.gemini_provider import GeminiProvider
+
+        return GeminiProvider()
 
     raise ValueError(f"Unknown LLM provider: {provider_type}")
