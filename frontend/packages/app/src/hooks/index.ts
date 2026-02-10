@@ -40,3 +40,5 @@ export type {
   UseAISuggestionOptions,
   UseAISuggestionResult,
 } from './useAISuggestion';
+
+export { usePlaylistDraftNotes } from './usePlaylistDraftNotes';

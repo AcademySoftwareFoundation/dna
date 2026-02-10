@@ -373,3 +373,20 @@ export type AISuggestionStateChangeCallback = (
   versionId: number,
   state: AISuggestionState
 ) => void;
+
+export interface PublishNotesRequest {
+  user_email: string;
+  include_others: boolean;
+}
+
+export interface PublishNotesResponse {
+  published_count: number;
+  skipped_count: number;
+  failed_count: number;
+  total: number;
+}
+
+export interface PublishNotesParams {
+  playlistId: number;
+  request: PublishNotesRequest;
+}

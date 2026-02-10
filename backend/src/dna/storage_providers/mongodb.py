@@ -71,10 +71,23 @@ class MongoDBStorageProvider(StorageProviderBase):
             results.append(DraftNote(**doc))
         return results
 
+    async def get_draft_notes_for_playlist(self, playlist_id: int) -> list[DraftNote]:
+        """Get all draft notes for a playlist (all users, all versions)."""
+        query = {"playlist_id": playlist_id}
+        cursor = self.draft_notes.find(query)
+        results = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(DraftNote(**doc))
+        return results
+
     async def get_draft_note(
         self, user_email: str, playlist_id: int, version_id: int
     ) -> Optional[DraftNote]:
-        query = self._build_query(user_email, playlist_id, version_id)
+        query = {
+            **self._build_query(user_email, playlist_id, version_id),
+            "published": {"$ne": True},
+        }
         doc = await self.draft_notes.find_one(query)
         if doc:
             doc["_id"] = str(doc["_id"])
@@ -85,16 +98,24 @@ class MongoDBStorageProvider(StorageProviderBase):
         self, user_email: str, playlist_id: int, version_id: int, data: DraftNoteUpdate
     ) -> DraftNote:
         now = datetime.now(timezone.utc)
-        query = self._build_query(user_email, playlist_id, version_id)
+        query = {
+            **self._build_query(user_email, playlist_id, version_id),
+            "published": {"$ne": True},
+        }
+
+        update_data = data.model_dump(exclude_none=True)
+        set_on_insert = {
+            "created_at": now,
+            "user_email": user_email,
+            "playlist_id": playlist_id,
+            "version_id": version_id,
+        }
+        if "published" not in update_data:
+            update_data["published"] = False
 
         update: dict[str, Any] = {
-            "$set": {**data.model_dump(exclude_none=True), "updated_at": now},
-            "$setOnInsert": {
-                "created_at": now,
-                "user_email": user_email,
-                "playlist_id": playlist_id,
-                "version_id": version_id,
-            },
+            "$set": {**update_data, "updated_at": now},
+            "$setOnInsert": set_on_insert,
         }
         result = await self.draft_notes.find_one_and_update(
             query, update, upsert=True, return_document=ReturnDocument.AFTER

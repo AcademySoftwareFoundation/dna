@@ -346,7 +346,7 @@ class TestStorageProviderBase:
             with pytest.raises(ValueError, match="Unknown storage provider"):
                 get_storage_provider()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_base_class_methods_raise_not_implemented(self):
         """Test that base class methods raise NotImplementedError."""
         from dna.storage_providers.storage_provider_base import StorageProviderBase
@@ -436,7 +436,7 @@ class TestMongoDBStorageProvider:
         collection = provider_with_mock.draft_notes
         assert collection is mock_collection
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_draft_notes_for_version(
         self, provider_with_mock, mock_collection
     ):
@@ -501,7 +501,7 @@ class TestMongoDBStorageProvider:
             {"playlist_id": 10, "version_id": 100}
         )
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_draft_note_returns_note(
         self, provider_with_mock, mock_collection
     ):
@@ -531,7 +531,7 @@ class TestMongoDBStorageProvider:
         assert result.user_email == "user@example.com"
         assert result.content == "Test note"
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_get_draft_note_returns_none(
         self, provider_with_mock, mock_collection
     ):
@@ -542,7 +542,7 @@ class TestMongoDBStorageProvider:
 
         assert result is None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_upsert_draft_note(self, provider_with_mock, mock_collection):
         """Test upsert_draft_note creates or updates note."""
         from bson import ObjectId
@@ -575,7 +575,7 @@ class TestMongoDBStorageProvider:
         assert result.subject == "Updated subject"
         mock_collection.find_one_and_update.assert_called_once()
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_delete_draft_note_returns_true(
         self, provider_with_mock, mock_collection
     ):
@@ -588,7 +588,7 @@ class TestMongoDBStorageProvider:
 
         assert result is True
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_delete_draft_note_returns_false(
         self, provider_with_mock, mock_collection
     ):
@@ -600,3 +600,43 @@ class TestMongoDBStorageProvider:
         result = await provider_with_mock.delete_draft_note("user@example.com", 10, 100)
 
         assert result is False
+
+    @pytest.mark.anyio
+    async def test_upsert_draft_note_resets_published_flag(
+        self, provider_with_mock, mock_collection
+    ):
+        """Test that updating a note resets the published flag to False."""
+        from bson import ObjectId
+
+        now = datetime.now(timezone.utc)
+        mock_result = {
+            "_id": ObjectId(),
+            "user_email": "user@example.com",
+            "playlist_id": 10,
+            "version_id": 100,
+            "content": "New content",
+            "subject": "",
+            "to": "",
+            "cc": "",
+            "links": [],
+            "version_status": "",
+            "published": False,  # Expect it to be false
+            "updated_at": now,
+            "created_at": now,
+        }
+        mock_collection.find_one_and_update.return_value = mock_result
+
+        # Update without specifying published status
+        update_data = DraftNoteUpdate(content="New content")
+
+        await provider_with_mock.upsert_draft_note(
+            "user@example.com", 10, 100, update_data
+        )
+
+        # Check the update call arguments
+        call_args = mock_collection.find_one_and_update.call_args
+        _, update_arg = call_args[0]  # query is first arg, update is second
+
+        # Verify published: False is in the $set dictionary
+        assert "published" in update_arg["$set"]
+        assert update_arg["$set"]["published"] is False

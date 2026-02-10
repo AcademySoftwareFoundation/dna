@@ -101,6 +101,9 @@ export function useDraftNote({
       }),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKey, result);
+      queryClient.invalidateQueries({
+        queryKey: ['draftNotes', playlistId],
+      });
     },
   });
 

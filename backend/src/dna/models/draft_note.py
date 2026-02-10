@@ -4,6 +4,7 @@ Pydantic models for draft notes stored in the storage provider.
 """
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,6 +25,9 @@ class DraftNoteBase(BaseModel):
     cc: str = ""
     links: list[DraftNoteLink] = Field(default_factory=list)
     version_status: str = ""
+    published: bool = False
+    published_at: Optional[datetime] = None
+    published_note_id: Optional[int] = None
 
 
 class DraftNoteCreate(DraftNoteBase):
