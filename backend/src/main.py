@@ -27,6 +27,8 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    PublishNotesRequest,
+    PublishNotesResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -532,9 +534,115 @@ async def get_versions_for_playlist(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@app.post(
+    "/playlists/{playlist_id}/publish-notes",
+    tags=["Playlists"],
+    summary="Publish draft notes",
+    description="Publish draft notes to the production tracking system.",
+    response_model=PublishNotesResponse,
+)
+async def publish_notes(
+    playlist_id: int,
+    request: PublishNotesRequest,
+    storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
+) -> PublishNotesResponse:
+    """Publish draft notes to the production tracking system."""
+    # 1. Get all draft notes for this playlist
+    all_draft_notes = await storage.get_draft_notes_for_playlist(playlist_id)
+
+    # 2. Filter notes
+    notes_to_publish = []
+    for note in all_draft_notes:
+        if note.published:
+            continue
+
+        # specific user check
+        if not request.include_others and note.user_email != request.user_email:
+            continue
+
+        notes_to_publish.append(note)
+
+    # 3. Publish each note
+    published_count = 0
+    failed_count = 0
+    skipped_count = 0
+
+    from datetime import datetime, timezone
+
+    for note in notes_to_publish:
+        try:
+            # Get links
+            links = []
+            if note.links:
+                for link in note.links:
+                    model_class = ENTITY_MODELS.get(link.entity_type)
+                    if model_class:
+                        links.append(model_class(id=link.entity_id))
+
+            # Ensure playlist is included in links
+            playlist_link_exists = any(
+                isinstance(l, Playlist) and l.id == playlist_id for l in links
+            )
+            if not playlist_link_exists:
+                links.append(_create_stub_entity("Playlist", playlist_id))
+
+            note_id = prodtrack.publish_note(
+                version_id=note.version_id,
+                content=note.content,
+                subject=note.subject,
+                to_users=[],  # TODO: Parse to/cc
+                cc_users=[],
+                links=links,
+                author_email=note.user_email,
+            )
+
+            # Update draft note as published
+            update_data = DraftNoteUpdate(
+                published=True,
+                published_at=datetime.now(timezone.utc),
+                published_note_id=note_id,
+            )
+
+            await storage.upsert_draft_note(
+                user_email=note.user_email,
+                playlist_id=note.playlist_id,
+                version_id=note.version_id,
+                data=update_data,
+            )
+
+            published_count += 1
+
+        except Exception as e:
+            print(f"Failed to publish note {note.id}: {e}")
+            failed_count += 1
+
+    return PublishNotesResponse(
+        published_count=published_count,
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        total=len(notes_to_publish),
+    )
+
+
 # -----------------------------------------------------------------------------
 # Draft Notes endpoints
 # -----------------------------------------------------------------------------
+
+
+@app.get(
+    "/playlists/{playlist_id}/draft-notes",
+    tags=["Draft Notes"],
+    summary="Get all draft notes for a playlist",
+    description="Retrieve all users' draft notes for the specified playlist.",
+    response_model=list[DraftNote],
+)
+async def get_playlist_draft_notes(
+    playlist_id: int,
+    provider: StorageProviderDep,
+) -> list[DraftNote]:
+    """Get all draft notes for a playlist."""
+    return await provider.get_draft_notes_for_playlist(playlist_id)
 
 
 @app.get(

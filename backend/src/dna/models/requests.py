@@ -93,3 +93,19 @@ class SearchResult(BaseModel):
     project: Optional[dict[str, Any]] = Field(
         default=None, description="Project reference (for project-scoped entities)"
     )
+
+
+class PublishNotesRequest(BaseModel):
+    """Request model for publishing draft notes."""
+
+    user_email: str
+    include_others: bool = False
+
+
+class PublishNotesResponse(BaseModel):
+    """Response model for publishing draft notes."""
+
+    published_count: int
+    skipped_count: int
+    failed_count: int
+    total: int

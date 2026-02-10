@@ -18,8 +18,9 @@ import { SquareButton } from './SquareButton';
 import { VersionCard } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
+import { PublishNotesDialog } from './PublishNotesDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
-import { usePlaylistMetadata } from '../hooks';
+import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -242,6 +243,7 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -256,6 +258,7 @@ export function Sidebar({
 
   const { data: user } = useGetUserByEmail(userEmail);
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
+  const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
 
   const inReviewVersionId = playlistMetadata?.in_review;
 
@@ -357,7 +360,12 @@ export function Sidebar({
         <HeaderActions>
           {!collapsed && (
             <>
-              <Button size="2" variant="solid" color="violet">
+              <Button
+                size="2"
+                variant="solid"
+                color="violet"
+                onClick={() => setIsPublishDialogOpen(true)}
+              >
                 Publish Notes
               </Button>
               <UserAvatar
@@ -409,7 +417,10 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedFooter>
-          <SquareButton variant="cta">
+          <SquareButton
+            variant="cta"
+            onClick={() => setIsPublishDialogOpen(true)}
+          >
             <Upload />
             Publish
           </SquareButton>
@@ -436,6 +447,18 @@ export function Sidebar({
             }
           />
         </Footer>
+      )}
+
+
+
+      {playlistId && (
+        <PublishNotesDialog
+          open={isPublishDialogOpen}
+          onClose={() => setIsPublishDialogOpen(false)}
+          playlistId={playlistId}
+          userEmail={userEmail}
+          draftNotes={draftNotes || []}
+        />
       )}
     </SidebarWrapper>
   );
