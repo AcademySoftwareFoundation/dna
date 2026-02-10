@@ -53,6 +53,22 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
+const StatusBadge = styled.div<{ $isWarning?: boolean }>`
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: ${({ theme, $isWarning }) => {
+    const color = $isWarning
+      ? theme.colors.status.warning
+      : theme.colors.status.success;
+    return color + '20'; // 12% opacity (hex)
+  }};
+  color: ${({ theme, $isWarning }) =>
+    $isWarning ? theme.colors.status.warning : theme.colors.status.success};
+  margin-left: 12px;
+`;
+
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   function NoteEditor({ playlistId, versionId, userEmail }, ref) {
     const { draftNote, updateDraftNote } = useDraftNote({
@@ -102,6 +118,10 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         <EditorHeader>
           <TitleRow>
             <EditorTitle>New Note</EditorTitle>
+            {draftNote?.published && <StatusBadge>Published</StatusBadge>}
+            {!draftNote?.published && draftNote?.publishedNoteId && (
+              <StatusBadge $isWarning>Published (Edited)</StatusBadge>
+            )}
           </TitleRow>
           <NoteOptionsInline
             toValue={draftNote?.to ?? ''}

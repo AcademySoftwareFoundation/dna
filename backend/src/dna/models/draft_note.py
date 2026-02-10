@@ -19,13 +19,14 @@ class DraftNoteLink(BaseModel):
 class DraftNoteBase(BaseModel):
     """Base model for draft note data."""
 
-    content: str = ""
-    subject: str = ""
+    content: Optional[str] = ""
+    subject: Optional[str] = ""
     to: str = ""
     cc: str = ""
     links: list[DraftNoteLink] = Field(default_factory=list)
     version_status: str = ""
     published: bool = False
+    edited: bool = False
     published_at: Optional[datetime] = None
     published_note_id: Optional[int] = None
 
@@ -51,7 +52,16 @@ class DraftNote(DraftNoteBase):
     created_at: datetime
 
 
-class DraftNoteUpdate(DraftNoteBase):
+class DraftNoteUpdate(BaseModel):
     """Model for updating an existing draft note."""
 
-    pass
+    content: Optional[str] = None
+    subject: Optional[str] = None
+    to: Optional[str] = None
+    cc: Optional[str] = None
+    links: Optional[list[DraftNoteLink]] = None
+    version_status: Optional[str] = None
+    published: Optional[bool] = None
+    edited: Optional[bool] = None
+    published_at: Optional[datetime] = None
+    published_note_id: Optional[int] = None

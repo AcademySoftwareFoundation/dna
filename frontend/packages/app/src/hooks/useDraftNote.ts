@@ -10,6 +10,9 @@ export interface LocalDraftNote {
   cc: string;
   linksText: string;
   versionStatus: string;
+  published: boolean;
+  edited: boolean;
+  publishedNoteId: number | null;
 }
 
 export interface UseDraftNoteParams {
@@ -34,6 +37,9 @@ function createEmptyDraft(): LocalDraftNote {
     cc: '',
     linksText: '',
     versionStatus: '',
+    published: false,
+    edited: false,
+    publishedNoteId: null,
   };
 }
 
@@ -45,6 +51,9 @@ function backendToLocal(note: DraftNote): LocalDraftNote {
     cc: note.cc,
     linksText: '',
     versionStatus: note.version_status,
+    published: note.published,
+    edited: note.edited,
+    publishedNoteId: note.published_note_id ?? null,
   };
 }
 
@@ -56,6 +65,7 @@ function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
     cc: local.cc,
     links: [],
     version_status: local.versionStatus,
+    edited: local.edited,
   };
 }
 
@@ -119,17 +129,59 @@ export function useDraftNote({
     },
   });
 
+  const lastContextRef = useRef<{
+    playlistId?: number | null;
+    versionId?: number | null;
+    userEmail?: string | null;
+  }>({});
+
   useEffect(() => {
     if (!isEnabled) {
       setLocalDraft(null);
+      lastContextRef.current = {};
       return;
     }
-    if (serverDraft) {
-      setLocalDraft(backendToLocal(serverDraft));
-    } else if (serverDraft === null && !isLoading) {
-      setLocalDraft(createEmptyDraft());
+
+    const currentContext = { playlistId, versionId, userEmail };
+    const isContextSwitch =
+      playlistId !== lastContextRef.current.playlistId ||
+      versionId !== lastContextRef.current.versionId ||
+      userEmail !== lastContextRef.current.userEmail;
+
+    if (isContextSwitch) {
+      lastContextRef.current = currentContext;
+      if (serverDraft) {
+        setLocalDraft(backendToLocal(serverDraft));
+      } else if (!isLoading) {
+        setLocalDraft(createEmptyDraft());
+      } else {
+        setLocalDraft(null);
+      }
+    } else {
+      // Same context: only update system fields to avoid overwriting user input
+      if (serverDraft) {
+        setLocalDraft((prev) => {
+          if (!prev) return backendToLocal(serverDraft);
+
+          // Only update if system fields changed to avoid unnecessary re-renders
+          if (
+            prev.published === serverDraft.published &&
+            prev.edited === serverDraft.edited &&
+            prev.publishedNoteId === (serverDraft.published_note_id ?? null)
+          ) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            published: serverDraft.published,
+            edited: serverDraft.edited,
+            publishedNoteId: serverDraft.published_note_id ?? null,
+          };
+        });
+      }
     }
-  }, [serverDraft, isEnabled, isLoading]);
+  }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail]);
 
   useEffect(() => {
     const flushPending = () => {
@@ -173,9 +225,25 @@ export function useDraftNote({
 
       setLocalDraft((prev) => {
         const base = prev ?? createEmptyDraft();
+
+        // Determine if this update counts as an "edit" that should trigger republishing
+        // We only care if meaningful content changed (content, subject, to, cc)
+        // System updates (published status) shouldn't trigger this manually usually
+        let isEdited = base.edited;
+
+        const meaningfulFields: (keyof LocalDraftNote)[] = ['content', 'subject', 'to', 'cc'];
+        const hasMeaningfulChange = meaningfulFields.some(field =>
+          updates[field] !== undefined && updates[field] !== base[field]
+        );
+
+        if (hasMeaningfulChange) {
+          isEdited = true;
+        }
+
         const updated: LocalDraftNote = {
           ...base,
           ...updates,
+          edited: isEdited,
         };
         pendingDataRef.current = updated;
 
