@@ -42,6 +42,16 @@ class StorageProviderBase:
         """Create or update a draft note."""
         raise NotImplementedError()
 
+    async def upsert_published_note(
+        self,
+        user_email: str,
+        playlist_id: int,
+        version_id: int,
+        data: "DraftNoteUpdate",
+    ) -> "DraftNote":
+        """Upsert a published note (sync from ShotGrid)."""
+        raise NotImplementedError()
+
     async def delete_draft_note(
         self, user_email: str, playlist_id: int, version_id: int
     ) -> bool:
