@@ -17,7 +17,7 @@ git clone <repository-url>
 cd dna
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Environment Variables for Shotgrid and LLMs.
 
 Copy the example docker-compose.local.yml file:
 
@@ -26,21 +26,37 @@ cd backend
 cp example.docker-compose.local.yml docker-compose.local.yml
 ```
 
-Edit `docker-compose.local.yml` with your credentials:
+Edit `docker-compose.local.yml` with your credentials.
+
+If you need access to shotgrid, you can reach out to the team.
+
+To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
+
+When setting up, skip the Vexa API key for now. Once the stack is running you can get your Vexa API key from the Vexa Dashboard.
 
 ```yaml
 services:
   api:
     environment:
-      - SHOTGRID_URL=https://your-studio.shotgrid.autodesk.com/
-      - SHOTGRID_API_KEY=your-shotgrid-api-key
-      - SHOTGRID_SCRIPT_NAME=your-script-name
-      - VEXA_API_KEY=your-vexa-api-key
+      - PYTHONUNBUFFERED=1
+      - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
+      - SHOTGRID_API_KEY=************
+      - SHOTGRID_SCRIPT_NAME=DNA_local_testing
+      - VEXA_API_KEY=**********
+      - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
 
   worker:
     environment:
-      - VEXA_API_KEY=your-vexa-api-key
+      - VEXA_API_KEY=****************
+      - VEXA_API_URL=http://vexa:8056
+  
+  vexa:
+    environment:
+      # From https://staging.vexa.ai/dashboard/transcription
+      # More details: https://github.com/Vexa-ai/vexa/blob/main/docs/vexa-lite-deployment.md
+      - TRANSCRIBER_API_KEY=**********************
+      - TRANSCRIBER_URL=https://transcription.vexa.ai/v1/audio/transcriptions
 ```
 
 ### 3. Start the Backend Stack
@@ -55,10 +71,15 @@ This starts:
 - **RabbitMQ** - Message broker (ports 5672, 15672)
 - **DNA API** - FastAPI backend (port 8000)
 - **DNA Worker** - Event processor
-- **Vexa** - Transcription service (port 8056)
+- **Vexa** - Transcription service (port 8056) 
 - **Vexa Dashboard** - Admin UI (port 3001)
 
-### 4. Start the Frontend
+
+### 4. Get your Vexa API key
+
+Once the stack is running you can get your Vexa API key from the Vexa Dashboard. http://localhost:3001/
+
+### 5. Start the Frontend
 
 In a new terminal:
 
@@ -70,7 +91,7 @@ npm run dev
 
 The React app will be available at `http://localhost:5173`.
 
-### 5. Verify Everything is Running
+### 6. Verify Everything is Running
 
 | Service | URL | Description |
 |---------|-----|-------------|
