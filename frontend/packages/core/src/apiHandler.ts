@@ -4,6 +4,8 @@ import {
   GetPlaylistsForProjectParams,
   GetVersionsForPlaylistParams,
   GetUserByEmailParams,
+  LoginParams,
+  AuthResponse,
   GetDraftNoteParams,
   GetAllDraftNotesParams,
   UpsertDraftNoteParams,
@@ -146,6 +148,10 @@ class ApiHandler {
     return this.get<DNAUser>(`/users/${encodeURIComponent(params.userEmail)}`);
   }
 
+  async login(params: LoginParams): Promise<AuthResponse> {
+    return this.post<AuthResponse>('/auth/login', params);
+  }
+
   async getDraftNote(params: GetDraftNoteParams): Promise<DraftNote | null> {
     return this.get<DraftNote | null>(
       `/playlists/${params.playlistId}/versions/${params.versionId}/draft-notes/${encodeURIComponent(params.userEmail)}`
@@ -262,7 +268,9 @@ class ApiHandler {
     return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
   }
 
-  async publishNotes(params: PublishNotesParams): Promise<PublishNotesResponse> {
+  async publishNotes(
+    params: PublishNotesParams
+  ): Promise<PublishNotesResponse> {
     return this.post<PublishNotesResponse>(
       `/playlists/${params.playlistId}/publish-notes`,
       params.request

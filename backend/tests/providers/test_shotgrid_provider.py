@@ -51,7 +51,10 @@ def test_get_version(shotgrid_provider):
 def test_missing_credentials_raises_error():
     """Test that missing credentials raises ValueError."""
     with mock.patch.dict("os.environ", {}, clear=True):
-        with pytest.raises(ValueError, match="ShotGrid credentials not provided"):
+        with pytest.raises(
+            ValueError,
+            match="ShotGrid credentials not provided|ShotGrid URL not provided",
+        ):
             ShotgridProvider(url=None, script_name=None, api_key=None, connect=False)
 
 

@@ -675,4 +675,47 @@ describe('ApiHandler', () => {
       ).rejects.toThrow('Server error');
     });
   });
+
+  describe('login', () => {
+    it('should post credentials to auth endpoint', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const authResponse = {
+        token: 'session-token',
+        email: 'user@example.com',
+        mode: 'self_hosted',
+      };
+      mockAxiosInstance.post.mockResolvedValue({ data: authResponse });
+
+      const result = await api.login({
+        username: 'user@example.com',
+        password: 'secret',
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/auth/login',
+        { username: 'user@example.com', password: 'secret' },
+        undefined
+      );
+      expect(result).toEqual(authResponse);
+    });
+
+    it('should support passwordless login request', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const authResponse = {
+        token: null,
+        email: 'user@example.com',
+        mode: 'passwordless',
+      };
+      mockAxiosInstance.post.mockResolvedValue({ data: authResponse });
+
+      const result = await api.login({ username: 'user@example.com' });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/auth/login',
+        { username: 'user@example.com' },
+        undefined
+      );
+      expect(result).toEqual(authResponse);
+    });
+  });
 });
