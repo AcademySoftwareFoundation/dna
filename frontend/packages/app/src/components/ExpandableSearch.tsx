@@ -1,23 +1,26 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { Search, ChevronUp, ChevronDown } from 'lucide-react';
+import type { Version } from '@dna/core';
 
 interface ExpandableSearchProps {
   placeholder?: string;
+  versions?: Version[];
+  selectedVersionId?: number | null;
+  onVersionSelect?: (version: Version) => void;
+  onExpandedChange?: (isExpanded: boolean) => void;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $isOpen: boolean }>`
   position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex: ${({ $isOpen }) => ($isOpen ? 1 : 'none')};
+  min-width: 0;
 `;
 
 const PillContainer = styled.div<{ $isOpen: boolean }>`
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   height: 32px;
@@ -26,7 +29,7 @@ const PillContainer = styled.div<{ $isOpen: boolean }>`
   border: 1px solid ${({ theme }) => theme.colors.accent.main};
   background: ${({ theme }) => theme.colors.bg.surface};
   box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.accent.glow};
-  width: ${({ $isOpen }) => ($isOpen ? '200px' : '0')};
+  width: ${({ $isOpen }) => ($isOpen ? '100%' : '0')};
   opacity: ${({ $isOpen }) => ($isOpen ? 1 : 0)};
   overflow: hidden;
   transition:
@@ -86,7 +89,7 @@ const IconButton = styled.button`
   }
 `;
 
-const ChevronButton = styled.button`
+const ChevronButton = styled.button<{ $disabled?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,18 +98,22 @@ const ChevronButton = styled.button`
   border-radius: 4px;
   border: none;
   background: transparent;
-  color: ${({ theme }) => theme.colors.text.muted};
-  cursor: pointer;
+  color: ${({ theme, $disabled }) =>
+    $disabled ? theme.colors.text.muted + '60' : theme.colors.text.muted};
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   transition: all ${({ theme }) => theme.transitions.base};
   flex-shrink: 0;
+  opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
 
   &:hover {
-    background: ${({ theme }) => theme.colors.accent.subtle};
-    color: ${({ theme }) => theme.colors.accent.main};
+    background: ${({ theme, $disabled }) =>
+      $disabled ? 'transparent' : theme.colors.accent.subtle};
+    color: ${({ theme, $disabled }) =>
+      $disabled ? theme.colors.text.muted + '60' : theme.colors.accent.main};
   }
 
   &:active {
-    transform: scale(0.95);
+    transform: ${({ $disabled }) => ($disabled ? 'none' : 'scale(0.95)')};
   }
 
   svg {
@@ -115,7 +122,18 @@ const ChevronButton = styled.button`
   }
 `;
 
+const MatchCounter = styled.span`
+  font-size: 11px;
+  font-family: ${({ theme }) => theme.fonts.mono};
+  color: ${({ theme }) => theme.colors.text.muted};
+  white-space: nowrap;
+  padding: 0 4px;
+  flex-shrink: 0;
+`;
+
 const SearchButton = styled.button`
+  position: absolute;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -150,11 +168,47 @@ const SearchButton = styled.button`
   }
 `;
 
+function searchVersionAttributes(version: Version, query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+
+  const searchableFields = [
+    version.name,
+    version.description,
+    version.status,
+    version.user?.name,
+    version.task?.name,
+    version.task?.pipeline_step?.name,
+    version.entity?.name,
+    version.project?.name,
+    String(version.id),
+  ];
+
+  return searchableFields.some((field) =>
+    field?.toLowerCase().includes(lowerQuery)
+  );
+}
+
 export function ExpandableSearch({
   placeholder = 'Search...',
+  versions = [],
+  selectedVersionId,
+  onVersionSelect,
+  onExpandedChange,
 }: ExpandableSearchProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const matchingVersions = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return versions.filter((version) =>
+      searchVersionAttributes(version, searchQuery)
+    );
+  }, [versions, searchQuery]);
+
+  const matchCount = matchingVersions.length;
+  const hasMatches = matchCount > 0;
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -162,41 +216,104 @@ export function ExpandableSearch({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    onExpandedChange?.(isOpen);
+  }, [isOpen, onExpandedChange]);
+
+  useEffect(() => {
+    if (selectedVersionId != null && hasMatches) {
+      const selectedIndex = matchingVersions.findIndex(
+        (v) => v.id === selectedVersionId
+      );
+      setCurrentMatchIndex(selectedIndex);
+    } else {
+      setCurrentMatchIndex(-1);
+    }
+  }, [searchQuery, matchingVersions, selectedVersionId, hasMatches]);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setSearchQuery('');
+    setCurrentMatchIndex(-1);
+  };
+
   const handleBlur = () => {
-    setTimeout(() => setIsOpen(false), 150);
+    setTimeout(() => handleClose(), 150);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setIsOpen(false);
+      handleClose();
+    } else if (e.key === 'Enter' && hasMatches) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        handlePreviousMatch();
+      } else {
+        handleNextMatch();
+      }
     }
   };
 
+  const handlePreviousMatch = () => {
+    if (!hasMatches) return;
+    const newIndex =
+      currentMatchIndex <= 0 ? matchCount - 1 : currentMatchIndex - 1;
+    setCurrentMatchIndex(newIndex);
+    onVersionSelect?.(matchingVersions[newIndex]);
+  };
+
+  const handleNextMatch = () => {
+    if (!hasMatches) return;
+    const newIndex =
+      currentMatchIndex < 0 || currentMatchIndex >= matchCount - 1
+        ? 0
+        : currentMatchIndex + 1;
+    setCurrentMatchIndex(newIndex);
+    onVersionSelect?.(matchingVersions[newIndex]);
+  };
+
+  const displayIndex = currentMatchIndex < 0 ? 0 : currentMatchIndex + 1;
+
   return (
-    <Container>
+    <Container $isOpen={isOpen}>
       <PillContainer $isOpen={isOpen}>
         <StyledInput
           ref={inputRef}
           placeholder={placeholder}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
         />
+        {searchQuery.trim() && (
+          <MatchCounter>
+            {displayIndex}/{matchCount}
+          </MatchCounter>
+        )}
         <ChevronButton
           aria-label="Previous result"
           tabIndex={-1}
-          onMouseDown={(e) => e.preventDefault()}
+          $disabled={!hasMatches}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            handlePreviousMatch();
+          }}
         >
           <ChevronUp />
         </ChevronButton>
         <ChevronButton
           aria-label="Next result"
           tabIndex={-1}
-          onMouseDown={(e) => e.preventDefault()}
+          $disabled={!hasMatches}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            handleNextMatch();
+          }}
         >
           <ChevronDown />
         </ChevronButton>
         <IconButton
-          onClick={() => setIsOpen(false)}
+          onClick={handleClose}
           aria-label="Close search"
           tabIndex={-1}
         >

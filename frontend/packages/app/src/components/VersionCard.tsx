@@ -13,7 +13,7 @@ interface VersionCardProps {
   onClick?: () => void;
 }
 
-const Card = styled.div<{ $selected?: boolean; $inReview?: boolean }>`
+const Card = styled.div<{ $selected?: boolean }>`
   display: flex;
   gap: 12px;
   padding: 12px;
@@ -21,21 +21,13 @@ const Card = styled.div<{ $selected?: boolean; $inReview?: boolean }>`
   border-radius: ${({ theme }) => theme.radii.lg};
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
-  border: 2px ${({ $inReview }) => ($inReview ? 'dashed' : 'solid')}
-    ${({ theme, $selected, $inReview }) =>
-      $selected
-        ? theme.colors.accent.main
-        : $inReview
-          ? theme.colors.text.muted
-          : 'transparent'};
+  border: 2px solid
+    ${({ theme, $selected }) =>
+      $selected ? theme.colors.accent.main : 'transparent'};
 
   &:hover {
-    border-color: ${({ theme, $selected, $inReview }) =>
-      $selected
-        ? theme.colors.accent.main
-        : $inReview
-          ? theme.colors.text.secondary
-          : theme.colors.border.strong};
+    border-color: ${({ theme, $selected }) =>
+      $selected ? theme.colors.accent.main : theme.colors.border.strong};
   }
 `;
 
@@ -63,12 +55,6 @@ const Content = styled.div`
   flex: 1;
 `;
 
-const TitleRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
 const Title = styled.span`
   font-size: 14px;
   font-weight: 600;
@@ -81,12 +67,15 @@ const Title = styled.span`
 const InReviewIcon = styled.span`
   display: flex;
   align-items: center;
+  justify-content: center;
+  align-self: flex-start;
   color: ${({ theme }) => theme.colors.accent.main};
   flex-shrink: 0;
+  margin-left: auto;
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
   }
 `;
 
@@ -121,19 +110,12 @@ export function VersionCard({
   const displayName = version.name || `Version ${version.id}`;
 
   return (
-    <Card $selected={selected} $inReview={inReview} onClick={onClick}>
+    <Card $selected={selected} onClick={onClick}>
       <Thumbnail>
         {thumbnailUrl && <img src={thumbnailUrl} alt={displayName} />}
       </Thumbnail>
       <Content>
-        <TitleRow>
-          <Title>{displayName}</Title>
-          {inReview && (
-            <InReviewIcon>
-              <Eye />
-            </InReviewIcon>
-          )}
-        </TitleRow>
+        <Title>{displayName}</Title>
         {artistName && (
           <ArtistRow>
             <UserAvatar name={artistName} size="1" />
@@ -142,6 +124,11 @@ export function VersionCard({
         )}
         {department && <Department>{department}</Department>}
       </Content>
+      {inReview && (
+        <InReviewIcon>
+          <Eye />
+        </InReviewIcon>
+      )}
     </Card>
   );
 }

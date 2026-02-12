@@ -1,15 +1,17 @@
+import { forwardRef, useImperativeHandle } from 'react';
 import styled from 'styled-components';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
+import { useDraftNote } from '../hooks';
 
 interface NoteEditorProps {
-  toValue?: string;
-  ccValue?: string;
-  subjectValue?: string;
-  linksValue?: string;
-  versionStatus?: string;
-  notesValue?: string;
-  onNotesChange?: (value: string) => void;
+  playlistId?: number | null;
+  versionId?: number | null;
+  userEmail?: string | null;
+}
+
+export interface NoteEditorHandle {
+  appendContent: (content: string) => void;
 }
 
 const EditorWrapper = styled.div`
@@ -51,38 +53,79 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
-export function NoteEditor({
-  toValue = '',
-  ccValue = '',
-  subjectValue = '',
-  linksValue = '',
-  versionStatus = '',
-  notesValue = '',
-  onNotesChange,
-}: NoteEditorProps) {
-  return (
-    <EditorWrapper>
-      <EditorHeader>
-        <TitleRow>
-          <EditorTitle>New Note</EditorTitle>
-        </TitleRow>
-        <NoteOptionsInline
-          toValue={toValue}
-          ccValue={ccValue}
-          subjectValue={subjectValue}
-          linksValue={linksValue}
-          versionStatus={versionStatus}
-        />
-      </EditorHeader>
+export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
+  function NoteEditor({ playlistId, versionId, userEmail }, ref) {
+    const { draftNote, updateDraftNote } = useDraftNote({
+      playlistId,
+      versionId,
+      userEmail,
+    });
 
-      <EditorContent>
-        <MarkdownEditor
-          value={notesValue}
-          onChange={onNotesChange}
-          placeholder="Write your notes here... (supports **markdown**)"
-          minHeight={120}
-        />
-      </EditorContent>
-    </EditorWrapper>
-  );
-}
+    useImperativeHandle(
+      ref,
+      () => ({
+        appendContent: (content: string) => {
+          const currentContent = draftNote?.content ?? '';
+          const separator = currentContent.trim() ? '\n\n---\n\n' : '';
+          updateDraftNote({ content: currentContent + separator + content });
+        },
+      }),
+      [draftNote?.content, updateDraftNote]
+    );
+
+    const handleContentChange = (value: string) => {
+      updateDraftNote({ content: value });
+    };
+
+    const handleToChange = (value: string) => {
+      updateDraftNote({ to: value });
+    };
+
+    const handleCcChange = (value: string) => {
+      updateDraftNote({ cc: value });
+    };
+
+    const handleSubjectChange = (value: string) => {
+      updateDraftNote({ subject: value });
+    };
+
+    const handleLinksChange = (value: string) => {
+      updateDraftNote({ linksText: value });
+    };
+
+    const handleVersionStatusChange = (value: string) => {
+      updateDraftNote({ versionStatus: value });
+    };
+
+    return (
+      <EditorWrapper>
+        <EditorHeader>
+          <TitleRow>
+            <EditorTitle>New Note</EditorTitle>
+          </TitleRow>
+          <NoteOptionsInline
+            toValue={draftNote?.to ?? ''}
+            ccValue={draftNote?.cc ?? ''}
+            subjectValue={draftNote?.subject ?? ''}
+            linksValue={draftNote?.linksText ?? ''}
+            versionStatus={draftNote?.versionStatus ?? ''}
+            onToChange={handleToChange}
+            onCcChange={handleCcChange}
+            onSubjectChange={handleSubjectChange}
+            onLinksChange={handleLinksChange}
+            onVersionStatusChange={handleVersionStatusChange}
+          />
+        </EditorHeader>
+
+        <EditorContent>
+          <MarkdownEditor
+            value={draftNote?.content ?? ''}
+            onChange={handleContentChange}
+            placeholder="Write your notes here... (supports **markdown**)"
+            minHeight={120}
+          />
+        </EditorContent>
+      </EditorWrapper>
+    );
+  }
+);

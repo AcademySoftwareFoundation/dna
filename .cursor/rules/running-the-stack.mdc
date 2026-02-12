@@ -1,0 +1,8 @@
+---
+name: running-the-stack
+description: How to run the stack
+---
+
+# Overview
+
+When running the backend of stack, you need to use docker-compose with the docker-compose.yml file and docker-compose.local.yml file. For examples, see the Makefile in the backend directory. When testing the backend, you should not need to restart as the fastapi application will automatically reload when changes are made. The Worker will need to be restarted if you make changes to the worker. 

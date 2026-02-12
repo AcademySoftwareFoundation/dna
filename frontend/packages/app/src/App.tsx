@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Playlist, Project, Version } from '@dna/core';
-import { Layout, ContentArea, ProjectSelector, clearUserSession } from './components';
+import {
+  Layout,
+  ContentArea,
+  ProjectSelector,
+  clearUserSession,
+} from './components';
 import { useGetVersionsForPlaylist } from './api';
+import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';
 
 function App() {
+  const queryClient = useQueryClient();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -15,10 +23,34 @@ function App() {
     selectedPlaylist?.id ?? null
   );
 
+  const { data: playlistMetadata } = usePlaylistMetadata(
+    selectedPlaylist?.id ?? null
+  );
+
+  useEffect(() => {
+    if (versions.length > 0 && !selectedVersion) {
+      const inReviewVersionId = playlistMetadata?.in_review;
+      const inReviewVersion = inReviewVersionId
+        ? versions.find((v) => v.id === inReviewVersionId)
+        : null;
+
+      if (inReviewVersion) {
+        setSelectedVersion(inReviewVersion);
+      } else {
+        setSelectedVersion(versions[0]);
+      }
+    }
+  }, [versions, selectedVersion, playlistMetadata]);
+
   const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['allDraftNotes'] });
+    await queryClient.invalidateQueries({ queryKey: ['draftNote'] });
+
     const result = await refetch();
     if (result.data && selectedVersion) {
-      const updatedVersion = result.data.find(v => v.id === selectedVersion.id);
+      const updatedVersion = result.data.find(
+        (v) => v.id === selectedVersion.id
+      );
       if (updatedVersion) {
         setSelectedVersion(updatedVersion);
       }
@@ -68,6 +100,8 @@ function App() {
       <ContentArea
         version={selectedVersion}
         versions={versions}
+        playlistId={selectedPlaylist.id}
+        userEmail={userEmail}
         onVersionSelect={handleVersionSelect}
         onRefresh={handleRefresh}
       />

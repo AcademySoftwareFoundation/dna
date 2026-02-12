@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Button, Flex, Select, Spinner } from '@radix-ui/themes';
 import { Playlist, Project } from '@dna/core';
-import { useGetProjectsForUser, useGetPlaylistsForProject, apiHandler } from '../api';
+import {
+  useGetProjectsForUser,
+  useGetPlaylistsForProject,
+  apiHandler,
+} from '../api';
 import { Logo } from './Logo';
 import {
   StyledTextField,
@@ -14,7 +18,10 @@ export const STORAGE_KEYS = {
   USER_EMAIL: 'dna_user_email',
   PROJECT: 'dna_selected_project',
   TOKEN: 'dna_user_token',
+  AUTH_MODE: 'dna_auth_mode',
 };
+
+type AuthMode = 'passwordless' | 'self_hosted' | 'sso';
 
 interface ProjectSelectorProps {
   onSelectionComplete: (
@@ -29,12 +36,13 @@ const PageWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(
-      ellipse 80% 50% at 50% -20%,
-      ${({ theme }) => theme.colors.accent.subtle},
-      transparent
-    )
-    fixed,
+  background:
+    radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        ${({ theme }) => theme.colors.accent.subtle},
+        transparent
+      )
+      fixed,
     ${({ theme }) => theme.colors.bg.base};
 `;
 
@@ -232,10 +240,39 @@ function clearStoredToken(): void {
   }
 }
 
+function getStoredAuthMode(): AuthMode | null {
+  try {
+    const mode = localStorage.getItem(STORAGE_KEYS.AUTH_MODE);
+    if (mode === 'passwordless' || mode === 'self_hosted' || mode === 'sso') {
+      return mode;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAuthMode(mode: AuthMode): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.AUTH_MODE, mode);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearStoredAuthMode(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.AUTH_MODE);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function clearUserSession(): void {
   clearStoredEmail();
   clearStoredProject();
   clearStoredToken();
+  clearStoredAuthMode();
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
@@ -252,18 +289,23 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     const storedEmail = getStoredEmail();
     const storedProject = getStoredProject();
     const storedToken = getStoredToken();
+    const storedAuthMode = getStoredAuthMode();
 
-    // Restore session if token exists
     if (storedToken && storedEmail) {
       apiHandler.setUser({ id: '0', email: storedEmail, token: storedToken });
+    } else {
+      apiHandler.setUser(null);
     }
 
-    if (storedEmail && storedProject && storedToken) {
+    const tokenRequired = storedAuthMode !== 'passwordless';
+    const hasValidAuth = storedToken || !tokenRequired;
+
+    if (storedEmail && storedProject && hasValidAuth) {
       setSubmittedEmail(storedEmail);
       setEmail(storedEmail);
       setSelectedProject(storedProject);
       setStep('playlist');
-    } else if (storedEmail && storedToken) {
+    } else if (storedEmail && hasValidAuth) {
       setSubmittedEmail(storedEmail);
       setEmail(storedEmail);
       setStep('project');
@@ -292,21 +334,36 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     setIsLoggingIn(true);
 
     try {
-      if (email.trim() && password.trim()) {
-        const { token, email: userEmail } = await apiHandler.login({
+      if (email.trim()) {
+        const {
+          token,
+          email: userEmail,
+          mode,
+        } = await apiHandler.login({
           username: email.trim(),
-          password: password.trim(),
+          password: password.trim() || undefined,
         });
 
-        apiHandler.setUser({ id: '0', email: userEmail, token }); // ID is not returned by login yet, using stub or need to update user interface/login response
+        const authMode = mode || (token ? 'self_hosted' : 'passwordless');
+        saveAuthMode(authMode);
+        saveEmail(userEmail);
+
+        if (token) {
+          apiHandler.setUser({ id: '0', email: userEmail, token });
+          saveToken(token);
+        } else {
+          apiHandler.setUser(null);
+          clearStoredToken();
+        }
 
         setSubmittedEmail(userEmail);
-        saveEmail(userEmail);
-        saveToken(token);
         setStep('project');
       }
     } catch (err: any) {
-      setLoginError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+      setLoginError(
+        err.response?.data?.detail ||
+          'Login failed. Please check your credentials.'
+      );
     } finally {
       setIsLoggingIn(false);
     }
@@ -340,6 +397,11 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   const handleBackToEmail = () => {
     clearStoredEmail();
     clearStoredProject();
+    clearStoredToken();
+    clearStoredAuthMode();
+    apiHandler.setUser(null);
+    setPassword('');
+    setLoginError(null);
     setSubmittedEmail(null);
     setSelectedProject(null);
     setSelectedPlaylistId('');
@@ -400,7 +462,6 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
                 size="3"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
               />
             </FormSection>
 
@@ -409,7 +470,7 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
             <Button
               type="submit"
               size="3"
-              disabled={!email.trim() || !password.trim() || isLoggingIn}
+              disabled={!email.trim() || isLoggingIn}
               style={{ marginTop: '8px' }}
             >
               {isLoggingIn ? <Spinner /> : 'Login'}

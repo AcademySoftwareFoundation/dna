@@ -23,5 +23,8 @@
   "devDependencies": {
     "prettier": "^3.4.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@radix-ui/react-toast": "^1.2.15"
   }
 }

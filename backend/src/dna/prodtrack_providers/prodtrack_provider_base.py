@@ -4,6 +4,27 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
 
+AUTH_MODE_PASSWORDLESS = "passwordless"
+AUTH_MODE_SELF_HOSTED = "self_hosted"
+AUTH_MODE_SSO = "sso"
+SUPPORTED_SHOTGRID_AUTH_MODES = {
+    AUTH_MODE_PASSWORDLESS,
+    AUTH_MODE_SELF_HOSTED,
+    AUTH_MODE_SSO,
+}
+
+
+class UserNotFoundError(Exception):
+    """Raised when a user is not found in the production tracking system."""
+
+    pass
+
+
+class AuthModeNotImplementedError(Exception):
+    """Raised when an authentication mode is recognized but not implemented."""
+
+    pass
+
 
 class ProdtrackProviderBase:
     def __init__(self):
@@ -15,8 +36,17 @@ class ProdtrackProviderBase:
 
         return ENTITY_MODELS.get(object_type, EntityBase)
 
-    def get_entity(self, entity_type: str, entity_id: int) -> "EntityBase":
-        """Get an entity by its ID."""
+    def get_entity(
+        self, entity_type: str, entity_id: int, resolve_links: bool = True
+    ) -> "EntityBase":
+        """Get an entity by its ID.
+
+        Args:
+            entity_type: The type of entity to fetch
+            entity_id: The ID of the entity
+            resolve_links: If True, recursively fetch linked entities.
+                If False, only include shallow links with id/name.
+        """
         raise NotImplementedError("Subclasses must implement this method.")
 
     def add_entity(self, entity_type: str, entity: "EntityBase") -> "EntityBase":
@@ -24,16 +54,38 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
     def find(
-        self, entity_type: str, filters: list[dict[str, Any]]
+        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
     ) -> list["EntityBase"]:
         """Find entities matching the given filters.
 
         Args:
             entity_type: The DNA entity type to search for (e.g., 'shot', 'version')
             filters: List of filter conditions in DNA format
+            limit: Maximum number of entities to return. Defaults to 0 (no limit).
 
         Returns:
             List of matching entities
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def search(
+        self,
+        query: str,
+        entity_types: list[str],
+        project_id: int | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Search for entities across multiple entity types.
+
+        Args:
+            query: Text to search for (searches name field)
+            entity_types: List of entity types to search (e.g., ['user', 'shot', 'asset'])
+            project_id: Optional project ID to scope non-user entities
+            limit: Maximum results per entity type
+
+        Returns:
+            List of lightweight entity representations with type, id, name, and
+            type-specific fields (email for users, description for shots/assets/versions)
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -88,7 +140,49 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    # Removed authenticate_user static method as it is now handled by the module-level factory function below.
+    def publish_note(
+        self,
+        version_id: int,
+        content: str,
+        subject: str,
+        to_users: list[int],
+        cc_users: list[int],
+        links: list["EntityBase"],
+        author_email: str | None = None,
+    ) -> int:
+        """Publish a note to the production tracking system.
+
+        Args:
+            version_id: The ID of the version (or other entity) to link to
+            content: Note content
+            subject: Note subject
+            to_users: List of user IDs to address
+            cc_users: List of user IDs to CC
+            links: List of additional entities to link
+            author_email: Optional email of the author. If provided, the note
+                should be created on behalf of this user.
+
+        Returns:
+            The ID of the created note
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+
+def get_shotgrid_auth_mode() -> str:
+    """Get configured ShotGrid auth mode.
+
+    Supported values:
+        - passwordless
+        - self_hosted
+        - sso
+    """
+    auth_mode = os.getenv("SHOTGRID_AUTH_MODE", AUTH_MODE_PASSWORDLESS).strip().lower()
+    if auth_mode not in SUPPORTED_SHOTGRID_AUTH_MODES:
+        supported = ", ".join(sorted(SUPPORTED_SHOTGRID_AUTH_MODES))
+        raise ValueError(
+            f"Invalid SHOTGRID_AUTH_MODE '{auth_mode}'. Supported values: {supported}"
+        )
+    return auth_mode
 
 
 def get_prodtrack_provider(session_token: str | None = None) -> ProdtrackProviderBase:
@@ -101,13 +195,31 @@ def get_prodtrack_provider(session_token: str | None = None) -> ProdtrackProvide
     raise ValueError(f"Unknown production tracking provider: {provider_type}")
 
 
-def authenticate_user(username: str, password: str) -> dict[str, Any]:
-    """Authenticate a user using the configured provider."""
+def authenticate_user(username: str, password: str | None = None) -> dict[str, Any]:
+    """Authenticate a user using the configured provider and auth mode."""
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
+    if provider_type != "shotgrid":
+        raise ValueError(f"Unknown production tracking provider: {provider_type}")
 
-    if provider_type == "shotgrid":
-        from dna.prodtrack_providers.shotgrid_auth import ShotgridAuthenticationProvider
+    from dna.prodtrack_providers.shotgrid_auth import ShotgridAuthenticationProvider
 
-        return ShotgridAuthenticationProvider.authenticate(username, password)
+    auth_mode = get_shotgrid_auth_mode()
+    if auth_mode == AUTH_MODE_PASSWORDLESS:
+        result = ShotgridAuthenticationProvider.authenticate_passwordless(username)
+        result["mode"] = AUTH_MODE_PASSWORDLESS
+        return result
 
-    raise ValueError(f"Unknown production tracking provider: {provider_type}")
+    if auth_mode == AUTH_MODE_SELF_HOSTED:
+        if not password:
+            raise ValueError("Password is required for self-hosted authentication.")
+        result = ShotgridAuthenticationProvider.authenticate(username, password)
+        result["mode"] = AUTH_MODE_SELF_HOSTED
+        return result
+
+    if auth_mode == AUTH_MODE_SSO:
+        raise AuthModeNotImplementedError(
+            "SSO authentication mode is not implemented yet."
+        )
+
+    # Defensive fallback; get_shotgrid_auth_mode() validates supported values.
+    raise ValueError(f"Unsupported SHOTGRID_AUTH_MODE: {auth_mode}")

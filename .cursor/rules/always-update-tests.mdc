@@ -7,4 +7,4 @@ alwaysApply: true
 
 # Overview
 
-Always run tests when making changes to the code. For the Frontend, use npm run test. For the Backend, use make test. For the frontend use npm run test-ci.
+Always run tests when making changes to the code. For the Frontend, use npm run test. For the Backend, use make test. For the frontend use npm run test-ci. Always ensure backend tests coverage is at least 90%.

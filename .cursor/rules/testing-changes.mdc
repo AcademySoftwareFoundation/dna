@@ -1,0 +1,8 @@
+---
+name: testing-changes
+description: Always test changes when made.
+---
+
+# Overview
+
+When working on the backend, always test changes when made. This includes running the tests as well as testing endpoints with curl when it is part of the flow. You can see logs for the backend by inspecting the docker logs after making the request with curl.  

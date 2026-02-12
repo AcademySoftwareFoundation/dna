@@ -1,10 +1,9 @@
+import { useState, useRef } from 'react';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
   PanelLeft,
   Settings,
-  Phone,
-  Play,
   Upload,
   Loader2,
   AlertCircle,
@@ -17,7 +16,11 @@ import { SplitButton } from './SplitButton';
 import { ExpandableSearch } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard } from './VersionCard';
+import { TranscriptionMenu } from './TranscriptionMenu';
+import { SettingsModal } from './SettingsModal';
+import { PublishNotesDialog } from './PublishNotesDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
+import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -239,6 +242,11 @@ export function Sidebar({
   userEmail,
   onLogout,
 }: SidebarProps) {
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const {
     data: versions,
     isLoading,
@@ -249,11 +257,29 @@ export function Sidebar({
   } = useGetVersionsForPlaylist(playlistId);
 
   const { data: user } = useGetUserByEmail(userEmail);
+  const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
+  const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
+
+  const inReviewVersionId = playlistMetadata?.in_review;
 
   const playlistMenuItems = [
     { label: 'Replace Playlist', onSelect: onReplacePlaylist },
     { label: 'Add Version' },
   ];
+
+  const handleSearchVersionSelect = (version: Version) => {
+    onVersionSelect?.(version);
+
+    setTimeout(() => {
+      const versionElement = versionRefs.current.get(version.id);
+      if (versionElement && scrollContainerRef.current) {
+        versionElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+    }, 50);
+  };
 
   const renderVersionList = () => {
     if (!playlistId) {
@@ -301,16 +327,26 @@ export function Sidebar({
         )}
         <VersionCardList>
           {versions.map((version) => (
-            <VersionCard
+            <div
               key={version.id}
-              version={version}
-              artistName={version.user?.name}
-              department={version.task?.pipeline_step?.name}
-              thumbnailUrl={version.thumbnail}
-              selected={version.id === selectedVersionId}
-              inReview={false}
-              onClick={() => onVersionSelect?.(version)}
-            />
+              ref={(el) => {
+                if (el) {
+                  versionRefs.current.set(version.id, el);
+                } else {
+                  versionRefs.current.delete(version.id);
+                }
+              }}
+            >
+              <VersionCard
+                version={version}
+                artistName={version.user?.name}
+                department={version.task?.pipeline_step?.name}
+                thumbnailUrl={version.thumbnail}
+                selected={version.id === selectedVersionId}
+                inReview={inReviewVersionId === version.id}
+                onClick={() => onVersionSelect?.(version)}
+              />
+            </div>
           ))}
         </VersionCardList>
       </VersionListContainer>
@@ -324,10 +360,19 @@ export function Sidebar({
         <HeaderActions>
           {!collapsed && (
             <>
-              <Button size="2" variant="solid" color="violet">
+              <Button
+                size="2"
+                variant="solid"
+                color="violet"
+                onClick={() => setIsPublishDialogOpen(true)}
+              >
                 Publish Notes
               </Button>
-              <UserAvatar name={user?.name ?? userEmail} size="2" onLogout={onLogout} />
+              <UserAvatar
+                name={user?.name ?? userEmail}
+                size="2"
+                onLogout={onLogout}
+              />
             </>
           )}
           <CollapseButton
@@ -341,53 +386,79 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedToolbar>
-          <SplitButton
-            leftSlot={<Phone size={14} />}
-            rightSlot={<Play size={14} />}
-            onRightClick={() => {}}
-          />
+          <TranscriptionMenu playlistId={playlistId} collapsed />
         </CollapsedToolbar>
       ) : (
         <Toolbar>
-          <ToolbarLeft>
-            <SplitButton menuItems={playlistMenuItems} onClick={() => refetch()}>
-              Reload Playlist
-            </SplitButton>
-          </ToolbarLeft>
+          {!isSearchExpanded && (
+            <ToolbarLeft>
+              <SplitButton
+                menuItems={playlistMenuItems}
+                onClick={() => refetch()}
+              >
+                Reload Playlist
+              </SplitButton>
+            </ToolbarLeft>
+          )}
 
-          <ExpandableSearch placeholder="Search versions..." />
+          <ExpandableSearch
+            placeholder="Search versions..."
+            versions={versions}
+            selectedVersionId={selectedVersionId}
+            onVersionSelect={handleSearchVersionSelect}
+            onExpandedChange={setIsSearchExpanded}
+          />
         </Toolbar>
       )}
 
-      <ScrollableContent>
+      <ScrollableContent ref={scrollContainerRef}>
         {!collapsed && renderVersionList()}
       </ScrollableContent>
 
       {collapsed ? (
         <CollapsedFooter>
-          <SquareButton variant="cta">
+          <SquareButton
+            variant="cta"
+            onClick={() => setIsPublishDialogOpen(true)}
+          >
             <Upload />
             Publish
           </SquareButton>
-          <SquareButton variant="neutral">
-            <Settings />
-            Settings
-          </SquareButton>
+          <SettingsModal
+            userEmail={userEmail}
+            trigger={
+              <SquareButton variant="neutral">
+                <Settings />
+                Settings
+              </SquareButton>
+            }
+          />
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
-          <SplitButton
-            leftSlot={<Phone size={14} />}
-            rightSlot={<Play size={14} />}
-            onRightClick={() => {}}
-          >
-            Transcribing
-          </SplitButton>
-          <SettingsButton>
-            <Settings size={16} />
-            Settings
-          </SettingsButton>
+          <TranscriptionMenu playlistId={playlistId} />
+          <SettingsModal
+            userEmail={userEmail}
+            trigger={
+              <SettingsButton>
+                <Settings size={16} />
+                Settings
+              </SettingsButton>
+            }
+          />
         </Footer>
+      )}
+
+
+
+      {playlistId && (
+        <PublishNotesDialog
+          open={isPublishDialogOpen}
+          onClose={() => setIsPublishDialogOpen(false)}
+          playlistId={playlistId}
+          userEmail={userEmail}
+          draftNotes={draftNotes || []}
+        />
       )}
     </SidebarWrapper>
   );

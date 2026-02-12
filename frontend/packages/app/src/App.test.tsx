@@ -11,6 +11,6 @@ describe('App', () => {
   it('should render the project selector initially', () => {
     render(<App />);
     expect(screen.getByText('Welcome to DNA')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('you@example.com')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('username')).toBeInTheDocument();
   });
 });

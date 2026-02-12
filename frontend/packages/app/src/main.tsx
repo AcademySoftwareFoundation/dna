@@ -5,6 +5,7 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import App from './App';
 import { theme, GlobalStyles } from './styles';
+import { EventProvider, ToastProvider } from './contexts';
 import '@radix-ui/themes/styles.css';
 import './index.css';
 
@@ -16,7 +17,11 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider theme={theme}>
         <Theme appearance="dark" accentColor="violet">
           <GlobalStyles />
-          <App />
+          <ToastProvider>
+            <EventProvider>
+              <App />
+            </EventProvider>
+          </ToastProvider>
         </Theme>
       </ThemeProvider>
     </QueryClientProvider>

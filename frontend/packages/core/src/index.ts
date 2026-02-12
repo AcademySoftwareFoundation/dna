@@ -9,3 +9,5 @@ export * from './types';
 export * from './interfaces';
 export * from './utils';
 export * from './apiHandler';
+export * from './eventClient';
+export * from './aiSuggestionManager';

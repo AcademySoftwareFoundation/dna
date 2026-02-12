@@ -1,4 +1,21 @@
 services:
+  mongo:
+    image: mongo:7
+    container_name: dna-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=dna
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   api:
     build:
       context: .
@@ -18,6 +35,13 @@ services:
       - SHOTGRID_API_KEY=your-shotgrid-api-key
       - SHOTGRID_SCRIPT_NAME=your-shotgrid-script-name
       - PRODTRACK_PROVIDER=shotgrid
+      - MONGODB_URL=mongodb://mongo:27017
+      - STORAGE_PROVIDER=mongodb
+      - OPENAI_API_KEY=your-openai-api-key
+      - OPENAI_MODEL=gpt-4o-mini
+      - LLM_PROVIDER=openai
+    depends_on:
+      - mongo
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -25,3 +49,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  mongo_data:

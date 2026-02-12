@@ -1,5 +1,6 @@
 """ShotGrid production tracking provider implementation."""
 
+import contextlib
 import os
 from typing import Any, Optional
 
@@ -13,7 +14,10 @@ from dna.models.entity import (
     User,
     Version,
 )
-from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBase
+from dna.prodtrack_providers.prodtrack_provider_base import (
+    ProdtrackProviderBase,
+    UserNotFoundError,
+)
 
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
@@ -123,6 +127,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         script_name: Optional[str] = None,
         api_key: Optional[str] = None,
         session_token: Optional[str] = None,
+        sudo_user: Optional[str] = None,
         connect: bool = True,
     ):
         """Initialize the ShotGrid connection.
@@ -131,7 +136,9 @@ class ShotgridProvider(ProdtrackProviderBase):
             url: ShotGrid server URL. Defaults to SHOTGRID_URL env var.
             script_name: API script name. Defaults to SHOTGRID_SCRIPT_NAME env var.
             api_key: API key for authentication. Defaults to SHOTGRID_API_KEY env var.
-            session_token: Session token for user authentication.
+            session_token: Optional user session token.
+            sudo_user: Optional user login to perform actions as.
+            connect: Whether to connect immediately.
         """
         super().__init__()
 
@@ -139,6 +146,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         self.script_name = script_name or os.getenv("SHOTGRID_SCRIPT_NAME")
         self.api_key = api_key or os.getenv("SHOTGRID_API_KEY")
         self.session_token = session_token
+        self.sudo_user = sudo_user or os.getenv("SHOTGRID_SUDO_USER")
 
         if not self.url:
             raise ValueError("ShotGrid URL not provided.")
@@ -150,16 +158,68 @@ class ShotgridProvider(ProdtrackProviderBase):
             )
 
         self.sg = None
+        self._sudo_connection = None
         if connect:
-            self._connect()
+            self.connect()
 
-    def _connect(self):
-        """Connect to ShotGrid."""
+    def connect(self, sudo_user: Optional[str] = None):
+        """Connect to ShotGrid.
+
+        Args:
+            sudo_user: Optional user login to perform actions as.
+                If provided, overrides the instance's sudo_user.
+        """
         if self.session_token:
-            # When using session token, we don't use script credentials
             self.sg = Shotgun(self.url, session_token=self.session_token)
-        else:
-            self.sg = Shotgun(self.url, self.script_name, self.api_key)
+            return
+
+        self.sg = Shotgun(
+            self.url,
+            self.script_name,
+            self.api_key,
+            sudo_as_login=sudo_user or self.sudo_user,
+        )
+
+    def set_sudo_user(self, sudo_user: str):
+        """Set the sudo user and re-initialize the connection.
+
+        Args:
+            sudo_user: The user login to perform actions as.
+        """
+        if self.session_token:
+            raise ValueError("Cannot set sudo user when using a session token.")
+        self.sudo_user = sudo_user
+        self.connect()
+
+    @contextlib.contextmanager
+    def sudo(self, user_login: str):
+        """Context manager to perform actions as a specific user.
+
+        This creates a temporary connection for the duration of the context.
+
+        Args:
+            user_login: The user login to perform actions as.
+        """
+        if self.session_token:
+            raise ValueError("Cannot use sudo context when using a session token.")
+
+        original_connection = self._sudo_connection
+        try:
+            # Create a temporary connection for this user
+            self._sudo_connection = Shotgun(
+                self.url,
+                self.script_name,
+                self.api_key,
+                sudo_as_login=user_login,
+            )
+            yield
+        finally:
+            self._sudo_connection = original_connection
+
+    @property
+    def _sg(self):
+        """Get the active ShotGrid connection (sudo or main)."""
+        return self._sudo_connection or self.sg
 
     def _convert_sg_entity_to_dna_entity(
         self,
@@ -220,14 +280,22 @@ class ShotgridProvider(ProdtrackProviderBase):
             return model_class(id=entity_id, code=name)
         return model_class(id=entity_id, name=name)
 
-    def get_entity(self, entity_type: str, entity_id: int) -> EntityBase:
+    def get_entity(
+        self, entity_type: str, entity_id: int, resolve_links: bool = True
+    ) -> EntityBase:
         """
         Get an entity by its ID.
 
         Using the field mapping, we get the entity from ShotGrid and then
         create the Pydantic entity object.
+
+        Args:
+            entity_type: The type of entity to fetch
+            entity_id: The ID of the entity
+            resolve_links: If True, recursively fetch linked entities.
+                If False, only include shallow links with id/name.
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
         # Get the field mapping for this entity type
@@ -242,7 +310,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         all_field_names = list(set(fields + linked_field_sg_names))
 
         # Query entity from ShotGrid
-        sg_entity = self.sg.find_one(
+        sg_entity = self._sg.find_one(
             entity_mapping["entity_id"],
             filters=[["id", "is", entity_id]],
             fields=all_field_names,
@@ -252,7 +320,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError(f"Entity not found: {entity_type} {entity_id}")
 
         return self._convert_sg_entity_to_dna_entity(
-            sg_entity, entity_mapping, entity_type
+            sg_entity, entity_mapping, entity_type, resolve_links=resolve_links
         )
 
     def _resolve_linked_field(self, data):
@@ -310,7 +378,7 @@ class ShotgridProvider(ProdtrackProviderBase):
                 sg_entity_data[sg_field_name] = sg_linked
 
         # Create the entity in ShotGrid
-        result = self.sg.create(entity_mapping["entity_id"], sg_entity_data)
+        result = self._sg.create(entity_mapping["entity_id"], sg_entity_data)
 
         # Convert result and preserve linked entities from input
         created_entity = self._convert_sg_entity_to_dna_entity(
@@ -323,18 +391,21 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return created_entity
 
-    def find(self, entity_type: str, filters: list[dict[str, Any]]) -> list[EntityBase]:
+    def find(
+        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+    ) -> list[EntityBase]:
         """Find entities matching the given filters.
 
         Args:
             entity_type: The DNA entity type to search for
             filters: List of filter conditions in DNA format.
                 Each filter is a dict with 'field', 'operator', and 'value' keys.
+            limit: Maximum number of entities to return. Defaults to 0 (no limit).
 
         Returns:
             List of matching DNA entities
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
         entity_mapping = FIELD_MAPPING.get(entity_type)
@@ -365,10 +436,11 @@ class ShotgridProvider(ProdtrackProviderBase):
         sg_fields.extend(linked_fields_map.keys())
 
         # Query ShotGrid
-        sg_results = self.sg.find(
+        sg_results = self._sg.find(
             entity_mapping["entity_id"],
             filters=sg_filters,
             fields=sg_fields,
+            limit=limit,
         )
 
         # Convert SG entities to DNA entities
@@ -378,6 +450,108 @@ class ShotgridProvider(ProdtrackProviderBase):
             )
             for sg_entity in sg_results
         ]
+
+    def search(
+        self,
+        query: str,
+        entity_types: list[str],
+        project_id: int | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Search for entities across multiple entity types.
+
+        Args:
+            query: Text to search for (searches name field)
+            entity_types: List of entity types to search (e.g., ['user', 'shot', 'asset'])
+            project_id: Optional project ID to scope non-user entities
+            limit: Maximum results per entity type
+
+        Returns:
+            List of lightweight entity representations with type, id, name, and
+            type-specific fields (email for users, description for shots/assets/versions)
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        results = []
+
+        for entity_type in entity_types:
+            # Validate entity type
+            entity_mapping = FIELD_MAPPING.get(entity_type)
+            if entity_mapping is None:
+                raise ValueError(f"Unsupported entity type: {entity_type}")
+
+            sg_entity_type = entity_mapping["entity_id"]
+
+            # Determine the name field for this entity type (code or name)
+            # and build minimal fields list for performance
+            fields_mapping = entity_mapping["fields"]
+            name_sg_field = None
+            for sg_field, dna_field in fields_mapping.items():
+                if dna_field == "name":
+                    name_sg_field = sg_field
+                    break
+
+            if name_sg_field is None:
+                continue
+
+            # Build minimal fields list: only what we need for search results
+            sg_fields = ["id", name_sg_field]
+            if entity_type == "user":
+                sg_fields.append("email")
+            else:
+                if "description" in fields_mapping:
+                    sg_fields.append("description")
+                if "project" in fields_mapping:
+                    sg_fields.append("project")
+
+            # Build ShotGrid filters
+            sg_filters = [[name_sg_field, "contains", query]]
+
+            # Add project filter for non-user entities
+            if entity_type != "user" and project_id is not None:
+                sg_filters.append(
+                    ["project", "is", {"type": "Project", "id": project_id}]
+                )
+
+            # Query ShotGrid directly with minimal fields for performance
+            sg_results = self._sg.find(
+                sg_entity_type,
+                filters=sg_filters,
+                fields=sg_fields,
+                limit=limit,
+            )
+
+            # Convert to lightweight search results directly from SG response
+            # Use DNA model class name for proper type mapping
+            model_class = ENTITY_MODELS.get(entity_type)
+            dna_type = model_class.__name__ if model_class else entity_type.capitalize()
+            for sg_entity in sg_results:
+                result = {
+                    "type": dna_type,
+                    "id": sg_entity.get("id"),
+                    "name": sg_entity.get(name_sg_field),
+                }
+
+                # Add type-specific fields
+                if entity_type == "user":
+                    result["email"] = sg_entity.get("email")
+                else:
+                    # Add description if present
+                    if "description" in sg_entity:
+                        result["description"] = sg_entity.get("description")
+
+                    # Add project reference if present
+                    project_data = sg_entity.get("project")
+                    if project_data:
+                        result["project"] = {
+                            "type": project_data.get("type"),
+                            "id": project_data.get("id"),
+                        }
+
+                results.append(result)
+
+        return results
 
     def get_user_by_email(self, user_email: str) -> User:
         """Get a user by their email address.
@@ -391,10 +565,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         Raises:
             ValueError: If user is not found
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
-        sg_user = self.sg.find_one(
+        sg_user = self._sg.find_one(
             "HumanUser",
             filters=[["email", "is", user_email]],
             fields=["id", "name", "email", "login"],
@@ -420,10 +594,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         Raises:
             ValueError: If user is not found
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
-        sg_user = self.sg.find_one(
+        sg_user = self._sg.find_one(
             "HumanUser",
             filters=[["login", "is", login]],
             fields=["id", "name", "email", "login"],
@@ -446,11 +620,11 @@ class ShotgridProvider(ProdtrackProviderBase):
         Returns:
             List of Project entities the user has access to
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
         # First, find the user by their email
-        user = self.sg.find_one(
+        user = self._sg.find_one(
             "HumanUser",
             filters=[["email", "is", user_email]],
             fields=["id", "email", "name"],
@@ -460,7 +634,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError(f"User not found: {user_email}")
 
         # Find projects where this user is in the users list
-        sg_projects = self.sg.find(
+        sg_projects = self._sg.find(
             "Project",
             filters=[["users", "is", user]],
             fields=["id", "name"],
@@ -483,10 +657,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         Returns:
             List of Playlist entities for the project
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
-        sg_playlists = self.sg.find(
+        sg_playlists = self._sg.find(
             "Playlist",
             filters=[
                 ["project", "is", {"type": "Project", "id": project_id}],
@@ -511,10 +685,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         Returns:
             List of Version entities in the playlist
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
-        sg_playlist = self.sg.find_one(
+        sg_playlist = self._sg.find_one(
             "Playlist",
             filters=[["id", "is", playlist_id]],
             fields=["versions"],
@@ -529,7 +703,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         version_fields = list(entity_mapping["fields"].keys()) + list(
             entity_mapping["linked_fields"].keys()
         )
-        sg_versions = self.sg.find(
+        sg_versions = self._sg.find(
             "Version",
             filters=[["id", "in", version_ids]],
             fields=version_fields,
@@ -549,7 +723,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         if task_ids:
             task_mapping = FIELD_MAPPING["task"]
             task_fields = list(task_mapping["fields"].keys())
-            sg_tasks = self.sg.find(
+            sg_tasks = self._sg.find(
                 "Task",
                 filters=[["id", "in", task_ids]],
                 fields=task_fields,
@@ -575,6 +749,107 @@ class ShotgridProvider(ProdtrackProviderBase):
             versions.append(version)
 
         return versions
+
+    def publish_note(
+        self,
+        version_id: int,
+        content: str,
+        subject: str,
+        to_users: list[int],
+        cc_users: list[int],
+        links: list[EntityBase],
+        author_email: Optional[str] = None,
+    ) -> int:
+        """Publish a note to ShotGrid.
+
+        Args:
+            version_id: The ID of the version to link to.
+            content: Note content.
+            subject: Note subject.
+            to_users: List of user IDs to address.
+            cc_users: List of user IDs to CC.
+            links: List of additional entities to link.
+            author_email: Optional email of the author.
+
+        Returns:
+            The ID of the created (or existing) note.
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        # 1. Fetch version to get Project and ensure version exists
+        version_data = self._sg.find_one(
+            "Version",
+            filters=[["id", "is", version_id]],
+            fields=["project"],
+        )
+        if not version_data:
+            raise ValueError(f"Version {version_id} not found")
+
+        project = version_data.get("project")
+        if not project:
+            raise ValueError(f"Version {version_id} has no project assigned")
+
+        # 2. Check for duplicates
+        # We consider a note a duplicate if it links to this version and has same subject/content
+        # Note: We don't check author because duplicate content from different author is still weird multiple post?
+        # Actually usually duplicate check includes author? Let's stick to subject+content+version link for now as per reference
+        duplicate_filters = [
+            ["project", "is", project],
+            ["note_links", "is", {"type": "Version", "id": version_id}],
+            ["subject", "is", subject],
+            ["content", "is", content],
+        ]
+
+        # Use find_one for efficiency, we just need to know if ANY exists
+        existing_note = self._sg.find_one(
+            "Note", filters=duplicate_filters, fields=["id"]
+        )
+        if existing_note:
+            return existing_note["id"]
+
+        # 3. Prepare Note Data
+        note_links = [{"type": "Version", "id": version_id}]
+        if links:
+            extra_links = self._convert_entities_to_sg_links(links)
+            if extra_links:
+                if isinstance(extra_links, dict):
+                    note_links.append(extra_links)
+                elif isinstance(extra_links, list):
+                    note_links.extend(extra_links)
+
+        recipient_links = [{"type": "HumanUser", "id": uid} for uid in to_users]
+        cc_links = [{"type": "HumanUser", "id": uid} for uid in cc_users]
+
+        note_data = {
+            "project": project,
+            "subject": subject,
+            "content": content,
+            "note_links": note_links,
+            "addressings_to": recipient_links,
+            "addressings_cc": cc_links,
+        }
+
+        # 4. Handle Author / Sudo
+        author_login = None
+        if author_email:
+            try:
+                author_user = self.get_user_by_email(author_email)
+                if author_user and author_user.login:
+                    author_login = author_user.login
+            except ValueError as e:
+                # Wrap the ValueError in a specific UserNotFoundError
+                raise UserNotFoundError(
+                    f"Author not found in ShotGrid: {author_email}"
+                ) from e
+
+        if author_login and not self.session_token:
+            with self.sudo(author_login):
+                result = self._sg.create("Note", note_data)
+        else:
+            result = self._sg.create("Note", note_data)
+
+        return result["id"]
 
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:

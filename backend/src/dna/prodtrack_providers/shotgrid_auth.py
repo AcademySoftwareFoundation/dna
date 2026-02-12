@@ -5,6 +5,8 @@ from typing import Any, Optional
 
 from shotgun_api3 import Shotgun
 
+from dna.prodtrack_providers.shotgrid import ShotgridProvider
+
 
 class ShotgridAuthenticationProvider:
     """Provider for ShotGrid authentication."""
@@ -31,17 +33,8 @@ class ShotgridAuthenticationProvider:
             raise ValueError("SHOTGRID_URL not configured")
 
         try:
-            # Initialize connection to verify credentials and get token
             sg = Shotgun(url, login=username, password=password)
             token = sg.get_session_token()
-
-            # We need to fetch the user details (email)
-            # We can use the same connection object 'sg' if it supports find/find_one after auth
-            # OR create a new connection with the token.
-            # Using the existing 'sg' instance is more efficient as it's already authenticated/connected (presumably).
-            # However, shotgun_api3 behaviour: 'sg' initialized with login/pass IS valid.
-
-            # Implementation note: We need to find the user by login to get the email.
             user_data = sg.find_one(
                 "HumanUser", filters=[["login", "is", username]], fields=["email"]
             )
@@ -54,6 +47,25 @@ class ShotgridAuthenticationProvider:
                 raise ValueError("User has no email address configured")
 
             return {"token": token, "email": email}
-
+        except ValueError:
+            raise
         except Exception as e:
-            raise ValueError(f"Authentication failed: {str(e)}")
+            raise ValueError(f"Authentication failed: {str(e)}") from e
+
+    @staticmethod
+    def authenticate_passwordless(username: str) -> dict[str, Any]:
+        """Resolve user identity without password and without issuing a token."""
+        provider = ShotgridProvider()
+
+        try:
+            if "@" in username:
+                user = provider.get_user_by_email(username)
+            else:
+                user = provider.get_user_by_login(username)
+        except ValueError as exc:
+            raise ValueError(f"Authentication failed: {str(exc)}") from exc
+
+        if not user.email:
+            raise ValueError("User has no email address configured")
+
+        return {"token": None, "email": user.email}

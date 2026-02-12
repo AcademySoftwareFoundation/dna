@@ -5,10 +5,37 @@ import {
   GetVersionsForPlaylistParams,
   GetUserByEmailParams,
   LoginParams,
+  AuthResponse,
+  GetDraftNoteParams,
+  GetAllDraftNotesParams,
+  UpsertDraftNoteParams,
+  DeleteDraftNoteParams,
+  GetPlaylistMetadataParams,
+  UpsertPlaylistMetadataParams,
+  DeletePlaylistMetadataParams,
+  DispatchBotParams,
+  StopBotParams,
+  GetBotStatusParams,
+  GetTranscriptParams,
+  GetSegmentsParams,
+  GetUserSettingsParams,
+  UpsertUserSettingsParams,
+  DeleteUserSettingsParams,
+  GenerateNoteParams,
+  GenerateNoteResponse,
+  PublishNotesParams,
+  PublishNotesResponse,
+  DraftNote,
   Playlist,
+  PlaylistMetadata,
   Project,
   User as DNAUser,
   Version,
+  BotSession,
+  BotStatus,
+  Transcript,
+  StoredSegment,
+  UserSettings,
 } from './interfaces';
 
 export interface User {
@@ -89,15 +116,31 @@ class ApiHandler {
     return response.data;
   }
 
-  async getProjectsForUser(params: GetProjectsForUserParams): Promise<Project[]> {
-    return this.get<Project[]>(`/projects/user/${encodeURIComponent(params.userEmail)}`);
+  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response: AxiosResponse<T> = await this.axiosInstance.delete(
+      url,
+      config
+    );
+    return response.data;
   }
 
-  async getPlaylistsForProject(params: GetPlaylistsForProjectParams): Promise<Playlist[]> {
+  async getProjectsForUser(
+    params: GetProjectsForUserParams
+  ): Promise<Project[]> {
+    return this.get<Project[]>(
+      `/projects/user/${encodeURIComponent(params.userEmail)}`
+    );
+  }
+
+  async getPlaylistsForProject(
+    params: GetPlaylistsForProjectParams
+  ): Promise<Playlist[]> {
     return this.get<Playlist[]>(`/projects/${params.projectId}/playlists`);
   }
 
-  async getVersionsForPlaylist(params: GetVersionsForPlaylistParams): Promise<Version[]> {
+  async getVersionsForPlaylist(
+    params: GetVersionsForPlaylistParams
+  ): Promise<Version[]> {
     return this.get<Version[]>(`/playlists/${params.playlistId}/versions`);
   }
 
@@ -105,8 +148,133 @@ class ApiHandler {
     return this.get<DNAUser>(`/users/${encodeURIComponent(params.userEmail)}`);
   }
 
-  async login(params: LoginParams): Promise<{ token: string }> {
-    return this.post<{ token: string }>('/auth/login', params);
+  async login(params: LoginParams): Promise<AuthResponse> {
+    return this.post<AuthResponse>('/auth/login', params);
+  }
+
+  async getDraftNote(params: GetDraftNoteParams): Promise<DraftNote | null> {
+    return this.get<DraftNote | null>(
+      `/playlists/${params.playlistId}/versions/${params.versionId}/draft-notes/${encodeURIComponent(params.userEmail)}`
+    );
+  }
+
+  async upsertDraftNote(params: UpsertDraftNoteParams): Promise<DraftNote> {
+    return this.put<DraftNote>(
+      `/playlists/${params.playlistId}/versions/${params.versionId}/draft-notes/${encodeURIComponent(params.userEmail)}`,
+      params.data
+    );
+  }
+
+  async deleteDraftNote(params: DeleteDraftNoteParams): Promise<boolean> {
+    return this.delete<boolean>(
+      `/playlists/${params.playlistId}/versions/${params.versionId}/draft-notes/${encodeURIComponent(params.userEmail)}`
+    );
+  }
+
+  async getAllDraftNotes(params: GetAllDraftNotesParams): Promise<DraftNote[]> {
+    return this.get<DraftNote[]>(
+      `/playlists/${params.playlistId}/versions/${params.versionId}/draft-notes`
+    );
+  }
+
+  async getPlaylistMetadata(
+    params: GetPlaylistMetadataParams
+  ): Promise<PlaylistMetadata | null> {
+    return this.get<PlaylistMetadata | null>(
+      `/playlists/${params.playlistId}/metadata`
+    );
+  }
+
+  async upsertPlaylistMetadata(
+    params: UpsertPlaylistMetadataParams
+  ): Promise<PlaylistMetadata> {
+    return this.put<PlaylistMetadata>(
+      `/playlists/${params.playlistId}/metadata`,
+      params.data
+    );
+  }
+
+  async deletePlaylistMetadata(
+    params: DeletePlaylistMetadataParams
+  ): Promise<boolean> {
+    return this.delete<boolean>(`/playlists/${params.playlistId}/metadata`);
+  }
+
+  async dispatchBot(params: DispatchBotParams): Promise<BotSession> {
+    return this.post<BotSession>('/transcription/bot', params.request);
+  }
+
+  async stopBot(params: StopBotParams): Promise<boolean> {
+    return this.delete<boolean>(
+      `/transcription/bot/${params.platform}/${encodeURIComponent(params.meetingId)}`
+    );
+  }
+
+  async getBotStatus(params: GetBotStatusParams): Promise<BotStatus> {
+    return this.get<BotStatus>(
+      `/transcription/bot/${params.platform}/${encodeURIComponent(params.meetingId)}/status`
+    );
+  }
+
+  async getTranscript(params: GetTranscriptParams): Promise<Transcript> {
+    return this.get<Transcript>(
+      `/transcription/transcript/${params.platform}/${encodeURIComponent(params.meetingId)}`
+    );
+  }
+
+  async getSegmentsForVersion(
+    params: GetSegmentsParams
+  ): Promise<StoredSegment[]> {
+    return this.get<StoredSegment[]>(
+      `/transcription/segments/${params.playlistId}/${params.versionId}`
+    );
+  }
+
+  async getUserSettings(
+    params: GetUserSettingsParams
+  ): Promise<UserSettings | null> {
+    return this.get<UserSettings | null>(
+      `/users/${encodeURIComponent(params.userEmail)}/settings`
+    );
+  }
+
+  async upsertUserSettings(
+    params: UpsertUserSettingsParams
+  ): Promise<UserSettings> {
+    return this.put<UserSettings>(
+      `/users/${encodeURIComponent(params.userEmail)}/settings`,
+      params.data
+    );
+  }
+
+  async deleteUserSettings(params: DeleteUserSettingsParams): Promise<boolean> {
+    return this.delete<boolean>(
+      `/users/${encodeURIComponent(params.userEmail)}/settings`
+    );
+  }
+
+  async generateNote(
+    params: GenerateNoteParams
+  ): Promise<GenerateNoteResponse> {
+    return this.post<GenerateNoteResponse>('/generate-note', {
+      playlist_id: params.playlistId,
+      version_id: params.versionId,
+      user_email: params.userEmail,
+      additional_instructions: params.additionalInstructions,
+    });
+  }
+
+  async getPlaylistDraftNotes(playlistId: number): Promise<DraftNote[]> {
+    return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
+  }
+
+  async publishNotes(
+    params: PublishNotesParams
+  ): Promise<PublishNotesResponse> {
+    return this.post<PublishNotesResponse>(
+      `/playlists/${params.playlistId}/publish-notes`,
+      params.request
+    );
   }
 }
 

@@ -8,7 +8,8 @@ export const StyledTextField = styled(TextField.Root)`
     border: 1px solid ${({ theme }) => theme.colors.border.subtle};
     border-radius: ${({ theme }) => theme.radii.md};
     box-shadow: none;
-    transition: border-color ${({ theme }) => theme.transitions.fast},
+    transition:
+      border-color ${({ theme }) => theme.transitions.fast},
       box-shadow ${({ theme }) => theme.transitions.fast};
 
     &:focus-within {
@@ -38,7 +39,8 @@ export const StyledSelectTrigger = styled(Select.Trigger)`
     font-family: ${({ theme }) => theme.fonts.sans};
     font-size: 14px;
     color: ${({ theme }) => theme.colors.text.primary};
-    transition: border-color ${({ theme }) => theme.transitions.fast},
+    transition:
+      border-color ${({ theme }) => theme.transitions.fast},
       box-shadow ${({ theme }) => theme.transitions.fast};
 
     &:focus,
