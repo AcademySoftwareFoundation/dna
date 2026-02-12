@@ -58,15 +58,12 @@ export interface UseTranscriptionReturn {
   status: BotStatus | null;
   isDispatching: boolean;
   isStopping: boolean;
-  isPollingStatus: boolean;
+  isLoadingStatus: boolean;
   error: Error | null;
   dispatchBot: (meetingUrl: string, passcode?: string) => Promise<BotSession>;
   stopBot: () => Promise<void>;
   clearSession: () => void;
 }
-
-const POLL_INTERVAL_CONNECTING = 1000;
-const POLL_INTERVAL_CONNECTED = 30000;
 
 export function useTranscription({
   playlistId,
@@ -92,16 +89,15 @@ export function useTranscription({
     );
   };
 
-  const isConnectingStatus = (statusValue: BotStatusEnum): boolean => {
-    return ['joining', 'waiting_room'].includes(statusValue);
-  };
-
-  const shouldPollStatus = !!(meetingPlatform && meetingId);
+  const shouldFetchInitialStatus = !!(
+    meetingPlatform &&
+    meetingId &&
+    !session
+  );
 
   const {
     data: status,
-    isFetching: isPollingStatus,
-    refetch: refetchStatus,
+    isLoading: isLoadingStatus,
   } = useQuery<BotStatus, Error>({
     queryKey: ['botStatus', meetingPlatform, meetingId],
     queryFn: () =>
@@ -109,21 +105,11 @@ export function useTranscription({
         platform: meetingPlatform!,
         meetingId: meetingId!,
       }),
-    enabled: shouldPollStatus,
-    refetchInterval: (query) => {
-      const currentStatus = query.state.data?.status ?? session?.status;
-      if (!currentStatus) {
-        return POLL_INTERVAL_CONNECTING;
-      }
-      if (isConnectingStatus(currentStatus)) {
-        return POLL_INTERVAL_CONNECTING;
-      }
-      if (isActiveStatus(currentStatus)) {
-        return POLL_INTERVAL_CONNECTED;
-      }
-      return false;
-    },
-    retry: 1,
+    enabled: shouldFetchInitialStatus,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   if (import.meta.env.DEV) {
@@ -135,12 +121,12 @@ export function useTranscription({
       meetingId,
       session,
       status,
-      shouldPollStatus,
+      shouldFetchInitialStatus,
     });
   }
 
   useEffect(() => {
-    const currentStatus = status?.status ?? session?.status;
+    const currentStatus = session?.status ?? status?.status;
     const previousStatus = previousStatusRef.current;
 
     if (currentStatus === 'waiting_room' && previousStatus !== 'waiting_room') {
@@ -164,7 +150,7 @@ export function useTranscription({
     }
 
     previousStatusRef.current = currentStatus ?? null;
-  }, [status?.status, session?.status, showToast, dismissToast]);
+  }, [session?.status, status?.status, showToast, dismissToast]);
 
   useEffect(() => {
     if (status && !session && meetingPlatform && meetingId) {
@@ -182,24 +168,52 @@ export function useTranscription({
   }, [status, session, meetingPlatform, meetingId, playlistId]);
 
   useEffect(() => {
-    if (!eventClient || !meetingPlatform || !meetingId) return;
+    if (!eventClient || !playlistId) return;
 
     const handleBotStatusEvent = (event: DNAEvent<BotStatusEventPayload>) => {
       const payload = event.payload;
-      if (
-        payload.platform === meetingPlatform &&
-        payload.meeting_id === meetingId
-      ) {
-        refetchStatus();
 
-        if (session) {
-          setSession({
-            ...session,
-            status: payload.status as BotStatusEnum,
-            updated_at: new Date().toISOString(),
-          });
-        }
+      const matchesMeeting =
+        meetingPlatform &&
+        meetingId &&
+        payload.platform === meetingPlatform &&
+        payload.meeting_id === meetingId;
+
+      const matchesPlaylist = payload.playlist_id === playlistId;
+
+      if (!matchesMeeting && !matchesPlaylist) {
+        return;
       }
+
+      const newStatus = payload.status as BotStatusEnum;
+
+      if (session) {
+        setSession({
+          ...session,
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        });
+      } else if (isActiveStatus(newStatus)) {
+        setSession({
+          platform: payload.platform as Platform,
+          meeting_id: payload.meeting_id,
+          playlist_id: payload.playlist_id ?? playlistId,
+          status: newStatus,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      queryClient.setQueryData<BotStatus>(
+        ['botStatus', payload.platform, payload.meeting_id],
+        (old) =>
+          old
+            ? { ...old, status: newStatus, updated_at: new Date().toISOString() }
+            : {
+                status: newStatus,
+                updated_at: new Date().toISOString(),
+              }
+      );
     };
 
     const unsubscribe = eventClient.subscribe<BotStatusEventPayload>(
@@ -208,7 +222,7 @@ export function useTranscription({
     );
 
     return unsubscribe;
-  }, [eventClient, meetingPlatform, meetingId, session, refetchStatus]);
+  }, [eventClient, meetingPlatform, meetingId, playlistId, session, queryClient]);
 
   const dispatchMutation = useMutation<BotSession, Error, DispatchBotRequest>({
     mutationFn: (request) => apiHandler.dispatchBot({ request }),
@@ -229,9 +243,6 @@ export function useTranscription({
       queryClient.invalidateQueries({
         queryKey: ['playlistMetadata', playlistId],
       });
-      queryClient.invalidateQueries({
-        queryKey: ['botStatus', newSession.platform, newSession.meeting_id],
-      });
     },
     onError: (err) => {
       setSession(null);
@@ -251,9 +262,6 @@ export function useTranscription({
       if (session) {
         setSession({ ...session, status: 'stopped' });
       }
-      queryClient.invalidateQueries({
-        queryKey: ['botStatus', meetingPlatform, meetingId],
-      });
     },
     onError: (err) => {
       setError(err);
@@ -297,7 +305,7 @@ export function useTranscription({
     status: status ?? null,
     isDispatching: dispatchMutation.isPending,
     isStopping: stopMutation.isPending,
-    isPollingStatus,
+    isLoadingStatus,
     error,
     dispatchBot,
     stopBot,

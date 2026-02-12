@@ -1,6 +1,19 @@
-"""Event publishing module for RabbitMQ."""
+"""Event publishing module with in-memory event bus and WebSocket broadcasting."""
 
-from dna.events.event_publisher import EventPublisher, get_event_publisher
+from dna.events.event_publisher import (
+    EventCallback,
+    EventPublisher,
+    WebSocketManager,
+    get_event_publisher,
+    reset_event_publisher,
+)
 from dna.events.event_types import EventType
 
-__all__ = ["EventPublisher", "EventType", "get_event_publisher"]
+__all__ = [
+    "EventCallback",
+    "EventPublisher",
+    "EventType",
+    "WebSocketManager",
+    "get_event_publisher",
+    "reset_event_publisher",
+]

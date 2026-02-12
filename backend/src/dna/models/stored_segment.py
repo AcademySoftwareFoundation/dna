@@ -13,11 +13,16 @@ from pydantic import BaseModel, ConfigDict, Field
 def generate_segment_id(
     playlist_id: int,
     version_id: int,
-    speaker: str,
     absolute_start_time: str,
 ) -> str:
-    """Generate a unique segment ID based on version, speaker, and start time."""
-    key = f"{playlist_id}:{version_id}:{speaker}:{absolute_start_time}"
+    """Generate a unique segment ID based on version and start time.
+
+    Note: Speaker is intentionally excluded from the key because Vexa's mutable
+    transcription can reassign speakers as it refines the transcript. Using only
+    the start time ensures updates to the same moment are treated as updates
+    rather than new segments.
+    """
+    key = f"{playlist_id}:{version_id}:{absolute_start_time}"
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 

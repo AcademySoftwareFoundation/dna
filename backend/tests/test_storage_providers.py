@@ -464,6 +464,7 @@ class TestMongoDBStorageProvider:
         }
 
         mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
+        mock_collection.find_one = mock.AsyncMock(return_value=None)
 
         mock_client = mock.MagicMock()
         mock_db = mock.MagicMock()
@@ -476,6 +477,77 @@ class TestMongoDBStorageProvider:
 
         assert result.meeting_id == "abc-123"
         mock_collection.find_one_and_update.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_upsert_playlist_metadata_sets_resumed_at_on_unpause(self, provider):
+        """Test that transcription_resumed_at is set when unpausing."""
+        from datetime import datetime, timezone
+
+        mock_collection = mock.MagicMock()
+
+        existing_doc = {
+            "_id": "abc123",
+            "playlist_id": 1,
+            "transcription_paused": True,
+        }
+
+        result_doc = {
+            "_id": "abc123",
+            "playlist_id": 1,
+            "transcription_paused": False,
+            "transcription_resumed_at": datetime.now(timezone.utc),
+        }
+
+        mock_collection.find_one = mock.AsyncMock(return_value=existing_doc)
+        mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.playlist_metadata = mock_collection
+        provider._client = mock_client
+
+        data = PlaylistMetadataUpdate(transcription_paused=False)
+        await provider.upsert_playlist_metadata(1, data)
+
+        call_args = mock_collection.find_one_and_update.call_args
+        update_dict = call_args[0][1]
+        assert "transcription_resumed_at" in update_dict["$set"]
+
+    @pytest.mark.asyncio
+    async def test_upsert_playlist_metadata_no_resumed_at_when_not_previously_paused(
+        self, provider
+    ):
+        """Test that transcription_resumed_at is not set when not previously paused."""
+        mock_collection = mock.MagicMock()
+
+        existing_doc = {
+            "_id": "abc123",
+            "playlist_id": 1,
+            "transcription_paused": False,
+        }
+
+        result_doc = {
+            "_id": "abc123",
+            "playlist_id": 1,
+            "transcription_paused": False,
+        }
+
+        mock_collection.find_one = mock.AsyncMock(return_value=existing_doc)
+        mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.playlist_metadata = mock_collection
+        provider._client = mock_client
+
+        data = PlaylistMetadataUpdate(transcription_paused=False)
+        await provider.upsert_playlist_metadata(1, data)
+
+        call_args = mock_collection.find_one_and_update.call_args
+        update_dict = call_args[0][1]
+        assert "transcription_resumed_at" not in update_dict["$set"]
 
     @pytest.mark.asyncio
     async def test_delete_playlist_metadata_success(self, provider):
