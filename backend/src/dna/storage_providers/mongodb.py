@@ -154,11 +154,28 @@ class MongoDBStorageProvider(StorageProviderBase):
         self, playlist_id: int, data: PlaylistMetadataUpdate
     ) -> PlaylistMetadata:
         query = {"playlist_id": playlist_id}
-        update_fields = {k: v for k, v in data.model_dump().items() if v is not None}
+        update_fields = {
+            k: v
+            for k, v in data.model_dump().items()
+            if v is not None and k != "clear_resumed_at"
+        }
+
+        unset_fields: dict[str, Any] = {}
+
+        if data.clear_resumed_at:
+            unset_fields["transcription_resumed_at"] = ""
+        elif data.transcription_paused is False:
+            existing = await self.playlist_metadata_collection.find_one(query)
+            if existing and existing.get("transcription_paused", False):
+                update_fields["transcription_resumed_at"] = datetime.now(timezone.utc)
+
         update: dict[str, Any] = {
             "$set": update_fields,
             "$setOnInsert": {"playlist_id": playlist_id},
         }
+        if unset_fields:
+            update["$unset"] = unset_fields
+
         result = await self.playlist_metadata_collection.find_one_and_update(
             query, update, upsert=True, return_document=ReturnDocument.AFTER
         )

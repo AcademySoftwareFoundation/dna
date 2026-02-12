@@ -45,11 +45,6 @@ services:
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
-
-  worker:
-    environment:
-      - VEXA_API_KEY=****************
-      - VEXA_API_URL=http://vexa:8056
   
   vexa:
     environment:
@@ -68,9 +63,7 @@ make start-local
 
 This starts:
 - **MongoDB** - Database (port 27017)
-- **RabbitMQ** - Message broker (ports 5672, 15672)
 - **DNA API** - FastAPI backend (port 8000)
-- **DNA Worker** - Event processor
 - **Vexa** - Transcription service (port 8056) 
 - **Vexa Dashboard** - Admin UI (port 3001)
 
@@ -97,7 +90,6 @@ The React app will be available at `http://localhost:5173`.
 |---------|-----|-------------|
 | DNA API | http://localhost:8000 | Backend API |
 | API Docs | http://localhost:8000/docs | Swagger UI |
-| RabbitMQ UI | http://localhost:15672 | Message broker admin (dna/dna) |
 | Vexa Dashboard | http://localhost:3001 | Transcription admin |
 | Frontend | http://localhost:5173 | React application |
 
@@ -113,24 +105,11 @@ The React app will be available at `http://localhost:5173`.
 | `PRODTRACK_PROVIDER` | No | `shotgrid` | Production tracking provider |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
-| `RABBITMQ_URL` | No | `amqp://dna:dna@rabbitmq:5672/dna` | RabbitMQ connection string |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
 | `VEXA_API_URL` | No | `http://vexa:8056` | Vexa REST API URL |
 | `OPENAI_API_KEY` | Yes | - | OpenAI API key for LLM features |
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
 | `LLM_PROVIDER` | No | `openai` | LLM provider (openai) |
-| `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
-
-### Worker (`worker` service)
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
-| `RABBITMQ_URL` | No | `amqp://dna:dna@rabbitmq:5672/dna` | RabbitMQ connection string |
-| `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
-| `VEXA_API_URL` | No | `http://vexa:8056` | Vexa REST API URL |
-| `TRANSCRIPTION_PROVIDER` | No | `vexa` | Transcription provider to use |
-| `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ### Vexa Service (`vexa` service)
@@ -141,14 +120,6 @@ The React app will be available at `http://localhost:5173`.
 | `ADMIN_API_TOKEN` | No | `your-admin-token` | Admin token for Vexa management |
 | `TRANSCRIBER_URL` | No | (vexa.ai) | Transcription API endpoint |
 | `TRANSCRIBER_API_KEY` | Yes | - | API key for transcription service |
-
-### RabbitMQ (`rabbitmq` service)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RABBITMQ_DEFAULT_USER` | `dna` | RabbitMQ username |
-| `RABBITMQ_DEFAULT_PASS` | `dna` | RabbitMQ password |
-| `RABBITMQ_DEFAULT_VHOST` | `dna` | RabbitMQ virtual host |
 
 ## Common Commands
 
@@ -217,33 +188,27 @@ npm run typecheck
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │   ┌─────────────────┐         ┌─────────────────┐         ┌───────────────┐ │
-│   │    Frontend     │────────▶│    DNA API      │────────▶│   ShotGrid    │ │
-│   │  (React/Vite)   │         │   (FastAPI)     │         │   (external)  │ │
+│   │    Frontend     │◀───────▶│    DNA API      │────────▶│   ShotGrid    │ │
+│   │  (React/Vite)   │   WS    │   (FastAPI)     │         │   (external)  │ │
 │   │  :5173          │         │   :8000         │         │               │ │
 │   └─────────────────┘         └────────┬────────┘         └───────────────┘ │
-│                                        │                                     │
-│                                        ▼                                     │
-│   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                          RabbitMQ  :5672                             │   │
-│   │                       (Management UI :15672)                         │   │
-│   └─────────────────────────────────────────────────────────────────────┘   │
 │                                        │                                     │
 │          ┌─────────────────────────────┴─────────────────────────────┐      │
 │          │                                                           │      │
 │          ▼                                                           ▼      │
 │   ┌─────────────────┐                                       ┌─────────────┐ │
-│   │   DNA Worker    │◀─────────────────────────────────────▶│    Vexa     │ │
-│   │   (asyncio)     │         WebSocket                     │   :8056     │ │
-│   └────────┬────────┘                                       └─────────────┘ │
-│            │                                                                 │
-│            ▼                                                                 │
-│   ┌─────────────────┐                                                       │
-│   │    MongoDB      │                                                       │
-│   │    :27017       │                                                       │
-│   └─────────────────┘                                                       │
+│   │    MongoDB      │                                       │    Vexa     │ │
+│   │    :27017       │                                       │   :8056     │ │
+│   └─────────────────┘                                       └─────────────┘ │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+The DNA API serves as the central hub:
+- Provides REST API for CRUD operations
+- Provides WebSocket endpoint (`/ws`) for real-time event streaming
+- Manages Vexa subscriptions for transcription events
+- Broadcasts segment and bot status events to connected frontend clients
 
 ## Docker Compose Files
 
@@ -280,13 +245,6 @@ db.segments.find()
 db.draft_notes.find()
 ```
 
-### RabbitMQ
-
-Access the management UI at http://localhost:15672
-
-- **Username:** dna
-- **Password:** dna
-
 ### API Documentation
 
 Interactive API documentation is available at:
@@ -298,7 +256,6 @@ Interactive API documentation is available at:
 ### Hot Reload
 
 - **Backend API:** Automatically reloads when you modify files in `src/`
-- **Worker:** Requires restart if you modify `worker.py` (run `docker restart dna-worker`)
 - **Frontend:** Vite provides instant hot module replacement
 
 ### Running Tests
@@ -313,7 +270,7 @@ make test
 
 # Run specific test file
 docker-compose -f docker-compose.yml -f docker-compose.local.yml \
-  run --rm api python -m pytest tests/test_worker.py -v
+  run --rm api python -m pytest tests/test_transcription_service.py -v
 ```
 
 #### Frontend Tests
@@ -338,21 +295,11 @@ npm run test:coverage
 ```bash
 # Check logs
 docker logs dna-backend
-docker logs dna-worker
 
 # Rebuild containers
 make build
 make start-local
 ```
-
-### RabbitMQ Connection Issues
-
-1. Ensure RabbitMQ is healthy:
-   ```bash
-   docker logs dna-rabbitmq
-   ```
-
-2. The worker waits for RabbitMQ to be healthy before starting (defined in `docker-compose.yml`)
 
 ### MongoDB Connection Issues
 
@@ -371,6 +318,12 @@ make start-local
 1. Ensure the API is running: http://localhost:8000/health
 2. Check for CORS issues in browser console
 3. Verify API URL in frontend configuration
+
+### WebSocket Connection Issues
+
+1. Check browser console for WebSocket errors
+2. Ensure the API is running and healthy
+3. The frontend connects to `ws://localhost:8000/ws` by default
 
 ## Stopping Everything
 
