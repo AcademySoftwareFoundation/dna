@@ -226,15 +226,6 @@ const PillsDisplay = styled.div`
   gap: 4px;
 `;
 
-// Fallback status labels in case API fails or is loading
-const fallbackStatusLabels: Record<string, string> = {
-  rev: 'Pending Review',
-  apr: 'Approved',
-  rej: 'Rejected',
-  ip: 'In Progress',
-  hld: 'On Hold',
-};
-
 export function NoteOptionsInline({
   toValue = [],
   ccValue = [],
@@ -254,19 +245,17 @@ export function NoteOptionsInline({
     projectId,
   });
 
-  // Build status labels map from fetched statuses or fallback
-  const statusLabels = useMemo(() => {
-    if (statuses.length > 0) {
-      return statuses.reduce(
+  const statusLabels = useMemo(
+    () =>
+      statuses.reduce(
         (acc, s) => {
           acc[s.code] = s.name;
           return acc;
         },
         {} as Record<string, string>
-      );
-    }
-    return fallbackStatusLabels;
-  }, [statuses]);
+      ),
+    [statuses]
+  );
 
   // Helper to display entity names as comma-separated string
   const formatEntities = (entities: SearchResult[]) => {
@@ -350,17 +339,11 @@ export function NoteOptionsInline({
                 <option value="">
                   {isLoadingStatuses ? 'Loading...' : 'Select...'}
                 </option>
-                {statuses.length > 0
-                  ? statuses.map((status) => (
-                      <option key={status.code} value={status.code}>
-                        {status.name}
-                      </option>
-                    ))
-                  : Object.entries(fallbackStatusLabels).map(([code, name]) => (
-                      <option key={code} value={code}>
-                        {name}
-                      </option>
-                    ))}
+                {statuses.map((status) => (
+                  <option key={status.code} value={status.code}>
+                    {status.name}
+                  </option>
+                ))}
               </StyledSelect>
               <SelectIcon>
                 <ChevronDown size={14} />

@@ -99,6 +99,7 @@ export function useDraftNote({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMutationRef = useRef<Promise<DraftNote> | null>(null);
   const pendingDataRef = useRef<LocalDraftNote | null>(null);
+  const hasInitializedRef = useRef(false);
 
   const isEnabled =
     playlistId != null && versionId != null && userEmail != null;
@@ -149,12 +150,20 @@ export function useDraftNote({
   useEffect(() => {
     if (!isEnabled) {
       setLocalDraft(null);
+      hasInitializedRef.current = false;
       return;
     }
+    // Only sync from server on initial load, not after our own mutations.
+    // The server response loses entity names for links, so re-syncing
+    // would overwrite the richer local state and cause pills to vanish.
+    if (hasInitializedRef.current) return;
+
     if (serverDraft) {
       setLocalDraft(backendToLocal(serverDraft));
+      hasInitializedRef.current = true;
     } else if (serverDraft === null && !isLoading) {
       setLocalDraft(createEmptyDraft());
+      hasInitializedRef.current = true;
     }
   }, [serverDraft, isEnabled, isLoading]);
 
