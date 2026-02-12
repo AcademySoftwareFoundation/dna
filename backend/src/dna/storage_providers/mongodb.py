@@ -86,7 +86,6 @@ class MongoDBStorageProvider(StorageProviderBase):
     ) -> Optional[DraftNote]:
         query = {
             **self._build_query(user_email, playlist_id, version_id),
-            "published": {"$ne": True},
         }
         doc = await self.draft_notes.find_one(query)
         if doc:
@@ -100,7 +99,6 @@ class MongoDBStorageProvider(StorageProviderBase):
         now = datetime.now(timezone.utc)
         query = {
             **self._build_query(user_email, playlist_id, version_id),
-            "published": {"$ne": True},
         }
 
         update_data = data.model_dump(exclude_none=True)
@@ -112,6 +110,42 @@ class MongoDBStorageProvider(StorageProviderBase):
         }
         if "published" not in update_data:
             update_data["published"] = False
+
+        update: dict[str, Any] = {
+            "$set": {**update_data, "updated_at": now},
+            "$setOnInsert": set_on_insert,
+        }
+        result = await self.draft_notes.find_one_and_update(
+            query, update, upsert=True, return_document=ReturnDocument.AFTER
+        )
+        result["_id"] = str(result["_id"])
+        return DraftNote(**result)
+
+    async def upsert_published_note(
+        self, user_email: str, playlist_id: int, version_id: int, data: DraftNoteUpdate
+    ) -> DraftNote:
+        now = datetime.now(timezone.utc)
+        # Query for the note (same query as upsert_draft_note, no "published: True" filter)
+        # This ensures we update the SAME record, not create a duplicate
+        query = self._build_query(user_email, playlist_id, version_id)
+
+        update_data = data.model_dump(exclude_none=True)
+        set_on_insert = {
+            "created_at": now,
+            "user_email": user_email,
+            "playlist_id": playlist_id,
+            "version_id": version_id,
+        }
+
+        # Check if we should skip update to protect local edits
+        existing = await self.draft_notes.find_one(query)
+        if existing:
+            # If existing note has unpublished changes (published=False or edited=True),
+            # do not overwrite it with the published version from sync.
+            # This preserves local edits when re-fetching published notes.
+            if not existing.get("published", True) or existing.get("edited", False):
+                existing["_id"] = str(existing["_id"])
+                return DraftNote(**existing)
 
         update: dict[str, Any] = {
             "$set": {**update_data, "updated_at": now},
