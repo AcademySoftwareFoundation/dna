@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
-import { Search, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Popover } from '@radix-ui/themes';
 import { SearchResult, SearchableEntityType } from '@dna/core';
 import { useEntitySearch } from '../hooks/useEntitySearch';
@@ -16,27 +16,24 @@ export interface EntitySearchInputProps {
   lockedEntities?: SearchResult[];
 }
 
-const Container = styled.div`
+// @radix-ui/themes omits asChild from Popover.Trigger's types even though
+// the underlying Radix primitive supports it. Cast once here to keep usage clean.
+const PopoverTrigger = Popover.Trigger as React.ComponentType<
+  React.ComponentPropsWithoutRef<typeof Popover.Trigger> & { asChild?: boolean }
+>;
+
+// Pills stack above the text input in a column layout so the input is
+// always anchored at the bottom of the bordered container.
+const FieldContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-`;
-
-const PillsContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 8px;
-`;
-
-const SearchInputContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
+  min-height: 38px;
   background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.subtle};
   border-radius: ${({ theme }) => theme.radii.sm};
+  cursor: text;
   transition: all ${({ theme }) => theme.transitions.fast};
 
   &:focus-within {
@@ -45,20 +42,21 @@ const SearchInputContainer = styled.div`
   }
 `;
 
-const SearchIcon = styled.div`
+const PillsRow = styled.div`
   display: flex;
-  align-items: center;
-  color: ${({ theme }) => theme.colors.text.muted};
+  flex-wrap: wrap;
+  gap: 4px;
 `;
 
 const Input = styled.input`
-  flex: 1;
+  width: 100%;
   border: none;
   background: transparent;
   font-size: 13px;
   font-family: ${({ theme }) => theme.fonts.sans};
   color: ${({ theme }) => theme.colors.text.primary};
   outline: none;
+  padding: 2px 0;
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.text.muted};
@@ -95,7 +93,7 @@ const DropdownItem = styled.div<{ $highlighted: boolean }>`
   }
 `;
 
-const EntityType = styled.span`
+const EntityTypeTag = styled.span`
   font-size: 11px;
   color: ${({ theme }) => theme.colors.text.muted};
   background: ${({ theme }) => theme.colors.bg.base};
@@ -103,7 +101,7 @@ const EntityType = styled.span`
   border-radius: ${({ theme }) => theme.radii.sm};
 `;
 
-const EntityName = styled.span`
+const EntityNameSpan = styled.span`
   flex: 1;
 `;
 
@@ -147,38 +145,13 @@ export function EntitySearchInput({
     limit: 10,
   });
 
-  // Filter out already selected entities
   const availableResults = results.filter(
     (result) =>
       !value.some((v) => v.id === result.id && v.type === result.type) &&
       !lockedEntities.some((l) => l.id === result.id && l.type === result.type)
   );
 
-  // Handle keyboard navigation for combobox items
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (!isOpen || availableResults.length === 0) return;
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev < availableResults.length - 1 ? prev + 1 : 0
-        );
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setHighlightedIndex((prev) =>
-          prev > 0 ? prev - 1 : availableResults.length - 1
-        );
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (availableResults[highlightedIndex]) {
-          handleSelect(availableResults[highlightedIndex]);
-        }
-        break;
-    }
-  }
+  const showDropdown = isOpen && query.length > 0;
 
   function handleSelect(entity: SearchResult) {
     onChange([...value, entity]);
@@ -191,94 +164,124 @@ export function EntitySearchInput({
     onChange(value.filter((v) => !(v.id === entity.id && v.type === entity.type)));
   }
 
-  const allEntities = [...lockedEntities, ...value];
-  const showDropdown = query.length > 0;
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // Backspace on empty input removes the last removable entity
+      if (e.key === 'Backspace' && query === '' && value.length > 0) {
+        e.preventDefault();
+        onChange(value.slice(0, -1));
+        return;
+      }
+
+      if (!showDropdown || availableResults.length === 0) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setHighlightedIndex((prev) =>
+            prev < availableResults.length - 1 ? prev + 1 : 0
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setHighlightedIndex((prev) =>
+            prev > 0 ? prev - 1 : availableResults.length - 1
+          );
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (availableResults[highlightedIndex]) {
+            handleSelect(availableResults[highlightedIndex]);
+          }
+          break;
+        case 'Escape':
+          setIsOpen(false);
+          inputRef.current?.blur();
+          break;
+      }
+    },
+    [query, value, showDropdown, availableResults, highlightedIndex, onChange]
+  );
+
+  const hasEntities = lockedEntities.length > 0 || value.length > 0;
 
   return (
-    <Container>
-      {allEntities.length > 0 && (
-        <PillsContainer>
-          {lockedEntities.map((entity) => (
-            <EntityPill
-              key={`${entity.type}-${entity.id}`}
-              entity={entity}
-              removable={false}
-            />
-          ))}
-          {value.map((entity) => (
-            <EntityPill
-              key={`${entity.type}-${entity.id}`}
-              entity={entity}
-              onRemove={() => handleRemove(entity)}
-              removable={true}
-            />
-          ))}
-        </PillsContainer>
-      )}
+    <Popover.Root open={showDropdown} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <FieldContainer onClick={() => inputRef.current?.focus()}>
+          {hasEntities && (
+            <PillsRow>
+              {lockedEntities.map((entity) => (
+                <EntityPill
+                  key={`${entity.type}-${entity.id}`}
+                  entity={entity}
+                  removable={false}
+                />
+              ))}
+              {value.map((entity) => (
+                <EntityPill
+                  key={`${entity.type}-${entity.id}`}
+                  entity={entity}
+                  onRemove={() => handleRemove(entity)}
+                  removable={true}
+                />
+              ))}
+            </PillsRow>
+          )}
+          <Input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded={showDropdown}
+            aria-haspopup="listbox"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setIsOpen(true);
+              setHighlightedIndex(0);
+            }}
+            onFocus={() => query.length > 0 && setIsOpen(true)}
+            onBlur={() => setIsOpen(false)}
+            onKeyDown={handleKeyDown}
+            placeholder={hasEntities ? '' : placeholder}
+          />
+        </FieldContainer>
+      </PopoverTrigger>
 
-      <Popover.Root open={isOpen && showDropdown} onOpenChange={setIsOpen}>
-        <Popover.Trigger asChild>
-          <SearchInputContainer>
-            <SearchIcon>
-              {isLoading ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Search size={14} />
-              )}
-            </SearchIcon>
-            <Input
-              ref={inputRef}
-              type="text"
-              role="combobox"
-              aria-expanded={isOpen && showDropdown}
-              aria-haspopup="listbox"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setIsOpen(true);
-                setHighlightedIndex(0);
-              }}
-              onFocus={() => query.length > 0 && setIsOpen(true)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-            />
-          </SearchInputContainer>
-        </Popover.Trigger>
-
-        <StyledPopoverContent
-          side="bottom"
-          align="start"
-          sideOffset={4}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-          <div role="listbox">
-            {isLoading ? (
-              <LoadingState>
-                <Loader2 size={14} className="animate-spin" />
-                Searching...
-              </LoadingState>
-            ) : availableResults.length === 0 ? (
-              <EmptyState>No results found</EmptyState>
-            ) : (
-              availableResults.map((result, index) => (
-                <DropdownItem
-                  key={`${result.type}-${result.id}`}
-                  role="option"
-                  aria-selected={index === highlightedIndex}
-                  $highlighted={index === highlightedIndex}
-                  onClick={() => handleSelect(result)}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                >
-                  <EntityType>{result.type}</EntityType>
-                  <EntityName>{result.name}</EntityName>
-                  {result.email && <EntityEmail>{result.email}</EntityEmail>}
-                </DropdownItem>
-              ))
-            )}
-          </div>
-        </StyledPopoverContent>
-      </Popover.Root>
-    </Container>
+      <StyledPopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={4}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <div role="listbox">
+          {isLoading ? (
+            <LoadingState>
+              <Loader2 size={14} className="animate-spin" />
+              Searching...
+            </LoadingState>
+          ) : availableResults.length === 0 ? (
+            <EmptyState>No results found</EmptyState>
+          ) : (
+            availableResults.map((result, index) => (
+              <DropdownItem
+                key={`${result.type}-${result.id}`}
+                role="option"
+                aria-selected={index === highlightedIndex}
+                $highlighted={index === highlightedIndex}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(result)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+              >
+                <EntityTypeTag>{result.type}</EntityTypeTag>
+                <EntityNameSpan>{result.name}</EntityNameSpan>
+                {result.email && <EntityEmail>{result.email}</EntityEmail>}
+              </DropdownItem>
+            ))
+          )}
+        </div>
+      </StyledPopoverContent>
+    </Popover.Root>
   );
 }

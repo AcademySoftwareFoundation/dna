@@ -61,10 +61,31 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     { playlistId, versionId, userEmail, projectId, currentVersion },
     ref
   ) {
+    // Derive SearchResult representations first so they can seed the draft
+    const currentVersionAsSearchResult: SearchResult | undefined = useMemo(() => {
+      if (!currentVersion) return undefined;
+      return {
+        type: 'Version',
+        id: currentVersion.id,
+        name: currentVersion.name || `Version ${currentVersion.id}`,
+      };
+    }, [currentVersion]);
+
+    const versionSubmitter: SearchResult | undefined = useMemo(() => {
+      if (!currentVersion?.user) return undefined;
+      return {
+        type: 'User',
+        id: currentVersion.user.id,
+        name: currentVersion.user.name || '',
+      };
+    }, [currentVersion?.user]);
+
     const { draftNote, updateDraftNote } = useDraftNote({
       playlistId,
       versionId,
       userEmail,
+      currentVersion: currentVersionAsSearchResult,
+      submitter: versionSubmitter,
     });
 
     useImperativeHandle(
@@ -79,26 +100,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       [draftNote?.content, updateDraftNote]
     );
 
-    // Convert current version to SearchResult for locked entity in Links
-    const currentVersionAsSearchResult: SearchResult | undefined = useMemo(() => {
-      if (!currentVersion) return undefined;
-      return {
-        type: 'Version',
-        id: currentVersion.id,
-        name: currentVersion.name || `Version ${currentVersion.id}`,
-      };
-    }, [currentVersion]);
-
-    // Auto-populate version submitter as default To recipient
-    const versionSubmitter: SearchResult | undefined = useMemo(() => {
-      if (!currentVersion?.user) return undefined;
-      return {
-        type: 'User',
-        id: currentVersion.user.id,
-        name: currentVersion.user.name || '',
-      };
-    }, [currentVersion?.user]);
-
     const handleFieldChange = <K extends keyof NonNullable<typeof draftNote>>(
       key: K,
       value: NonNullable<typeof draftNote>[K]
@@ -106,14 +107,32 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       updateDraftNote({ [key]: value });
     };
 
-    // Auto-add version submitter to To if empty and submitter exists
-    const effectiveToValue = useMemo(() => {
-      const toValue = draftNote?.to ?? [];
-      if (toValue.length === 0 && versionSubmitter) {
-        return [versionSubmitter];
-      }
-      return toValue;
+    // The submitter is stored in draftNote.to but shown as a locked (non-removable)
+    // entity. Filter it from the editable portion and re-add it on save.
+    const editableTo = useMemo(() => {
+      return (draftNote?.to ?? []).filter(
+        (u) =>
+          !(
+            versionSubmitter &&
+            u.id === versionSubmitter.id &&
+            u.type === versionSubmitter.type
+          )
+      );
     }, [draftNote?.to, versionSubmitter]);
+
+    // The current version is stored in draftNote.links but displayed separately
+    // as a locked (non-removable) entity. Filter it from the editable portion to
+    // avoid showing it twice, and re-add it whenever links are saved.
+    const editableLinks = useMemo(() => {
+      return (draftNote?.links ?? []).filter(
+        (l) =>
+          !(
+            currentVersionAsSearchResult &&
+            l.id === currentVersionAsSearchResult.id &&
+            l.type === currentVersionAsSearchResult.type
+          )
+      );
+    }, [draftNote?.links, currentVersionAsSearchResult]);
 
     return (
       <EditorWrapper>
@@ -122,17 +141,26 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             <EditorTitle>New Note</EditorTitle>
           </TitleRow>
           <NoteOptionsInline
-            toValue={effectiveToValue}
+            toValue={editableTo}
             ccValue={draftNote?.cc ?? []}
             subjectValue={draftNote?.subject ?? ''}
-            linksValue={draftNote?.links ?? []}
+            linksValue={editableLinks}
             versionStatus={draftNote?.versionStatus ?? ''}
             projectId={projectId ?? undefined}
             currentVersion={currentVersionAsSearchResult}
-            onToChange={(v) => handleFieldChange('to', v)}
+            lockedTo={versionSubmitter ? [versionSubmitter] : []}
+            onToChange={(v) => {
+              const to = versionSubmitter ? [versionSubmitter, ...v] : v;
+              handleFieldChange('to', to);
+            }}
             onCcChange={(v) => handleFieldChange('cc', v)}
             onSubjectChange={(v) => handleFieldChange('subject', v)}
-            onLinksChange={(v) => handleFieldChange('links', v)}
+            onLinksChange={(v) => {
+              const links = currentVersionAsSearchResult
+                ? [currentVersionAsSearchResult, ...v]
+                : v;
+              handleFieldChange('links', links);
+            }}
             onVersionStatusChange={(v) => handleFieldChange('versionStatus', v)}
           />
         </EditorHeader>

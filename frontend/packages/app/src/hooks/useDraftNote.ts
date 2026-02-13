@@ -16,6 +16,8 @@ export interface UseDraftNoteParams {
   playlistId: number | null | undefined;
   versionId: number | null | undefined;
   userEmail: string | null | undefined;
+  currentVersion?: SearchResult | null;
+  submitter?: SearchResult | null;
 }
 
 export interface UseDraftNoteResult {
@@ -26,13 +28,16 @@ export interface UseDraftNoteResult {
   isLoading: boolean;
 }
 
-function createEmptyDraft(): LocalDraftNote {
+function createEmptyDraft(
+  currentVersion?: SearchResult | null,
+  submitter?: SearchResult | null
+): LocalDraftNote {
   return {
     content: '',
     subject: '',
-    to: [],
+    to: submitter ? [submitter] : [],
     cc: [],
-    links: [],
+    links: currentVersion ? [currentVersion] : [],
     versionStatus: '',
   };
 }
@@ -93,6 +98,8 @@ export function useDraftNote({
   playlistId,
   versionId,
   userEmail,
+  currentVersion,
+  submitter,
 }: UseDraftNoteParams): UseDraftNoteResult {
   const queryClient = useQueryClient();
   const [localDraft, setLocalDraft] = useState<LocalDraftNote | null>(null);
@@ -162,7 +169,7 @@ export function useDraftNote({
       setLocalDraft(backendToLocal(serverDraft));
       hasInitializedRef.current = true;
     } else if (serverDraft === null && !isLoading) {
-      setLocalDraft(createEmptyDraft());
+      setLocalDraft(createEmptyDraft(currentVersion, submitter));
       hasInitializedRef.current = true;
     }
   }, [serverDraft, isEnabled, isLoading]);
@@ -208,7 +215,7 @@ export function useDraftNote({
       if (!isEnabled) return;
 
       setLocalDraft((prev) => {
-        const base = prev ?? createEmptyDraft();
+        const base = prev ?? createEmptyDraft(currentVersion, submitter);
         const updated: LocalDraftNote = {
           ...base,
           ...updates,
@@ -229,7 +236,7 @@ export function useDraftNote({
         return updated;
       });
     },
-    [isEnabled, upsertMutation]
+    [isEnabled, upsertMutation, currentVersion, submitter]
   );
 
   const clearDraftNote = useCallback(() => {
@@ -240,8 +247,8 @@ export function useDraftNote({
     }
     pendingDataRef.current = null;
     deleteMutation.mutate();
-    setLocalDraft(createEmptyDraft());
-  }, [isEnabled, deleteMutation]);
+    setLocalDraft(createEmptyDraft(currentVersion, submitter));
+  }, [isEnabled, deleteMutation, currentVersion, submitter]);
 
   return {
     draftNote: localDraft,
