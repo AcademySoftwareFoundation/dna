@@ -13,7 +13,12 @@ from dna.prodtrack_providers.shotgrid import ShotgridProvider, _get_dna_entity_t
 
 @pytest.fixture
 def shotgrid_provider():
-    sg_provider = ShotgridProvider(connect=False)
+    sg_provider = ShotgridProvider(
+        url="https://test.shotgunstudio.com",
+        script_name="test_script",
+        api_key="test_key",
+        connect=False,
+    )
 
     mock_sg = mock.MagicMock()
     sg_provider.sg = mock_sg
@@ -689,7 +694,12 @@ class TestShotgridEdgeCases:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -828,7 +838,12 @@ class TestShotgridProviderFind:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -989,7 +1004,12 @@ class TestShotgridProviderGetProjectsForUser:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -1088,7 +1108,12 @@ class TestShotgridProviderGetPlaylistsForProject:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -1161,7 +1186,12 @@ class TestShotgridProviderGetVersionsForPlaylist:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -1310,7 +1340,12 @@ class TestShotgridProviderGetUserByEmail:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -1362,7 +1397,12 @@ class TestShotgridProviderShallowLinks:
 
     @pytest.fixture
     def shotgrid_provider(self):
-        sg_provider = ShotgridProvider(connect=False)
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
         mock_sg = mock.MagicMock()
         sg_provider.sg = mock_sg
         return sg_provider
@@ -1420,3 +1460,107 @@ class TestShotgridProviderShallowLinks:
 
         assert result.id == 100
         assert result.name == "shot_010"
+
+
+# ============================================================================
+# ShotGrid get_version_statuses tests
+# ============================================================================
+
+
+class TestShotgridProviderGetVersionStatuses:
+    """Tests for the ShotgridProvider.get_version_statuses method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_get_version_statuses_returns_statuses(self, shotgrid_provider):
+        """Test that get_version_statuses returns properly formatted status list."""
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "sg_status_list": {
+                "properties": {
+                    "valid_values": {"value": ["ip", "rev", "apr"]},
+                    "display_values": {
+                        "value": {
+                            "ip": "In Progress",
+                            "rev": "Pending Review",
+                            "apr": "Approved",
+                        }
+                    },
+                }
+            }
+        }
+
+        results = shotgrid_provider.get_version_statuses()
+
+        assert len(results) == 3
+        assert results[0] == {"code": "ip", "name": "In Progress"}
+        assert results[1] == {"code": "rev", "name": "Pending Review"}
+        assert results[2] == {"code": "apr", "name": "Approved"}
+
+    def test_get_version_statuses_passes_project_entity_dict(self, shotgrid_provider):
+        """Test that get_version_statuses passes project as entity dict, not raw int.
+
+        Regression test for the bug where project_id was passed directly to
+        schema_field_read, causing "no implicit conversion of String into Integer".
+        """
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "sg_status_list": {
+                "properties": {
+                    "valid_values": {"value": []},
+                    "display_values": {"value": {}},
+                }
+            }
+        }
+
+        shotgrid_provider.get_version_statuses(project_id=124)
+
+        shotgrid_provider.sg.schema_field_read.assert_called_once_with(
+            "Version", "sg_status_list", {"type": "Project", "id": 124}
+        )
+
+    def test_get_version_statuses_passes_none_when_no_project(self, shotgrid_provider):
+        """Test that get_version_statuses passes None when no project_id given."""
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "sg_status_list": {
+                "properties": {
+                    "valid_values": {"value": []},
+                    "display_values": {"value": {}},
+                }
+            }
+        }
+
+        shotgrid_provider.get_version_statuses()
+
+        shotgrid_provider.sg.schema_field_read.assert_called_once_with(
+            "Version", "sg_status_list", None
+        )
+
+    def test_get_version_statuses_returns_empty_when_schema_missing(
+        self, shotgrid_provider
+    ):
+        """Test that get_version_statuses returns empty list when schema is missing."""
+        shotgrid_provider.sg.schema_field_read.return_value = {}
+
+        results = shotgrid_provider.get_version_statuses()
+
+        assert results == []
+
+    def test_get_version_statuses_raises_when_not_connected(self):
+        """Test that get_version_statuses raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.get_version_statuses()

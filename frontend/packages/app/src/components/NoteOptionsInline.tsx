@@ -21,6 +21,8 @@ interface NoteOptionsInlineProps {
   projectId?: number;
   /** Current version to auto-add to links (non-removable) */
   currentVersion?: SearchResult;
+  /** Version submitter shown as locked (non-removable) To recipient */
+  lockedTo?: SearchResult[];
   onToChange?: (value: SearchResult[]) => void;
   onCcChange?: (value: SearchResult[]) => void;
   onSubjectChange?: (value: string) => void;
@@ -46,6 +48,7 @@ const OptionChip = styled.div`
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
+  min-height: 28px;
   font-size: 12px;
   font-family: ${({ theme }) => theme.fonts.sans};
   background: ${({ theme }) => theme.colors.bg.base};
@@ -234,6 +237,7 @@ export function NoteOptionsInline({
   versionStatus = '',
   projectId,
   currentVersion,
+  lockedTo = [],
   onToChange,
   onCcChange,
   onSubjectChange,
@@ -257,12 +261,6 @@ export function NoteOptionsInline({
     [statuses]
   );
 
-  // Helper to display entity names as comma-separated string
-  const formatEntities = (entities: SearchResult[]) => {
-    if (entities.length === 0) return null;
-    return entities.map((e) => e.name).join(', ');
-  };
-
   if (isEditing) {
     return (
       <Wrapper>
@@ -276,7 +274,7 @@ export function NoteOptionsInline({
 
           <FieldRow>
             <FieldGroup>
-              <FieldLabel $required $hasError={toValue.length === 0}>
+              <FieldLabel $required $hasError={lockedTo.length === 0 && toValue.length === 0}>
                 To
               </FieldLabel>
               <EntitySearchInput
@@ -285,6 +283,7 @@ export function NoteOptionsInline({
                 value={toValue}
                 onChange={(entities) => onToChange?.(entities)}
                 placeholder="Search users..."
+                lockedEntities={lockedTo}
               />
             </FieldGroup>
           </FieldRow>
@@ -355,7 +354,8 @@ export function NoteOptionsInline({
     );
   }
 
-  // Combine currentVersion with linksValue for display
+  // Combine locked + editable for display only
+  const allTo = [...lockedTo, ...toValue];
   const allLinks = currentVersion ? [currentVersion, ...linksValue] : linksValue;
 
   return (
@@ -363,17 +363,17 @@ export function NoteOptionsInline({
       <DisplayRow>
         <OptionChip>
           <ChipLabel>To:</ChipLabel>
-          {toValue.length > 0 ? (
+          {allTo.length > 0 ? (
             <PillsDisplay>
-              {toValue.slice(0, 2).map((entity) => (
+              {allTo.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
                   entity={entity}
                   removable={false}
                 />
               ))}
-              {toValue.length > 2 && (
-                <ChipValue>+{toValue.length - 2} more</ChipValue>
+              {allTo.length > 2 && (
+                <ChipValue>+{allTo.length - 2} more</ChipValue>
               )}
             </PillsDisplay>
           ) : (
