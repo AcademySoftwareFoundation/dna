@@ -227,6 +227,13 @@ const PillsDisplay = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  align-items: center;
+
+  /* Compact pills inside collapsed chips */
+  & > div {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
 `;
 
 export function NoteOptionsInline({

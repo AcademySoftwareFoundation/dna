@@ -60,7 +60,7 @@ function backendToLocal(note: DraftNote): LocalDraftNote {
   const links: SearchResult[] = (note.links || []).map((link) => ({
     type: link.entity_type,
     id: link.entity_id,
-    name: '', // Name not stored in backend, will need to be fetched or cached
+    name: link.entity_name || '',
   }));
 
   return {
@@ -78,10 +78,11 @@ function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
   const toJson = local.to.length > 0 ? JSON.stringify(local.to) : '';
   const ccJson = local.cc.length > 0 ? JSON.stringify(local.cc) : '';
 
-  // Convert links to DraftNoteLink format
+  // Convert links to DraftNoteLink format (include name so it persists)
   const links = local.links.map((entity) => ({
     entity_type: entity.type,
     entity_id: entity.id,
+    entity_name: entity.name,
   }));
 
   return {

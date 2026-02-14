@@ -22,12 +22,13 @@ const PopoverTrigger = Popover.Trigger as React.ComponentType<
   React.ComponentPropsWithoutRef<typeof Popover.Trigger> & { asChild?: boolean }
 >;
 
-// Pills stack above the text input in a column layout so the input is
-// always anchored at the bottom of the bordered container.
+// Pills and input sit inline in a wrapping flex row so the input always
+// appears immediately to the right of the last pill.
 const FieldContainer = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   padding: 6px 10px;
   min-height: 38px;
   background: ${({ theme }) => theme.colors.bg.surface};
@@ -42,14 +43,9 @@ const FieldContainer = styled.div`
   }
 `;
 
-const PillsRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-`;
-
 const Input = styled.input`
-  width: 100%;
+  flex: 1;
+  min-width: 80px;
   border: none;
   background: transparent;
   font-size: 13px;
@@ -209,25 +205,21 @@ export function EntitySearchInput({
     <Popover.Root open={showDropdown} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <FieldContainer onClick={() => inputRef.current?.focus()}>
-          {hasEntities && (
-            <PillsRow>
-              {lockedEntities.map((entity) => (
-                <EntityPill
-                  key={`${entity.type}-${entity.id}`}
-                  entity={entity}
-                  removable={false}
-                />
-              ))}
-              {value.map((entity) => (
-                <EntityPill
-                  key={`${entity.type}-${entity.id}`}
-                  entity={entity}
-                  onRemove={() => handleRemove(entity)}
-                  removable={true}
-                />
-              ))}
-            </PillsRow>
-          )}
+          {lockedEntities.map((entity) => (
+            <EntityPill
+              key={`${entity.type}-${entity.id}`}
+              entity={entity}
+              removable={false}
+            />
+          ))}
+          {value.map((entity) => (
+            <EntityPill
+              key={`${entity.type}-${entity.id}`}
+              entity={entity}
+              onRemove={() => handleRemove(entity)}
+              removable={true}
+            />
+          ))}
           <Input
             ref={inputRef}
             type="text"
