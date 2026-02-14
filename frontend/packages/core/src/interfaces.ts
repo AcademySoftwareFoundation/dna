@@ -144,6 +144,7 @@ export interface GetUserByEmailParams {
 export interface DraftNoteLink {
   entity_type: string;
   entity_id: number;
+  entity_name?: string;
 }
 
 export interface DraftNote {
