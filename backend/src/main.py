@@ -4,10 +4,10 @@ import os
 from functools import lru_cache
 from typing import Annotated, Optional, cast
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from dna.events import EventPublisher, EventType, get_event_publisher
+from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
@@ -27,6 +27,8 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    PublishNotesRequest,
+    PublishNotesResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -52,6 +54,7 @@ from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
     get_transcription_provider,
 )
+from dna.transcription_service import TranscriptionService, get_transcription_service
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -207,12 +210,34 @@ LLMProviderDep = Annotated[LLMProviderBase, Depends(get_llm_provider_cached)]
 
 
 @lru_cache
-def get_event_publisher_cached() -> EventPublisher:
-    """Get or create the event publisher singleton."""
-    return get_event_publisher()
+def get_transcription_service_cached() -> TranscriptionService:
+    """Get or create the transcription service singleton."""
+    return get_transcription_service()
 
 
-EventPublisherDep = Annotated[EventPublisher, Depends(get_event_publisher_cached)]
+TranscriptionServiceDep = Annotated[
+    TranscriptionService, Depends(get_transcription_service_cached)
+]
+
+
+# -----------------------------------------------------------------------------
+# Lifecycle events
+# -----------------------------------------------------------------------------
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    service = get_transcription_service()
+    await service.init_providers()
+    await service.resubscribe_to_active_meetings()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up services on shutdown."""
+    service = get_transcription_service()
+    await service.close()
 
 
 # -----------------------------------------------------------------------------
@@ -242,6 +267,37 @@ async def root():
 async def health():
     """Health check endpoint for monitoring and load balancers."""
     return {"status": "healthy"}
+
+
+# -----------------------------------------------------------------------------
+# WebSocket endpoint
+# -----------------------------------------------------------------------------
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time event streaming.
+
+    Clients connect to this endpoint to receive real-time events such as:
+    - segment.created / segment.updated: Transcript segment changes
+    - bot.status_changed: Bot status updates
+    - transcription.completed / transcription.error: Transcription lifecycle events
+
+    Events are sent as JSON messages with the format:
+    {"type": "event.type", "payload": {...}}
+    """
+    event_publisher = get_event_publisher()
+    ws_manager = event_publisher.ws_manager
+
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            try:
+                await websocket.receive_text()
+            except WebSocketDisconnect:
+                break
+    finally:
+        await ws_manager.disconnect(websocket)
 
 
 # -----------------------------------------------------------------------------
@@ -552,9 +608,115 @@ async def get_versions_for_playlist(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@app.post(
+    "/playlists/{playlist_id}/publish-notes",
+    tags=["Playlists"],
+    summary="Publish draft notes",
+    description="Publish draft notes to the production tracking system.",
+    response_model=PublishNotesResponse,
+)
+async def publish_notes(
+    playlist_id: int,
+    request: PublishNotesRequest,
+    storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
+) -> PublishNotesResponse:
+    """Publish draft notes to the production tracking system."""
+    # 1. Get all draft notes for this playlist
+    all_draft_notes = await storage.get_draft_notes_for_playlist(playlist_id)
+
+    # 2. Filter notes
+    notes_to_publish = []
+    for note in all_draft_notes:
+        if note.published:
+            continue
+
+        # specific user check
+        if not request.include_others and note.user_email != request.user_email:
+            continue
+
+        notes_to_publish.append(note)
+
+    # 3. Publish each note
+    published_count = 0
+    failed_count = 0
+    skipped_count = 0
+
+    from datetime import datetime, timezone
+
+    for note in notes_to_publish:
+        try:
+            # Get links
+            links = []
+            if note.links:
+                for link in note.links:
+                    model_class = ENTITY_MODELS.get(link.entity_type)
+                    if model_class:
+                        links.append(model_class(id=link.entity_id))
+
+            # Ensure playlist is included in links
+            playlist_link_exists = any(
+                isinstance(l, Playlist) and l.id == playlist_id for l in links
+            )
+            if not playlist_link_exists:
+                links.append(_create_stub_entity("Playlist", playlist_id))
+
+            note_id = prodtrack.publish_note(
+                version_id=note.version_id,
+                content=note.content,
+                subject=note.subject,
+                to_users=[],  # TODO: Parse to/cc
+                cc_users=[],
+                links=links,
+                author_email=note.user_email,
+            )
+
+            # Update draft note as published
+            update_data = DraftNoteUpdate(
+                published=True,
+                published_at=datetime.now(timezone.utc),
+                published_note_id=note_id,
+            )
+
+            await storage.upsert_draft_note(
+                user_email=note.user_email,
+                playlist_id=note.playlist_id,
+                version_id=note.version_id,
+                data=update_data,
+            )
+
+            published_count += 1
+
+        except Exception as e:
+            print(f"Failed to publish note {note.id}: {e}")
+            failed_count += 1
+
+    return PublishNotesResponse(
+        published_count=published_count,
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        total=len(notes_to_publish),
+    )
+
+
 # -----------------------------------------------------------------------------
 # Draft Notes endpoints
 # -----------------------------------------------------------------------------
+
+
+@app.get(
+    "/playlists/{playlist_id}/draft-notes",
+    tags=["Draft Notes"],
+    summary="Get all draft notes for a playlist",
+    description="Retrieve all users' draft notes for the specified playlist.",
+    response_model=list[DraftNote],
+)
+async def get_playlist_draft_notes(
+    playlist_id: int,
+    provider: StorageProviderDep,
+) -> list[DraftNote]:
+    """Get all draft notes for a playlist."""
+    return await provider.get_draft_notes_for_playlist(playlist_id)
 
 
 @app.get(
@@ -753,7 +915,7 @@ async def dispatch_bot(
     request: DispatchBotRequest,
     transcription_provider: TranscriptionProviderDep,
     storage_provider: StorageProviderDep,
-    event_publisher: EventPublisherDep,
+    transcription_service: TranscriptionServiceDep,
 ) -> BotSession:
     """Dispatch a transcription bot to a meeting."""
     try:
@@ -772,15 +934,26 @@ async def dispatch_bot(
                 meeting_id=request.meeting_id,
                 platform=request.platform.value,
                 vexa_meeting_id=session.vexa_meeting_id,
+                transcription_paused=False,
+                clear_resumed_at=True,
             ),
         )
 
+        await transcription_service.subscribe_to_meeting(
+            platform=request.platform.value,
+            meeting_id=request.meeting_id,
+            playlist_id=request.playlist_id,
+        )
+
+        event_publisher = get_event_publisher()
         await event_publisher.publish(
-            EventType.TRANSCRIPTION_SUBSCRIBE,
+            EventType.BOT_STATUS_CHANGED,
             {
-                "playlist_id": request.playlist_id,
-                "meeting_id": request.meeting_id,
                 "platform": request.platform.value,
+                "meeting_id": request.meeting_id,
+                "playlist_id": request.playlist_id,
+                "status": "joining",
+                "vexa_meeting_id": session.vexa_meeting_id,
             },
         )
 
@@ -803,6 +976,16 @@ async def stop_bot(
 ) -> bool:
     """Stop a transcription bot."""
     try:
+        event_publisher = get_event_publisher()
+        await event_publisher.publish(
+            EventType.BOT_STATUS_CHANGED,
+            {
+                "platform": platform.value,
+                "meeting_id": meeting_id,
+                "status": "stopping",
+            },
+        )
+
         return await transcription_provider.stop_bot(platform, meeting_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

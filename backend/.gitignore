@@ -38,3 +38,4 @@ dmypy.json
 
 # Local environment files
 docker-compose.local.yml
+docker-compose.local.vexa.yml

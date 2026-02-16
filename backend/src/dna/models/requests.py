@@ -100,3 +100,19 @@ class StatusOption(BaseModel):
 
     code: str = Field(description="Status code (e.g., 'rev', 'apr', 'rej')")
     name: str = Field(description="Display name (e.g., 'Pending Review', 'Approved')")
+
+
+class PublishNotesRequest(BaseModel):
+    """Request model for publishing draft notes."""
+
+    user_email: str
+    include_others: bool = False
+
+
+class PublishNotesResponse(BaseModel):
+    """Response model for publishing draft notes."""
+
+    published_count: int
+    skipped_count: int
+    failed_count: int
+    total: int
