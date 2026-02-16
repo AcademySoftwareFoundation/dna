@@ -1,5 +1,3 @@
-import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
-
 export type EventType =
   | 'segment.created'
   | 'segment.updated'
@@ -27,8 +25,10 @@ export interface SegmentEventPayload {
 export interface BotStatusEventPayload {
   platform: string;
   meeting_id: string;
+  playlist_id?: number;
   status: string;
   message?: string;
+  recovered?: boolean;
 }
 
 export type EventCallback<T = unknown> = (event: DNAEvent<T>) => void;
@@ -38,13 +38,8 @@ export type ConnectionStateCallback = (
 ) => void;
 
 export interface DNAEventClientConfig {
-  brokerURL: string;
-  login?: string;
-  passcode?: string;
-  vhost?: string;
+  wsURL: string;
   reconnectDelay?: number;
-  heartbeatIncoming?: number;
-  heartbeatOutgoing?: number;
   debug?: boolean;
 }
 
@@ -55,14 +50,15 @@ interface Subscription {
 }
 
 export class DNAEventClient {
-  private client: Client | null = null;
+  private ws: WebSocket | null = null;
   private config: DNAEventClientConfig;
   private subscriptions: Map<string, Subscription> = new Map();
-  private stompSubscription: StompSubscription | null = null;
   private subscriptionIdCounter = 0;
   private connectionStateCallbacks: Set<ConnectionStateCallback> = new Set();
   private _isConnected = false;
   private _connectionError: Error | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private shouldReconnect = true;
 
   constructor(config: DNAEventClientConfig) {
     this.config = config;
@@ -77,82 +73,111 @@ export class DNAEventClient {
   }
 
   connect(): void {
-    if (this.client) {
+    if (this.ws) {
       return;
     }
 
-    this.client = new Client({
-      brokerURL: this.config.brokerURL,
-      connectHeaders: {
-        login: this.config.login || 'guest',
-        passcode: this.config.passcode || 'guest',
-        host: this.config.vhost || '/',
-      },
-      reconnectDelay: this.config.reconnectDelay ?? 5000,
-      heartbeatIncoming: this.config.heartbeatIncoming ?? 4000,
-      heartbeatOutgoing: this.config.heartbeatOutgoing ?? 4000,
-      debug: this.config.debug
-        ? (str) => console.log('[STOMP]', str)
-        : () => {},
-    });
+    this.shouldReconnect = true;
+    this.createWebSocket();
+  }
 
-    this.client.onConnect = () => {
-      this._isConnected = true;
-      this._connectionError = null;
-      this.notifyConnectionState(true);
-      this.subscribeToExchange();
-    };
+  private createWebSocket(): void {
+    try {
+      this.ws = new WebSocket(this.config.wsURL);
 
-    this.client.onDisconnect = () => {
-      this._isConnected = false;
-      this.stompSubscription = null;
-      this.notifyConnectionState(false);
-    };
+      this.ws.onopen = () => {
+        this._isConnected = true;
+        this._connectionError = null;
+        this.notifyConnectionState(true);
+        if (this.config.debug) {
+          console.log('[DNAEventClient] Connected to', this.config.wsURL);
+        }
+      };
 
-    this.client.onStompError = (frame) => {
-      const error = new Error(frame.headers['message'] || 'STOMP error');
-      this._connectionError = error;
-      this.notifyConnectionState(false, error);
-    };
+      this.ws.onclose = (event) => {
+        this._isConnected = false;
+        this.ws = null;
+        this.notifyConnectionState(false);
+        if (this.config.debug) {
+          console.log(
+            '[DNAEventClient] Disconnected:',
+            event.code,
+            event.reason
+          );
+        }
 
-    this.client.onWebSocketError = () => {
-      const error = new Error('WebSocket connection failed');
-      this._connectionError = error;
-      this.notifyConnectionState(false, error);
-    };
+        if (this.shouldReconnect) {
+          this.scheduleReconnect();
+        }
+      };
 
-    this.client.activate();
+      this.ws.onerror = () => {
+        const error = new Error('WebSocket connection failed');
+        this._connectionError = error;
+        this.notifyConnectionState(false, error);
+        if (this.config.debug) {
+          console.error('[DNAEventClient] WebSocket error');
+        }
+      };
+
+      this.ws.onmessage = (event) => {
+        this.handleMessage(event.data);
+      };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Failed to create WebSocket');
+      this._connectionError = err;
+      this.notifyConnectionState(false, err);
+      if (this.shouldReconnect) {
+        this.scheduleReconnect();
+      }
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    const delay = this.config.reconnectDelay ?? 5000;
+    if (this.config.debug) {
+      console.log(`[DNAEventClient] Reconnecting in ${delay}ms...`);
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.shouldReconnect && !this.ws) {
+        this.createWebSocket();
+      }
+    }, delay);
   }
 
   disconnect(): void {
-    if (this.client) {
-      this.client.deactivate();
-      this.client = null;
-      this.stompSubscription = null;
+    this.shouldReconnect = false;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
       this._isConnected = false;
     }
   }
 
-  private subscribeToExchange(): void {
-    if (!this.client || this.stompSubscription) {
-      return;
-    }
-
-    this.stompSubscription = this.client.subscribe(
-      '/exchange/dna.events/#',
-      (message: IMessage) => {
-        this.handleMessage(message);
-      }
-    );
-  }
-
-  private handleMessage(message: IMessage): void {
+  private handleMessage(data: string): void {
     try {
-      const destination = message.headers['destination'] || '';
-      const eventType = destination.split('/').pop() as EventType;
-      const payload = JSON.parse(message.body);
+      const message = JSON.parse(data) as { type: string; payload: unknown };
+      const eventType = message.type as EventType;
+      const payload = message.payload;
 
       const event: DNAEvent = { type: eventType, payload };
+
+      if (this.config.debug) {
+        console.log('[DNAEventClient] Received event:', eventType, payload);
+      }
 
       this.subscriptions.forEach((subscription) => {
         if (subscription.eventType === eventType) {

@@ -31,10 +31,7 @@ interface EventContextValue {
 const EventContext = createContext<EventContextValue | null>(null);
 
 const WEBSOCKET_URL =
-  import.meta.env.VITE_RABBITMQ_WS_URL || 'ws://localhost:15674/ws';
-const RABBITMQ_USER = import.meta.env.VITE_RABBITMQ_USER || 'dna';
-const RABBITMQ_PASS = import.meta.env.VITE_RABBITMQ_PASS || 'dna';
-const RABBITMQ_VHOST = import.meta.env.VITE_RABBITMQ_VHOST || 'dna';
+  import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
 
 interface EventProviderProps {
   children: ReactNode;
@@ -47,10 +44,7 @@ export function EventProvider({ children }: EventProviderProps) {
 
   useEffect(() => {
     const client = createEventClient({
-      brokerURL: WEBSOCKET_URL,
-      login: RABBITMQ_USER,
-      passcode: RABBITMQ_PASS,
-      vhost: RABBITMQ_VHOST,
+      wsURL: WEBSOCKET_URL,
       debug: import.meta.env.DEV,
     });
 

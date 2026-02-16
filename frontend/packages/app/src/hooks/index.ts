@@ -48,3 +48,5 @@ export type {
   UseVersionStatusesParams,
   UseVersionStatusesResult,
 } from './useVersionStatuses';
+
+export { usePlaylistDraftNotes } from './usePlaylistDraftNotes';

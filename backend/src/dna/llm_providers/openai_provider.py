@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 from dna.llm_providers.llm_provider_base import LLMProviderBase
 
 DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_TIMEOUT = 30.0
 
 
 class OpenAIProvider(LLMProviderBase):
@@ -20,9 +21,13 @@ class OpenAIProvider(LLMProviderBase):
         self,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> None:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.model = model or os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
+        self.timeout = timeout or float(
+            os.getenv("OPENAI_TIMEOUT", str(DEFAULT_TIMEOUT))
+        )
 
         if not self.api_key:
             raise ValueError(
@@ -34,7 +39,7 @@ class OpenAIProvider(LLMProviderBase):
     @property
     def client(self) -> AsyncOpenAI:
         if self._client is None:
-            self._client = AsyncOpenAI(api_key=self.api_key)
+            self._client = AsyncOpenAI(api_key=self.api_key, timeout=self.timeout)
         return self._client
 
     def _substitute_template(

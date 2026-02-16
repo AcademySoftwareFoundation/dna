@@ -29,6 +29,20 @@ from dna.transcription_providers.transcription_provider_base import (
 
 logger = logging.getLogger(__name__)
 
+VEXA_STATUS_MAP: dict[str, str] = {
+    "requested": "joining",
+    "joining": "joining",
+    "awaiting_admission": "waiting_room",
+    "active": "in_call",
+    "in_call": "in_call",
+    "transcribing": "transcribing",
+    "recording": "transcribing",
+    "failed": "failed",
+    "stopped": "stopped",
+    "completed": "completed",
+    "ended": "completed",
+}
+
 
 class VexaTranscriptionProvider(TranscriptionProviderBase):
     """Transcription provider implementation using Vexa API."""
@@ -331,12 +345,14 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
                 return
 
             payload = data.get("payload", {})
+            raw_status = payload.get("status", "").lower()
+            mapped_status = VEXA_STATUS_MAP.get(raw_status, raw_status)
             await callback(
                 "bot.status_changed",
                 {
                     "platform": platform,
                     "meeting_id": native_id,
-                    "status": payload.get("status", "unknown"),
+                    "status": mapped_status,
                     "timestamp": data.get("ts"),
                 },
             )

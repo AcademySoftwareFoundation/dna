@@ -1,15 +1,8 @@
-"""RabbitMQ event consumer worker."""
+"""Transcription service for managing Vexa subscriptions and segment processing."""
 
-import asyncio
-import json
 import logging
-import os
-import signal
-import sys
+from datetime import datetime, timezone
 from typing import Any
-
-import aio_pika
-from aio_pika.abc import AbstractIncomingMessage
 
 from dna.events import EventPublisher, EventType, get_event_publisher
 from dna.models.stored_segment import StoredSegmentCreate, generate_segment_id
@@ -22,60 +15,36 @@ from dna.transcription_providers.transcription_provider_base import (
     get_transcription_provider,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://dna:dna@localhost:5672/dna")
-EVENTS_EXCHANGE = "dna.events"
-EVENTS_QUEUE = "dna.events.worker"
+_service: "TranscriptionService | None" = None
 
 
-class EventWorker:
-    def __init__(self, rabbitmq_url: str = RABBITMQ_URL):
-        self.rabbitmq_url = rabbitmq_url
-        self.connection: aio_pika.RobustConnection | None = None
-        self.channel: aio_pika.Channel | None = None
-        self.should_stop = False
-        self.transcription_provider: TranscriptionProviderBase | None = None
-        self.storage_provider: StorageProviderBase | None = None
-        self.event_publisher: EventPublisher | None = None
+class TranscriptionService:
+    """Service for managing transcription subscriptions and processing segments."""
+
+    def __init__(
+        self,
+        transcription_provider: TranscriptionProviderBase | None = None,
+        storage_provider: StorageProviderBase | None = None,
+        event_publisher: EventPublisher | None = None,
+    ):
+        self.transcription_provider = transcription_provider
+        self.storage_provider = storage_provider
+        self.event_publisher = event_publisher
         self._subscribed_meetings: set[str] = set()
         self._meeting_to_playlist: dict[str, int] = {}
 
-    async def connect(self) -> None:
-        logger.info("Connecting to RabbitMQ at %s", self.rabbitmq_url)
-        self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
-        self.channel = await self.connection.channel()
-        await self.channel.set_qos(prefetch_count=10)
-
-        exchange = await self.channel.declare_exchange(
-            EVENTS_EXCHANGE,
-            aio_pika.ExchangeType.TOPIC,
-            durable=True,
-        )
-
-        queue = await self.channel.declare_queue(
-            EVENTS_QUEUE,
-            durable=True,
-        )
-
-        await queue.bind(exchange, routing_key="#")
-
-        logger.info(
-            "Connected to RabbitMQ, listening for events on queue: %s", EVENTS_QUEUE
-        )
-
     async def init_providers(self) -> None:
-        """Initialize transcription, storage, and event providers."""
-        logger.info("Initializing providers...")
-        self.transcription_provider = get_transcription_provider()
-        self.storage_provider = get_storage_provider()
-        self.event_publisher = get_event_publisher()
-        await self.event_publisher.connect()
-        logger.info("Providers initialized")
+        """Initialize providers if not already set."""
+        logger.info("Initializing transcription service providers...")
+        if self.transcription_provider is None:
+            self.transcription_provider = get_transcription_provider()
+        if self.storage_provider is None:
+            self.storage_provider = get_storage_provider()
+        if self.event_publisher is None:
+            self.event_publisher = get_event_publisher()
+        logger.info("Transcription service providers initialized")
 
     async def resubscribe_to_active_meetings(self) -> None:
         """Resubscribe to any active meetings on startup for recovery."""
@@ -154,6 +123,23 @@ class EventWorker:
                     )
                     self._subscribed_meetings.add(meeting_key)
                     logger.info("Successfully resubscribed to meeting: %s", meeting_key)
+
+                    if self.event_publisher:
+                        await self.event_publisher.publish(
+                            EventType.BOT_STATUS_CHANGED,
+                            {
+                                "platform": platform,
+                                "meeting_id": native_meeting_id,
+                                "playlist_id": metadata.playlist_id,
+                                "status": status,
+                                "recovered": True,
+                            },
+                        )
+                        logger.info(
+                            "Published recovery status for meeting %s: %s",
+                            meeting_key,
+                            status,
+                        )
                 except Exception as e:
                     logger.exception(
                         "Failed to resubscribe to meeting %s: %s", meeting_key, e
@@ -162,49 +148,8 @@ class EventWorker:
         except Exception as e:
             logger.exception("Error during resubscription: %s", e)
 
-    async def process_message(self, message: AbstractIncomingMessage) -> None:
-        async with message.process():
-            try:
-                body = json.loads(message.body.decode())
-                event_type = message.routing_key
-                logger.info("Received event: %s", event_type)
-                await self.handle_event(event_type, body)
-            except json.JSONDecodeError as e:
-                logger.error("Failed to decode message: %s", e)
-            except Exception as e:
-                logger.exception("Error processing message: %s", e)
-
-    async def handle_event(
-        self, event_type: str | None, payload: dict[str, Any]
-    ) -> None:
-        match event_type:
-            case EventType.TRANSCRIPTION_SUBSCRIBE:
-                await self.on_transcription_subscribe(payload)
-            case EventType.TRANSCRIPTION_STARTED:
-                await self.on_transcription_started(payload)
-            case EventType.TRANSCRIPTION_UPDATED:
-                await self.on_transcription_updated(payload)
-            case EventType.TRANSCRIPTION_COMPLETED:
-                await self.on_transcription_completed(payload)
-            case EventType.TRANSCRIPTION_ERROR:
-                await self.on_transcription_error(payload)
-            case EventType.BOT_STATUS_CHANGED:
-                await self.on_bot_status_changed(payload)
-            case EventType.PLAYLIST_UPDATED:
-                await self.on_playlist_updated(payload)
-            case EventType.VERSION_UPDATED:
-                await self.on_version_updated(payload)
-            case EventType.DRAFT_NOTE_UPDATED:
-                await self.on_draft_note_updated(payload)
-            case EventType.SEGMENT_CREATED:
-                await self.on_segment_created(payload)
-            case EventType.SEGMENT_UPDATED:
-                await self.on_segment_updated(payload)
-            case _:
-                logger.warning("Unknown event type: %s", event_type)
-
     async def _on_vexa_event(self, event_type: str, payload: dict[str, Any]) -> None:
-        """Handle events from Vexa and forward to RabbitMQ."""
+        """Handle events from Vexa and forward to event publisher."""
         if self.event_publisher is None:
             logger.error("Event publisher not initialized")
             return
@@ -214,6 +159,7 @@ class EventWorker:
                 EventType.TRANSCRIPTION_UPDATED,
                 payload,
             )
+            await self.on_transcription_updated(payload)
         elif event_type == "bot.status_changed":
             await self.event_publisher.publish(
                 EventType.BOT_STATUS_CHANGED,
@@ -229,21 +175,16 @@ class EventWorker:
                     ),
                     payload,
                 )
+                await self.on_transcription_completed(payload)
         else:
             logger.warning("Unknown Vexa event type: %s", event_type)
 
-    async def on_transcription_subscribe(self, payload: dict[str, Any]) -> None:
+    async def subscribe_to_meeting(
+        self, platform: str, meeting_id: str, playlist_id: int
+    ) -> None:
         """Subscribe to Vexa updates for a meeting."""
         if self.transcription_provider is None:
             logger.error("Transcription provider not initialized")
-            return
-
-        platform = payload.get("platform", "")
-        meeting_id = payload.get("meeting_id", "")
-        playlist_id = payload.get("playlist_id")
-
-        if not platform or not meeting_id:
-            logger.error("Missing platform or meeting_id in payload: %s", payload)
             return
 
         meeting_key = f"{platform}:{meeting_id}"
@@ -251,8 +192,7 @@ class EventWorker:
             logger.info("Already subscribed to meeting: %s", meeting_key)
             return
 
-        if playlist_id is not None:
-            self._meeting_to_playlist[meeting_key] = playlist_id
+        self._meeting_to_playlist[meeting_key] = playlist_id
 
         logger.info(
             "Subscribing to Vexa updates for meeting: %s (playlist_id: %s)",
@@ -270,9 +210,6 @@ class EventWorker:
             logger.info("Successfully subscribed to meeting: %s", meeting_key)
         except Exception as e:
             logger.exception("Failed to subscribe to meeting %s: %s", meeting_key, e)
-
-    async def on_transcription_started(self, payload: dict[str, Any]) -> None:
-        logger.info("Transcription started: %s", payload)
 
     async def on_transcription_updated(self, payload: dict[str, Any]) -> None:
         """Process transcription segments and save to storage."""
@@ -313,6 +250,7 @@ class EventWorker:
             return
 
         version_id = metadata.in_review
+        resumed_at = metadata.transcription_resumed_at
 
         for segment_data in segments:
             text = segment_data.get("text", "").strip()
@@ -323,9 +261,27 @@ class EventWorker:
             if not absolute_start_time:
                 continue
 
+            if resumed_at is not None:
+                try:
+                    segment_time = datetime.fromisoformat(
+                        absolute_start_time.replace("Z", "+00:00")
+                    )
+                    resumed_at_aware = resumed_at
+                    if resumed_at.tzinfo is None:
+                        resumed_at_aware = resumed_at.replace(tzinfo=timezone.utc)
+                    if segment_time < resumed_at_aware:
+                        logger.debug(
+                            "Skipping segment from before resume: %s < %s",
+                            absolute_start_time,
+                            resumed_at_aware.isoformat(),
+                        )
+                        continue
+                except ValueError:
+                    pass
+
             speaker = segment_data.get("speaker", "Unknown")
             segment_id = generate_segment_id(
-                playlist_id, version_id, speaker, absolute_start_time
+                playlist_id, version_id, absolute_start_time
             )
 
             segment_create = StoredSegmentCreate(
@@ -379,6 +335,7 @@ class EventWorker:
                 logger.exception("Failed to save segment: %s", e)
 
     async def on_transcription_completed(self, payload: dict[str, Any]) -> None:
+        """Handle transcription completion."""
         logger.info("Transcription completed: %s", payload)
 
         platform = payload.get("platform")
@@ -410,81 +367,25 @@ class EventWorker:
                 except Exception as e:
                     logger.warning("Failed to unsubscribe from Vexa: %s", e)
 
-    async def on_transcription_error(self, payload: dict[str, Any]) -> None:
-        logger.error("Transcription error: %s", payload)
-
-    async def on_bot_status_changed(self, payload: dict[str, Any]) -> None:
-        logger.info("Bot status changed: %s", payload)
-
-    async def on_playlist_updated(self, payload: dict[str, Any]) -> None:
-        logger.info("Playlist updated: %s", payload)
-
-    async def on_version_updated(self, payload: dict[str, Any]) -> None:
-        logger.info("Version updated: %s", payload)
-
-    async def on_draft_note_updated(self, payload: dict[str, Any]) -> None:
-        logger.info("Draft note updated: %s", payload)
-
-    async def on_segment_created(self, payload: dict[str, Any]) -> None:
-        """Published for UI consumption - no action needed in worker."""
-        pass
-
-    async def on_segment_updated(self, payload: dict[str, Any]) -> None:
-        """Published for UI consumption - no action needed in worker."""
-        pass
-
-    async def start(self) -> None:
-        await self.connect()
-        await self.init_providers()
-        await self.resubscribe_to_active_meetings()
-
-        if self.channel is None:
-            raise RuntimeError("Channel not initialized")
-
-        queue = await self.channel.get_queue(EVENTS_QUEUE)
-        await queue.consume(self.process_message)
-
-        logger.info("Worker started, waiting for events...")
-
-        while not self.should_stop:
-            await asyncio.sleep(1)
-
-    async def stop(self) -> None:
-        logger.info("Stopping worker...")
-        self.should_stop = True
-
+    async def close(self) -> None:
+        """Clean up resources."""
+        logger.info("Closing transcription service...")
         if self.transcription_provider:
             await self.transcription_provider.close()
-
-        if self.event_publisher:
-            await self.event_publisher.close()
-
-        if self.connection:
-            await self.connection.close()
-
-        logger.info("Worker stopped")
+        self._subscribed_meetings.clear()
+        self._meeting_to_playlist.clear()
+        logger.info("Transcription service closed")
 
 
-async def main() -> None:
-    worker = EventWorker()
-
-    loop = asyncio.get_event_loop()
-
-    def signal_handler() -> None:
-        logger.info("Received shutdown signal")
-        asyncio.create_task(worker.stop())
-
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, signal_handler)
-
-    try:
-        await worker.start()
-    except KeyboardInterrupt:
-        await worker.stop()
-    except Exception as e:
-        logger.exception("Worker failed: %s", e)
-        sys.exit(1)
+def get_transcription_service() -> TranscriptionService:
+    """Get the singleton TranscriptionService instance."""
+    global _service
+    if _service is None:
+        _service = TranscriptionService()
+    return _service
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+def reset_transcription_service() -> None:
+    """Reset the singleton for testing purposes."""
+    global _service
+    _service = None

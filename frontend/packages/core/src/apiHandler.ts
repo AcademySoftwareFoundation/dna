@@ -22,6 +22,8 @@ import {
   GenerateNoteParams,
   GenerateNoteResponse,
   GetVersionStatusesParams,
+  PublishNotesParams,
+  PublishNotesResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -278,6 +280,17 @@ class ApiHandler {
       ? `?project_id=${params.projectId}`
       : '';
     return this.get<StatusOption[]>(`/version-statuses${queryParams}`);
+  }
+
+  async getPlaylistDraftNotes(playlistId: number): Promise<DraftNote[]> {
+    return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
+  }
+
+  async publishNotes(params: PublishNotesParams): Promise<PublishNotesResponse> {
+    return this.post<PublishNotesResponse>(
+      `/playlists/${params.playlistId}/publish-notes`,
+      params.request
+    );
   }
 }
 
