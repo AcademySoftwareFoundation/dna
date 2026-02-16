@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Popover } from '@radix-ui/themes';
 import { SearchResult, SearchableEntityType } from '@dna/core';
 import { useEntitySearch } from '../hooks/useEntitySearch';
-import { EntityPill } from './EntityPill';
+import { EntityPill, type EntityType } from './EntityPill/EntityPill';
 
 export interface EntitySearchInputProps {
   entityTypes: SearchableEntityType[];
@@ -208,16 +208,14 @@ export function EntitySearchInput({
           {lockedEntities.map((entity) => (
             <EntityPill
               key={`${entity.type}-${entity.id}`}
-              entity={entity}
-              removable={false}
+              entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
             />
           ))}
           {value.map((entity) => (
             <EntityPill
               key={`${entity.type}-${entity.id}`}
-              entity={entity}
+              entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
               onRemove={() => handleRemove(entity)}
-              removable={true}
             />
           ))}
           <Input

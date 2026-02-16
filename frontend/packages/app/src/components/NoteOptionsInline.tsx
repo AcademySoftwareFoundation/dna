@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { Pencil, X, ChevronDown } from 'lucide-react';
 import { SearchResult } from '@dna/core';
 import { EntitySearchInput } from './EntitySearchInput';
-import { EntityPill } from './EntityPill';
+import { EntityPill, type EntityType } from './EntityPill/EntityPill';
 import { useVersionStatuses } from '../hooks';
 
 interface NoteOptionsInlineProps {
@@ -228,12 +228,6 @@ const PillsDisplay = styled.div`
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-
-  /* Compact pills inside collapsed chips */
-  & > div {
-    padding: 2px 6px;
-    font-size: 11px;
-  }
 `;
 
 export function NoteOptionsInline({
@@ -375,8 +369,8 @@ export function NoteOptionsInline({
               {allTo.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
-                  entity={entity}
-                  removable={false}
+                  entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+                  size="compact"
                 />
               ))}
               {allTo.length > 2 && (
@@ -397,8 +391,8 @@ export function NoteOptionsInline({
               {ccValue.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
-                  entity={entity}
-                  removable={false}
+                  entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+                  size="compact"
                 />
               ))}
               {ccValue.length > 2 && (
@@ -424,8 +418,8 @@ export function NoteOptionsInline({
               {allLinks.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
-                  entity={entity}
-                  removable={false}
+                  entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+                  size="compact"
                 />
               ))}
               {allLinks.length > 2 && (
