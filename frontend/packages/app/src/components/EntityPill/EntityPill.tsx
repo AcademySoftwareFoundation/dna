@@ -1,9 +1,6 @@
 import * as React from 'react';
 import { Badge, Tooltip } from '@radix-ui/themes';
 import type { BadgeProps } from '@radix-ui/themes';
-import { ThemeProvider } from 'styled-components';
-import { Theme } from '@radix-ui/themes';
-import { theme } from '../../styles';
 import {
     PersonIcon,
     VideoIcon,
@@ -11,10 +8,20 @@ import {
     LayersIcon,
     CheckCircledIcon,
     Cross2Icon,
+    FileIcon,
+    ArchiveIcon
 } from '@radix-ui/react-icons';
 import { styled } from 'styled-components';
 
-export type EntityType = 'user' | 'shot' | 'asset' | 'version' | 'task';
+export type EntityType =
+    | "user"
+    | "shot"
+    | "asset"
+    | "version"
+    | "task"
+    | "playlist"
+    | "project";
+
 
 export interface EntityPillEntity {
     type: EntityType;
@@ -47,14 +54,11 @@ const RemoveButton = styled.button`
   background: transparent;
   cursor: pointer;
   line-height: 0;
-  opacity: 0;
 
-  &:focus-visible {
-    opacity: 1;
-    outline: 2px solid ${({ theme }) => theme.colors.border.subtle};
-    outline-offset: 2px;
-    border-radius: ${({ theme }) => theme.radii.sm};
-  }
+  color: rgba(255,255,255,0.6);
+  &:hover { color: #fff; }
+
+  &:focus-visible { outline: 2px solid rgba(255,255,255,0.35); outline-offset:2px; border-radius:6px; }
 `;
 
 const PillRoot = styled(Badge)`
@@ -62,19 +66,19 @@ const PillRoot = styled(Badge)`
   align-items: center;
   gap: 6px;
   width: fit-content;
-  &:hover ${RemoveButton} {
-    opacity: 1;
-  }
 `;
 
-
-const ENTITY_ICONS: Record<EntityType, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+const ENTITY_ICONS: Record<EntityType, React.ElementType> = {
     user: PersonIcon,
     shot: VideoIcon,
     asset: CubeIcon,
     version: LayersIcon,
     task: CheckCircledIcon,
+    playlist: FileIcon,
+    project: ArchiveIcon,
 };
+
+
 
 const ENTITY_COLORS: Record<EntityType, BadgeProps['color']> = {
     user: 'blue',
@@ -82,14 +86,9 @@ const ENTITY_COLORS: Record<EntityType, BadgeProps['color']> = {
     asset: 'green',
     version: 'orange',
     task: 'gray',
+    playlist: "cyan",
+    project: "indigo",
 };
-
-const renderWithTheme = (ui: React.ReactElement) =>
-    render(
-        <ThemeProvider theme={theme}>
-            <Theme>{ui}</Theme>
-        </ThemeProvider>
-    );
 
 export function EntityPill({ entity, onRemove, size = 'default', className }: EntityPillProps) {
     const Icon = ENTITY_ICONS[entity.type];
