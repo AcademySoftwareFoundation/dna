@@ -257,6 +257,17 @@ function KeybindingRecorder({
     }
   };
 
+  const handleBlur = () => {
+    if (isRecording) {
+      if (keys.size > 0) {
+        const keysString = Array.from(keys).join('+');
+        onRecord(actionId, keysString);
+      }
+      stop();
+      resetKeys();
+    }
+  };
+
   const displayText = isRecording
     ? keys.size > 0
       ? formatKeysForDisplay(Array.from(keys).join('+'))
@@ -268,6 +279,7 @@ function KeybindingRecorder({
       $recording={isRecording}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
     >
       {displayText}
     </KeybindingInput>
@@ -406,8 +418,8 @@ export function SettingsModal({
                       content={
                         <>
                           Customize the prompt used when generating notes from
-                          transcript and version information. You can include the
-                          following tags in the prompt:
+                          transcript and version information. You can include
+                          the following tags in the prompt:
                           <br />
                           <br />
                           {'{{ transcript }}'} - What was said on this version
@@ -500,11 +512,7 @@ export function SettingsModal({
                   </KeybindingRow>
                 ))}
                 <Flex mt="2" justify="end">
-                  <Button
-                    variant="soft"
-                    color="gray"
-                    onClick={resetToDefaults}
-                  >
+                  <Button variant="soft" color="gray" onClick={resetToDefaults}>
                     Reset to Defaults
                   </Button>
                 </Flex>
