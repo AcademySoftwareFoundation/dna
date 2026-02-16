@@ -4,19 +4,23 @@ import {
   Dialog,
   Button,
   Checkbox,
-  Text,
   TextArea,
   Flex,
   Tooltip,
 } from '@radix-ui/themes';
+import * as Tabs from '@radix-ui/react-tabs';
 import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type { UserSettings, UserSettingsUpdate } from '@dna/core';
 import { apiHandler } from '../api';
+import { useHotkeyConfig } from '../hotkeys';
 
 interface SettingsModalProps {
   userEmail: string;
   trigger: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const ModalContent = styled.div`
@@ -107,14 +111,187 @@ const Footer = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.border.subtle};
 `;
 
-export function SettingsModal({ userEmail, trigger }: SettingsModalProps) {
-  const [open, setOpen] = useState(false);
+const StyledTabsList = styled(Tabs.List)`
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  margin-bottom: 16px;
+`;
+
+const StyledTabsTrigger = styled(Tabs.Trigger)`
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.muted};
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.text.secondary};
+  }
+
+  &[data-state='active'] {
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-bottom-color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
+const KeybindingRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const KeybindingLabel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const KeybindingName = styled.span`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-weight: 500;
+`;
+
+const KeybindingDesc = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
+const KeybindingInput = styled.button<{ $recording: boolean }>`
+  min-width: 140px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: ${({ theme }) => theme.fonts.mono};
+  color: ${({ theme, $recording }) =>
+    $recording ? theme.colors.accent.main : theme.colors.text.primary};
+  background: ${({ theme, $recording }) =>
+    $recording ? theme.colors.accent.main + '15' : theme.colors.bg.surface};
+  border: 1px solid
+    ${({ theme, $recording }) =>
+      $recording ? theme.colors.accent.main : theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  text-align: center;
+
+  &:hover {
+    background: ${({ theme, $recording }) =>
+      $recording
+        ? theme.colors.accent.main + '25'
+        : theme.colors.bg.surfaceHover};
+    border-color: ${({ theme, $recording }) =>
+      $recording ? theme.colors.accent.main : theme.colors.border.strong};
+  }
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.accent.main};
+  }
+`;
+
+function formatKeysForDisplay(keys: string): string {
+  return keys
+    .split('+')
+    .map((part) => {
+      const p = part.trim().toLowerCase();
+      if (p === 'meta')
+        return navigator.platform.includes('Mac') ? '\u2318' : 'Ctrl';
+      if (p === 'shift') return '\u21E7';
+      if (p === 'alt')
+        return navigator.platform.includes('Mac') ? '\u2325' : 'Alt';
+      if (p === 'ctrl') return 'Ctrl';
+      if (p === 'down' || p === 'arrowdown') return '\u2193';
+      if (p === 'up' || p === 'arrowup') return '\u2191';
+      if (p === 'left' || p === 'arrowleft') return '\u2190';
+      if (p === 'right' || p === 'arrowright') return '\u2192';
+      if (p === 'space') return 'Space';
+      if (p === 'escape') return 'Esc';
+      return p.toUpperCase();
+    })
+    .join(' + ');
+}
+
+function KeybindingRecorder({
+  actionId,
+  currentKeys,
+  onRecord,
+}: {
+  actionId: string;
+  currentKeys: string;
+  onRecord: (actionId: string, keys: string) => void;
+}) {
+  const [keys, { start, stop, isRecording, resetKeys }] = useRecordHotkeys();
+
+  const handleClick = () => {
+    if (isRecording) {
+      if (keys.size > 0) {
+        const keysString = Array.from(keys).join('+');
+        onRecord(actionId, keysString);
+      }
+      stop();
+      resetKeys();
+    } else {
+      resetKeys();
+      start();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isRecording && e.key === 'Escape') {
+      e.stopPropagation();
+      stop();
+      resetKeys();
+    }
+  };
+
+  const displayText = isRecording
+    ? keys.size > 0
+      ? formatKeysForDisplay(Array.from(keys).join('+'))
+      : 'Press keys...'
+    : formatKeysForDisplay(currentKeys);
+
+  return (
+    <KeybindingInput
+      $recording={isRecording}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+    >
+      {displayText}
+    </KeybindingInput>
+  );
+}
+
+export function SettingsModal({
+  userEmail,
+  trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: SettingsModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [notePrompt, setNotePrompt] = useState('');
   const [regenerateOnVersionChange, setRegenerateOnVersionChange] =
     useState(false);
   const [regenerateOnTranscriptUpdate, setRegenerateOnTranscriptUpdate] =
     useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
+  const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
+    useHotkeyConfig();
 
   const queryClient = useQueryClient();
 
@@ -185,107 +362,164 @@ export function SettingsModal({ userEmail, trigger }: SettingsModalProps) {
       }
       setOpen(isOpen);
     },
-    [isDirty, handleSave]
+    [isDirty, handleSave, setOpen]
   );
+
+  const handleRecordKeybinding = useCallback(
+    (actionId: string, keys: string) => {
+      setKeysForAction(actionId, keys);
+    },
+    [setKeysForAction]
+  );
+
+  const actions = getAllActions();
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger>{trigger}</Dialog.Trigger>
-      <Dialog.Content maxWidth="540px">
+      <Dialog.Content maxWidth="600px">
         <Dialog.Title>Settings</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="4">
-          Configure your preferences for note generation and AI assistance.
+          Configure your preferences for note generation, AI assistance, and
+          keyboard shortcuts.
         </Dialog.Description>
 
-        {isLoading ? (
-          <Flex align="center" justify="center" py="6">
-            <SpinnerIcon size={24} />
-          </Flex>
-        ) : (
-          <ModalContent>
-            <Section>
-              <SectionTitle>
-                Note Taking Prompt
-                <Tooltip
-                  content={
-                    <>
-                      Customize the prompt used when generating notes from
-                      transcript and version information. You can include the
-                      following tags in the prompt:
-                      <br />
-                      <br />
-                      {'{{ transcript }}'} - What was said on this version
-                      <br />
-                      {'{{ context }}'} - Includes context for the version
-                      <br />
-                      {'{{ notes }}'} - Any notes you took on this version
-                      already
-                    </>
-                  }
-                >
-                  <TooltipIcon>
-                    <Info size={14} />
-                  </TooltipIcon>
-                </Tooltip>
-              </SectionTitle>
-              <SectionDescription>
-                This prompt is used when generating notes via the transcript and
-                version information.
-              </SectionDescription>
-              <TextAreaWrapper>
-                <StyledTextArea
-                  placeholder="Enter your custom prompt for generating notes..."
-                  value={notePrompt}
-                  onChange={handleNotePromptChange}
-                  disabled={mutation.isPending}
-                />
-              </TextAreaWrapper>
-            </Section>
+        <Tabs.Root defaultValue="general">
+          <StyledTabsList>
+            <StyledTabsTrigger value="general">General</StyledTabsTrigger>
+            <StyledTabsTrigger value="keybindings">
+              Keybindings
+            </StyledTabsTrigger>
+          </StyledTabsList>
 
-            <Section>
-              <SectionTitle>Note Regeneration</SectionTitle>
-              <CheckboxRow>
-                <Checkbox
-                  checked={regenerateOnVersionChange}
-                  onCheckedChange={handleRegenerateOnVersionChange}
-                  disabled={mutation.isPending}
-                />
-                <CheckboxContent>
-                  <CheckboxLabel>
-                    Regenerate notes on version change
-                  </CheckboxLabel>
-                  <CheckboxDescription>
-                    Automatically regenerate the AI note when switching to a
-                    different version in review.
-                  </CheckboxDescription>
-                </CheckboxContent>
-              </CheckboxRow>
+          <Tabs.Content value="general">
+            {isLoading ? (
+              <Flex align="center" justify="center" py="6">
+                <SpinnerIcon size={24} />
+              </Flex>
+            ) : (
+              <ModalContent>
+                <Section>
+                  <SectionTitle>
+                    Note Taking Prompt
+                    <Tooltip
+                      content={
+                        <>
+                          Customize the prompt used when generating notes from
+                          transcript and version information. You can include the
+                          following tags in the prompt:
+                          <br />
+                          <br />
+                          {'{{ transcript }}'} - What was said on this version
+                          <br />
+                          {'{{ context }}'} - Includes context for the version
+                          <br />
+                          {'{{ notes }}'} - Any notes you took on this version
+                          already
+                        </>
+                      }
+                    >
+                      <TooltipIcon>
+                        <Info size={14} />
+                      </TooltipIcon>
+                    </Tooltip>
+                  </SectionTitle>
+                  <SectionDescription>
+                    This prompt is used when generating notes via the transcript
+                    and version information.
+                  </SectionDescription>
+                  <TextAreaWrapper>
+                    <StyledTextArea
+                      placeholder="Enter your custom prompt for generating notes..."
+                      value={notePrompt}
+                      onChange={handleNotePromptChange}
+                      disabled={mutation.isPending}
+                    />
+                  </TextAreaWrapper>
+                </Section>
 
-              <CheckboxRow>
-                <Checkbox
-                  checked={regenerateOnTranscriptUpdate}
-                  onCheckedChange={handleRegenerateOnTranscriptUpdate}
-                  disabled={mutation.isPending}
-                />
-                <CheckboxContent>
-                  <CheckboxLabel>Regenerate on transcript update</CheckboxLabel>
-                  <CheckboxDescription>
-                    Automatically regenerate the AI note when a new transcript
-                    segment comes in or an existing segment is updated.
-                  </CheckboxDescription>
-                </CheckboxContent>
-              </CheckboxRow>
-            </Section>
+                <Section>
+                  <SectionTitle>Note Regeneration</SectionTitle>
+                  <CheckboxRow>
+                    <Checkbox
+                      checked={regenerateOnVersionChange}
+                      onCheckedChange={handleRegenerateOnVersionChange}
+                      disabled={mutation.isPending}
+                    />
+                    <CheckboxContent>
+                      <CheckboxLabel>
+                        Regenerate notes on version change
+                      </CheckboxLabel>
+                      <CheckboxDescription>
+                        Automatically regenerate the AI note when switching to a
+                        different version in review.
+                      </CheckboxDescription>
+                    </CheckboxContent>
+                  </CheckboxRow>
 
-            <Footer>
-              <Dialog.Close>
-                <Button variant="soft" color="gray">
-                  Close
-                </Button>
-              </Dialog.Close>
-            </Footer>
-          </ModalContent>
-        )}
+                  <CheckboxRow>
+                    <Checkbox
+                      checked={regenerateOnTranscriptUpdate}
+                      onCheckedChange={handleRegenerateOnTranscriptUpdate}
+                      disabled={mutation.isPending}
+                    />
+                    <CheckboxContent>
+                      <CheckboxLabel>
+                        Regenerate on transcript update
+                      </CheckboxLabel>
+                      <CheckboxDescription>
+                        Automatically regenerate the AI note when a new
+                        transcript segment comes in or an existing segment is
+                        updated.
+                      </CheckboxDescription>
+                    </CheckboxContent>
+                  </CheckboxRow>
+                </Section>
+              </ModalContent>
+            )}
+          </Tabs.Content>
+
+          <Tabs.Content value="keybindings">
+            <ModalContent>
+              <Section>
+                <SectionDescription>
+                  Click a shortcut to record a new key combination. Press Escape
+                  to cancel.
+                </SectionDescription>
+                {actions.map((action) => (
+                  <KeybindingRow key={action.id}>
+                    <KeybindingLabel>
+                      <KeybindingName>{action.label}</KeybindingName>
+                      <KeybindingDesc>{action.description}</KeybindingDesc>
+                    </KeybindingLabel>
+                    <KeybindingRecorder
+                      actionId={action.id}
+                      currentKeys={getKeysForAction(action.id)}
+                      onRecord={handleRecordKeybinding}
+                    />
+                  </KeybindingRow>
+                ))}
+                <Flex mt="2" justify="end">
+                  <Button
+                    variant="soft"
+                    color="gray"
+                    onClick={resetToDefaults}
+                  >
+                    Reset to Defaults
+                  </Button>
+                </Flex>
+              </Section>
+            </ModalContent>
+          </Tabs.Content>
+        </Tabs.Root>
+
+        <Footer>
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              Close
+            </Button>
+          </Dialog.Close>
+        </Footer>
       </Dialog.Content>
     </Dialog.Root>
   );

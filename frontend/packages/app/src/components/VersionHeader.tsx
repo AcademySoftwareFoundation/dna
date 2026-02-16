@@ -1,6 +1,8 @@
 import styled from 'styled-components';
+import { Tooltip } from '@radix-ui/themes';
 import { ChevronLeft, Eye, ChevronRight, RotateCw, Target } from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
+import { useHotkeyConfig } from '../hotkeys';
 
 interface VersionHeaderProps {
   shotCode?: string;
@@ -294,25 +296,30 @@ export function VersionHeader({
   isCurrentVersionInReview = false,
   isSettingInReview = false,
 }: VersionHeaderProps) {
+  const { getLabel } = useHotkeyConfig();
   const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
   const displayCode = versionNumber || shotCode || 'Untitled Version';
 
   return (
     <HeaderWrapper>
       <TopBar>
-        <BackButton onClick={onBack} disabled={!canGoBack}>
-          <ChevronLeft size={16} />
-          Back
-        </BackButton>
+        <Tooltip content={`Previous Version (${getLabel('previousVersion')})`}>
+          <BackButton onClick={onBack} disabled={!canGoBack}>
+            <ChevronLeft size={16} />
+            Back
+          </BackButton>
+        </Tooltip>
         <TopBarActions>
           <InReviewButton onClick={onInReview} disabled={!hasInReview}>
             <Eye size={14} />
             In Review
           </InReviewButton>
-          <NextVersionButton onClick={onNext} disabled={!canGoNext}>
-            Next Version
-            <ChevronRight size={16} />
-          </NextVersionButton>
+          <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>
+            <NextVersionButton onClick={onNext} disabled={!canGoNext}>
+              Next Version
+              <ChevronRight size={16} />
+            </NextVersionButton>
+          </Tooltip>
           <RefreshButton onClick={onRefresh} title="Refresh version info">
             <RotateCw size={16} />
           </RefreshButton>

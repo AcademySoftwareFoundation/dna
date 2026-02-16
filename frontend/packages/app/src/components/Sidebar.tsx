@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
@@ -21,6 +21,7 @@ import { SettingsModal } from './SettingsModal';
 import { PublishNotesDialog } from './PublishNotesDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
+import { useHotkeyAction } from '../hotkeys';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -244,8 +245,15 @@ export function Sidebar({
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const toggleSettings = useCallback(() => {
+    setIsSettingsOpen((prev) => !prev);
+  }, []);
+
+  useHotkeyAction('openSettings', toggleSettings);
 
   const {
     data: versions,
@@ -426,6 +434,8 @@ export function Sidebar({
           </SquareButton>
           <SettingsModal
             userEmail={userEmail}
+            open={isSettingsOpen}
+            onOpenChange={setIsSettingsOpen}
             trigger={
               <SquareButton variant="neutral">
                 <Settings />
@@ -439,6 +449,8 @@ export function Sidebar({
           <TranscriptionMenu playlistId={playlistId} />
           <SettingsModal
             userEmail={userEmail}
+            open={isSettingsOpen}
+            onOpenChange={setIsSettingsOpen}
             trigger={
               <SettingsButton>
                 <Settings size={16} />
