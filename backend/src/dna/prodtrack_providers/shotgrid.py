@@ -722,12 +722,8 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError("Not connected to ShotGrid")
 
         # Get schema for Version.sg_status_list field
-        project_entity = (
-            {"type": "Project", "id": project_id} if project_id else None
-        )
-        schema = self.sg.schema_field_read(
-            "Version", "sg_status_list", project_entity
-        )
+        project_entity = {"type": "Project", "id": project_id} if project_id else None
+        schema = self.sg.schema_field_read("Version", "sg_status_list", project_entity)
 
         if not schema or "sg_status_list" not in schema:
             return []
