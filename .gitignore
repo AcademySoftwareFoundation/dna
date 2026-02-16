@@ -20,3 +20,6 @@ experimental/cameron/backend/.env
 experimental/cameron/backend/venv
 experimental/cameron/frontend_v2/venv
 experimental/cameron/frontend_v3/venv
+KEYBINDINGS/
+backend/docker-compose.debug.yml
+backend/docker-compose.vexa.yml
