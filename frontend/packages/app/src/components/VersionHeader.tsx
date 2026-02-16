@@ -306,7 +306,7 @@ export function VersionHeader({
         <Tooltip content={`Previous Version (${getLabel('previousVersion')})`}>
           <BackButton onClick={onBack} disabled={!canGoBack}>
             <ChevronLeft size={16} />
-            Back
+            Previous Version
           </BackButton>
         </Tooltip>
         <TopBarActions>
