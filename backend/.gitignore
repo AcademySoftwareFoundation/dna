@@ -35,6 +35,9 @@ coverage.xml
 dmypy.json
 *.log
 .DS_Store
+KEYBINDINGS/
+backend/docker-compose.debug.yml
+backend/docker-compose.vexa.yml
 
 # Local environment files
 docker-compose.local.yml
