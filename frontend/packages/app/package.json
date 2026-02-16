@@ -29,6 +29,7 @@
     "lucide-react": "^0.562.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-hotkeys-hook": "^5.2.4",
     "styled-components": "^6.1.13",
     "turndown": "^7.2.2"
   },

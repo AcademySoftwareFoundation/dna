@@ -5,6 +5,7 @@ import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
 import { usePlaylistMetadata, useSetInReview } from '../hooks';
+import { useHotkeyAction } from '../hotkeys';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -97,17 +98,17 @@ export function ContentArea({
   const isCurrentVersionInReview =
     version && inReviewVersionId ? version.id === inReviewVersionId : false;
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (canGoBack && onVersionSelect) {
       onVersionSelect(versions[currentIndex - 1]);
     }
-  };
+  }, [canGoBack, onVersionSelect, versions, currentIndex]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (canGoNext && onVersionSelect) {
       onVersionSelect(versions[currentIndex + 1]);
     }
-  };
+  }, [canGoNext, onVersionSelect, versions, currentIndex]);
 
   const handleInReview = () => {
     if (inReviewVersion && onVersionSelect) {
@@ -124,6 +125,9 @@ export function ContentArea({
   const handleInsertNote = useCallback((content: string) => {
     noteEditorRef.current?.appendContent(content);
   }, []);
+
+  useHotkeyAction('nextVersion', handleNext, { enabled: canGoNext });
+  useHotkeyAction('previousVersion', handleBack, { enabled: canGoBack });
 
   if (!version) {
     return (
