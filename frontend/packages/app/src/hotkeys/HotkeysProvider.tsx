@@ -44,9 +44,11 @@ function formatKeysForDisplay(keys: string): string {
     .split('+')
     .map((part) => {
       const p = part.trim().toLowerCase();
-      if (p === 'meta') return navigator.platform.includes('Mac') ? '\u2318' : 'Ctrl';
+      if (p === 'meta')
+        return navigator.platform.includes('Mac') ? '\u2318' : 'Ctrl';
       if (p === 'shift') return '\u21E7';
-      if (p === 'alt') return navigator.platform.includes('Mac') ? '\u2325' : 'Alt';
+      if (p === 'alt')
+        return navigator.platform.includes('Mac') ? '\u2325' : 'Alt';
       if (p === 'ctrl') return 'Ctrl';
       if (p === 'down') return '\u2193';
       if (p === 'up') return '\u2191';
@@ -68,21 +70,20 @@ export function HotkeysProvider({ children }: HotkeysProviderProps) {
 
   const getKeysForAction = useCallback(
     (actionId: string): string => {
-      return keyMap[actionId] || HOTKEY_ACTIONS_MAP[actionId]?.defaultKeys || '';
+      return (
+        keyMap[actionId] || HOTKEY_ACTIONS_MAP[actionId]?.defaultKeys || ''
+      );
     },
     [keyMap]
   );
 
-  const setKeysForAction = useCallback(
-    (actionId: string, keys: string) => {
-      setKeyMap((prev) => {
-        const next = { ...prev, [actionId]: keys };
-        saveKeyMap(next);
-        return next;
-      });
-    },
-    []
-  );
+  const setKeysForAction = useCallback((actionId: string, keys: string) => {
+    setKeyMap((prev) => {
+      const next = { ...prev, [actionId]: keys };
+      saveKeyMap(next);
+      return next;
+    });
+  }, []);
 
   const resetToDefaults = useCallback(() => {
     setKeyMap({});
