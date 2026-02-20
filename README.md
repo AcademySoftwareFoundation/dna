@@ -38,6 +38,3 @@ For original code, we use the [Apache-2.0 license](LICENSE), and for
 documentation, the [Creative Commons Attribution 4.0 Unported
 License](http://creativecommons.org/licenses/by/4.0/).
 
-(All of these documents are currently placeholders!)
-
-
