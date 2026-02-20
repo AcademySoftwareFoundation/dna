@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DraftNote, DraftNoteUpdate } from '@dna/core';
+import { DraftNote, DraftNoteUpdate, SearchResult } from '@dna/core';
 import { apiHandler } from '../api';
 
 export interface LocalDraftNote {
   content: string;
   subject: string;
-  to: string;
-  cc: string;
-  linksText: string;
+  to: SearchResult[];
+  cc: SearchResult[];
+  links: SearchResult[];
   versionStatus: string;
 }
 
@@ -16,6 +16,8 @@ export interface UseDraftNoteParams {
   playlistId: number | null | undefined;
   versionId: number | null | undefined;
   userEmail: string | null | undefined;
+  currentVersion?: SearchResult | null;
+  submitter?: SearchResult | null;
 }
 
 export interface UseDraftNoteResult {
@@ -26,35 +28,69 @@ export interface UseDraftNoteResult {
   isLoading: boolean;
 }
 
-function createEmptyDraft(): LocalDraftNote {
+function createEmptyDraft(
+  currentVersion?: SearchResult | null,
+  submitter?: SearchResult | null
+): LocalDraftNote {
   return {
     content: '',
     subject: '',
-    to: '',
-    cc: '',
-    linksText: '',
+    to: submitter ? [submitter] : [],
+    cc: [],
+    links: currentVersion ? [currentVersion] : [],
     versionStatus: '',
   };
 }
 
+// Parse JSON array from string, with fallback for legacy comma-separated format
+function parseEntitiesFromString(str: string): SearchResult[] {
+  if (!str) return [];
+  try {
+    const parsed = JSON.parse(str);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Fallback: treat as comma-separated names (legacy format)
+    // Can't recover full entity data, so return empty
+  }
+  return [];
+}
+
 function backendToLocal(note: DraftNote): LocalDraftNote {
+  // Convert links from DraftNoteLink[] to SearchResult[]
+  const links: SearchResult[] = (note.links || []).map((link) => ({
+    type: link.entity_type,
+    id: link.entity_id,
+    name: link.entity_name || '',
+  }));
+
   return {
     content: note.content,
     subject: note.subject,
-    to: note.to,
-    cc: note.cc,
-    linksText: '',
+    to: parseEntitiesFromString(note.to),
+    cc: parseEntitiesFromString(note.cc),
+    links,
     versionStatus: note.version_status,
   };
 }
 
 function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
+  // Store to/cc as JSON strings to preserve entity data
+  const toJson = local.to.length > 0 ? JSON.stringify(local.to) : '';
+  const ccJson = local.cc.length > 0 ? JSON.stringify(local.cc) : '';
+
+  // Convert links to DraftNoteLink format (include name so it persists)
+  const links = local.links.map((entity) => ({
+    entity_type: entity.type,
+    entity_id: entity.id,
+    entity_name: entity.name,
+  }));
+
   return {
     content: local.content,
     subject: local.subject,
-    to: local.to,
-    cc: local.cc,
-    links: [],
+    to: toJson,
+    cc: ccJson,
+    links,
     version_status: local.versionStatus,
   };
 }
@@ -63,12 +99,15 @@ export function useDraftNote({
   playlistId,
   versionId,
   userEmail,
+  currentVersion,
+  submitter,
 }: UseDraftNoteParams): UseDraftNoteResult {
   const queryClient = useQueryClient();
   const [localDraft, setLocalDraft] = useState<LocalDraftNote | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMutationRef = useRef<Promise<DraftNote> | null>(null);
   const pendingDataRef = useRef<LocalDraftNote | null>(null);
+  const hasInitializedRef = useRef(false);
 
   const isEnabled =
     playlistId != null && versionId != null && userEmail != null;
@@ -122,12 +161,20 @@ export function useDraftNote({
   useEffect(() => {
     if (!isEnabled) {
       setLocalDraft(null);
+      hasInitializedRef.current = false;
       return;
     }
+    // Only sync from server on initial load, not after our own mutations.
+    // The server response loses entity names for links, so re-syncing
+    // would overwrite the richer local state and cause pills to vanish.
+    if (hasInitializedRef.current) return;
+
     if (serverDraft) {
       setLocalDraft(backendToLocal(serverDraft));
+      hasInitializedRef.current = true;
     } else if (serverDraft === null && !isLoading) {
-      setLocalDraft(createEmptyDraft());
+      setLocalDraft(createEmptyDraft(currentVersion, submitter));
+      hasInitializedRef.current = true;
     }
   }, [serverDraft, isEnabled, isLoading]);
 
@@ -172,7 +219,7 @@ export function useDraftNote({
       if (!isEnabled) return;
 
       setLocalDraft((prev) => {
-        const base = prev ?? createEmptyDraft();
+        const base = prev ?? createEmptyDraft(currentVersion, submitter);
         const updated: LocalDraftNote = {
           ...base,
           ...updates,
@@ -193,7 +240,7 @@ export function useDraftNote({
         return updated;
       });
     },
-    [isEnabled, upsertMutation]
+    [isEnabled, upsertMutation, currentVersion, submitter]
   );
 
   const clearDraftNote = useCallback(() => {
@@ -204,8 +251,8 @@ export function useDraftNote({
     }
     pendingDataRef.current = null;
     deleteMutation.mutate();
-    setLocalDraft(createEmptyDraft());
-  }, [isEnabled, deleteMutation]);
+    setLocalDraft(createEmptyDraft(currentVersion, submitter));
+  }, [isEnabled, deleteMutation, currentVersion, submitter]);
 
   return {
     draftNote: localDraft,

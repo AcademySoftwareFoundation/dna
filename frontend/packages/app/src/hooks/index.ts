@@ -41,4 +41,12 @@ export type {
   UseAISuggestionResult,
 } from './useAISuggestion';
 
+export { useEntitySearch } from './useEntitySearch';
+
+export { useVersionStatuses } from './useVersionStatuses';
+export type {
+  UseVersionStatusesParams,
+  UseVersionStatusesResult,
+} from './useVersionStatuses';
+
 export { usePlaylistDraftNotes } from './usePlaylistDraftNotes';

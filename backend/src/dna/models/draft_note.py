@@ -14,6 +14,7 @@ class DraftNoteLink(BaseModel):
 
     entity_type: str
     entity_id: int
+    entity_name: str = ""
 
 
 class DraftNoteBase(BaseModel):

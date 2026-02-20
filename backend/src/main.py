@@ -32,6 +32,7 @@ from dna.models import (
     SearchRequest,
     SearchResult,
     Shot,
+    StatusOption,
     StoredSegment,
     Task,
     Transcript,
@@ -508,6 +509,25 @@ async def search_entities(
             limit=request.limit,
         )
         return {"results": results}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get(
+    "/version-statuses",
+    tags=["Versions"],
+    summary="Get valid version statuses",
+    description="Get valid status options for versions from the production tracking system.",
+    response_model=list[StatusOption],
+)
+async def get_version_statuses(
+    provider: ProdtrackProviderDep,
+    project_id: Optional[int] = None,
+) -> list[StatusOption]:
+    """Get valid status options for versions."""
+    try:
+        statuses = provider.get_version_statuses(project_id)
+        return [StatusOption(**s) for s in statuses]
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

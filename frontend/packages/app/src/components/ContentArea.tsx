@@ -20,8 +20,6 @@ const ContentWrapper = styled.div`
   flex-direction: column;
   gap: 24px;
   max-width: 720px;
-  height: 100%;
-  min-height: 0;
 `;
 
 const EmptyState = styled.div`
@@ -177,6 +175,8 @@ export function ContentArea({
         playlistId={playlistId}
         versionId={version.id}
         userEmail={userEmail}
+        projectId={version.project?.id}
+        currentVersion={version}
       />
       <AssistantPanel
         playlistId={playlistId}

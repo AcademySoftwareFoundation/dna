@@ -144,6 +144,7 @@ export interface GetUserByEmailParams {
 export interface DraftNoteLink {
   entity_type: string;
   entity_id: number;
+  entity_name?: string;
 }
 
 export interface DraftNote {
@@ -373,6 +374,55 @@ export type AISuggestionStateChangeCallback = (
   versionId: number,
   state: AISuggestionState
 ) => void;
+
+// Search types for entity search endpoint
+export type SearchableEntityType =
+  | 'user'
+  | 'shot'
+  | 'asset'
+  | 'version'
+  | 'task'
+  | 'playlist';
+
+export interface SearchRequest {
+  query: string;
+  entity_types: SearchableEntityType[];
+  project_id?: number;
+  limit?: number;
+}
+
+export interface SearchResult {
+  type: string;
+  id: number;
+  name: string;
+  description?: string;
+  email?: string;
+  project?: {
+    type: string;
+    id: number;
+  };
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+}
+
+export interface SearchEntitiesParams {
+  query: string;
+  entityTypes: SearchableEntityType[];
+  projectId?: number;
+  limit?: number;
+}
+
+// Status types for version status dropdown
+export interface StatusOption {
+  code: string;
+  name: string;
+}
+
+export interface GetVersionStatusesParams {
+  projectId?: number;
+}
 
 export interface PublishNotesRequest {
   user_email: string;

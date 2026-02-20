@@ -11,7 +11,12 @@ from dna.prodtrack_providers.shotgrid import ShotgridProvider
 @pytest.fixture
 def shotgrid_provider():
     """Create a ShotGrid provider with a mocked SG client."""
-    sg_provider = ShotgridProvider(connect=False)
+    sg_provider = ShotgridProvider(
+        url="https://test.shotgunstudio.com",
+        script_name="test_script",
+        api_key="test_key",
+        connect=False,
+    )
 
     mock_sg = mock.MagicMock()
     sg_provider.sg = mock_sg
