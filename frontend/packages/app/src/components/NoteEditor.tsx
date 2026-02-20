@@ -25,8 +25,6 @@ const EditorWrapper = styled.div`
   background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.subtle};
   border-radius: ${({ theme }) => theme.radii.lg};
-  flex: 1;
-  min-height: 0;
 `;
 
 const EditorContent = styled.div`
