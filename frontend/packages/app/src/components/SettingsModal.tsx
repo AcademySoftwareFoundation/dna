@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import styled from 'styled-components';
 import {
   Dialog,
+  AlertDialog,
   Button,
   Checkbox,
   TextArea,
@@ -348,9 +349,32 @@ function KeybindingsTab({
           </KeybindingRow>
         ))}
         <Flex mt="2" justify="end">
-          <Button variant="soft" color="gray" onClick={onResetToDefaults}>
-            Reset to Defaults
-          </Button>
+          <AlertDialog.Root>
+            <AlertDialog.Trigger>
+              <Button variant="soft" color="gray">
+                Reset to Defaults
+              </Button>
+            </AlertDialog.Trigger>
+            <AlertDialog.Content maxWidth="400px">
+              <AlertDialog.Title>Reset keybindings?</AlertDialog.Title>
+              <AlertDialog.Description size="2">
+                This will reset all keyboard shortcuts to their default values.
+                Any custom bindings you've set will be lost.
+              </AlertDialog.Description>
+              <Flex gap="3" mt="4" justify="end">
+                <AlertDialog.Cancel>
+                  <Button variant="soft" color="gray">
+                    Cancel
+                  </Button>
+                </AlertDialog.Cancel>
+                <AlertDialog.Action onClick={onResetToDefaults}>
+                  <Button variant="solid" color="red">
+                    Reset
+                  </Button>
+                </AlertDialog.Action>
+              </Flex>
+            </AlertDialog.Content>
+          </AlertDialog.Root>
         </Flex>
       </Section>
     </ModalContent>
