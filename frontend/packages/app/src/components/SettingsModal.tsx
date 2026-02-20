@@ -13,6 +13,7 @@ import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type { UserSettings, UserSettingsUpdate } from '@dna/core';
+import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { useHotkeyConfig } from '../hotkeys';
 
@@ -201,6 +202,160 @@ const KeybindingInput = styled.button<{ $recording: boolean }>`
     border-color: ${({ theme }) => theme.colors.accent.main};
   }
 `;
+
+interface GeneralTabProps {
+  isLoading: boolean;
+  notePrompt: string;
+  regenerateOnVersionChange: boolean;
+  regenerateOnTranscriptUpdate: boolean;
+  isPending: boolean;
+  onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onRegenerateOnVersionChange: (checked: boolean) => void;
+  onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
+}
+
+function GeneralTab({
+  isLoading,
+  notePrompt,
+  regenerateOnVersionChange,
+  regenerateOnTranscriptUpdate,
+  isPending,
+  onNotePromptChange,
+  onRegenerateOnVersionChange,
+  onRegenerateOnTranscriptUpdate,
+}: GeneralTabProps) {
+  if (isLoading) {
+    return (
+      <Flex align="center" justify="center" py="6">
+        <SpinnerIcon size={24} />
+      </Flex>
+    );
+  }
+
+  return (
+    <ModalContent>
+      <Section>
+        <SectionTitle>
+          Note Taking Prompt
+          <Tooltip
+            content={
+              <>
+                Customize the prompt used when generating notes from
+                transcript and version information. You can include
+                the following tags in the prompt:
+                <br />
+                <br />
+                {'{{ transcript }}'} - What was said on this version
+                <br />
+                {'{{ context }}'} - Includes context for the version
+                <br />
+                {'{{ notes }}'} - Any notes you took on this version
+                already
+              </>
+            }
+          >
+            <TooltipIcon>
+              <Info size={14} />
+            </TooltipIcon>
+          </Tooltip>
+        </SectionTitle>
+        <SectionDescription>
+          This prompt is used when generating notes via the transcript
+          and version information.
+        </SectionDescription>
+        <TextAreaWrapper>
+          <StyledTextArea
+            placeholder="Enter your custom prompt for generating notes..."
+            value={notePrompt}
+            onChange={onNotePromptChange}
+            disabled={isPending}
+          />
+        </TextAreaWrapper>
+      </Section>
+
+      <Section>
+        <SectionTitle>Note Regeneration</SectionTitle>
+        <CheckboxRow>
+          <Checkbox
+            checked={regenerateOnVersionChange}
+            onCheckedChange={onRegenerateOnVersionChange}
+            disabled={isPending}
+          />
+          <CheckboxContent>
+            <CheckboxLabel>
+              Regenerate notes on version change
+            </CheckboxLabel>
+            <CheckboxDescription>
+              Automatically regenerate the AI note when switching to a
+              different version in review.
+            </CheckboxDescription>
+          </CheckboxContent>
+        </CheckboxRow>
+
+        <CheckboxRow>
+          <Checkbox
+            checked={regenerateOnTranscriptUpdate}
+            onCheckedChange={onRegenerateOnTranscriptUpdate}
+            disabled={isPending}
+          />
+          <CheckboxContent>
+            <CheckboxLabel>
+              Regenerate on transcript update
+            </CheckboxLabel>
+            <CheckboxDescription>
+              Automatically regenerate the AI note when a new
+              transcript segment comes in or an existing segment is
+              updated.
+            </CheckboxDescription>
+          </CheckboxContent>
+        </CheckboxRow>
+      </Section>
+    </ModalContent>
+  );
+}
+
+interface KeybindingsTabProps {
+  actions: HotkeyAction[];
+  getKeysForAction: (actionId: string) => string;
+  onRecord: (actionId: string, keys: string) => void;
+  onResetToDefaults: () => void;
+}
+
+function KeybindingsTab({
+  actions,
+  getKeysForAction,
+  onRecord,
+  onResetToDefaults,
+}: KeybindingsTabProps) {
+  return (
+    <ModalContent>
+      <Section>
+        <SectionDescription>
+          Click a shortcut to record a new key combination. Press Escape
+          to cancel.
+        </SectionDescription>
+        {actions.map((action) => (
+          <KeybindingRow key={action.id}>
+            <KeybindingLabel>
+              <KeybindingName>{action.label}</KeybindingName>
+              <KeybindingDesc>{action.description}</KeybindingDesc>
+            </KeybindingLabel>
+            <KeybindingRecorder
+              actionId={action.id}
+              currentKeys={getKeysForAction(action.id)}
+              onRecord={onRecord}
+            />
+          </KeybindingRow>
+        ))}
+        <Flex mt="2" justify="end">
+          <Button variant="soft" color="gray" onClick={onResetToDefaults}>
+            Reset to Defaults
+          </Button>
+        </Flex>
+      </Section>
+    </ModalContent>
+  );
+}
 
 function formatKeysForDisplay(keys: string): string {
   return keys
@@ -405,119 +560,25 @@ export function SettingsModal({
           </StyledTabsList>
 
           <Tabs.Content value="general">
-            {isLoading ? (
-              <Flex align="center" justify="center" py="6">
-                <SpinnerIcon size={24} />
-              </Flex>
-            ) : (
-              <ModalContent>
-                <Section>
-                  <SectionTitle>
-                    Note Taking Prompt
-                    <Tooltip
-                      content={
-                        <>
-                          Customize the prompt used when generating notes from
-                          transcript and version information. You can include
-                          the following tags in the prompt:
-                          <br />
-                          <br />
-                          {'{{ transcript }}'} - What was said on this version
-                          <br />
-                          {'{{ context }}'} - Includes context for the version
-                          <br />
-                          {'{{ notes }}'} - Any notes you took on this version
-                          already
-                        </>
-                      }
-                    >
-                      <TooltipIcon>
-                        <Info size={14} />
-                      </TooltipIcon>
-                    </Tooltip>
-                  </SectionTitle>
-                  <SectionDescription>
-                    This prompt is used when generating notes via the transcript
-                    and version information.
-                  </SectionDescription>
-                  <TextAreaWrapper>
-                    <StyledTextArea
-                      placeholder="Enter your custom prompt for generating notes..."
-                      value={notePrompt}
-                      onChange={handleNotePromptChange}
-                      disabled={mutation.isPending}
-                    />
-                  </TextAreaWrapper>
-                </Section>
-
-                <Section>
-                  <SectionTitle>Note Regeneration</SectionTitle>
-                  <CheckboxRow>
-                    <Checkbox
-                      checked={regenerateOnVersionChange}
-                      onCheckedChange={handleRegenerateOnVersionChange}
-                      disabled={mutation.isPending}
-                    />
-                    <CheckboxContent>
-                      <CheckboxLabel>
-                        Regenerate notes on version change
-                      </CheckboxLabel>
-                      <CheckboxDescription>
-                        Automatically regenerate the AI note when switching to a
-                        different version in review.
-                      </CheckboxDescription>
-                    </CheckboxContent>
-                  </CheckboxRow>
-
-                  <CheckboxRow>
-                    <Checkbox
-                      checked={regenerateOnTranscriptUpdate}
-                      onCheckedChange={handleRegenerateOnTranscriptUpdate}
-                      disabled={mutation.isPending}
-                    />
-                    <CheckboxContent>
-                      <CheckboxLabel>
-                        Regenerate on transcript update
-                      </CheckboxLabel>
-                      <CheckboxDescription>
-                        Automatically regenerate the AI note when a new
-                        transcript segment comes in or an existing segment is
-                        updated.
-                      </CheckboxDescription>
-                    </CheckboxContent>
-                  </CheckboxRow>
-                </Section>
-              </ModalContent>
-            )}
+            <GeneralTab
+              isLoading={isLoading}
+              notePrompt={notePrompt}
+              regenerateOnVersionChange={regenerateOnVersionChange}
+              regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
+              isPending={mutation.isPending}
+              onNotePromptChange={handleNotePromptChange}
+              onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
+              onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
+            />
           </Tabs.Content>
 
           <Tabs.Content value="keybindings">
-            <ModalContent>
-              <Section>
-                <SectionDescription>
-                  Click a shortcut to record a new key combination. Press Escape
-                  to cancel.
-                </SectionDescription>
-                {actions.map((action) => (
-                  <KeybindingRow key={action.id}>
-                    <KeybindingLabel>
-                      <KeybindingName>{action.label}</KeybindingName>
-                      <KeybindingDesc>{action.description}</KeybindingDesc>
-                    </KeybindingLabel>
-                    <KeybindingRecorder
-                      actionId={action.id}
-                      currentKeys={getKeysForAction(action.id)}
-                      onRecord={handleRecordKeybinding}
-                    />
-                  </KeybindingRow>
-                ))}
-                <Flex mt="2" justify="end">
-                  <Button variant="soft" color="gray" onClick={resetToDefaults}>
-                    Reset to Defaults
-                  </Button>
-                </Flex>
-              </Section>
-            </ModalContent>
+            <KeybindingsTab
+              actions={actions}
+              getKeysForAction={getKeysForAction}
+              onRecord={handleRecordKeybinding}
+              onResetToDefaults={resetToDefaults}
+            />
           </Tabs.Content>
         </Tabs.Root>
 
