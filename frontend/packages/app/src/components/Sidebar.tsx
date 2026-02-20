@@ -254,6 +254,7 @@ export function Sidebar({
   }, []);
 
   useHotkeyAction('openSettings', toggleSettings);
+  useHotkeyAction('toggleSidebar', () => onCollapsedChange(!collapsed));
 
   const {
     data: versions,

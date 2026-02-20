@@ -128,6 +128,9 @@ export function ContentArea({
 
   useHotkeyAction('nextVersion', handleNext, { enabled: canGoNext });
   useHotkeyAction('previousVersion', handleBack, { enabled: canGoBack });
+  useHotkeyAction('setInReview', handleSetInReview, {
+    enabled: !!version && !!playlistId,
+  });
 
   if (!version) {
     return (
