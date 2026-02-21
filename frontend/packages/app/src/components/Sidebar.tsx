@@ -8,7 +8,7 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
-import { Button } from '@radix-ui/themes';
+import { Button, Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
@@ -21,7 +21,7 @@ import { SettingsModal } from './SettingsModal';
 import { PublishNotesDialog } from './PublishNotesDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
-import { useHotkeyAction } from '../hotkeys';
+import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -249,6 +249,8 @@ export function Sidebar({
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const { getLabel } = useHotkeyConfig();
+
   const toggleSettings = useCallback(() => {
     setIsSettingsOpen((prev) => !prev);
   }, []);
@@ -384,12 +386,14 @@ export function Sidebar({
               />
             </>
           )}
-          <CollapseButton
-            onClick={() => onCollapsedChange(!collapsed)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <PanelLeft /> : <PanelLeftClose />}
-          </CollapseButton>
+          <Tooltip content={`${collapsed ? 'Expand' : 'Collapse'} Sidebar (${getLabel('toggleSidebar')})`}>
+            <CollapseButton
+              onClick={() => onCollapsedChange(!collapsed)}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <PanelLeft /> : <PanelLeftClose />}
+            </CollapseButton>
+          </Tooltip>
         </HeaderActions>
       </Header>
 
@@ -433,31 +437,31 @@ export function Sidebar({
             <Upload />
             Publish
           </SquareButton>
+          <Tooltip content={`Settings (${getLabel('openSettings')})`}>
+            <SquareButton variant="neutral" onClick={toggleSettings}>
+              <Settings />
+              Settings
+            </SquareButton>
+          </Tooltip>
           <SettingsModal
             userEmail={userEmail}
             open={isSettingsOpen}
             onOpenChange={setIsSettingsOpen}
-            trigger={
-              <SquareButton variant="neutral">
-                <Settings />
-                Settings
-              </SquareButton>
-            }
           />
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
           <TranscriptionMenu playlistId={playlistId} />
+          <Tooltip content={`Settings (${getLabel('openSettings')})`}>
+            <SettingsButton onClick={toggleSettings}>
+              <Settings size={16} />
+              Settings
+            </SettingsButton>
+          </Tooltip>
           <SettingsModal
             userEmail={userEmail}
             open={isSettingsOpen}
             onOpenChange={setIsSettingsOpen}
-            trigger={
-              <SettingsButton>
-                <Settings size={16} />
-                Settings
-              </SettingsButton>
-            }
           />
         </Footer>
       )}

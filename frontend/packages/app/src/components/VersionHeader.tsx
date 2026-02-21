@@ -330,25 +330,27 @@ export function VersionHeader({
           <Thumbnail>
             {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
           </Thumbnail>
-          <SetInReviewButton
-            $isInReview={isCurrentVersionInReview}
-            onClick={onSetInReview}
-            disabled={isCurrentVersionInReview || isSettingInReview}
-          >
-            {isSettingInReview ? (
-              <>Setting...</>
-            ) : isCurrentVersionInReview ? (
-              <>
-                <Eye size={14} />
-                In Review
-              </>
-            ) : (
-              <>
-                <Target size={14} />
-                Set In Review
-              </>
-            )}
-          </SetInReviewButton>
+          <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
+            <SetInReviewButton
+              $isInReview={isCurrentVersionInReview}
+              onClick={onSetInReview}
+              disabled={isCurrentVersionInReview || isSettingInReview}
+            >
+              {isSettingInReview ? (
+                <>Setting...</>
+              ) : isCurrentVersionInReview ? (
+                <>
+                  <Eye size={14} />
+                  In Review
+                </>
+              ) : (
+                <>
+                  <Target size={14} />
+                  Set In Review
+                </>
+              )}
+            </SetInReviewButton>
+          </Tooltip>
         </ThumbnailWrapper>
         <MetadataSection>
           <VersionTitle>

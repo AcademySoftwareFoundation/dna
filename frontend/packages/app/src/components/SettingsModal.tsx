@@ -20,7 +20,7 @@ import { useHotkeyConfig } from '../hotkeys';
 
 interface SettingsModalProps {
   userEmail: string;
-  trigger: ReactNode;
+  trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -567,7 +567,7 @@ export function SettingsModal({
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-      <Dialog.Trigger>{trigger}</Dialog.Trigger>
+      {trigger && <Dialog.Trigger>{trigger}</Dialog.Trigger>}
       <Dialog.Content maxWidth="600px">
         <Dialog.Title>Settings</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="4">
