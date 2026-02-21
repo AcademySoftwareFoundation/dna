@@ -1,11 +1,18 @@
 """FastAPI application entry point."""
 
-import os
 from functools import lru_cache
 from typing import Annotated, Optional, cast
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
@@ -42,7 +49,9 @@ from dna.models import (
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.prodtrack_providers.prodtrack_provider_base import (
+    AuthModeNotImplementedError,
     ProdtrackProviderBase,
+    authenticate_user,
     get_prodtrack_provider,
 )
 from dna.storage_providers.storage_provider_base import (
@@ -54,6 +63,12 @@ from dna.transcription_providers.transcription_provider_base import (
     get_transcription_provider,
 )
 from dna.transcription_service import TranscriptionService, get_transcription_service
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str | None = None
+
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -78,6 +93,10 @@ API_VERSION = "0.1.0"
 
 # Define API tags for organizing endpoints
 tags_metadata = [
+    {
+        "name": "Auth",
+        "description": "Authentication endpoints",
+    },
     {
         "name": "Health",
         "description": "Health check and status endpoints",
@@ -169,10 +188,33 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 
 
+def get_token_header(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str | None:
+    """Extract token from Authorization header."""
+    if not authorization:
+        return None
+    if authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    return authorization
+
+
 @lru_cache
 def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
     """Get or create the production tracking provider singleton."""
     return get_prodtrack_provider()
+
+
+def get_prodtrack_provider_dep(
+    token: Annotated[str | None, Depends(get_token_header)],
+    cached_provider: Annotated[
+        ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
+    ],
+) -> ProdtrackProviderBase:
+    """Get the production tracking provider with user session."""
+    if token:
+        return get_prodtrack_provider(session_token=token)
+    return cached_provider
 
 
 @lru_cache
@@ -194,7 +236,7 @@ def get_llm_provider_cached() -> LLMProviderBase:
 
 
 ProdtrackProviderDep = Annotated[
-    ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
+    ProdtrackProviderBase, Depends(get_prodtrack_provider_dep)
 ]
 
 StorageProviderDep = Annotated[
@@ -237,6 +279,27 @@ async def shutdown_event():
     """Clean up services on shutdown."""
     service = get_transcription_service()
     await service.close()
+
+
+# -----------------------------------------------------------------------------
+# Auth endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/auth/login",
+    tags=["Auth"],
+    summary="Login to Production Tracking",
+    description="Authenticate with username and password to get a session token.",
+)
+async def login(request: LoginRequest):
+    """Login to ShotGrid."""
+    try:
+        return authenticate_user(request.username, request.password)
+    except AuthModeNotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 # -----------------------------------------------------------------------------

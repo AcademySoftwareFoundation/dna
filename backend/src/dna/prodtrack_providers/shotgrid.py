@@ -126,6 +126,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         url: Optional[str] = None,
         script_name: Optional[str] = None,
         api_key: Optional[str] = None,
+        session_token: Optional[str] = None,
         sudo_user: Optional[str] = None,
         connect: bool = True,
     ):
@@ -135,6 +136,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             url: ShotGrid server URL. Defaults to SHOTGRID_URL env var.
             script_name: API script name. Defaults to SHOTGRID_SCRIPT_NAME env var.
             api_key: API key for authentication. Defaults to SHOTGRID_API_KEY env var.
+            session_token: Optional user session token.
             sudo_user: Optional user login to perform actions as.
             connect: Whether to connect immediately.
         """
@@ -143,12 +145,16 @@ class ShotgridProvider(ProdtrackProviderBase):
         self.url = url or os.getenv("SHOTGRID_URL")
         self.script_name = script_name or os.getenv("SHOTGRID_SCRIPT_NAME")
         self.api_key = api_key or os.getenv("SHOTGRID_API_KEY")
+        self.session_token = session_token
         self.sudo_user = sudo_user or os.getenv("SHOTGRID_SUDO_USER")
 
-        if not all([self.url, self.script_name, self.api_key]):
+        if not self.url:
+            raise ValueError("ShotGrid URL not provided.")
+
+        if not self.session_token and not (self.script_name and self.api_key):
             raise ValueError(
-                "ShotGrid credentials not provided. Set SHOTGRID_URL, "
-                "SHOTGRID_SCRIPT_NAME, and SHOTGRID_API_KEY environment variables."
+                "ShotGrid credentials not provided. Provide either session_token "
+                "or (script_name and api_key)."
             )
 
         self.sg = None
@@ -163,7 +169,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             sudo_user: Optional user login to perform actions as.
                 If provided, overrides the instance's sudo_user.
         """
-        # Close existing connection if any (though Shotgun API doesn't really require explicit close)
+        if self.session_token:
+            self.sg = Shotgun(self.url, session_token=self.session_token)
+            return
+
         self.sg = Shotgun(
             self.url,
             self.script_name,
@@ -177,6 +186,8 @@ class ShotgridProvider(ProdtrackProviderBase):
         Args:
             sudo_user: The user login to perform actions as.
         """
+        if self.session_token:
+            raise ValueError("Cannot set sudo user when using a session token.")
         self.sudo_user = sudo_user
         self.connect()
 
@@ -189,6 +200,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         Args:
             user_login: The user login to perform actions as.
         """
+        if self.session_token:
+            raise ValueError("Cannot use sudo context when using a session token.")
+
         original_connection = self._sudo_connection
         try:
             # Create a temporary connection for this user
@@ -456,7 +470,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             List of lightweight entity representations with type, id, name, and
             type-specific fields (email for users, description for shots/assets/versions)
         """
-        if not self.sg:
+        if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
         results = []
@@ -501,7 +515,7 @@ class ShotgridProvider(ProdtrackProviderBase):
                 )
 
             # Query ShotGrid directly with minimal fields for performance
-            sg_results = self.sg.find(
+            sg_results = self._sg.find(
                 sg_entity_type,
                 filters=sg_filters,
                 fields=sg_fields,
@@ -562,6 +576,35 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         if not sg_user:
             raise ValueError(f"User not found: {user_email}")
+
+        entity_mapping = FIELD_MAPPING["user"]
+        return self._convert_sg_entity_to_dna_entity(
+            sg_user, entity_mapping, "user", resolve_links=False
+        )
+
+    def get_user_by_login(self, login: str) -> User:
+        """Get a user by their login/username.
+
+        Args:
+            login: The login/username of the user
+
+        Returns:
+            User entity
+
+        Raises:
+            ValueError: If user is not found
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_user = self._sg.find_one(
+            "HumanUser",
+            filters=[["login", "is", login]],
+            fields=["id", "name", "email", "login"],
+        )
+
+        if not sg_user:
+            raise ValueError(f"User not found: {login}")
 
         entity_mapping = FIELD_MAPPING["user"]
         return self._convert_sg_entity_to_dna_entity(
@@ -800,7 +843,7 @@ class ShotgridProvider(ProdtrackProviderBase):
                     f"Author not found in ShotGrid: {author_email}"
                 ) from e
 
-        if author_login:
+        if author_login and not self.session_token:
             with self.sudo(author_login):
                 result = self._sg.create("Note", note_data)
         else:

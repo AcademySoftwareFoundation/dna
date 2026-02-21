@@ -4,9 +4,24 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
 
+AUTH_MODE_PASSWORDLESS = "passwordless"
+AUTH_MODE_SELF_HOSTED = "self_hosted"
+AUTH_MODE_SSO = "sso"
+SUPPORTED_SHOTGRID_AUTH_MODES = {
+    AUTH_MODE_PASSWORDLESS,
+    AUTH_MODE_SELF_HOSTED,
+    AUTH_MODE_SSO,
+}
+
 
 class UserNotFoundError(Exception):
     """Raised when a user is not found in the production tracking system."""
+
+    pass
+
+
+class AuthModeNotImplementedError(Exception):
+    """Raised when an authentication mode is recognized but not implemented."""
 
     pass
 
@@ -88,6 +103,10 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def get_user_by_login(self, login: str) -> "User":
+        """Get a user by their login/username."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_projects_for_user(self, user_email: str) -> list["Project"]:
         """Get projects accessible by a user.
 
@@ -149,11 +168,58 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
 
-def get_prodtrack_provider() -> ProdtrackProviderBase:
+def get_shotgrid_auth_mode() -> str:
+    """Get configured ShotGrid auth mode.
+
+    Supported values:
+        - passwordless
+        - self_hosted
+        - sso
+    """
+    auth_mode = os.getenv("SHOTGRID_AUTH_MODE", AUTH_MODE_PASSWORDLESS).strip().lower()
+    if auth_mode not in SUPPORTED_SHOTGRID_AUTH_MODES:
+        supported = ", ".join(sorted(SUPPORTED_SHOTGRID_AUTH_MODES))
+        raise ValueError(
+            f"Invalid SHOTGRID_AUTH_MODE '{auth_mode}'. Supported values: {supported}"
+        )
+    return auth_mode
+
+
+def get_prodtrack_provider(session_token: str | None = None) -> ProdtrackProviderBase:
     """Get the production tracking provider."""
     from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
     if provider_type == "shotgrid":
-        return ShotgridProvider()
+        return ShotgridProvider(session_token=session_token)
     raise ValueError(f"Unknown production tracking provider: {provider_type}")
+
+
+def authenticate_user(username: str, password: str | None = None) -> dict[str, Any]:
+    """Authenticate a user using the configured provider and auth mode."""
+    provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
+    if provider_type != "shotgrid":
+        raise ValueError(f"Unknown production tracking provider: {provider_type}")
+
+    from dna.prodtrack_providers.shotgrid_auth import ShotgridAuthenticationProvider
+
+    auth_mode = get_shotgrid_auth_mode()
+    if auth_mode == AUTH_MODE_PASSWORDLESS:
+        result = ShotgridAuthenticationProvider.authenticate_passwordless(username)
+        result["mode"] = AUTH_MODE_PASSWORDLESS
+        return result
+
+    if auth_mode == AUTH_MODE_SELF_HOSTED:
+        if not password:
+            raise ValueError("Password is required for self-hosted authentication.")
+        result = ShotgridAuthenticationProvider.authenticate(username, password)
+        result["mode"] = AUTH_MODE_SELF_HOSTED
+        return result
+
+    if auth_mode == AUTH_MODE_SSO:
+        raise AuthModeNotImplementedError(
+            "SSO authentication mode is not implemented yet."
+        )
+
+    # Defensive fallback; get_shotgrid_auth_mode() validates supported values.
+    raise ValueError(f"Unsupported SHOTGRID_AUTH_MODE: {auth_mode}")

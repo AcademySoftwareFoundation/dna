@@ -141,6 +141,17 @@ export interface GetUserByEmailParams {
   userEmail: string;
 }
 
+export interface LoginParams {
+  username: string;
+  password?: string;
+}
+
+export interface AuthResponse {
+  token?: string | null;
+  email: string;
+  mode?: 'passwordless' | 'self_hosted' | 'sso';
+}
+
 export interface DraftNoteLink {
   entity_type: string;
   entity_id: number;

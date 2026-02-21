@@ -70,6 +70,37 @@ class TestShotgridProviderRefactor:
             )
             assert provider.sudo_user == "admin"
 
+    def test_init_with_session_token(self, mock_shotgun):
+        """Test that __init__ supports session token authentication."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHOTGRID_URL": "https://test.shotgunstudio.com",
+                "SHOTGRID_SCRIPT_NAME": "test_script",
+                "SHOTGRID_API_KEY": "test_key",
+            },
+        ):
+            provider = ShotgridProvider(session_token="session-token")
+            mock_shotgun.assert_called_once_with(
+                "https://test.shotgunstudio.com",
+                session_token="session-token",
+            )
+            assert provider.session_token == "session-token"
+
+    def test_set_sudo_user_raises_with_session_token(self, mock_shotgun):
+        """Test sudo override is rejected in session token mode."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHOTGRID_URL": "https://test.shotgunstudio.com",
+                "SHOTGRID_SCRIPT_NAME": "test_script",
+                "SHOTGRID_API_KEY": "test_key",
+            },
+        ):
+            provider = ShotgridProvider(session_token="session-token")
+            with pytest.raises(ValueError, match="session token"):
+                provider.set_sudo_user("admin")
+
     def test_set_sudo_user_reconnects(self, provider, mock_shotgun):
         """Test that set_sudo_user updates sudo_user and reconnects."""
         # Reset mock to clear init call
