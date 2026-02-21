@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
+import { useHotkeyConfig } from '../hotkeys';
 import {
   Bot,
   MessageSquare,
@@ -271,6 +272,7 @@ export function AssistantNote({
   onRegenerate,
   onInsertNote,
 }: AssistantNoteProps) {
+  const { getLabel } = useHotkeyConfig();
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -327,20 +329,24 @@ export function AssistantNote({
       <ContentColumn>
         <NoteHeader>
           <NoteTitle>AI Assistant</NoteTitle>
-          <SplitButton
-            rightSlot={
-              isLoading ? (
-                <SpinnerIcon size={14} />
-              ) : (
-                <MessageSquare size={14} />
-              )
-            }
-            onClick={handleRegenerate}
-            onRightClick={handleRightClick}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Generating...' : 'Regenerate'}
-          </SplitButton>
+          <Tooltip content={`Regenerate (${getLabel('aiRegenerate')})`}>
+            <span>
+              <SplitButton
+                rightSlot={
+                  isLoading ? (
+                    <SpinnerIcon size={14} />
+                  ) : (
+                    <MessageSquare size={14} />
+                  )
+                }
+                onClick={handleRegenerate}
+                onRightClick={handleRightClick}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Generating...' : 'Regenerate'}
+              </SplitButton>
+            </span>
+          </Tooltip>
         </NoteHeader>
 
         {showInstructions && (
@@ -389,7 +395,7 @@ export function AssistantNote({
                     Copy
                   </ActionButton>
                 </Tooltip>
-                <Tooltip content="Insert below your note">
+                <Tooltip content={`Insert below your note (${getLabel('aiInsert')})`}>
                   <ActionButton
                     onClick={handleInsert}
                     aria-label="Insert note below yours"
