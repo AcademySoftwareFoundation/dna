@@ -79,6 +79,15 @@ In a new terminal:
 ```bash
 cd frontend
 npm install
+```
+
+Copy the example env file:
+
+```bash
+cp packages/app/.env.example packages/app/.env
+```
+
+```bash
 npm run dev
 ```
 
@@ -315,9 +324,9 @@ make start-local
 
 ### Frontend Can't Connect to API
 
-1. Ensure the API is running: http://localhost:8000/health
-2. Check for CORS issues in browser console
-3. Verify API URL in frontend configuration
+1. Ensure `frontend/packages/app/.env` exists — if not, copy it from `.env.example`
+2. Ensure the API is running: http://localhost:8000/health
+3. Check for CORS issues in browser console
 
 ### WebSocket Connection Issues
 
