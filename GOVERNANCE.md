@@ -16,7 +16,7 @@ See [ASWF TSC FAQ](https://tac.aswf.io/process/tsc_faq.html) for more details.
 
 # Decision Making
 
-DNA will operate primarily through consensus and discussion against agenda items raised by the TSC members in the TSC meetings, if concsensus is not easily achieved, decisions will go to a vote of at least 80% TSC members with a simple majority to decide the resolution.
+DNA will operate primarily through consensus and discussion against agenda items raised by the TSC members in the TSC meetings, if concensus is not easily achieved, decisions will go to a vote of at least 80% TSC members with a simple majority to decide the resolution.
 
 # Project roles
 
@@ -37,52 +37,46 @@ This role is rotating at a cadence to be decided by the TSC during nomination of
 
 ## TSC Member
 
-A TSC member is an appointed role within DNA and is responsible for the following:
-* Take a key position in deciding and contibuting to the direction of DNA
-* Attend TSC meetings and contributing to discussions and technical decisions
-* Direct contribution to the DNA codebase
-* Improving specification and documentation of DNA
-* Reviewing committer pull requests and GitHub
-* Assisting the deployment of DNA within organisations
-* Releasing versions of DNA to the public
+A TSC member is an appointed role within DNA.  Members will have a mix of technical and advisory responsiblities and are expected to participate in some or all of the following:
+* Hold a key position in deciding and contributing to the direction of DNA
+* Attend TSC meetings and contribute to discussions and technical decisions
+* Provide documentation and insights to requirements during TSC discussions
+* Improve specification and documentation of DNA
+* Direct contributions to the DNA codebase
+* Review contributor pull requests
+* Provide guidance on the deployment of DNA within organisations
+* Test and provide feedback on DNA
 
 ## TAC Representative
 
-The project committers will elect a TAC Representative who will be the primary point of contact for the project to the TAC upon becoming an Active stage project.
-
-## Stakeholder
-
-A stakeholder is a nominatble role within DNA and represents a key interest in the direction of the project and they are able to provide feedback and direction regarding DNA and its deployment within other facilities. Responsibilities of a stakeholder include:
-* Attending TSC meetings
-* Providing documentation and insights to requirements during TSC discussions
-* Testing and deployment of DNA
+The TSC will elect a TAC Representative who will be the primary point of contact for the project to the TAC upon becoming an Active stage project.
 
 ## Contributor
 
-The contributor is an open initial role for anyone participating in the project and wishing to contribute code.
+The Contributor is an open initial role for anyone participating in the project and wishing to contribute code.
 
-### Process for becoming a contributor
+### Process for becoming a Contributor
 
 * Review the [Contributing](CONTRIBUTING.md) guidelines to ensure your contribution is inline with the project's coding and styling guidelines.
 * Submit your code as a PR with the appropriate DCO sign-off
-* Have your submission approved by the committer(s) and merged into the codebase.
+* Have your submission approved by the Contributor(s) and merged into the codebase.
 
-### When does a committer lose committer status
+### When does a Contributor lose Contributor status
 
-If a committer is no longer interested or cannot perform the committer duties listed above, they
+If a Contributor is no longer interested or cannot perform the duties listed above, they
 should volunteer to be moved to emeritus status. In extreme cases this can also occur by a vote of
-the committers per the voting process below.
+the Contributors per the voting process below.
 
 # Release Process
 
-Project releases will occur on a scheduled basis as agreed to by the committers.
+Project releases will occur on a scheduled basis as agreed to by the Contributors.
 
 # Conflict resolution and voting
 
-In general, we prefer that technical issues and committer membership are amicably worked out
-between the persons involved. If a dispute cannot be decided independently, the committers can be
-called in to decide an issue. If the committers themselves cannot decide an issue, the issue will
-be resolved by voting. The voting process is a simple majority in which each committer receives one vote.
+In general, we prefer that technical issues and Contributor membership are amicably worked out
+between the persons involved. If a dispute cannot be decided independently, the Contributors can be
+called in to decide an issue. If the Contributors themselves cannot decide an issue, the issue will
+be resolved by voting. The voting process is a simple majority in which each Contributor receives one vote.
 
 # Communication
 
@@ -91,7 +85,7 @@ This project, just like all of open source, is a global community. In addition t
 * Be respectful of time and language differences between community members ( such as scheduling meetings, email/issue responsiveness, etc ).
 * Ensure tools are able to be used by community members regardless of their region.
 
-If you have concerns about communication challenges for this project, please contact the committers.
+If you have concerns about communication challenges for this project, please contact the Contributors.
 
 # Process for role transitions
 
