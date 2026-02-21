@@ -605,20 +605,29 @@ async def publish_notes(
     # 1. Get all draft notes for this playlist
     all_draft_notes = await storage.get_draft_notes_for_playlist(playlist_id)
 
-    # 2. Filter notes
-    notes_to_publish = []
+    # 2. Filter and deduplicate notes
+    # Group by (user, version) and keep only the most recently updated note
+    from collections import defaultdict
+
+    notes_by_key = defaultdict(list)
     for note in all_draft_notes:
-        if note.published:
-            continue
+        key = (note.user_email, note.version_id)
+        notes_by_key[key].append(note)
+
+    notes_to_publish = []
+    for key, notes in notes_by_key.items():
+        # Sort by updated_at descending and take the most recent one
+        most_recent = max(notes, key=lambda n: n.updated_at)
 
         # specific user check
-        if not request.include_others and note.user_email != request.user_email:
+        if not request.include_others and most_recent.user_email != request.user_email:
             continue
 
-        notes_to_publish.append(note)
+        notes_to_publish.append(most_recent)
 
     # 3. Publish each note
     published_count = 0
+    republished_count = 0
     failed_count = 0
     skipped_count = 0
 
@@ -626,6 +635,45 @@ async def publish_notes(
 
     for note in notes_to_publish:
         try:
+            # Skip empty notes
+            if not (note.content and note.content.strip()) and not (
+                note.subject and note.subject.strip()
+            ):
+                skipped_count += 1
+                continue
+
+            # Check if note is already published (re-publish/update)
+            if note.published_note_id:
+                # Optimized: Only update if local changes are newer than last publish time
+                # If published=True, it means it's in sync. If published=False, it was edited.
+                # If edited=True, we must republish even if published=True.
+                if note.published and not note.edited:
+                    skipped_count += 1
+                    continue
+
+                success = prodtrack.update_note(
+                    note_id=note.published_note_id,
+                    content=note.content,
+                    subject=note.subject,
+                )
+                if success:
+                    republished_count += 1
+                    # Update local draft timestamp
+                    update_data = DraftNoteUpdate(
+                        published=True,
+                        edited=False,
+                        published_at=datetime.now(timezone.utc),
+                    )
+                    await storage.upsert_draft_note(
+                        user_email=note.user_email,
+                        playlist_id=note.playlist_id,
+                        version_id=note.version_id,
+                        data=update_data,
+                    )
+                else:
+                    failed_count += 1
+                continue
+
             # Get links
             links = []
             if note.links:
@@ -641,6 +689,18 @@ async def publish_notes(
             if not playlist_link_exists:
                 links.append(_create_stub_entity("Playlist", playlist_id))
 
+            # Ensure version's parent entity (Shot/Asset) is included in links
+            version = prodtrack.get_entity(
+                "version", note.version_id, resolve_links=False
+            )
+            if version and version.entity:
+                entity_link_exists = any(
+                    l.id == version.entity.id and l.type == version.entity.type
+                    for l in links
+                )
+                if not entity_link_exists:
+                    links.append(version.entity)
+
             note_id = prodtrack.publish_note(
                 version_id=note.version_id,
                 content=note.content,
@@ -654,6 +714,7 @@ async def publish_notes(
             # Update draft note as published
             update_data = DraftNoteUpdate(
                 published=True,
+                edited=False,
                 published_at=datetime.now(timezone.utc),
                 published_note_id=note_id,
             )
@@ -673,6 +734,7 @@ async def publish_notes(
 
     return PublishNotesResponse(
         published_count=published_count,
+        republished_count=republished_count,
         skipped_count=skipped_count,
         failed_count=failed_count,
         total=len(notes_to_publish),
@@ -682,6 +744,69 @@ async def publish_notes(
 # -----------------------------------------------------------------------------
 # Draft Notes endpoints
 # -----------------------------------------------------------------------------
+
+
+async def _sync_published_notes(
+    playlist_id: int,
+    prodtrack: ProdtrackProviderBase,
+    storage: StorageProviderBase,
+):
+    """Sync published notes from ShotGrid to local storage.
+
+    Fetches notes via get_versions_for_playlist (which now populates notes).
+    If multiple notes exist for the same version and author, only the most
+    recent one is synced.
+    """
+    try:
+        # 1. Get all versions for the playlist (now includes notes)
+        versions = prodtrack.get_versions_for_playlist(playlist_id)
+        if not versions:
+            return
+
+        # 2. Group by (version_id, author_email) and find latest
+        # Map: (version_id, author_email) -> Note
+        latest_notes: dict[tuple[int, str], Note] = {}
+
+        for version in versions:
+            if not version.notes:
+                continue
+
+            for note in version.notes:
+                if not note.author or not note.author.email:
+                    continue
+
+                key = (version.id, note.author.email)
+                existing = latest_notes.get(key)
+
+                # If no existing note for this key, or current note is newer
+                if not existing or note.id > existing.id:
+                    latest_notes[key] = note
+
+        # 3. Upsert selected notes to storage
+        from datetime import datetime, timezone
+
+        for (vid, email), note in latest_notes.items():
+            # Check if we already have this specific published note to avoid writes
+            # Optimization: could query storage for all draft notes first.
+            # For now, just upsert.
+            update_data = DraftNoteUpdate(
+                content=note.content or "",
+                subject=note.subject or "",
+                published=True,
+                edited=False,
+                published_at=datetime.now(timezone.utc),
+                published_note_id=note.id,
+            )
+
+            await storage.upsert_published_note(
+                user_email=email,
+                playlist_id=playlist_id,
+                version_id=vid,
+                data=update_data,
+            )
+
+    except Exception as e:
+        print(f"Error syncing published notes: {e}")
 
 
 @app.get(
@@ -694,8 +819,11 @@ async def publish_notes(
 async def get_playlist_draft_notes(
     playlist_id: int,
     provider: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
 ) -> list[DraftNote]:
     """Get all draft notes for a playlist."""
+    # Sync published notes first
+    await _sync_published_notes(playlist_id, prodtrack, provider)
     return await provider.get_draft_notes_for_playlist(playlist_id)
 
 
@@ -747,6 +875,7 @@ async def upsert_draft_note(
     provider: StorageProviderDep,
 ) -> DraftNote:
     """Create or update a user's draft note."""
+
     return await provider.upsert_draft_note(user_email, playlist_id, version_id, data)
 
 

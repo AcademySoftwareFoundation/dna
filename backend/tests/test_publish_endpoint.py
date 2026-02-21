@@ -94,6 +94,7 @@ class TestPublishNotesEndpoint:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             published=True,  # ALREADY PUBLISHED
+            published_note_id=123,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [published_note]
 
@@ -105,7 +106,8 @@ class TestPublishNotesEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["published_count"] == 0
-        assert data["total"] == 0  # because filtered out
+        assert data["skipped_count"] == 1
+        assert data["total"] == 1
 
         mock_prodtrack.publish_note.assert_not_called()
 
@@ -142,3 +144,45 @@ class TestPublishNotesEndpoint:
         data = response.json()
         assert data["published_count"] == 1
         assert data["total"] == 1
+
+    def test_publish_notes_republishes_edited(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Test that edited notes are republished even if already published."""
+        edited_note = DraftNote(
+            _id="note4",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=104,
+            content="Edited content",
+            subject="Sub",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            published=True,
+            published_note_id=505,
+            edited=True,  # EDITED IS TRUE
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [edited_note]
+        mock_prodtrack.update_note.return_value = True
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={"user_email": "user@example.com", "include_others": False},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["republished_count"] == 1
+        assert data["published_count"] == 0
+
+        # Verify provider called
+        mock_prodtrack.update_note.assert_called_once()
+        args = mock_prodtrack.update_note.call_args[1]
+        assert args["note_id"] == 505
+        assert args["content"] == "Edited content"
+
+        # Verify storage update sets edited=False
+        mock_storage.upsert_draft_note.assert_called_once()
+        call_args = mock_storage.upsert_draft_note.call_args
+        assert call_args[1]["data"].published is True
+        assert call_args[1]["data"].edited is False

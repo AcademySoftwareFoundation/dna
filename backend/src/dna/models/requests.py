@@ -106,6 +106,7 @@ class PublishNotesResponse(BaseModel):
     """Response model for publishing draft notes."""
 
     published_count: int
+    republished_count: int
     skipped_count: int
     failed_count: int
     total: int

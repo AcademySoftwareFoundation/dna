@@ -63,7 +63,7 @@ FIELD_MAPPING = {
             "content": "content",
             "project": "project",
         },
-        "linked_fields": {"note_links": "note_links"},
+        "linked_fields": {"note_links": "note_links", "created_by": "author"},
     },
     "task": {
         "entity_id": "Task",
@@ -313,10 +313,12 @@ class ShotgridProvider(ProdtrackProviderBase):
         """Resolve linked entity data by fetching the full entity."""
         if isinstance(data, dict):
             dna_type = _get_dna_entity_type(data["type"])
-            return self.get_entity(dna_type, data["id"])
+            return self.get_entity(dna_type, data["id"], resolve_links=False)
         elif isinstance(data, list):
             return [
-                self.get_entity(_get_dna_entity_type(item["type"]), item["id"])
+                self.get_entity(
+                    _get_dna_entity_type(item["type"]), item["id"], resolve_links=False
+                )
                 for item in data
             ]
         return None
@@ -400,6 +402,8 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         # Build reverse mapping from DNA field names to SG field names
         dna_to_sg_fields = {v: k for k, v in entity_mapping["fields"].items()}
+        linked_fields_map = entity_mapping.get("linked_fields", {})
+        dna_to_sg_fields.update({v: k for k, v in linked_fields_map.items()})
 
         # Convert DNA filters to SG filters
         sg_filters = []
@@ -688,7 +692,67 @@ class ShotgridProvider(ProdtrackProviderBase):
             for sg_task in sg_tasks:
                 tasks_by_id[sg_task["id"]] = sg_task
 
-        # Convert versions and enrich with full task data
+        # Fetch notes linked to this playlist or its versions
+        # We fetch notes linked to the playlist entity directly, OR linked to any of the versions.
+        # Note: SG API "in" filter for multi-entity links might be tricky for mixed types in one go if not careful.
+        # But we can query notes linked to the playlist, and notes linked to the versions.
+        # Let's try to get all relevant notes in one or two queries.
+
+        # 1. Notes linked to Playlist
+        notes_by_version_id: dict[int, list[EntityBase]] = {}
+
+        # Strategy: Fetch notes linked to the Playlist. Then check their version links.
+        # We assume the user email is available via deep linking in the 'created_by' field.
+        sg_notes = self._sg.find(
+            "Note",
+            filters=[["note_links", "is", {"type": "Playlist", "id": playlist_id}]],
+            fields=[
+                "id",
+                "subject",
+                "content",
+                "note_links",
+                "created_by",
+                "created_by.HumanUser.email",  # Fetch email directly
+                "created_at",
+            ],
+        )
+
+        # Process notes and assign to versions
+        note_mapping = FIELD_MAPPING["note"]
+        notes_by_version_id: dict[int, list[EntityBase]] = {}
+
+        for sg_note in sg_notes:
+            # Convert to DNA Note
+            dna_note = self._convert_sg_entity_to_dna_entity(
+                sg_note, note_mapping, "note", resolve_links=False
+            )
+
+            # Manually populate author email if present in the deep-linked field
+            if (
+                sg_note.get("created_by")
+                and sg_note["created_by"].get("type") == "HumanUser"
+            ):
+                email = sg_note.get("created_by.HumanUser.email")
+                if email and dna_note.author:
+                    dna_note.author.email = email
+
+            # Find linked versions
+            linked_vids = []
+            # We need to look at the original SG note for links
+            links = sg_note.get("note_links", [])
+            # Handle shallow links as dicts or list of dicts
+            if isinstance(links, list):
+                linked_vids = [l["id"] for l in links if l["type"] == "Version"]
+            elif isinstance(links, dict) and links["type"] == "Version":
+                linked_vids = [links["id"]]
+
+            for vid in linked_vids:
+                if vid in version_ids:
+                    if vid not in notes_by_version_id:
+                        notes_by_version_id[vid] = []
+                    notes_by_version_id[vid].append(dna_note)
+
+        # Convert versions and enrich with full task data AND notes
         versions = []
         for sg_version in sg_versions:
             version = self._convert_sg_entity_to_dna_entity(
@@ -703,9 +767,44 @@ class ShotgridProvider(ProdtrackProviderBase):
                     version.task = self._convert_sg_entity_to_dna_entity(
                         sg_task, task_mapping, "task", resolve_links=False
                     )
+
+            # Attach notes
+            if version.id in notes_by_version_id:
+                version.notes = notes_by_version_id[version.id]
+
             versions.append(version)
 
         return versions
+
+    def update_note(
+        self,
+        note_id: int,
+        content: str,
+        subject: Optional[str] = None,
+    ) -> bool:
+        """Update an existing note in ShotGrid.
+
+        Args:
+            note_id: The ID of the note to update.
+            content: New content for the note.
+            subject: Optional new subject for the note.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        data = {"content": content}
+        if subject:
+            data["subject"] = subject
+
+        try:
+            self._sg.update("Note", note_id, data)
+            return True
+        except Exception as e:
+            print(f"Error updating note {note_id}: {e}")
+            return False
 
     def publish_note(
         self,
