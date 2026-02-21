@@ -20,7 +20,6 @@ const ContentWrapper = styled.div`
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-width: 720px;
   height: 100%;
   min-height: 0;
 `;
