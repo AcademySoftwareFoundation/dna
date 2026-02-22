@@ -1,23 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { useShotGrid } from '../../hooks/useShotGrid';
 import StatusBadge from '../StatusBadge';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
-function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex }) {
+function ShotGridPanel({
+  config,
+  configLoaded,
+  setRows,
+  setCurrentIndex,
+  setOriginalFilename,
+  sgProjects,
+  selectedProjectId,
+  setSelectedProjectId,
+  sgPlaylists,
+  selectedPlaylistId,
+  setSelectedPlaylistId,
+  sgLoading,
+  sgError
+}) {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [playlistStatus, setPlaylistStatus] = useState({ msg: "", type: "info" });
   const [playlistItemsLoading, setPlaylistItemsLoading] = useState(false);
-  const {
-    sgProjects,
-    selectedProjectId,
-    setSelectedProjectId,
-    sgPlaylists,
-    selectedPlaylistId,
-    setSelectedPlaylistId,
-    sgLoading,
-    sgError
-  } = useShotGrid(config, configLoaded);
 
   const extractPlaylistIdFromUrl = (value) => {
     if (!value) return "";
@@ -35,7 +38,6 @@ function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex }) {
       return;
     }
     setPlaylistStatus({ msg: "", type: "info" });
-    setSelectedProjectId("");
     setSelectedPlaylistId(parsedPlaylistId);
   };
 
@@ -54,13 +56,19 @@ function ShotGridPanel({ config, configLoaded, setRows, setCurrentIndex }) {
           //console.log('Fetched playlist items:', data.items);
           setRows(data.items.map(v => ({ shot: v, transcription: "", summary: "", notes: "" })));
           setCurrentIndex(0);
+          // Set original filename to the ShotGrid playlist name
+          if (setOriginalFilename) {
+            // Use the playlist_name returned from the API (works for both dropdown selection and URL paste)
+            const playlistName = data.playlist_name || `playlist_${selectedPlaylistId}`;
+            setOriginalFilename(playlistName);
+          }
         }
       })
       .catch((error) => {
         console.error('Error fetching playlist items:', error);
       })
       .finally(() => setPlaylistItemsLoading(false));
-  }, [config.shotgrid_enabled, selectedPlaylistId, setRows, setCurrentIndex]);
+  }, [config.shotgrid_enabled, selectedPlaylistId, selectedProjectId, sgProjects, setRows, setCurrentIndex, setOriginalFilename]);
 
   if (!config.shotgrid_enabled) {
     return null;

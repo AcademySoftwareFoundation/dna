@@ -55,12 +55,22 @@ function AppLayout({
   // Utility functions
   updateCell,
   setRows,
-  selectedProjectId
+
+  // ShotGrid state
+  selectedProjectId,
+  setSelectedProjectId,
+  sgProjects,
+  sgPlaylists,
+  selectedPlaylistId,
+  setSelectedPlaylistId,
+  sgLoading,
+  sgError
 }) {
   // Separate state for import sub-tabs vs shot table row tabs
   const [importSubTab, setImportSubTab] = React.useState(config.shotgrid_enabled ? 'shotgrid' : 'upload');
   const [shotTableRowTabs, setShotTableRowTabs] = React.useState({});
   const [isPanelExpanded, setIsPanelExpanded] = React.useState(true);
+  const [originalFilename, setOriginalFilename] = React.useState(null);
   // Initialize tabs on component mount
   useEffect(() => {
     // Always set default top tab to import on mount
@@ -90,6 +100,10 @@ function AppLayout({
         break;
       }
 
+      // Update progress before processing
+      const progress = (i / totalRows) * 100;
+      progressCallback(progress);
+
       const row = rowsWithTranscription[i];
       const rowIndex = rows.indexOf(row);
       
@@ -101,16 +115,16 @@ function AppLayout({
         updateCell(rowIndex, `${selectedLLM.key}_summary`, '...');
         
         // Generate summary
-        const summary = await getLLMSummary(row.transcription, selectedLLM.provider, promptType);
+        const summary = await getLLMSummary(row.transcription, selectedLLM.provider, promptType, selectedLLM.model_name);
         updateCell(rowIndex, `${selectedLLM.key}_summary`, summary || '[No summary returned]');
       } catch (error) {
         console.error('Error generating summary for row', rowIndex, error);
         updateCell(rowIndex, `${selectedLLM.key}_summary`, '[Error generating summary]');
       }
 
-      // Update progress
-      const progress = ((i + 1) / totalRows) * 100;
-      progressCallback(progress);
+      // Update progress after completion
+      const completedProgress = ((i + 1) / totalRows) * 100;
+      progressCallback(completedProgress);
 
       // Small delay to prevent overwhelming the API
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -238,6 +252,15 @@ function AppLayout({
                       configLoaded={configLoaded}
                       setRows={setRows}
                       setCurrentIndex={setCurrentIndex}
+                      setOriginalFilename={setOriginalFilename}
+                      sgProjects={sgProjects}
+                      selectedProjectId={selectedProjectId}
+                      setSelectedProjectId={setSelectedProjectId}
+                      sgPlaylists={sgPlaylists}
+                      selectedPlaylistId={selectedPlaylistId}
+                      setSelectedPlaylistId={setSelectedPlaylistId}
+                      sgLoading={sgLoading}
+                      sgError={sgError}
                     />
                   )}
                   
@@ -245,6 +268,7 @@ function AppLayout({
                     <UploadPanel 
                       setRows={setRows} 
                       setCurrentIndex={setCurrentIndex} 
+                      setOriginalFilename={setOriginalFilename}
                     />
                   )}
                 </div>
@@ -260,13 +284,18 @@ function AppLayout({
                 botIsActive={botIsActive}
                 submitting={submitting}
                 waitingForActive={waitingForActive}
+                rows={rows}
+                selectedProjectId={selectedProjectId}
+                sgProjects={sgProjects}
+                originalFilename={originalFilename}
               />
             )}
 
             {activeTopTab === 'export' && (
               <ExportPanel 
                 rows={rows} 
-                shotSegments={shotSegments} 
+                shotSegments={shotSegments}
+                originalFilename={originalFilename}
               />
             )}
 

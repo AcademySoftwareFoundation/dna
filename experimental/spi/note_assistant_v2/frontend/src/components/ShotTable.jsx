@@ -482,7 +482,7 @@ function ShotTable({
                           enabledLLMs.forEach(async (llm) => {
                             const promptType = getPromptTypeForRowAndLLM(idx, llm.key);
                             updateCell(idx, `${llm.key}_summary`, '...'); // Show loading
-                            const summary = await getLLMSummary(inputText, llm.provider, promptType);
+                            const summary = await getLLMSummary(inputText, llm.provider, promptType, llm.model_name);
                             updateCell(idx, `${llm.key}_summary`, summary || '[No summary returned]');
                           });
                         }}
@@ -604,7 +604,7 @@ function ShotTable({
                                     if (!inputText.trim()) return;
                                     const promptType = getPromptTypeForRowAndLLM(idx, activeLLM.key);
                                     updateCell(idx, `${activeLLM.key}_summary`, '...'); // Show loading
-                                    const summary = await getLLMSummary(inputText, activeLLM.provider, promptType);
+                                    const summary = await getLLMSummary(inputText, activeLLM.provider, promptType, activeLLM.model_name);
                                     updateCell(idx, `${activeLLM.key}_summary`, summary || '[No summary returned]');
                                   }}
                                 >

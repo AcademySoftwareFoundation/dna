@@ -1,0 +1,11 @@
+services:
+  vexa-dashboard:
+    image: synapsr/vexa-dashboard:latest
+    container_name: vexa-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - VEXA_API_URL=http://vexa:8056
+      - VEXA_ADMIN_API_URL=http://vexa:8057
+      - VEXA_ADMIN_API_KEY=your-admin-token
+    restart: unless-stopped
