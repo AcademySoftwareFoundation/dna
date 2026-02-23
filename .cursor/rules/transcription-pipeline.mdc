@@ -1,0 +1,9 @@
+---
+description: Reference transcription pipeline documentation when working on transcription-related files
+globs: backend/src/dna/transcription_service.py,backend/src/dna/transcription_providers/**,backend/src/dna/events/**,backend/src/dna/models/transcription.py,backend/src/dna/models/stored_segment.py,backend/src/dna/models/playlist_metadata.py,frontend/packages/app/src/hooks/useTranscription.ts,frontend/packages/app/src/hooks/useSegments.ts,frontend/packages/core/src/eventClient.ts
+alwaysApply: false
+---
+
+# Transcription Pipeline
+
+When working on any part of the transcription pipeline, read `backend/docs/TRANSCRIPTION_PIPELINE.md` for the full architecture, event system, bot lifecycle, data models, and layer interactions before making changes.

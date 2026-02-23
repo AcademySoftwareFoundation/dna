@@ -45,6 +45,7 @@ def find_column_index(header, field_names):
 class NotesExportRequest(BaseModel):
     notes: list
     export_format: str = "csv"  # csv or txt
+    original_filename: str = None  # Optional original source filename
 
 @router.post("/export-notes")
 async def export_notes(request: NotesExportRequest):
@@ -63,7 +64,7 @@ async def export_notes(request: NotesExportRequest):
     lines = []
     
     # Create header with configurable field names
-    header = [csv_shot_field, csv_version_field, csv_notes_field, 'transcription', 'summary']
+    header = [csv_shot_field, csv_version_field, csv_notes_field, 'conversation', 'summary']
     lines.append(','.join(f'"{h}"' for h in header))
     
     # Process each note
@@ -90,17 +91,26 @@ async def export_notes(request: NotesExportRequest):
             escape_csv(shot_value),
             escape_csv(version_value),
             escape_csv(note.get('notes', '')),
-            escape_csv(note.get('transcription', '')),
+            escape_csv(note.get('conversation', '')),
             escape_csv(note.get('summary', ''))
         ]
         lines.append(','.join(row))
     
     csv_content = '\n'.join(lines)
     
+    # Generate filename based on original source
+    if request.original_filename:
+        # Remove extension and add _dna.csv suffix
+        base_name = os.path.splitext(request.original_filename)[0]
+        filename = f"{base_name}_dna.csv"
+    else:
+        # Default filename
+        filename = "shot_notes_dna.csv"
+    
     return {
         "status": "success",
         "content": csv_content,
-        "filename": "shot_notes.csv",
+        "filename": filename,
         "content_type": "text/csv"
     }
 
@@ -175,4 +185,4 @@ async def upload_playlist(file: UploadFile = File(...)):
                 'transcription': transcription,
                 'notes': notes
             })
-    return {"status": "success", "items": items}
+    return {"status": "success", "items": items, "original_filename": file.filename}

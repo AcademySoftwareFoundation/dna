@@ -1,0 +1,38 @@
+name: Frontend Code Formatting and Type Checking
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/**/*.{ts,tsx,json,css,md}'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'frontend/**/*.{ts,tsx,json,css,md}'
+
+jobs:
+  format-and-typecheck:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+      
+    - name: Check code formatting with Prettier
+      working-directory: ./frontend
+      run: npm run format:check
+      
+    - name: Type check
+      working-directory: ./frontend
+      run: npm run typecheck

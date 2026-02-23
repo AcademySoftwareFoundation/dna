@@ -1,0 +1,5 @@
+services:
+  vexa:
+    environment:
+      - TRANSCRIBER_API_KEY=**********************
+      - TRANSCRIBER_URL=https://transcription.vexa.ai/v1/audio/transcriptions

@@ -1,0 +1,515 @@
+"""
+Backend API Service
+Handles communication with the FastAPI backend server
+"""
+
+import requests
+from PySide6.QtCore import QObject, Signal, Property, Slot
+
+
+class BackendService(QObject):
+    """Service for communicating with the backend API"""
+
+    # Signals for property changes
+    userNameChanged = Signal()
+    meetingIdChanged = Signal()
+    selectedVersionIdChanged = Signal()
+    selectedVersionNameChanged = Signal()
+    currentNotesChanged = Signal()
+    currentAiNotesChanged = Signal()
+    currentTranscriptChanged = Signal()
+    stagingNoteChanged = Signal()
+
+    # LLM API Keys and Prompts
+    openaiApiKeyChanged = Signal()
+    openaiPromptChanged = Signal()
+    claudeApiKeyChanged = Signal()
+    claudePromptChanged = Signal()
+    llamaApiKeyChanged = Signal()
+    llamaPromptChanged = Signal()
+
+    # ShotGrid
+    shotgridProjectsChanged = Signal()
+    shotgridPlaylistsChanged = Signal()
+
+    # Versions
+    versionsLoaded = Signal()
+
+    def __init__(self, backend_url="http://localhost:8000"):
+        super().__init__()
+        self._backend_url = backend_url
+
+        # User info
+        self._user_name = ""
+        self._meeting_id = ""
+
+        # Current version
+        self._selected_version_id = None
+        self._selected_version_name = ""
+
+        # Notes and transcript
+        self._current_notes = ""
+        self._current_ai_notes = ""
+        self._current_transcript = ""
+        self._staging_note = ""
+
+        # LLM API Keys and Prompts
+        self._openai_api_key = ""
+        self._openai_prompt = ""
+        self._claude_api_key = ""
+        self._claude_prompt = ""
+        self._llama_api_key = ""
+        self._llama_prompt = ""
+
+        # ShotGrid
+        self._shotgrid_projects = []
+        self._shotgrid_playlists = []
+        self._selected_project_id = None
+        self._selected_playlist_id = None
+
+        # Versions list
+        self._versions = []
+
+    # User Name
+    @Property(str, notify=userNameChanged)
+    def userName(self):
+        return self._user_name
+
+    @userName.setter
+    def userName(self, value):
+        if self._user_name != value:
+            self._user_name = value
+            self.userNameChanged.emit()
+
+    # Meeting ID
+    @Property(str, notify=meetingIdChanged)
+    def meetingId(self):
+        return self._meeting_id
+
+    @meetingId.setter
+    def meetingId(self, value):
+        if self._meeting_id != value:
+            self._meeting_id = value
+            self.meetingIdChanged.emit()
+
+    # Selected Version
+    @Property(str, notify=selectedVersionIdChanged)
+    def selectedVersionId(self):
+        return self._selected_version_id or ""
+
+    @Property(str, notify=selectedVersionNameChanged)
+    def selectedVersionName(self):
+        return self._selected_version_name
+
+    # Notes and Transcript
+    @Property(str, notify=currentNotesChanged)
+    def currentNotes(self):
+        return self._current_notes
+
+    @Property(str, notify=currentAiNotesChanged)
+    def currentAiNotes(self):
+        return self._current_ai_notes
+
+    @Property(str, notify=currentTranscriptChanged)
+    def currentTranscript(self):
+        return self._current_transcript
+
+    @Property(str, notify=stagingNoteChanged)
+    def stagingNote(self):
+        return self._staging_note
+
+    @stagingNote.setter
+    def stagingNote(self, value):
+        if self._staging_note != value:
+            self._staging_note = value
+            self.stagingNoteChanged.emit()
+
+    # OpenAI
+    @Property(str, notify=openaiApiKeyChanged)
+    def openaiApiKey(self):
+        return self._openai_api_key
+
+    @openaiApiKey.setter
+    def openaiApiKey(self, value):
+        if self._openai_api_key != value:
+            self._openai_api_key = value
+            self.openaiApiKeyChanged.emit()
+
+    @Property(str, notify=openaiPromptChanged)
+    def openaiPrompt(self):
+        return self._openai_prompt
+
+    @openaiPrompt.setter
+    def openaiPrompt(self, value):
+        if self._openai_prompt != value:
+            self._openai_prompt = value
+            self.openaiPromptChanged.emit()
+
+    # Claude
+    @Property(str, notify=claudeApiKeyChanged)
+    def claudeApiKey(self):
+        return self._claude_api_key
+
+    @claudeApiKey.setter
+    def claudeApiKey(self, value):
+        if self._claude_api_key != value:
+            self._claude_api_key = value
+            self.claudeApiKeyChanged.emit()
+
+    @Property(str, notify=claudePromptChanged)
+    def claudePrompt(self):
+        return self._claude_prompt
+
+    @claudePrompt.setter
+    def claudePrompt(self, value):
+        if self._claude_prompt != value:
+            self._claude_prompt = value
+            self.claudePromptChanged.emit()
+
+    # Llama
+    @Property(str, notify=llamaApiKeyChanged)
+    def llamaApiKey(self):
+        return self._llama_api_key
+
+    @llamaApiKey.setter
+    def llamaApiKey(self, value):
+        if self._llama_api_key != value:
+            self._llama_api_key = value
+            self.llamaApiKeyChanged.emit()
+
+    @Property(str, notify=llamaPromptChanged)
+    def llamaPrompt(self):
+        return self._llama_prompt
+
+    @llamaPrompt.setter
+    def llamaPrompt(self, value):
+        if self._llama_prompt != value:
+            self._llama_prompt = value
+            self.llamaPromptChanged.emit()
+
+    # ShotGrid
+    @Property("QStringList", notify=shotgridProjectsChanged)
+    def shotgridProjects(self):
+        return self._shotgrid_projects
+
+    @Property("QStringList", notify=shotgridPlaylistsChanged)
+    def shotgridPlaylists(self):
+        return self._shotgrid_playlists
+
+    # API Methods
+    def fetch_versions(self):
+        """Fetch versions from backend"""
+        # Return the current versions list
+        return self._versions
+
+    @Slot(str)
+    def selectVersion(self, version_id):
+        """Select a version"""
+        print(f"\nDEBUG selectVersion: Called with version_id='{version_id}'")
+
+        # Find the version in the list to get its details
+        version_name = ""
+        user_notes = ""
+        ai_notes = ""
+        transcript = ""
+
+        for version in self._versions:
+            if version.get("id") == version_id:
+                version_name = version.get("description", "")
+                user_notes = version.get("userNotes", "")
+                ai_notes = version.get("aiNotes", "")
+                transcript = version.get("transcript", "")
+                print(f"DEBUG selectVersion: Found matching version")
+                print(f"  - Version name (description): '{version_name}'")
+                print(
+                    f"  - User notes: '{user_notes[:50]}...' ({len(user_notes)} chars)"
+                )
+                print(f"  - AI notes: '{ai_notes[:50]}...' ({len(ai_notes)} chars)")
+                break
+
+        if not version_name:
+            print(f"DEBUG selectVersion: No version found with id='{version_id}'")
+            print(
+                f"DEBUG selectVersion: Available version IDs: {[v.get('id') for v in self._versions]}"
+            )
+
+        # Set selected version name (from leftmost column)
+        self._selected_version_name = version_name
+        self.selectedVersionNameChanged.emit()
+
+        # Set selected version ID (from ID column if present, otherwise empty)
+        # Only show ID if it's different from the name
+        if version_id != version_name:
+            self._selected_version_id = version_id
+        else:
+            self._selected_version_id = ""
+        self.selectedVersionIdChanged.emit()
+
+        # Load notes, transcript, etc. from version
+        self._current_notes = user_notes
+        self.currentNotesChanged.emit()
+        print(
+            f"DEBUG selectVersion: Set currentNotes to '{user_notes[:100]}...' and emitted signal"
+        )
+
+        self._current_ai_notes = ai_notes
+        self.currentAiNotesChanged.emit()
+
+        self._current_transcript = transcript
+        self.currentTranscriptChanged.emit()
+
+        # Clear staging note when switching versions
+        self._staging_note = ""
+        self.stagingNoteChanged.emit()
+
+    @Slot(str)
+    def saveNoteToVersion(self, note_text):
+        """Save a note to the currently selected version"""
+        if not note_text.strip():
+            print("DEBUG: Note text is empty, not saving")
+            return
+
+        # Format note with "User:" prefix
+        formatted_note = f"User: {note_text.strip()}"
+
+        print(f"DEBUG: Attempting to save note: '{formatted_note}'")
+        print(f"DEBUG: Selected version name: '{self._selected_version_name}'")
+        print(f"DEBUG: Total versions: {len(self._versions)}")
+        print(
+            f"DEBUG: Version descriptions: {[v.get('description') for v in self._versions]}"
+        )
+
+        # Find the current version by name (most reliable)
+        version_found = False
+        for version in self._versions:
+            if version.get("description") == self._selected_version_name:
+                # Add to version's notes
+                current_notes = version.get("userNotes", "")
+                separator = "\n\n" if current_notes else ""
+                version["userNotes"] = current_notes + separator + formatted_note
+
+                # Update current notes display
+                self._current_notes = version["userNotes"]
+                self.currentNotesChanged.emit()
+                version_found = True
+                print(
+                    f"SUCCESS: Saved note to version '{self._selected_version_name}': {formatted_note}"
+                )
+                print(f"DEBUG: Updated notes for version: '{version['userNotes']}'")
+                break
+
+        if not version_found:
+            print(
+                f"ERROR: Could not find version '{self._selected_version_name}' to save note"
+            )
+            print(f"DEBUG: Available versions: {self._versions}")
+
+        # Clear staging
+        self._staging_note = ""
+        self.stagingNoteChanged.emit()
+
+        # In production: POST to backend API
+        # requests.post(f"{self._backend_url}/versions/{self._selected_version_id}/notes",
+        #               json={"note": formatted_note})
+
+    @Slot()
+    def generateNotes(self):
+        """Generate AI notes"""
+        # Check if any API key is set
+        has_api_key = bool(
+            self._openai_api_key or self._claude_api_key or self._llama_api_key
+        )
+
+        if not has_api_key:
+            self._current_ai_notes = "Test Output: Please add an API Key"
+        else:
+            # For now, show which provider would be used
+            if self._openai_api_key:
+                self._current_ai_notes = "Test Output: Would use OpenAI API"
+            elif self._claude_api_key:
+                self._current_ai_notes = "Test Output: Would use Claude API"
+            elif self._llama_api_key:
+                self._current_ai_notes = "Test Output: Would use Llama API"
+
+        self.currentAiNotesChanged.emit()
+
+        # In production: POST to backend to generate notes
+        # requests.post(f"{self._backend_url}/versions/{self._selected_version_id}/generate-notes")
+
+    @Slot()
+    def addAiNotesToStaging(self):
+        """Add AI notes to staging area"""
+        if not self._current_ai_notes:
+            return
+
+        separator = "\n\n" if self._staging_note else ""
+        self._staging_note += separator + self._current_ai_notes
+        self.stagingNoteChanged.emit()
+
+    @Slot()
+    def joinMeeting(self):
+        """Join meeting (connect to Vexa WebSocket)"""
+        print("Join Meeting clicked - WebSocket connection will be implemented")
+        # In production: Connect to Vexa WebSocket service
+        # This will be implemented in Phase 3
+
+    @Slot(int)
+    def selectShotgridProject(self, index):
+        """Select a ShotGrid project"""
+        if index < 0 or index >= len(self._shotgrid_projects):
+            return
+
+        print(f"Selected ShotGrid project: {self._shotgrid_projects[index]}")
+        # In production: Load playlists for this project
+        self._shotgrid_playlists = ["Playlist 1", "Playlist 2", "Playlist 3"]
+        self.shotgridPlaylistsChanged.emit()
+
+    @Slot(int)
+    def selectShotgridPlaylist(self, index):
+        """Select a ShotGrid playlist"""
+        if index < 0 or index >= len(self._shotgrid_playlists):
+            return
+
+        print(f"Selected ShotGrid playlist: {self._shotgrid_playlists[index]}")
+        # In production: Load versions from this playlist
+
+    @Slot(str)
+    def importCSV(self, file_url):
+        """Import versions from CSV file"""
+        import csv
+        from urllib.parse import unquote
+
+        # Convert QML URL to file path
+        # file_url is already a string from QML FileDialog
+        file_path = file_url.replace("file://", "")
+        # Handle URL encoding
+        file_path = unquote(file_path)
+
+        try:
+            # Upload to backend if available
+            try:
+                with open(file_path, "rb") as f:
+                    files = {"file": f}
+                    response = requests.post(
+                        f"{self._backend_url}/upload-playlist", files=files
+                    )
+
+                    if response.ok:
+                        data = response.json()
+                        print(f"Loaded {len(data['items'])} items from CSV via backend")
+                        # Backend will handle version creation
+                        return
+            except Exception as e:
+                print(f"Backend not available, parsing CSV locally: {e}")
+
+            # Fallback: Parse CSV locally
+            with open(file_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+
+                # Read and skip header row
+                header = next(reader, None)
+                if not header:
+                    return
+
+                # Version Name is ALWAYS the first column (leftmost)
+                version_name_idx = 0
+
+                # Look for "ID" column for Version ID (optional ShotGrid field)
+                version_id_idx = None
+                for idx, col in enumerate(header):
+                    col_lower = col.lower().strip()
+                    if col_lower == "id":
+                        version_id_idx = idx
+                        break
+
+                # Read data rows (header is already skipped)
+                items = []
+                for row in reader:
+                    if row and len(row) > 0 and row[0].strip():  # Skip empty rows
+                        version_name = row[0]  # Always first column
+                        version_id = (
+                            row[version_id_idx].strip()
+                            if version_id_idx is not None
+                            and len(row) > version_id_idx
+                            and row[version_id_idx].strip()
+                            else None
+                        )
+                        items.append({"name": version_name, "id": version_id})
+
+                print(
+                    f"Loaded {len(items)} items from CSV (ID column {'found' if version_id_idx is not None else 'not found'})"
+                )
+
+                # Convert items to versions
+                self._versions = []
+                for idx, item in enumerate(items):
+                    self._versions.append(
+                        {
+                            "id": item["id"]
+                            if item["id"]
+                            else item[
+                                "name"
+                            ],  # Use ID from CSV if present, otherwise use name
+                            "description": item[
+                                "name"
+                            ],  # Version Name (always from first column)
+                            "userNotes": "",  # Store user notes per version
+                            "aiNotes": "",  # Store AI notes per version
+                            "transcript": "",  # Store transcript per version
+                        }
+                    )
+
+                # Emit signal to refresh the version list
+                self.versionsLoaded.emit()
+                print(f"Created {len(self._versions)} versions")
+
+        except Exception as e:
+            print(f"Error importing CSV: {e}")
+
+    @Slot(str)
+    def exportCSV(self, file_url):
+        """Export notes to CSV file"""
+        import csv
+        from urllib.parse import unquote
+
+        # Convert QML URL to file path
+        # file_url is already a string from QML FileDialog
+        file_path = file_url.replace("file://", "")
+        # Handle URL encoding
+        file_path = unquote(file_path)
+
+        try:
+            # Prepare CSV data
+            # For now, export dummy data since we don't have versions loaded yet
+            # In production, this would iterate through all versions and their notes
+
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+
+                # Write header
+                writer.writerow(["Version", "Note", "Transcript"])
+
+                # Iterate through all versions and export their notes
+                for version in self._versions:
+                    version_name = version.get("description", "")
+                    user_notes = version.get("userNotes", "")
+                    transcript = version.get("transcript", "")
+
+                    # Split notes by double newline (each note from a user)
+                    notes = user_notes.split("\n\n") if user_notes else []
+
+                    if notes:
+                        # Write each note as a separate row
+                        for note in notes:
+                            if note.strip():
+                                writer.writerow(
+                                    [version_name, note.strip(), transcript]
+                                )
+                    else:
+                        # Write version even if no notes (with empty note field)
+                        writer.writerow([version_name, "", transcript])
+
+                print(f"Exported {len(self._versions)} versions to CSV: {file_path}")
+
+        except Exception as e:
+            print(f"Error exporting CSV: {e}")

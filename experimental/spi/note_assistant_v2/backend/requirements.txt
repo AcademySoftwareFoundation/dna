@@ -10,7 +10,33 @@ openai
 anthropic
 google-generativeai
 google_auth_oauthlib
+google-api-python-client>=2.0.0
+google-auth>=2.0.0
+google-auth-httplib2>=0.1.0
 shotgun_api3
 httpx
 websockets
 PyYAML>=6.0
+openai-whisper
+librosa
+
+# CSV utilities
+pandas>=2.0.0
+
+# Image processing and OCR
+# EasyOCR remains default OCR engine
+easyocr
+Pillow>=10.0.0
+# Use headless OpenCV to reduce conflicts
+opencv-python-headless==4.11.0.86
+# NumPy compatible with PaddlePaddle and OpenCV on Python 3.9
+numpy>=1.24,<1.26
+# Optional OCR engines
+paddleocr==2.7.0
+# For PaddleOCR backend (choose appropriate wheel for your platform)
+# CPU example (may vary by platform; consult PaddlePaddle install docs):
+paddlepaddle==2.6.2
+
+# Notes for Rocky Linux 9.x (install via dnf; documented in README):
+# - Enable CRB and EPEL/EPEL-Next, then: dnf install ffmpeg
+# - If pip installing PaddlePaddle fails, use the official wheel index for your CUDA/CPU variant.

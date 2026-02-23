@@ -148,22 +148,40 @@ def get_active_projects():
     return anonymize_project_data(projects)
 
 def get_playlist_shot_names(playlist_id):
-    """Fetch the list of shot/version names from a playlist, using configurable field names."""
+    """
+    Fetch the list of shot/version names from a playlist, using configurable field names.
+
+    Returns:
+        dict: {
+            "shot_names": list of str,  # List of shot/version names
+            "playlist_name": str or None  # Playlist name (code field) if found
+        }
+    """
     sg = Shotgun(SG_URL, SG_SCRIPT_NAME, SG_API_KEY)
-    fields = ["versions"]
+    fields = ["versions", "code"]  # Include 'code' field to get playlist name
     playlist = sg.find_one("Playlist", [["id", "is", playlist_id]], fields)
-    if not playlist or not playlist.get("versions"):
-        return []
+    if not playlist:
+        return {"shot_names": [], "playlist_name": None}
+
+    playlist_name = playlist.get("code")
+
+    if not playlist.get("versions"):
+        return {"shot_names": [], "playlist_name": playlist_name}
+
     version_ids = [v["id"] for v in playlist["versions"] if v.get("id")]
     if not version_ids:
-        return []
+        return {"shot_names": [], "playlist_name": playlist_name}
+
     version_fields = ["id", SG_PLAYLIST_VERSION_FIELD, SG_PLAYLIST_SHOT_FIELD]
     versions = sg.find("Version", [["id", "in", version_ids]], version_fields)
     shot_names = [
         f"{v.get(SG_PLAYLIST_SHOT_FIELD)}/{v.get(SG_PLAYLIST_VERSION_FIELD)}"
         for v in versions if v.get(SG_PLAYLIST_VERSION_FIELD) or v.get(SG_PLAYLIST_SHOT_FIELD)
     ]
-    return anonymize_shot_names(shot_names)
+    return {
+        "shot_names": anonymize_shot_names(shot_names),
+        "playlist_name": playlist_name
+    }
 
 def validate_shot_version_input(input_value, project_id=None):
     """
@@ -331,8 +349,12 @@ def shotgrid_latest_playlists(project_id: int, limit: int = 20):
 @router.get("/shotgrid/playlist-items/{playlist_id}")
 def shotgrid_playlist_items(playlist_id: int):
     try:
-        items = get_playlist_shot_names(playlist_id)
-        return {"status": "success", "items": items}
+        result = get_playlist_shot_names(playlist_id)
+        return {
+            "status": "success",
+            "items": result["shot_names"],
+            "playlist_name": result["playlist_name"]
+        }
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
@@ -367,8 +389,13 @@ def shotgrid_most_recent_playlist_items():
         if not playlists:
             return {"status": "error", "message": "No playlists found for most recent project"}
         playlist = playlists[0]
-        items = get_playlist_shot_names(playlist['id'])
-        return {"status": "success", "project": project, "playlist": playlist, "items": items}
+        result = get_playlist_shot_names(playlist['id'])
+        return {
+            "status": "success",
+            "project": project,
+            "playlist": playlist,
+            "items": result["shot_names"]
+        }
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
@@ -426,9 +453,10 @@ if __name__ == "__main__":
         except Exception:
             print("Invalid playlist id")
             exit(1)
-        items = get_playlist_shot_names(playlist_id)
-        print(f"Shots/Versions in playlist {playlist_id} ({len(items)}):")
-        for item in items:
+        result = get_playlist_shot_names(playlist_id)
+        print(f"Playlist: {result['playlist_name']}")
+        print(f"Shots/Versions in playlist {playlist_id} ({len(result['shot_names'])}):")
+        for item in result['shot_names']:
             print(f" - {item}")
     elif choice == "4":
         print("\n=== Shot/Version Validation Test ===")

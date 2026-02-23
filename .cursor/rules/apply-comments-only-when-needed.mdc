@@ -1,0 +1,10 @@
+---
+name: apply-comments-only-when-needed
+description: Only apply comments when needed.
+globs:
+alwaysApply: true
+---
+
+# Overview
+
+Only apply comments when needed. Do not apply comments to the code unless it is absolutely necessary to communicate the intent of the code. Do not apply comments to describe changes you made to the code based on the prompt.
