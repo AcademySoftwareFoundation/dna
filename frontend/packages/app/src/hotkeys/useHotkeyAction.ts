@@ -18,8 +18,8 @@ export function useHotkeyAction(
   const hotkeyOptions: Options = {
     preventDefault: true,
     enabled: options?.enabled ?? true,
-    enableOnFormTags: options?.enableOnFormTags,
-    enableOnContentEditable: options?.enableOnContentEditable,
+    enableOnFormTags: options?.enableOnFormTags ?? true,
+    enableOnContentEditable: options?.enableOnContentEditable ?? true,
   };
 
   useHotkeys(keys, callback, hotkeyOptions, [keys, callback]);

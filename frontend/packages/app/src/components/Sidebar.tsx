@@ -374,7 +374,6 @@ export function Sidebar({
               <Button
                 size="2"
                 variant="solid"
-                color="violet"
                 onClick={() => setIsPublishDialogOpen(true)}
               >
                 Publish Notes

@@ -493,7 +493,6 @@ export function TranscriptionMenu({
               </Button>
             ) : (
               <Button
-                color="violet"
                 variant="solid"
                 onClick={handleDispatch}
                 disabled={isDispatching || !meetingUrl.trim() || !playlistId}
