@@ -7,6 +7,7 @@ import {
   Checkbox,
   TextArea,
   Flex,
+  Switch,
   Tooltip,
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -17,6 +18,7 @@ import type { UserSettings, UserSettingsUpdate } from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { useHotkeyConfig } from '../hotkeys';
+import { useThemeMode } from '../contexts';
 
 interface SettingsModalProps {
   userEmail: string;
@@ -143,6 +145,18 @@ const StyledTabsTrigger = styled(Tabs.Trigger)`
   }
 `;
 
+const AppearanceRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
 const KeybindingRow = styled.div`
   display: flex;
   align-items: center;
@@ -225,6 +239,8 @@ function GeneralTab({
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
 }: GeneralTabProps) {
+  const { mode, setMode } = useThemeMode();
+
   if (isLoading) {
     return (
       <Flex align="center" justify="center" py="6">
@@ -235,6 +251,20 @@ function GeneralTab({
 
   return (
     <ModalContent>
+      <Section>
+        <SectionTitle>Appearance</SectionTitle>
+        <AppearanceRow>
+          <KeybindingLabel>
+            <KeybindingName>Light Mode</KeybindingName>
+            <KeybindingDesc>Switch between dark and light theme</KeybindingDesc>
+          </KeybindingLabel>
+          <Switch
+            checked={mode === 'light'}
+            onCheckedChange={(checked) => setMode(checked ? 'light' : 'dark')}
+          />
+        </AppearanceRow>
+      </Section>
+
       <Section>
         <SectionTitle>
           Note Taking Prompt
