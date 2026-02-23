@@ -61,7 +61,7 @@ The Contributor is an open initial role for anyone participating in the project 
 
 # Release Process
 
-Project releases will occur on a scheduled basis as agreed to by the Contributors.
+Project releases will occur on a scheduled basis as agreed to by the TSC.
 
 # Conflict resolution and voting
 
