@@ -9,7 +9,7 @@ export const GlobalStyles = createGlobalStyle`
     font-family: ${({ theme }) => theme.fonts.sans};
     line-height: 1.5;
     font-weight: 400;
-    color-scheme: dark;
+    color-scheme: ${({ theme }) => theme.colors.bg.base === '#ffffff' ? 'light' : 'dark'};
     color: ${({ theme }) => theme.colors.text.primary};
     background-color: ${({ theme }) => theme.colors.bg.base};
     font-synthesis: none;
