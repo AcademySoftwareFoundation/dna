@@ -5,9 +5,9 @@
  * Contains shared utilities, types, and business logic.
  */
 
-export * from './types';
 export * from './interfaces';
 export * from './utils';
-export * from './apiHandler';
+export { ApiHandler, createApiHandler } from './apiHandler';
+export type { ApiHandlerConfig } from './apiHandler';
 export * from './eventClient';
 export * from './aiSuggestionManager';
