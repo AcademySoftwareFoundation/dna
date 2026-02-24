@@ -4,8 +4,17 @@ import os
 from functools import lru_cache
 from typing import Annotated, Optional, cast
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
@@ -155,13 +164,45 @@ app = FastAPI(
 )
 
 # Configure CORS
+cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+allowed_origins = (
+    ["*"]
+    if cors_origins_env == "*"
+    else [o.strip() for o in cors_origins_env.split(",")]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    """Middleware to validate API key for all requests except health checks."""
+
+    EXEMPT_PATHS = {"/health", "/"}
+
+    async def dispatch(self, request: Request, call_next):
+        api_key = os.getenv("API_KEY")
+        if not api_key:
+            return await call_next(request)
+
+        if request.url.path in self.EXEMPT_PATHS:
+            return await call_next(request)
+
+        request_api_key = request.headers.get("X-API-Key")
+        if request_api_key != api_key:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or missing API key"},
+            )
+
+        return await call_next(request)
+
+
+app.add_middleware(APIKeyMiddleware)
 
 
 # -----------------------------------------------------------------------------
