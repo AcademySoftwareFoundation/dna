@@ -112,9 +112,10 @@ jobs:
         working-directory: frontend
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.ref_name }}"
+          BACKEND_URL="${{ needs.deploy-backend.outputs.backend-url }}"
           docker build \
-            --build-arg VITE_API_BASE_URL=https://dna-api.spadjv.org \
-            --build-arg VITE_WS_URL=wss://dna-api.spadjv.org/ws \
+            --build-arg VITE_API_BASE_URL=${BACKEND_URL} \
+            --build-arg VITE_WS_URL=${BACKEND_URL/https:/wss:}/ws \
             --build-arg VITE_API_KEY=${{ steps.api-key.outputs.value }} \
             -t $IMAGE .
           docker push $IMAGE
@@ -154,7 +155,3 @@ jobs:
           echo "**Services:**" >> $GITHUB_STEP_SUMMARY
           echo "- Backend: ${{ needs.deploy-backend.outputs.backend-url }}" >> $GITHUB_STEP_SUMMARY
           echo "- Frontend: Check Cloud Run console for URL" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Custom Domains (after DNS setup):**" >> $GITHUB_STEP_SUMMARY
-          echo "- Frontend: https://dna.spadjv.org" >> $GITHUB_STEP_SUMMARY
-          echo "- Backend: https://dna-api.spadjv.org" >> $GITHUB_STEP_SUMMARY
