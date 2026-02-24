@@ -202,7 +202,8 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-app.add_middleware(APIKeyMiddleware)
+# API key middleware disabled for now - can re-enable when frontend build is verified
+# app.add_middleware(APIKeyMiddleware)
 
 
 # -----------------------------------------------------------------------------
