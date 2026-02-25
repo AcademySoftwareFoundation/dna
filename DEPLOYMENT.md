@@ -103,7 +103,7 @@ gcloud run deploy dna-frontend \
                       │                        │                        │
                       ▼                        ▼                        ▼
               ┌──────────────┐      ┌──────────────┐        ┌──────────────┐
-              │ MongoDB Atlas│      │   ShotGrid   │        │  Gemini AI   │
+              │ MongoDB Atlas│      │   ShotGrid   │        │   OpenAI     │
               │  (Storage)   │      │  (ProdTrack) │        │    (LLM)     │
               └──────────────┘      └──────────────┘        └──────────────┘
 ```
@@ -251,8 +251,7 @@ The following secrets must be configured in GitHub repository settings:
 | `PYTHONUNBUFFERED` | 1 |
 | `STORAGE_PROVIDER` | mongodb |
 | `PRODTRACK_PROVIDER` | shotgrid |
-| `LLM_PROVIDER` | gemini |
-| `GEMINI_MODEL` | gemini-2.5-flash-lite |
+| `LLM_PROVIDER` | openai |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins |
 
 ### Frontend (Build-time)
