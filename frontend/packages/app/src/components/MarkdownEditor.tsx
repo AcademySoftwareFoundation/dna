@@ -97,6 +97,7 @@ const EditorWrapper = styled.div<{ $minHeight: number }>`
   flex-direction: column;
   flex: 1;
   min-height: ${({ $minHeight }) => $minHeight}px;
+  height: 100%;
   background: ${({ theme }) => theme.colors.bg.base};
   border: 1px solid ${({ theme }) => theme.colors.border.default};
   border-radius: ${({ theme }) => theme.radii.md};
