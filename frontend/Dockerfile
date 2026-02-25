@@ -15,15 +15,17 @@ COPY packages/app/ ./packages/app/
 # Remove package-lock.json and install fresh to get correct platform binaries
 RUN rm -f package-lock.json && npm install
 
-# Build arguments for API URLs and key (baked into the static build)
+# Build arguments for API URLs and authentication (baked into the static build)
 ARG VITE_API_BASE_URL
 ARG VITE_WS_URL
-ARG VITE_API_KEY
+ARG VITE_AUTH_PROVIDER=google
+ARG VITE_GOOGLE_CLIENT_ID
 
 # Set environment variables for build
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_WS_URL=$VITE_WS_URL
-ENV VITE_API_KEY=$VITE_API_KEY
+ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
 # Build the application (vite handles transpilation, skip tsc type checking)
 WORKDIR /app/packages/app

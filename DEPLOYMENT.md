@@ -63,9 +63,9 @@ cd frontend
 
 # Build the image with required build args
 docker build \
-  --build-arg VITE_API_BASE_URL=https://dna-api.spadjv.org \
-  --build-arg VITE_WS_URL=wss://dna-api.spadjv.org/ws \
-  --build-arg VITE_API_KEY=<your-api-key> \
+  --build-arg VITE_API_BASE_URL=https://dna-backend-<PROJECT_NUMBER>.us-central1.run.app \
+  --build-arg VITE_WS_URL=wss://dna-backend-<PROJECT_NUMBER>.us-central1.run.app/ws \
+  --build-arg VITE_GOOGLE_CLIENT_ID=<your-google-client-id>.apps.googleusercontent.com \
   -t us-central1-docker.pkg.dev/<PROJECT_ID>/dna/dna-frontend:latest .
 
 # Push to Artifact Registry
@@ -155,7 +155,7 @@ on:
 2. **Authenticate to GCP** - Uses Workload Identity Federation
 3. **Set up Cloud SDK** - Configures `gcloud` CLI
 4. **Configure Docker** - Authenticates to Artifact Registry
-5. **Get API Key** - Retrieves API key from Secret Manager for build
+5. **Get Google Client ID** - Retrieves Google OAuth Client ID from Secret Manager for build
 6. **Build and push image** - Multi-stage build:
    - Stage 1: Node.js builds the Vite application
    - Stage 2: nginx serves the static files
@@ -171,9 +171,15 @@ on:
 | Concurrency | 80 |
 | Timeout | 60s |
 
-#### 3. Summary (`summary`)
+#### 3. Update CORS (`update-cors`)
 
-Prints deployment URLs to the GitHub Actions summary page.
+**Depends on:** `deploy-backend`, `deploy-frontend`
+
+Updates the backend's CORS configuration to only allow requests from the deployed frontend URL.
+
+#### 4. Summary (`summary`)
+
+Prints deployment URLs to the GitHub Actions summary page and confirms security settings.
 
 ---
 
@@ -216,7 +222,7 @@ All secrets are stored in GCP Secret Manager and injected at runtime:
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `VEXA_API_URL` | Vexa transcription service URL |
 | `VEXA_API_KEY` | Vexa API key |
-| `API_KEY` | Frontend-to-backend API key |
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID for authentication |
 
 ### Adding/Updating Secrets
 
@@ -227,6 +233,58 @@ echo -n "secret-value" | gcloud secrets create SECRET_NAME --data-file=-
 # Update an existing secret
 echo -n "new-value" | gcloud secrets versions add SECRET_NAME --data-file=-
 ```
+
+---
+
+## Authentication Setup
+
+DNA uses Google OAuth for authentication. Users sign in with their Google accounts, and the backend validates Google tokens.
+
+### Google Cloud Console Setup
+
+1. **Create OAuth Client ID:**
+   - Go to [Google Cloud Console > APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials)
+   - Click "Create Credentials" > "OAuth 2.0 Client ID"
+   - Select "Web application" type
+   - Add authorized JavaScript origins:
+     - Production: `https://dna-frontend-<PROJECT_NUMBER>.us-central1.run.app`
+     - Local development: `http://localhost:5173`
+   - Save the Client ID
+
+2. **Store the Client ID in Secret Manager:**
+   ```bash
+   echo -n "YOUR_CLIENT_ID.apps.googleusercontent.com" | \
+     gcloud secrets create GOOGLE_CLIENT_ID --data-file=-
+   ```
+
+3. **Configure OAuth Consent Screen:**
+   - Go to "OAuth consent screen" in Cloud Console
+   - For internal use: Select "Internal" user type
+   - For external use: Select "External" and add test users or publish the app
+
+### Security Features
+
+| Feature | Setting |
+|---------|---------|
+| Authentication | Google OAuth (ID tokens or access tokens) |
+| CORS | Restricted to frontend URL |
+| API Documentation | Disabled in production (`DISABLE_DOCS=true`) |
+| Security Headers | X-Content-Type-Options, X-Frame-Options, HSTS |
+
+### Local Development
+
+For local development, authentication is disabled by default:
+
+```yaml
+# docker-compose.local.yml
+environment:
+  - AUTH_PROVIDER=none
+```
+
+To test with Google auth locally:
+1. Set `AUTH_PROVIDER=google` in docker-compose.local.yml
+2. Add `GOOGLE_CLIENT_ID=your-client-id` 
+3. Ensure `http://localhost:5173` is in your OAuth client's authorized origins
 
 ---
 

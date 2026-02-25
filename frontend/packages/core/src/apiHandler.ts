@@ -46,7 +46,6 @@ export interface User {
 export interface ApiHandlerConfig {
   baseURL: string;
   timeout?: number;
-  apiKey?: string;
 }
 
 class ApiHandler {
@@ -54,16 +53,12 @@ class ApiHandler {
   private currentUser: User | null = null;
 
   constructor(config: ApiHandlerConfig) {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (config.apiKey) {
-      headers['X-API-Key'] = config.apiKey;
-    }
     this.axiosInstance = axios.create({
       baseURL: config.baseURL,
       timeout: config.timeout ?? 30000,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
 
     this.axiosInstance.interceptors.request.use((requestConfig) => {
