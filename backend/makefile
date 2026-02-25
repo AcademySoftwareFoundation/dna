@@ -1,30 +1,32 @@
+DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
+
 build:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml build --no-cache
 
 start-local:
-	docker-compose -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml up --build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml up --build
 
 stop-local:
-	docker-compose -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml down
 
 logs-local:
-	docker-compose -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml logs -f
 
 restart-local:
 	make stop-local
 	make start-local
 
 shell:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api bash
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api bash
 
 test:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 
 test-cov:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 
 test-cov-html:
-	docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 	@echo "Coverage report available at htmlcov/index.html"
 
 venv-lint:

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import styled from 'styled-components';
 import * as Tabs from '@radix-ui/react-tabs';
 import { AssistantNote } from './AssistantNote';
@@ -5,6 +6,7 @@ import { OtherNotesPanel } from './OtherNotesPanel';
 import { TranscriptPanel } from './TranscriptPanel';
 import { PromptDebugPanel } from './PromptDebugPanel';
 import { useAISuggestion } from '../hooks';
+import { useHotkeyAction } from '../hotkeys';
 
 const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 
@@ -72,6 +74,19 @@ export function AssistantPanel({
       versionId: versionId ?? null,
       userEmail: userEmail ?? null,
     });
+
+  const handleAiInsert = useCallback(() => {
+    if (suggestion) {
+      onInsertNote?.(suggestion);
+    }
+  }, [suggestion, onInsertNote]);
+
+  const handleAiRegenerate = useCallback(() => {
+    regenerate();
+  }, [regenerate]);
+
+  useHotkeyAction('aiInsert', handleAiInsert, { enabled: !!suggestion });
+  useHotkeyAction('aiRegenerate', handleAiRegenerate);
 
   return (
     <PanelWrapper>
