@@ -318,7 +318,7 @@ The following secrets must be configured in GitHub repository settings:
 |----------|-------------|
 | `VITE_API_BASE_URL` | Backend API URL |
 | `VITE_WS_URL` | WebSocket URL |
-| `VITE_API_KEY` | API key for backend authentication |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth Client ID for authentication |
 
 ---
 
@@ -328,16 +328,17 @@ The following secrets must be configured in GitHub repository settings:
 
 The backend API is protected by:
 
-1. **CORS** - Only allows requests from whitelisted origins (browser-enforced)
-2. **API Key Middleware** - Requires `X-API-Key` header for all endpoints except `/health`
+1. **Google OAuth** - All protected endpoints require a valid Google Bearer token
+2. **CORS** - Only allows requests from whitelisted origins (browser-enforced)
+3. **Security Headers** - X-Frame-Options, X-Content-Type-Options, HSTS, etc.
 
 ### Authentication Flow
 
 ```
 Frontend (browser) ──────────────────────────────────────▶ Backend
                     Headers:
-                    - Origin: https://dna.spadjv.org
-                    - X-API-Key: <baked-in-key>
+                    - Origin: https://dna-frontend-xxx.run.app
+                    - Authorization: Bearer <google-oauth-token>
 ```
 
 ---
@@ -367,7 +368,7 @@ gcloud run services logs read dna-frontend --region us-central1
 | Image not found | Verify Artifact Registry repository exists and image was pushed |
 | Cold start slow | Expected with scale-to-zero; first request takes ~5-10s |
 | CORS errors | Check `CORS_ALLOWED_ORIGINS` includes the requesting domain |
-| 401 Unauthorized | Verify API key is correctly baked into frontend build |
+| 401 Unauthorized | Verify Google OAuth is configured correctly and token is valid |
 
 ### Force Redeployment
 

@@ -14,8 +14,6 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
 
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.events import EventType, get_event_publisher
@@ -203,33 +201,6 @@ async def add_security_headers(request: Request, call_next):
             "max-age=31536000; includeSubDomains"
         )
     return response
-
-
-class APIKeyMiddleware(BaseHTTPMiddleware):
-    """Middleware to validate API key for all requests except health checks."""
-
-    EXEMPT_PATHS = {"/health", "/"}
-
-    async def dispatch(self, request: Request, call_next):
-        api_key = os.getenv("API_KEY")
-        if not api_key:
-            return await call_next(request)
-
-        if request.url.path in self.EXEMPT_PATHS:
-            return await call_next(request)
-
-        request_api_key = request.headers.get("X-API-Key")
-        if request_api_key != api_key:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid or missing API key"},
-            )
-
-        return await call_next(request)
-
-
-# API key middleware disabled for now - can re-enable when frontend build is verified
-# app.add_middleware(APIKeyMiddleware)
 
 
 # -----------------------------------------------------------------------------
