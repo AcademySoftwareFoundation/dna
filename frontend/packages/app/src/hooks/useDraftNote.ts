@@ -100,7 +100,8 @@ export function useDraftNote({
   const upsertMutation = useMutation<
     DraftNote,
     Error,
-    { data: DraftNoteUpdate }
+    { data: DraftNoteUpdate },
+    { previousDraftNotes: DraftNote[] | undefined }
   >({
     mutationFn: ({ data }) =>
       apiHandler.upsertDraftNote({
