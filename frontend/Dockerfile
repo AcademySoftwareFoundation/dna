@@ -8,8 +8,8 @@ COPY package.json package-lock.json ./
 COPY packages/core/package*.json ./packages/core/
 COPY packages/app/package*.json ./packages/app/
 
-# Install dependencies using npm ci (faster, respects lock file)
-RUN npm ci
+# Install dependencies with retry for npm rate limits
+RUN npm ci || (sleep 30 && npm ci) || (sleep 60 && npm ci)
 
 # Copy source code
 COPY packages/core/ ./packages/core/
