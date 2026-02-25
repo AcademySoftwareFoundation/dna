@@ -161,6 +161,7 @@ const StyledForm = styled.form`
 
 const StyledInput = styled.input`
   width: 100%;
+  box-sizing: border-box;
   padding: 12px 16px;
   font-family: ${({ theme }) => theme.fonts.sans};
   font-size: 15px;
@@ -183,6 +184,7 @@ const StyledInput = styled.input`
 
 const SubmitButton = styled.button`
   width: 100%;
+  box-sizing: border-box;
   padding: 12px 24px;
   font-family: ${({ theme }) => theme.fonts.sans};
   font-size: 15px;
