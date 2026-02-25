@@ -5,13 +5,14 @@ import {
   Layout,
   ContentArea,
   ProjectSelector,
-  clearUserSession,
 } from './components';
+import { useAuth } from './contexts';
 import { useGetVersionsForPlaylist } from './api';
 import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';
 
 function App() {
   const queryClient = useQueryClient();
+  const { signOut } = useAuth();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -73,7 +74,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    clearUserSession();
+    signOut();
     setSelectedProject(null);
     setSelectedPlaylist(null);
     setUserEmail(null);

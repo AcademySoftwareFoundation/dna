@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 
 const apiHandler = new ApiHandler({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  apiKey: import.meta.env.VITE_API_KEY,
 });
 
 function useGetProjectsForUser(userEmail: string | null) {

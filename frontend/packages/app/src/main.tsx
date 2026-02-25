@@ -5,7 +5,7 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import App from './App';
 import { darkTheme, lightTheme, GlobalStyles } from './styles';
-import { EventProvider, ToastProvider, ThemeModeProvider, useThemeMode } from './contexts';
+import { EventProvider, ToastProvider, ThemeModeProvider, useThemeMode, AuthProvider } from './contexts';
 import { HotkeysProvider } from './hotkeys';
 import '@radix-ui/themes/styles.css';
 import './index.css';
@@ -19,13 +19,15 @@ function ThemedApp() {
     <ThemeProvider theme={activeTheme}>
       <Theme appearance={mode} accentColor="violet">
         <GlobalStyles />
-        <HotkeysProvider>
-          <ToastProvider>
-            <EventProvider>
-              <App />
-            </EventProvider>
-          </ToastProvider>
-        </HotkeysProvider>
+        <AuthProvider>
+          <HotkeysProvider>
+            <ToastProvider>
+              <EventProvider>
+                <App />
+              </EventProvider>
+            </ToastProvider>
+          </HotkeysProvider>
+        </AuthProvider>
       </Theme>
     </ThemeProvider>
   );

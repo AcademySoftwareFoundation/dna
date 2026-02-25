@@ -1,7 +1,7 @@
 DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
 
 build:
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml build --no-cache
 
 start-local:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml up --build
