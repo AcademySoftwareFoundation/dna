@@ -106,7 +106,7 @@ const StatusIcon = styled.div<{ $status: NoteStatus }>`
         return theme.colors.status.warning;
       case 'draft':
       default:
-        return theme.colors.bg.overlay; // Approximating "black" or neutral
+        return 'var(--indigo-9)'; // Blue used on avatars
     }
   }};
   
