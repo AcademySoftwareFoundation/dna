@@ -3,6 +3,8 @@ import { Eye } from 'lucide-react';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
 
+export type NoteStatus = 'published' | 'edited' | 'draft';
+
 interface VersionCardProps {
   version: Version;
   artistName?: string;
@@ -10,7 +12,7 @@ interface VersionCardProps {
   thumbnailUrl?: string;
   selected?: boolean;
   inReview?: boolean;
-  noteStatus?: 'published' | 'edited' | 'draft' | null;
+  noteStatus?: NoteStatus | null;
   onClick?: () => void;
 }
 
@@ -86,7 +88,7 @@ const InReviewIcon = styled.span`
   }
 `;
 
-const StatusIcon = styled.div<{ $status: 'published' | 'edited' | 'draft' }>`
+const StatusIcon = styled.div<{ $status: NoteStatus }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -144,7 +146,7 @@ export function VersionCard({
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
 
-  const getStatusLetter = (status: 'published' | 'edited' | 'draft') => {
+  const getStatusLetter = (status: NoteStatus) => {
     switch (status) {
       case 'published': return 'P';
       case 'edited': return 'E';
