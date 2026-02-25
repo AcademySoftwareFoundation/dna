@@ -3,17 +3,17 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files including lock file
+COPY package.json package-lock.json ./
 COPY packages/core/package*.json ./packages/core/
 COPY packages/app/package*.json ./packages/app/
 
-# Copy source code first
+# Install dependencies using npm ci (faster, respects lock file)
+RUN npm ci
+
+# Copy source code
 COPY packages/core/ ./packages/core/
 COPY packages/app/ ./packages/app/
-
-# Remove package-lock.json and install fresh to get correct platform binaries
-RUN rm -f package-lock.json && npm install
 
 # Build arguments for API URLs and authentication (baked into the static build)
 ARG VITE_API_BASE_URL
