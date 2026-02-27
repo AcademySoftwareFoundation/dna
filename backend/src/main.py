@@ -301,7 +301,15 @@ async def get_current_user(
 
     try:
         claims = auth_provider.validate_token(credentials.credentials)
-        return claims["email"]
+        # Safely access the email claim to avoid KeyError and return 401 on missing email
+        email = claims.get("email") if isinstance(claims, dict) else None
+        if not email:
+            raise HTTPException(
+                status_code=401,
+                detail="Missing email claim in authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return email
     except ValueError as e:
         raise HTTPException(
             status_code=401,
