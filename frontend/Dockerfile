@@ -8,10 +8,8 @@ COPY package.json package-lock.json ./
 COPY packages/core/package*.json ./packages/core/
 COPY packages/app/package*.json ./packages/app/
 
-# Install dependencies with retry for npm rate limits
-# Use npm install instead of npm ci to get correct platform binaries
-RUN npm install --no-package-lock || (sleep 30 && npm install --no-package-lock) || (sleep 60 && npm install --no-package-lock)
-
+# Install dependencies with retry for npm rate limits using lockfile for reproducibility
+RUN npm ci --include=dev || (sleep 30 && npm ci --include=dev) || (sleep 60 && npm ci --include=dev)
 # Copy source code
 COPY packages/core/ ./packages/core/
 COPY packages/app/ ./packages/app/
