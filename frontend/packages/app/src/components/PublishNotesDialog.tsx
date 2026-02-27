@@ -65,7 +65,14 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
     draftNotes,
 }) => {
     const [includeOthers, setIncludeOthers] = useState(false);
-    const { mutate: publishNotes, isPending, isError, error, data } = usePublishNotes();
+    const { mutate: publishNotes, isPending, isError, error, data, reset } = usePublishNotes();
+
+    React.useEffect(() => {
+        if (open) {
+            reset();
+            setIncludeOthers(false);
+        }
+    }, [open, reset]);
 
     const unpublishedNotes = draftNotes.filter((n: any) => !n.published);
     const myUnpublished = unpublishedNotes.filter(n => n.user_email === userEmail);
@@ -114,6 +121,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                             <Text weight="bold" size="2">Results:</Text>
                             <ResultList>
                                 <li>Published: {data.published_count}</li>
+                                <li>Republished: {data.republished_count}</li>
                                 <li>Skipped: {data.skipped_count}</li>
                                 <li>Failed: {data.failed_count}</li>
                             </ResultList>

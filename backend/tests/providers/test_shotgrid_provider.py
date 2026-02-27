@@ -1215,9 +1215,13 @@ class TestShotgridProviderGetVersionsForPlaylist:
 
         shotgrid_provider.get_versions_for_playlist(1)
 
-        call_args = shotgrid_provider.sg.find.call_args
-        assert call_args[0][0] == "Version"
-        filters = call_args[1]["filters"]
+        call_args_list = shotgrid_provider.sg.find.call_args_list
+        # Find the call for "Version"
+        version_call = next(
+            (args for args in call_args_list if args[0][0] == "Version"), None
+        )
+        assert version_call is not None
+        filters = version_call[1]["filters"]
         assert filters == [["id", "in", [10, 20]]]
 
     def test_get_versions_for_playlist_raises_error_when_not_connected(self):
@@ -1294,6 +1298,9 @@ class TestShotgridProviderGetVersionsForPlaylist:
                     "step": {"type": "Step", "id": 10, "name": "Anim"},
                 }
             ],
+            [],  # Notes for playlist
+            [],  # Notes for versions
+            [],  # Users
         ]
 
         results = shotgrid_provider.get_versions_for_playlist(1)

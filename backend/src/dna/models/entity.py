@@ -95,6 +95,7 @@ class Note(EntityBase):
     note_links: list["EntityBase"] = Field(
         default_factory=list, description="Entities this note is linked to"
     )
+    author: Optional["User"] = Field(default=None, description="Note author")
 
     @field_validator("note_links", mode="before")
     @classmethod
@@ -237,3 +238,11 @@ ENTITY_MODELS: dict[str, type[EntityBase]] = {
     "playlist": Playlist,
     "user": User,
 }
+
+# Rebuild models to resolve forward references
+Note.model_rebuild()
+Shot.model_rebuild()
+Asset.model_rebuild()
+Version.model_rebuild()
+Playlist.model_rebuild()
+Task.model_rebuild()

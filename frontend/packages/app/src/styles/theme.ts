@@ -1,41 +1,4 @@
-export const theme = {
-  colors: {
-    bg: {
-      base: '#0d0d12',
-      elevated: '#14141b',
-      surface: '#1a1a24',
-      surfaceHover: '#22222f',
-      overlay: '#252532',
-    },
-    sidebar: {
-      bg: '#111118',
-      border: '#2a2a3a',
-    },
-    text: {
-      primary: '#f0f0f5',
-      secondary: '#a0a0b8',
-      muted: '#6b6b82',
-      inverse: '#0d0d12',
-    },
-    accent: {
-      main: '#8b5cf6',
-      hover: '#7c3aed',
-      subtle: 'rgba(139, 92, 246, 0.12)',
-      glow: 'rgba(139, 92, 246, 0.25)',
-      gradient: 'linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%)',
-    },
-    status: {
-      success: '#22c55e',
-      warning: '#f59e0b',
-      error: '#ef4444',
-      info: '#3b82f6',
-    },
-    border: {
-      subtle: 'rgba(255, 255, 255, 0.06)',
-      default: 'rgba(255, 255, 255, 0.1)',
-      strong: 'rgba(255, 255, 255, 0.15)',
-    },
-  },
+const base = {
   sizes: {
     sidebar: {
       expanded: '420px',
@@ -62,6 +25,83 @@ export const theme = {
     sans: "'DM Sans', system-ui, -apple-system, sans-serif",
     mono: "'JetBrains Mono', 'Fira Code', monospace",
   },
+};
+
+const sharedColors = {
+  accent: {
+    main: '#8b5cf6',
+    hover: '#7c3aed',
+    subtle: 'rgba(139, 92, 246, 0.12)',
+    glow: 'rgba(139, 92, 246, 0.25)',
+    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%)',
+  },
+  status: {
+    success: '#22c55e',
+    warning: '#f59e0b',
+    error: '#ef4444',
+    info: '#3b82f6',
+  },
+};
+
+export const darkTheme = {
+  ...base,
+  colors: {
+    ...sharedColors,
+    bg: {
+      base: '#0d0d12',
+      elevated: '#14141b',
+      surface: '#1a1a24',
+      surfaceHover: '#22222f',
+      overlay: '#252532',
+    },
+    sidebar: {
+      bg: '#111118',
+      border: '#2a2a3a',
+    },
+    text: {
+      primary: '#f0f0f5',
+      secondary: '#a0a0b8',
+      muted: '#6b6b82',
+      inverse: '#0d0d12',
+    },
+    border: {
+      subtle: 'rgba(255, 255, 255, 0.06)',
+      default: 'rgba(255, 255, 255, 0.1)',
+      strong: 'rgba(255, 255, 255, 0.15)',
+    },
+  },
 } as const;
 
-export type Theme = typeof theme;
+export const lightTheme = {
+  ...base,
+  colors: {
+    ...sharedColors,
+    bg: {
+      base: '#ffffff',
+      elevated: '#f5f5f7',
+      surface: '#f0f0f3',
+      surfaceHover: '#e8e8ed',
+      overlay: '#e4e4ea',
+    },
+    sidebar: {
+      bg: '#f8f8fb',
+      border: '#e0e0e8',
+    },
+    text: {
+      primary: '#0d0d12',
+      secondary: '#4a4a62',
+      muted: '#8a8aa0',
+      inverse: '#ffffff',
+    },
+    border: {
+      subtle: 'rgba(0, 0, 0, 0.06)',
+      default: 'rgba(0, 0, 0, 0.1)',
+      strong: 'rgba(0, 0, 0, 0.15)',
+    },
+  },
+} as const;
+
+// backwards-compatible default export
+export const theme = darkTheme;
+
+export type Theme = typeof darkTheme;

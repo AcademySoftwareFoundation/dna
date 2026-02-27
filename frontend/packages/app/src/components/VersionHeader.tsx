@@ -105,7 +105,7 @@ const NextVersionButton = styled.button`
   font-size: 14px;
   font-weight: 500;
   font-family: ${({ theme }) => theme.fonts.sans};
-  color: ${({ theme }) => theme.colors.text.primary};
+  color: #ffffff;
   background: ${({ theme }) => theme.colors.accent.main};
   border: none;
   border-radius: ${({ theme }) => theme.radii.md};

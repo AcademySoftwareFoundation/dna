@@ -19,6 +19,7 @@ export const usePublishNotes = () => {
             // So we should invalidate heavily to be safe.
             queryClient.invalidateQueries({ queryKey: ['draftNotes'] });
             queryClient.invalidateQueries({ queryKey: ['allDraftNotes'] });
+            queryClient.invalidateQueries({ queryKey: ['draftNote'] });
         },
     });
 };
