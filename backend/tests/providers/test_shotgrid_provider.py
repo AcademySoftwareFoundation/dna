@@ -1431,3 +1431,93 @@ class TestShotgridProviderShallowLinks:
 
         assert result.id == 100
         assert result.name == "shot_010"
+
+
+# ============================================================================
+# Authentication tests
+# ============================================================================
+
+
+class TestAuthenticateUser:
+    """Tests for the authenticate_user method."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(connect=False)
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_authenticate_user_success(self, shotgrid_provider):
+        """Test authenticate_user returns user info and session token."""
+        shotgrid_provider.sg.authenticate_human_user.return_value = {
+            "type": "HumanUser",
+            "id": 42,
+            "name": "John Smith",
+        }
+        shotgrid_provider.sg.get_session_token.return_value = "session_abc123"
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 42,
+            "name": "John Smith",
+            "email": "jsmith@example.com",
+            "login": "jsmith",
+        }
+
+        result = shotgrid_provider.authenticate_user("jsmith", "secret")
+
+        assert result is not None
+        assert result["user_id"] == 42
+        assert result["login"] == "jsmith"
+        assert result["name"] == "John Smith"
+        assert result["email"] == "jsmith@example.com"
+        assert result["session_token"] == "session_abc123"
+
+        shotgrid_provider.sg.authenticate_human_user.assert_called_once_with(
+            "jsmith", "secret"
+        )
+        shotgrid_provider.sg.get_session_token.assert_called_once()
+
+    def test_authenticate_user_invalid_credentials(self, shotgrid_provider):
+        """Test authenticate_user returns None for invalid credentials."""
+        shotgrid_provider.sg.authenticate_human_user.return_value = None
+
+        result = shotgrid_provider.authenticate_user("baduser", "badpass")
+
+        assert result is None
+        shotgrid_provider.sg.get_session_token.assert_not_called()
+
+    def test_authenticate_user_not_connected(self):
+        """Test authenticate_user raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.authenticate_user("jsmith", "secret")
+
+    def test_authenticate_user_base_raises_not_implemented(self):
+        """Test that ProdtrackProviderBase.authenticate_user raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.authenticate_user("user", "pass")
+
+    def test_authenticate_user_without_full_user_details(self, shotgrid_provider):
+        """Test authenticate_user handles missing user details gracefully."""
+        shotgrid_provider.sg.authenticate_human_user.return_value = {
+            "type": "HumanUser",
+            "id": 99,
+            "name": "Minimal User",
+        }
+        shotgrid_provider.sg.get_session_token.return_value = "token_xyz"
+        shotgrid_provider.sg.find_one.return_value = None
+
+        result = shotgrid_provider.authenticate_user("minuser", "pass123")
+
+        assert result is not None
+        assert result["user_id"] == 99
+        assert result["login"] == "minuser"
+        assert result["name"] == "Minimal User"
+        assert result["email"] == ""
+        assert result["session_token"] == "token_xyz"

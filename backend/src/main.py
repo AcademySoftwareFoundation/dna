@@ -21,6 +21,8 @@ from dna.models import (
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
+    LoginRequest,
+    LoginResponse,
     Note,
     Platform,
     Playlist,
@@ -137,6 +139,10 @@ tags_metadata = [
     {
         "name": "User Settings",
         "description": "Operations for managing user settings and preferences",
+    },
+    {
+        "name": "Authentication",
+        "description": "User authentication endpoints",
     },
 ]
 
@@ -510,6 +516,37 @@ async def search_entities(
         return {"results": results}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# -----------------------------------------------------------------------------
+# Authentication endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/auth/login",
+    tags=["Authentication"],
+    summary="Authenticate a user",
+    description="Authenticate a user with ShotGrid credentials and return a session token.",
+    response_model=LoginResponse,
+)
+async def login(request: LoginRequest, provider: ProdtrackProviderDep) -> LoginResponse:
+    """Authenticate a user with username and password."""
+    try:
+        result = provider.authenticate_user(request.username, request.password)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if result is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    return LoginResponse(
+        user_id=result["user_id"],
+        login=result["login"],
+        name=result["name"],
+        email=result["email"],
+        session_token=result["session_token"],
+    )
 
 
 # -----------------------------------------------------------------------------

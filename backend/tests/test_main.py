@@ -1114,3 +1114,141 @@ class TestGenerateNoteEndpoint:
             assert "DB Error" in data["detail"]
         finally:
             app.dependency_overrides.clear()
+
+
+class TestAuthLoginEndpoint:
+    """Tests for POST /auth/login endpoint."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        """Create a mock ShotGrid provider."""
+        return mock.MagicMock()
+
+    def test_login_returns_200_with_valid_credentials(self, mock_provider):
+        """Test that login returns 200 with valid credentials."""
+        mock_provider.authenticate_user.return_value = {
+            "user_id": 42,
+            "login": "jsmith",
+            "name": "John Smith",
+            "email": "jsmith@example.com",
+            "session_token": "abc123token",
+        }
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "jsmith",
+                    "password": "secret",
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["user_id"] == 42
+            assert data["login"] == "jsmith"
+            assert data["name"] == "John Smith"
+            assert data["email"] == "jsmith@example.com"
+            assert data["session_token"] == "abc123token"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_login_calls_provider_with_correct_args(self, mock_provider):
+        """Test that login passes correct arguments to provider."""
+        mock_provider.authenticate_user.return_value = {
+            "user_id": 1,
+            "login": "testuser",
+            "name": "Test User",
+            "email": "test@example.com",
+            "session_token": "token123",
+        }
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            client.post(
+                "/auth/login",
+                json={
+                    "username": "testuser",
+                    "password": "testpass",
+                },
+            )
+
+            mock_provider.authenticate_user.assert_called_once_with(
+                "testuser", "testpass"
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_login_returns_401_with_invalid_credentials(self, mock_provider):
+        """Test that login returns 401 with invalid credentials."""
+        mock_provider.authenticate_user.return_value = None
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "baduser",
+                    "password": "badpass",
+                },
+            )
+            assert response.status_code == 401
+            data = response.json()
+            assert "Invalid username or password" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_login_returns_422_with_missing_username(self, mock_provider):
+        """Test that login returns 422 when username is missing."""
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/auth/login",
+                json={
+                    "password": "secret",
+                },
+            )
+            assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_login_returns_422_with_missing_password(self, mock_provider):
+        """Test that login returns 422 when password is missing."""
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "jsmith",
+                },
+            )
+            assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_login_returns_500_when_provider_raises_error(self, mock_provider):
+        """Test that login returns 500 when provider raises ValueError."""
+        mock_provider.authenticate_user.side_effect = ValueError(
+            "Not connected to ShotGrid"
+        )
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "jsmith",
+                    "password": "secret",
+                },
+            )
+            assert response.status_code == 500
+            data = response.json()
+            assert "Not connected to ShotGrid" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()

@@ -121,6 +121,19 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def authenticate_user(self, login: str, password: str) -> dict | None:
+        """Authenticate a user with login credentials.
+
+        Args:
+            login: The user's login name.
+            password: The user's password.
+
+        Returns:
+            A dict with user_id, login, name, email, and session_token
+            if authentication succeeded. None if authentication failed.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def publish_note(
         self,
         version_id: int,

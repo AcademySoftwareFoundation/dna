@@ -21,6 +21,8 @@ import {
   DeleteUserSettingsParams,
   GenerateNoteParams,
   GenerateNoteResponse,
+  LoginParams,
+  LoginResponse,
   PublishNotesParams,
   PublishNotesResponse,
   DraftNote,
@@ -120,6 +122,13 @@ class ApiHandler {
       config
     );
     return response.data;
+  }
+
+  async login(params: LoginParams): Promise<LoginResponse> {
+    return this.post<LoginResponse>('/auth/login', {
+      username: params.username,
+      password: params.password,
+    });
   }
 
   async getProjectsForUser(
@@ -262,7 +271,9 @@ class ApiHandler {
     return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
   }
 
-  async publishNotes(params: PublishNotesParams): Promise<PublishNotesResponse> {
+  async publishNotes(
+    params: PublishNotesParams
+  ): Promise<PublishNotesResponse> {
     return this.post<PublishNotesResponse>(
       `/playlists/${params.playlistId}/publish-notes`,
       params.request
