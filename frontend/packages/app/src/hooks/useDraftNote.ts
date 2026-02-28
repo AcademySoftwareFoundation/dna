@@ -10,6 +10,9 @@ export interface LocalDraftNote {
   cc: SearchResult[];
   links: SearchResult[];
   versionStatus: string;
+  published: boolean;
+  edited: boolean;
+  publishedNoteId: number | null;
 }
 
 export interface UseDraftNoteParams {
@@ -39,6 +42,9 @@ function createEmptyDraft(
     cc: [],
     links: currentVersion ? [currentVersion] : [],
     versionStatus: '',
+    published: false,
+    edited: false,
+    publishedNoteId: null,
   };
 }
 
@@ -70,6 +76,9 @@ function backendToLocal(note: DraftNote): LocalDraftNote {
     cc: parseEntitiesFromString(note.cc),
     links,
     versionStatus: note.version_status,
+    published: note.published,
+    edited: note.edited,
+    publishedNoteId: note.published_note_id ?? null,
   };
 }
 
@@ -92,6 +101,7 @@ function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
     cc: ccJson,
     links,
     version_status: local.versionStatus,
+    edited: local.edited,
   };
 }
 
@@ -107,8 +117,6 @@ export function useDraftNote({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMutationRef = useRef<Promise<DraftNote> | null>(null);
   const pendingDataRef = useRef<LocalDraftNote | null>(null);
-  const hasInitializedRef = useRef(false);
-
   const isEnabled =
     playlistId != null && versionId != null && userEmail != null;
 
@@ -129,7 +137,8 @@ export function useDraftNote({
   const upsertMutation = useMutation<
     DraftNote,
     Error,
-    { data: DraftNoteUpdate }
+    { data: DraftNoteUpdate },
+    { previousDraftNotes: DraftNote[] | undefined }
   >({
     mutationFn: ({ data }) =>
       apiHandler.upsertDraftNote({
@@ -138,11 +147,67 @@ export function useDraftNote({
         userEmail: userEmail!,
         data,
       }),
-    onSuccess: (result) => {
-      queryClient.setQueryData(queryKey, result);
+    onMutate: async ({ data }) => {
+      await queryClient.cancelQueries({ queryKey: ['draftNotes', playlistId] });
+      const previousDraftNotes = queryClient.getQueryData<DraftNote[]>(['draftNotes', playlistId]);
+
+      if (previousDraftNotes) {
+        queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
+          if (!old) return old;
+          const index = old.findIndex((n) => n.version_id === versionId);
+          if (index !== -1) {
+            const updated = [...old];
+            updated[index] = {
+              ...updated[index],
+              content: data.content ?? updated[index].content,
+              subject: data.subject ?? updated[index].subject,
+              to: data.to ?? updated[index].to,
+              cc: data.cc ?? updated[index].cc,
+              version_status: data.version_status ?? updated[index].version_status,
+              edited: data.edited ?? updated[index].edited,
+            };
+            return updated;
+          } else {
+            return [
+              ...old,
+              {
+                id: -1,
+                _id: 'temp_id',
+                version_id: versionId!,
+                playlist_id: playlistId!,
+                user_id: -1,
+                user_email: userEmail!,
+                content: data.content ?? '',
+                subject: data.subject ?? '',
+                to: data.to ?? '',
+                cc: data.cc ?? '',
+                links: data.links ?? [],
+                version_status: data.version_status ?? '',
+                published: false,
+                edited: data.edited ?? false,
+                published_note_id: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            ];
+          }
+        });
+      }
+
+      return { previousDraftNotes };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousDraftNotes) {
+        queryClient.setQueryData(['draftNotes', playlistId], context.previousDraftNotes);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ['draftNotes', playlistId],
       });
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKey, result);
     },
   });
 
@@ -158,25 +223,59 @@ export function useDraftNote({
     },
   });
 
+  const lastContextRef = useRef<{
+    playlistId?: number | null;
+    versionId?: number | null;
+    userEmail?: string | null;
+  }>({});
+
   useEffect(() => {
     if (!isEnabled) {
       setLocalDraft(null);
-      hasInitializedRef.current = false;
+      lastContextRef.current = {};
       return;
     }
-    // Only sync from server on initial load, not after our own mutations.
-    // The server response loses entity names for links, so re-syncing
-    // would overwrite the richer local state and cause pills to vanish.
-    if (hasInitializedRef.current) return;
 
-    if (serverDraft) {
-      setLocalDraft(backendToLocal(serverDraft));
-      hasInitializedRef.current = true;
-    } else if (serverDraft === null && !isLoading) {
-      setLocalDraft(createEmptyDraft(currentVersion, submitter));
-      hasInitializedRef.current = true;
+    const currentContext = { playlistId, versionId, userEmail };
+    const isContextSwitch =
+      playlistId !== lastContextRef.current.playlistId ||
+      versionId !== lastContextRef.current.versionId ||
+      userEmail !== lastContextRef.current.userEmail;
+
+    if (isContextSwitch) {
+      lastContextRef.current = currentContext;
+      if (serverDraft) {
+        setLocalDraft(backendToLocal(serverDraft));
+      } else if (!isLoading) {
+        setLocalDraft(createEmptyDraft(currentVersion, submitter));
+      } else {
+        setLocalDraft(null);
+      }
+    } else {
+      // Same context: only update system fields to avoid overwriting user input
+      // (entity names in pills are only in local state, not on the server)
+      if (serverDraft) {
+        setLocalDraft((prev) => {
+          if (!prev) return backendToLocal(serverDraft);
+
+          if (
+            prev.published === serverDraft.published &&
+            prev.edited === serverDraft.edited &&
+            prev.publishedNoteId === (serverDraft.published_note_id ?? null)
+          ) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            published: serverDraft.published,
+            edited: serverDraft.edited,
+            publishedNoteId: serverDraft.published_note_id ?? null,
+          };
+        });
+      }
     }
-  }, [serverDraft, isEnabled, isLoading]);
+  }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail]);
 
   useEffect(() => {
     const flushPending = () => {
@@ -220,9 +319,25 @@ export function useDraftNote({
 
       setLocalDraft((prev) => {
         const base = prev ?? createEmptyDraft(currentVersion, submitter);
+
+        // Determine if this update counts as an "edit" that should trigger republishing
+        // We only care if meaningful content changed (content, subject, to, cc)
+        // System updates (published status) shouldn't trigger this manually usually
+        let isEdited = base.edited;
+
+        const meaningfulFields: (keyof LocalDraftNote)[] = ['content', 'subject', 'to', 'cc'];
+        const hasMeaningfulChange = meaningfulFields.some(field =>
+          updates[field] !== undefined && updates[field] !== base[field]
+        );
+
+        if (hasMeaningfulChange) {
+          isEdited = true;
+        }
+
         const updated: LocalDraftNote = {
           ...base,
           ...updates,
+          edited: isEdited,
         };
         pendingDataRef.current = updated;
 

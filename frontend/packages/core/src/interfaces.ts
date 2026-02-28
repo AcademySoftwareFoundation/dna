@@ -158,6 +158,9 @@ export interface DraftNote {
   cc: string;
   links: DraftNoteLink[];
   version_status: string;
+  published: boolean;
+  edited: boolean;
+  published_note_id?: number | null;
   updated_at: string;
   created_at: string;
 }
@@ -169,6 +172,7 @@ export interface DraftNoteUpdate {
   cc?: string;
   links?: DraftNoteLink[];
   version_status?: string;
+  edited?: boolean;
 }
 
 export interface GetDraftNoteParams {

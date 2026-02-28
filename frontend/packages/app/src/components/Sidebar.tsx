@@ -15,7 +15,7 @@ import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
 import { ExpandableSearch } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
-import { VersionCard } from './VersionCard';
+import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishNotesDialog } from './PublishNotesDialog';
@@ -355,6 +355,16 @@ export function Sidebar({
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
                 inReview={inReviewVersionId === version.id}
+                noteStatus={((): NoteStatus | null => {
+                  const note = draftNotes?.find(
+                    (n) => n.version_id === version.id
+                  );
+                  if (!note) return null;
+                  if (note.published) return 'published';
+                  if (note.published_note_id) return 'edited';
+                  if (note.content || note.subject) return 'draft';
+                  return null;
+                })()}
                 onClick={() => onVersionSelect?.(version)}
               />
             </div>
