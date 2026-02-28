@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Button, Flex, Select, Spinner } from '@radix-ui/themes';
 import { Playlist, Project } from '@dna/core';
-import { useGetProjectsForUser, useGetPlaylistsForProject } from '../api';
+import {
+  useGetProjectsForUser,
+  useGetPlaylistsForProject,
+  apiHandler,
+} from '../api';
 import { Logo } from './Logo';
 import {
   StyledTextField,
@@ -13,6 +17,7 @@ import {
 export const STORAGE_KEYS = {
   USER_EMAIL: 'dna_user_email',
   PROJECT: 'dna_selected_project',
+  SESSION_TOKEN: 'dna_session_token',
 };
 
 interface ProjectSelectorProps {
@@ -157,7 +162,7 @@ const StyledForm = styled.form`
   gap: 16px;
 `;
 
-type Step = 'loading' | 'email' | 'project' | 'playlist';
+type Step = 'loading' | 'login' | 'project' | 'playlist';
 
 function getStoredEmail(): string | null {
   try {
@@ -171,6 +176,14 @@ function getStoredProject(): Project | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.PROJECT);
     return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredSessionToken(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
   } catch {
     return null;
   }
@@ -192,6 +205,14 @@ function saveProject(project: Project): void {
   }
 }
 
+function saveSessionToken(token: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 function clearStoredEmail(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.USER_EMAIL);
@@ -208,14 +229,27 @@ function clearStoredProject(): void {
   }
 }
 
+function clearStoredSessionToken(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.SESSION_TOKEN);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function clearUserSession(): void {
   clearStoredEmail();
   clearStoredProject();
+  clearStoredSessionToken();
+  apiHandler.setUser(null);
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   const [step, setStep] = useState<Step>('loading');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('');
@@ -223,18 +257,25 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   useEffect(() => {
     const storedEmail = getStoredEmail();
     const storedProject = getStoredProject();
+    const storedToken = getStoredSessionToken();
 
-    if (storedEmail && storedProject) {
+    if (storedEmail && storedToken) {
+      // Restore session from localStorage
+      apiHandler.setUser({
+        id: storedEmail,
+        email: storedEmail,
+        token: storedToken,
+      });
       setSubmittedEmail(storedEmail);
-      setEmail(storedEmail);
-      setSelectedProject(storedProject);
-      setStep('playlist');
-    } else if (storedEmail) {
-      setSubmittedEmail(storedEmail);
-      setEmail(storedEmail);
-      setStep('project');
+
+      if (storedProject) {
+        setSelectedProject(storedProject);
+        setStep('playlist');
+      } else {
+        setStep('project');
+      }
     } else {
-      setStep('email');
+      setStep('login');
     }
   }, []);
 
@@ -252,13 +293,34 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     error: playlistsError,
   } = useGetPlaylistsForProject(selectedProject?.id ?? null);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      const trimmedEmail = email.trim();
-      setSubmittedEmail(trimmedEmail);
-      saveEmail(trimmedEmail);
+    if (!username.trim() || !password.trim()) return;
+
+    setIsLoggingIn(true);
+    setLoginError(null);
+
+    try {
+      const response = await apiHandler.login({
+        username: username.trim(),
+        password: password.trim(),
+      });
+
+      const email = response.email;
+      saveEmail(email);
+      saveSessionToken(response.session_token);
+      apiHandler.setUser({
+        id: email,
+        email,
+        name: response.name,
+        token: response.session_token,
+      });
+      setSubmittedEmail(email);
       setStep('project');
+    } catch {
+      setLoginError('Invalid username or password');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -287,13 +349,18 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     }
   };
 
-  const handleBackToEmail = () => {
+  const handleBackToLogin = () => {
     clearStoredEmail();
     clearStoredProject();
+    clearStoredSessionToken();
+    apiHandler.setUser(null);
     setSubmittedEmail(null);
     setSelectedProject(null);
     setSelectedPlaylistId('');
-    setStep('email');
+    setUsername('');
+    setPassword('');
+    setLoginError(null);
+    setStep('login');
   };
 
   const handleBackToProject = () => {
@@ -329,27 +396,38 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
         <Title>Welcome to DNA</Title>
         <Subtitle>Dailies Notes Assistant</Subtitle>
 
-        {step === 'email' && (
-          <StyledForm onSubmit={handleEmailSubmit}>
+        {step === 'login' && (
+          <StyledForm onSubmit={handleLoginSubmit}>
             <FormSection>
-              <Label htmlFor="email">Enter your email</Label>
+              <Label htmlFor="username">Username</Label>
               <StyledTextField
-                id="email"
-                placeholder="you@example.com"
-                type="email"
+                id="username"
+                placeholder="ShotGrid login"
+                type="text"
                 size="3"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
+              <Label htmlFor="password">Password</Label>
+              <StyledTextField
+                id="password"
+                placeholder="Password"
+                type="password"
+                size="3"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              {loginError && <ErrorText>{loginError}</ErrorText>}
             </FormSection>
             <Button
               type="submit"
               size="3"
-              disabled={!email.trim()}
+              disabled={!username.trim() || !password.trim() || isLoggingIn}
               style={{ marginTop: '8px' }}
             >
-              Continue
+              {isLoggingIn ? 'Signing in...' : 'Sign In'}
             </Button>
           </StyledForm>
         )}
@@ -358,7 +436,7 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
           <FormSection>
             <SelectionDisplay>
               <SelectionText>{submittedEmail}</SelectionText>
-              <ChangeButton onClick={handleBackToEmail}>Change</ChangeButton>
+              <ChangeButton onClick={handleBackToLogin}>Change</ChangeButton>
             </SelectionDisplay>
 
             {isLoadingProjects && (
@@ -403,7 +481,7 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
           <FormSection>
             <SelectionDisplay>
               <SelectionText>{submittedEmail}</SelectionText>
-              <ChangeButton onClick={handleBackToEmail}>Change</ChangeButton>
+              <ChangeButton onClick={handleBackToLogin}>Change</ChangeButton>
             </SelectionDisplay>
 
             <SelectionDisplay>

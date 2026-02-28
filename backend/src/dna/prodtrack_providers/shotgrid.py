@@ -806,6 +806,44 @@ class ShotgridProvider(ProdtrackProviderBase):
             print(f"Error updating note {note_id}: {e}")
             return False
 
+    def authenticate_user(self, login: str, password: str) -> dict | None:
+        """Authenticate a user with ShotGrid credentials.
+
+        Uses ShotGrid's authenticate_human_user to validate the credentials.
+        If successful, retrieves a session token.
+
+        Args:
+            login: The user's ShotGrid login name.
+            password: The user's password.
+
+        Returns:
+            A dict with user_id, login, name, email, and session_token
+            if authentication succeeded. None if authentication failed.
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        user = self._sg.authenticate_human_user(login, password)
+        if not user:
+            return None
+
+        session_token = self._sg.get_session_token()
+
+        # Fetch full user details including email
+        sg_user = self._sg.find_one(
+            "HumanUser",
+            filters=[["id", "is", user["id"]]],
+            fields=["id", "name", "email", "login"],
+        )
+
+        return {
+            "user_id": user["id"],
+            "login": sg_user.get("login", login) if sg_user else login,
+            "name": user.get("name", ""),
+            "email": sg_user.get("email", "") if sg_user else "",
+            "session_token": session_token,
+        }
+
     def publish_note(
         self,
         version_id: int,

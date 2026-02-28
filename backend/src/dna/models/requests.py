@@ -110,3 +110,20 @@ class PublishNotesResponse(BaseModel):
     skipped_count: int
     failed_count: int
     total: int
+
+
+class LoginRequest(BaseModel):
+    """Request model for user authentication."""
+
+    username: str = Field(description="ShotGrid login name")
+    password: str = Field(description="ShotGrid password")
+
+
+class LoginResponse(BaseModel):
+    """Response model for successful authentication."""
+
+    user_id: int = Field(description="ShotGrid user ID")
+    login: str = Field(description="ShotGrid login name")
+    name: str = Field(description="User display name")
+    email: str = Field(description="User email address")
+    session_token: str = Field(description="Session token for authenticated requests")

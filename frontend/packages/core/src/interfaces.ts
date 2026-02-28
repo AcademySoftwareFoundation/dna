@@ -394,3 +394,16 @@ export interface PublishNotesParams {
   playlistId: number;
   request: PublishNotesRequest;
 }
+
+export interface LoginParams {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  user_id: number;
+  login: string;
+  name: string;
+  email: string;
+  session_token: string;
+}
