@@ -4,6 +4,7 @@ Validates Google tokens (ID tokens or access tokens) using Google APIs.
 """
 
 import os
+import time
 from typing import Optional
 
 import requests as http_requests
@@ -43,7 +44,11 @@ class GoogleAuthProvider(AuthProviderBase):
         return claims
 
     def _validate_access_token(self, token: str) -> dict:
-        """Validate a Google access token using tokeninfo endpoint."""
+        """Validate a Google access token using tokeninfo endpoint.
+
+        Note: Google's tokeninfo API only supports GET with the token in the
+        query string; avoid logging or proxying request URLs to prevent token leakage.
+        """
         response = http_requests.get(
             f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
         )
@@ -54,6 +59,15 @@ class GoogleAuthProvider(AuthProviderBase):
 
         if "error" in token_info:
             raise ValueError(f"Token error: {token_info['error']}")
+
+        if "exp" in token_info:
+            exp = token_info["exp"]
+            exp_ts = int(exp) if isinstance(exp, str) else exp
+            if exp_ts < time.time():
+                raise ValueError("Access token expired")
+
+        if self.client_id and token_info.get("aud") != self.client_id:
+            raise ValueError("Invalid audience")
 
         userinfo_response = http_requests.get(
             "https://www.googleapis.com/oauth2/v3/userinfo",

@@ -78,7 +78,7 @@ class TestUserSettingsEndpoints:
         now = datetime.now(timezone.utc)
         mock_storage_provider.get_user_settings.return_value = UserSettings(
             _id="settings1",
-            user_email="user@example.com",
+            user_email="test@example.com",
             note_prompt="Custom prompt",
             regenerate_on_version_change=True,
             regenerate_on_transcript_update=False,
@@ -91,15 +91,15 @@ class TestUserSettingsEndpoints:
         )
 
         try:
-            response = auth_client.get("/users/user@example.com/settings")
+            response = auth_client.get("/users/test@example.com/settings")
             assert response.status_code == 200
             data = response.json()
-            assert data["user_email"] == "user@example.com"
+            assert data["user_email"] == "test@example.com"
             assert data["note_prompt"] == "Custom prompt"
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is False
             mock_storage_provider.get_user_settings.assert_called_once_with(
-                "user@example.com"
+                "test@example.com"
             )
         finally:
             app.dependency_overrides.clear()
@@ -113,7 +113,7 @@ class TestUserSettingsEndpoints:
         )
 
         try:
-            response = auth_client.get("/users/user@example.com/settings")
+            response = auth_client.get("/users/test@example.com/settings")
             assert response.status_code == 200
             assert response.json() is None
         finally:
@@ -124,7 +124,7 @@ class TestUserSettingsEndpoints:
         now = datetime.now(timezone.utc)
         mock_storage_provider.upsert_user_settings.return_value = UserSettings(
             _id="settings1",
-            user_email="user@example.com",
+            user_email="test@example.com",
             note_prompt="Updated prompt",
             regenerate_on_version_change=True,
             regenerate_on_transcript_update=True,
@@ -138,7 +138,7 @@ class TestUserSettingsEndpoints:
 
         try:
             response = auth_client.put(
-                "/users/user@example.com/settings",
+                "/users/test@example.com/settings",
                 json={
                     "note_prompt": "Updated prompt",
                     "regenerate_on_version_change": True,
@@ -161,7 +161,7 @@ class TestUserSettingsEndpoints:
         now = datetime.now(timezone.utc)
         mock_storage_provider.upsert_user_settings.return_value = UserSettings(
             _id="settings1",
-            user_email="user@example.com",
+            user_email="test@example.com",
             note_prompt="",
             regenerate_on_version_change=True,
             regenerate_on_transcript_update=False,
@@ -175,7 +175,7 @@ class TestUserSettingsEndpoints:
 
         try:
             response = auth_client.put(
-                "/users/user@example.com/settings",
+                "/users/test@example.com/settings",
                 json={
                     "regenerate_on_version_change": True,
                 },
@@ -198,11 +198,11 @@ class TestUserSettingsEndpoints:
         )
 
         try:
-            response = auth_client.delete("/users/user@example.com/settings")
+            response = auth_client.delete("/users/test@example.com/settings")
             assert response.status_code == 200
             assert response.json() is True
             mock_storage_provider.delete_user_settings.assert_called_once_with(
-                "user@example.com"
+                "test@example.com"
             )
         finally:
             app.dependency_overrides.clear()
@@ -216,10 +216,24 @@ class TestUserSettingsEndpoints:
         )
 
         try:
-            response = auth_client.delete("/users/user@example.com/settings")
+            response = auth_client.delete("/users/test@example.com/settings")
             assert response.status_code == 404
             data = response.json()
             assert "User settings not found" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_user_settings_returns_403_when_path_user_mismatch(
+        self, mock_storage_provider, auth_client
+    ):
+        """Test GET returns 403 when path user_email does not match authenticated user."""
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        try:
+            response = auth_client.get("/users/other@example.com/settings")
+            assert response.status_code == 403
+            assert response.json()["detail"] == "Forbidden"
         finally:
             app.dependency_overrides.clear()
 

@@ -286,7 +286,7 @@ async def get_current_user(
     When AUTH_PROVIDER=none, authentication is skipped and a placeholder
     email is returned (for development/testing only).
     """
-    auth_provider_type = os.getenv("AUTH_PROVIDER", "google")
+    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
     if auth_provider_type == "none":
         if credentials and credentials.credentials:
             return auth_provider.get_user_email(credentials.credentials)
@@ -1093,9 +1093,11 @@ async def delete_playlist_metadata(
 async def get_user_settings(
     user_email: str,
     provider: StorageProviderDep,
-    _: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> Optional[UserSettings]:
     """Get user settings."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return await provider.get_user_settings(user_email)
 
 
@@ -1110,9 +1112,11 @@ async def upsert_user_settings(
     user_email: str,
     data: UserSettingsUpdate,
     provider: StorageProviderDep,
-    _: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> UserSettings:
     """Create or update user settings."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return await provider.upsert_user_settings(user_email, data)
 
 
@@ -1126,9 +1130,11 @@ async def upsert_user_settings(
 async def delete_user_settings(
     user_email: str,
     provider: StorageProviderDep,
-    _: CurrentUserDep,
+    current_user: CurrentUserDep,
 ) -> bool:
     """Delete user settings."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
         raise HTTPException(status_code=404, detail="User settings not found")
