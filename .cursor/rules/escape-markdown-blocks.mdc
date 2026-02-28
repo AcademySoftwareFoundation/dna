@@ -1,0 +1,38 @@
+---
+description: Use escape characters in markdown code blocks to prevent rendering issues
+alwaysApply: true
+---
+
+# Escape Characters in Markdown Blocks
+
+When including markdown syntax examples inside code blocks, escape special characters to prevent the chat view from breaking.
+
+## Common Characters to Escape
+
+- Backticks inside code blocks: use `\`` 
+- Triple backticks: use `\`\`\``
+- Dollar signs (LaTeX): use `\$`
+
+## Examples
+
+```markdown
+# ❌ BAD - breaks rendering
+Use triple backticks ``` to create code blocks.
+
+# ✅ GOOD - properly escaped
+Use triple backticks \`\`\` to create code blocks.
+```
+
+When documenting code block syntax:
+
+```markdown
+# ❌ BAD
+```python
+print("hello")
+```
+
+# ✅ GOOD
+\`\`\`python
+print("hello")
+\`\`\`
+```
