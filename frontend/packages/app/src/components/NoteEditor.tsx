@@ -294,8 +294,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     );
 
     useEffect(() => {
+      const byVersion = attachmentsByVersion.current;
       return () => {
-        attachmentsByVersion.current.forEach(list =>
+        byVersion.forEach(list =>
           list.forEach(a => URL.revokeObjectURL(a.previewUrl))
         );
       };
