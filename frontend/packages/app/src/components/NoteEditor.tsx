@@ -280,6 +280,19 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       [handleAttach]
     );
 
+    const handlePaste = useCallback(
+      (e: React.ClipboardEvent) => {
+        const images = Array.from(e.clipboardData.items)
+          .filter(item => item.type.startsWith('image/'))
+          .map(item => item.getAsFile())
+          .filter((f): f is File => f !== null);
+        if (images.length === 0) return;
+        e.preventDefault();
+        images.forEach(handleAttach);
+      },
+      [handleAttach]
+    );
+
     useEffect(() => {
       return () => {
         attachmentsByVersion.current.forEach(list =>
@@ -360,6 +373,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onPaste={handlePaste}
       >
         {isDragOver && <DropOverlay><Image size={32} /></DropOverlay>}
         <EditorHeader>
