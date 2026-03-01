@@ -81,11 +81,51 @@ const StatusBadge = styled.div<{ $isWarning?: boolean }>`
   margin-left: 12px;
 `;
 
-const AttachmentStrip = styled.div`
+// Matches the EditForm / EditHeader / EditTitle / CloseButton pattern in NoteOptionsInline
+const AttachmentTray = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: ${({ theme }) => theme.colors.bg.base};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+const AttachmentTrayHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const AttachmentTrayTitle = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.secondary};
+`;
+
+const AttachmentTrayClose = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: ${({ theme }) => theme.colors.text.muted};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
+const ThumbnailGrid = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 4px 0 8px;
 `;
 
 const ThumbnailBox = styled.div`
@@ -180,19 +220,26 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
     // Keyed by versionId so each version keeps its own staged attachments
     const attachmentsByVersion = useRef<Map<number | null | undefined, StagedAttachment[]>>(new Map());
     const versionIdRef = useRef(versionId);
 
-    // When versionId changes, save current attachments and restore the new version's
+    // When versionId changes, restore attachments for the new version and close tray
     useEffect(() => {
       versionIdRef.current = versionId;
       const saved = attachmentsByVersion.current.get(versionId) ?? [];
       attachmentsRef.current = saved;
       setAttachments(saved);
+      setIsAttachmentTrayOpen(false);
     }, [versionId]);
+
+    // Auto-close tray when all attachments are removed
+    useEffect(() => {
+      if (attachments.length === 0) setIsAttachmentTrayOpen(false);
+    }, [attachments.length]);
 
     const handleAttach = useCallback((file: File) => {
       const previewUrl = URL.createObjectURL(file);
@@ -342,23 +389,33 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             onAttach={handleAttach}
             placeholder="Write your notes here... (supports **markdown**)"
             minHeight={MIN_HEIGHT}
+            attachmentCount={attachments.length}
+            onToggleAttachmentTray={() => setIsAttachmentTrayOpen(o => !o)}
           />
         </EditorContent>
 
-        {attachments.length > 0 && (
-          <AttachmentStrip>
-            {attachments.map(a => (
-              <ThumbnailBox key={a.id}>
-                <img src={a.previewUrl} alt={a.file.name} title={a.file.name} />
-                <RemoveButton
-                  onClick={() => handleRemoveAttachment(a.id)}
-                  title="Remove attachment"
-                >
-                  <X size={10} />
-                </RemoveButton>
-              </ThumbnailBox>
-            ))}
-          </AttachmentStrip>
+        {isAttachmentTrayOpen && (
+          <AttachmentTray>
+            <AttachmentTrayHeader>
+              <AttachmentTrayTitle>Attached Images</AttachmentTrayTitle>
+              <AttachmentTrayClose onClick={() => setIsAttachmentTrayOpen(false)}>
+                <X size={14} />
+              </AttachmentTrayClose>
+            </AttachmentTrayHeader>
+            <ThumbnailGrid>
+              {attachments.map(a => (
+                <ThumbnailBox key={a.id}>
+                  <img src={a.previewUrl} alt={a.file.name} title={a.file.name} />
+                  <RemoveButton
+                    onClick={() => handleRemoveAttachment(a.id)}
+                    title="Remove attachment"
+                  >
+                    <X size={10} />
+                  </RemoveButton>
+                </ThumbnailBox>
+              ))}
+            </ThumbnailGrid>
+          </AttachmentTray>
         )}
 
         <ResizeHandle onMouseDown={handleResizeMouseDown} title="Drag to resize" />

@@ -24,6 +24,8 @@ interface MarkdownEditorProps {
   onAttach?: (file: File) => void;
   placeholder?: string;
   minHeight?: number;
+  attachmentCount?: number;
+  onToggleAttachmentTray?: () => void;
 }
 
 const turndownService = new TurndownService({
@@ -151,6 +153,28 @@ const ToolbarButton = styled.button<{ $active?: boolean }>`
   }
 `;
 
+const AttachmentPill = styled.button`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  background: ${({ theme }) => theme.colors.bg.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: 999px;
+  color: ${({ theme }) => theme.colors.text.secondary};
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
 const Divider = styled.div`
   width: 1px;
   height: 20px;
@@ -261,6 +285,8 @@ export function MarkdownEditor({
   onAttach,
   placeholder = 'Write your notes here...',
   minHeight = 80,
+  attachmentCount = 0,
+  onToggleAttachmentTray,
 }: MarkdownEditorProps) {
   const isUpdatingRef = useRef(false);
   const lastValueRef = useRef(value);
@@ -392,6 +418,11 @@ export function MarkdownEditor({
         <ToolbarButton title="Attach Image" onClick={handleAttachClick}>
           <Image />
         </ToolbarButton>
+        {attachmentCount > 0 && (
+          <AttachmentPill onClick={onToggleAttachmentTray} title="View attached images">
+            {attachmentCount} {attachmentCount === 1 ? 'Image' : 'Images'}
+          </AttachmentPill>
+        )}
       </Toolbar>
       <input
         ref={fileInputRef}
