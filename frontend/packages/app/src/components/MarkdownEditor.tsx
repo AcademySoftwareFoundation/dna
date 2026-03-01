@@ -25,6 +25,7 @@ interface MarkdownEditorProps {
   placeholder?: string;
   minHeight?: number;
   attachmentCount?: number;
+  attachmentFlashKey?: number;
   onToggleAttachmentTray?: () => void;
 }
 
@@ -168,6 +169,23 @@ const AttachmentPill = styled.button`
   white-space: nowrap;
   transition: all ${({ theme }) => theme.transitions.fast};
 
+  /* Plays once on mount — NoteEditor remounts this via key on each new attachment */
+  @keyframes pillGlow {
+    0% {
+      background: ${({ theme }) => theme.colors.accent.subtle};
+      border-color: ${({ theme }) => theme.colors.accent.main};
+      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.accent.subtle};
+      color: ${({ theme }) => theme.colors.accent.main};
+    }
+    100% {
+      background: ${({ theme }) => theme.colors.bg.surface};
+      border-color: ${({ theme }) => theme.colors.border.default};
+      box-shadow: none;
+      color: ${({ theme }) => theme.colors.text.secondary};
+    }
+  }
+  animation: pillGlow 1.1s ease-out;
+
   &:hover {
     background: ${({ theme }) => theme.colors.bg.surfaceHover};
     border-color: ${({ theme }) => theme.colors.border.strong};
@@ -286,6 +304,7 @@ export function MarkdownEditor({
   placeholder = 'Write your notes here...',
   minHeight = 80,
   attachmentCount = 0,
+  attachmentFlashKey = 0,
   onToggleAttachmentTray,
 }: MarkdownEditorProps) {
   const isUpdatingRef = useRef(false);
@@ -419,7 +438,11 @@ export function MarkdownEditor({
           <Image />
         </ToolbarButton>
         {attachmentCount > 0 && (
-          <AttachmentPill onClick={onToggleAttachmentTray} title="View attached images">
+          <AttachmentPill
+            key={attachmentFlashKey}
+            onClick={onToggleAttachmentTray}
+            title="View attached images"
+          >
             {attachmentCount} {attachmentCount === 1 ? 'Image' : 'Images'}
           </AttachmentPill>
         )}

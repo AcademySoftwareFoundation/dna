@@ -221,6 +221,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
+    const [attachFlashKey, setAttachFlashKey] = useState(0);
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
     // Keyed by versionId so each version keeps its own staged attachments
@@ -247,6 +248,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       attachmentsRef.current = next;
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
+      setAttachFlashKey(k => k + 1);
     }, []);
 
     const handleRemoveAttachment = useCallback((id: string) => {
@@ -390,6 +392,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             placeholder="Write your notes here... (supports **markdown**)"
             minHeight={MIN_HEIGHT}
             attachmentCount={attachments.length}
+            attachmentFlashKey={attachFlashKey}
             onToggleAttachmentTray={() => setIsAttachmentTrayOpen(o => !o)}
           />
         </EditorContent>
