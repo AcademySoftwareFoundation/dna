@@ -34,6 +34,8 @@ from dna.models.requests import (
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
+    PublishNotesRequest,
+    PublishNotesResponse,
     SearchRequest,
     SearchResult,
 )
@@ -76,6 +78,8 @@ __all__ = [
     "GenerateNoteResponse",
     "SearchRequest",
     "SearchResult",
+    "PublishNotesRequest",
+    "PublishNotesResponse",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",

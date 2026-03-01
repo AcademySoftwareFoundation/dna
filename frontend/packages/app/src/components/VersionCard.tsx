@@ -3,6 +3,8 @@ import { Eye } from 'lucide-react';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
 
+export type NoteStatus = 'published' | 'edited' | 'draft';
+
 interface VersionCardProps {
   version: Version;
   artistName?: string;
@@ -10,6 +12,7 @@ interface VersionCardProps {
   thumbnailUrl?: string;
   selected?: boolean;
   inReview?: boolean;
+  noteStatus?: NoteStatus | null;
   onClick?: () => void;
 }
 
@@ -23,11 +26,11 @@ const Card = styled.div<{ $selected?: boolean }>`
   transition: all ${({ theme }) => theme.transitions.fast};
   border: 2px solid
     ${({ theme, $selected }) =>
-      $selected ? theme.colors.accent.main : 'transparent'};
+    $selected ? theme.colors.accent.main : 'transparent'};
 
   &:hover {
     border-color: ${({ theme, $selected }) =>
-      $selected ? theme.colors.accent.main : theme.colors.border.strong};
+    $selected ? theme.colors.accent.main : theme.colors.border.strong};
   }
 `;
 
@@ -64,19 +67,52 @@ const Title = styled.span`
   text-overflow: ellipsis;
 `;
 
+const IconsContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-left: auto;
+  flex-shrink: 0;
+`;
+
 const InReviewIcon = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: flex-start;
   color: ${({ theme }) => theme.colors.accent.main};
-  flex-shrink: 0;
-  margin-left: auto;
 
   svg {
     width: 16px;
     height: 16px;
   }
+`;
+
+const StatusIcon = styled.div<{ $status: NoteStatus }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: ${({ theme, $status }) => {
+    switch ($status) {
+      case 'published':
+        return theme.colors.status.success;
+      case 'edited':
+        return theme.colors.status.warning;
+      case 'draft':
+      default:
+        return 'var(--indigo-9)'; // Blue used on avatars
+    }
+  }};
+  
+  /* Ensure text color is readable on lighter backgrounds if needed, 
+     but typically onColor is white-ish. 
+     For 'draft' (black/gray), white text is good. */
 `;
 
 const ArtistRow = styled.div`
@@ -105,9 +141,18 @@ export function VersionCard({
   thumbnailUrl,
   selected = false,
   inReview = false,
+  noteStatus = null,
   onClick,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
+
+  const getStatusLetter = (status: NoteStatus) => {
+    switch (status) {
+      case 'published': return 'P';
+      case 'edited': return 'E';
+      case 'draft': return 'D'; // Draft/Unpublished
+    }
+  };
 
   return (
     <Card $selected={selected} onClick={onClick}>
@@ -124,11 +169,18 @@ export function VersionCard({
         )}
         {department && <Department>{department}</Department>}
       </Content>
-      {inReview && (
-        <InReviewIcon>
-          <Eye />
-        </InReviewIcon>
-      )}
+      <IconsContainer>
+        {noteStatus && (
+          <StatusIcon $status={noteStatus}>
+            {getStatusLetter(noteStatus)}
+          </StatusIcon>
+        )}
+        {inReview && (
+          <InReviewIcon>
+            <Eye />
+          </InReviewIcon>
+        )}
+      </IconsContainer>
     </Card>
   );
 }

@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useImperativeHandle, useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -14,23 +14,25 @@ export interface NoteEditorHandle {
   appendContent: (content: string) => void;
 }
 
-const EditorWrapper = styled.div`
+const DEFAULT_HEIGHT = 280;
+const MIN_HEIGHT = 120;
+
+const EditorWrapper = styled.div<{ $height: number }>`
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 20px;
+  padding-bottom: 8px;
   background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.subtle};
   border-radius: ${({ theme }) => theme.radii.lg};
-  flex: 1;
-  min-height: 0;
 `;
 
-const EditorContent = styled.div`
+const EditorContent = styled.div<{ $height: number }>`
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  height: ${({ $height }) => $height}px;
+  min-height: ${MIN_HEIGHT}px;
 `;
 
 const EditorHeader = styled.div`
@@ -53,6 +55,47 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
+const StatusBadge = styled.div<{ $isWarning?: boolean }>`
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: ${({ theme, $isWarning }) => {
+    const color = $isWarning
+      ? theme.colors.status.warning
+      : theme.colors.status.success;
+    return color + '20'; // 12% opacity (hex)
+  }};
+  color: ${({ theme, $isWarning }) =>
+    $isWarning ? theme.colors.status.warning : theme.colors.status.success};
+  margin-left: 12px;
+`;
+
+const ResizeHandle = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 12px;
+  cursor: ns-resize;
+  flex-shrink: 0;
+  border-radius: 0 0 ${({ theme }) => theme.radii.lg} ${({ theme }) => theme.radii.lg};
+  color: ${({ theme }) => theme.colors.border.default};
+  transition: color ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.border.strong};
+  }
+
+  &::before {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+`;
+
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   function NoteEditor({ playlistId, versionId, userEmail }, ref) {
     const { draftNote, updateDraftNote } = useDraftNote({
@@ -60,6 +103,37 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       versionId,
       userEmail,
     });
+
+    const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
+    const dragStartY = useRef<number>(0);
+    const dragStartHeight = useRef<number>(DEFAULT_HEIGHT);
+
+    const handleResizeMouseDown = useCallback(
+      (e: React.MouseEvent) => {
+        e.preventDefault();
+        dragStartY.current = e.clientY;
+        dragStartHeight.current = editorHeight;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+          const delta = moveEvent.clientY - dragStartY.current;
+          const newHeight = Math.max(MIN_HEIGHT, dragStartHeight.current + delta);
+          setEditorHeight(newHeight);
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        };
+
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      },
+      [editorHeight]
+    );
 
     useImperativeHandle(
       ref,
@@ -98,10 +172,14 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     };
 
     return (
-      <EditorWrapper>
+      <EditorWrapper $height={editorHeight}>
         <EditorHeader>
           <TitleRow>
             <EditorTitle>New Note</EditorTitle>
+            {draftNote?.published && <StatusBadge>Published</StatusBadge>}
+            {!draftNote?.published && draftNote?.publishedNoteId && (
+              <StatusBadge $isWarning>Published (Edited)</StatusBadge>
+            )}
           </TitleRow>
           <NoteOptionsInline
             toValue={draftNote?.to ?? ''}
@@ -117,14 +195,16 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           />
         </EditorHeader>
 
-        <EditorContent>
+        <EditorContent $height={editorHeight}>
           <MarkdownEditor
             value={draftNote?.content ?? ''}
             onChange={handleContentChange}
             placeholder="Write your notes here... (supports **markdown**)"
-            minHeight={120}
+            minHeight={MIN_HEIGHT}
           />
         </EditorContent>
+
+        <ResizeHandle onMouseDown={handleResizeMouseDown} title="Drag to resize" />
       </EditorWrapper>
     );
   }

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
@@ -8,18 +8,20 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
-import { Button } from '@radix-ui/themes';
+import { Button, Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
 import { ExpandableSearch } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
-import { VersionCard } from './VersionCard';
+import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
+import { PublishNotesDialog } from './PublishNotesDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
-import { usePlaylistMetadata } from '../hooks';
+import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
+import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -242,8 +244,19 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const { getLabel } = useHotkeyConfig();
+
+  const toggleSettings = useCallback(() => {
+    setIsSettingsOpen((prev) => !prev);
+  }, []);
+
+  useHotkeyAction('openSettings', toggleSettings);
+  useHotkeyAction('toggleSidebar', () => onCollapsedChange(!collapsed));
 
   const {
     data: versions,
@@ -256,6 +269,7 @@ export function Sidebar({
 
   const { data: user } = useGetUserByEmail(userEmail);
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
+  const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
 
   const inReviewVersionId = playlistMetadata?.in_review;
 
@@ -341,6 +355,16 @@ export function Sidebar({
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
                 inReview={inReviewVersionId === version.id}
+                noteStatus={((): NoteStatus | null => {
+                  const note = draftNotes?.find(
+                    (n) => n.version_id === version.id
+                  );
+                  if (!note) return null;
+                  if (note.published) return 'published';
+                  if (note.published_note_id) return 'edited';
+                  if (note.content || note.subject) return 'draft';
+                  return null;
+                })()}
                 onClick={() => onVersionSelect?.(version)}
               />
             </div>
@@ -357,7 +381,11 @@ export function Sidebar({
         <HeaderActions>
           {!collapsed && (
             <>
-              <Button size="2" variant="solid" color="violet">
+              <Button
+                size="2"
+                variant="solid"
+                onClick={() => setIsPublishDialogOpen(true)}
+              >
                 Publish Notes
               </Button>
               <UserAvatar
@@ -367,12 +395,14 @@ export function Sidebar({
               />
             </>
           )}
-          <CollapseButton
-            onClick={() => onCollapsedChange(!collapsed)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <PanelLeft /> : <PanelLeftClose />}
-          </CollapseButton>
+          <Tooltip content={`${collapsed ? 'Expand' : 'Collapse'} Sidebar (${getLabel('toggleSidebar')})`}>
+            <CollapseButton
+              onClick={() => onCollapsedChange(!collapsed)}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <PanelLeft /> : <PanelLeftClose />}
+            </CollapseButton>
+          </Tooltip>
         </HeaderActions>
       </Header>
 
@@ -409,33 +439,52 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedFooter>
-          <SquareButton variant="cta">
+          <SquareButton
+            variant="cta"
+            onClick={() => setIsPublishDialogOpen(true)}
+          >
             <Upload />
             Publish
           </SquareButton>
+          <Tooltip content={`Settings (${getLabel('openSettings')})`}>
+            <SquareButton variant="neutral" onClick={toggleSettings}>
+              <Settings />
+              Settings
+            </SquareButton>
+          </Tooltip>
           <SettingsModal
             userEmail={userEmail}
-            trigger={
-              <SquareButton variant="neutral">
-                <Settings />
-                Settings
-              </SquareButton>
-            }
+            open={isSettingsOpen}
+            onOpenChange={setIsSettingsOpen}
           />
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
           <TranscriptionMenu playlistId={playlistId} />
+          <Tooltip content={`Settings (${getLabel('openSettings')})`}>
+            <SettingsButton onClick={toggleSettings}>
+              <Settings size={16} />
+              Settings
+            </SettingsButton>
+          </Tooltip>
           <SettingsModal
             userEmail={userEmail}
-            trigger={
-              <SettingsButton>
-                <Settings size={16} />
-                Settings
-              </SettingsButton>
-            }
+            open={isSettingsOpen}
+            onOpenChange={setIsSettingsOpen}
           />
         </Footer>
+      )}
+
+
+
+      {playlistId && (
+        <PublishNotesDialog
+          open={isPublishDialogOpen}
+          onClose={() => setIsPublishDialogOpen(false)}
+          playlistId={playlistId}
+          userEmail={userEmail}
+          draftNotes={draftNotes || []}
+        />
       )}
     </SidebarWrapper>
   );

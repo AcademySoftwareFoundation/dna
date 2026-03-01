@@ -21,6 +21,8 @@ import {
   DeleteUserSettingsParams,
   GenerateNoteParams,
   GenerateNoteResponse,
+  PublishNotesParams,
+  PublishNotesResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -254,6 +256,17 @@ class ApiHandler {
       user_email: params.userEmail,
       additional_instructions: params.additionalInstructions,
     });
+  }
+
+  async getPlaylistDraftNotes(playlistId: number): Promise<DraftNote[]> {
+    return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
+  }
+
+  async publishNotes(params: PublishNotesParams): Promise<PublishNotesResponse> {
+    return this.post<PublishNotesResponse>(
+      `/playlists/${params.playlistId}/publish-notes`,
+      params.request
+    );
   }
 }
 
