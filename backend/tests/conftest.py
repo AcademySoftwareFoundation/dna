@@ -2,8 +2,8 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-# Set AUTH_PROVIDER to none for tests to avoid Google auth requirements
-os.environ.setdefault("AUTH_PROVIDER", "none")
+# Force AUTH_PROVIDER to none for tests (override Docker env so endpoints accept unauthenticated requests)
+os.environ["AUTH_PROVIDER"] = "none"
 # Set CORS origins for tests
 os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 
