@@ -168,9 +168,14 @@ jobs:
 
       - name: Update CORS with Frontend URL
         run: |
+          FRONTEND_URL="${{ needs.deploy-frontend.outputs.frontend-url }}"
+          if [ -z "$FRONTEND_URL" ]; then
+            echo "::error::Frontend URL is empty; cannot update CORS"
+            exit 1
+          fi
           gcloud run services update ${{ env.BACKEND_SERVICE }} \
             --region ${{ env.REGION }} \
-            --update-env-vars="CORS_ALLOWED_ORIGINS=${{ needs.deploy-frontend.outputs.frontend-url }}"
+            --update-env-vars="CORS_ALLOWED_ORIGINS=${FRONTEND_URL}"
 
   summary:
     name: Deployment Summary

@@ -372,7 +372,7 @@ gcloud run services logs read dna-frontend --region us-central1
 | 403 on deployment | Ensure service account has `roles/run.admin` and `roles/secretmanager.secretAccessor` |
 | Image not found | Verify Artifact Registry repository exists and image was pushed |
 | Cold start slow | Expected with scale-to-zero; first request takes ~5-10s |
-| CORS errors | Check `CORS_ALLOWED_ORIGINS` includes the requesting domain |
+| CORS errors | Ensure the `update-cors` job ran. To fix manually: `gcloud run services update dna-backend --region us-central1 --update-env-vars="CORS_ALLOWED_ORIGINS=https://YOUR-FRONTEND-URL"` (use the frontend Cloud Run URL with no trailing slash). |
 | 401 Unauthorized | Verify Google OAuth is configured correctly and token is valid |
 
 ### Force Redeployment

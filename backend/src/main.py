@@ -173,7 +173,10 @@ if cors_origins_env == "*":
     allowed_origins = ["*"]
     allow_credentials = False
 elif cors_origins_env:
-    allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+    # Normalize: strip whitespace and trailing slashes so Origin header (no trailing slash) matches
+    allowed_origins = [
+        o.strip().rstrip("/") for o in cors_origins_env.split(",") if o.strip()
+    ]
     allow_credentials = True
 else:
     allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
