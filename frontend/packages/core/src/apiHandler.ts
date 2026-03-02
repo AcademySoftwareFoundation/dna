@@ -21,6 +21,7 @@ import {
   DeleteUserSettingsParams,
   GenerateNoteParams,
   GenerateNoteResponse,
+  GetVersionStatusesParams,
   PublishNotesParams,
   PublishNotesResponse,
   DraftNote,
@@ -34,6 +35,10 @@ import {
   Transcript,
   StoredSegment,
   UserSettings,
+  SearchEntitiesParams,
+  SearchResponse,
+  SearchResult,
+  StatusOption,
 } from './interfaces';
 
 export interface User {
@@ -256,6 +261,25 @@ class ApiHandler {
       user_email: params.userEmail,
       additional_instructions: params.additionalInstructions,
     });
+  }
+
+  async searchEntities(params: SearchEntitiesParams): Promise<SearchResult[]> {
+    const response = await this.post<SearchResponse>('/search', {
+      query: params.query,
+      entity_types: params.entityTypes,
+      project_id: params.projectId,
+      limit: params.limit ?? 10,
+    });
+    return response.results;
+  }
+
+  async getVersionStatuses(
+    params: GetVersionStatusesParams
+  ): Promise<StatusOption[]> {
+    const queryParams = params.projectId
+      ? `?project_id=${params.projectId}`
+      : '';
+    return this.get<StatusOption[]>(`/version-statuses${queryParams}`);
   }
 
   async getPlaylistDraftNotes(playlistId: number): Promise<DraftNote[]> {
