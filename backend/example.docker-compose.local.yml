@@ -1,3 +1,5 @@
+# Local development override. Copy to docker-compose.local.yml and fill in secrets.
+# Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
 services:
   api:
     environment:
@@ -8,3 +10,4 @@ services:
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
+      - AUTH_PROVIDER=none

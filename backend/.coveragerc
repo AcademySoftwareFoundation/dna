@@ -1,0 +1,4 @@
+[run]
+# Google auth provider is only used when AUTH_PROVIDER=google; tests use noop.
+# Testing it would require mocking Google's OAuth libraries.
+omit = *google_auth_provider*

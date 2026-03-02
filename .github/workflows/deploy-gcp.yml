@@ -1,0 +1,193 @@
+name: Deploy to GCP Cloud Run
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  BACKEND_SERVICE: dna-backend
+  FRONTEND_SERVICE: dna-frontend
+  REPOSITORY: dna
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        working-directory: backend
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.BACKEND_SERVICE }}:${{ github.ref_name }}"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE }} \
+            --image ${{ env.IMAGE }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8000 \
+            --cpu 1 \
+            --memory 512Mi \
+            --min-instances 0 \
+            --max-instances 3 \
+            --timeout 300 \
+            --concurrency 80 \
+            --set-secrets="MONGODB_URL=MONGODB_URL:latest,SHOTGRID_URL=SHOTGRID_URL:latest,SHOTGRID_API_KEY=SHOTGRID_API_KEY:latest,SHOTGRID_SCRIPT_NAME=SHOTGRID_SCRIPT_NAME:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,VEXA_API_URL=VEXA_API_URL:latest,VEXA_API_KEY=VEXA_API_KEY:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest" \
+            --set-env-vars="^@^PYTHONUNBUFFERED=1@STORAGE_PROVIDER=mongodb@PRODTRACK_PROVIDER=shotgrid@LLM_PROVIDER=openai@AUTH_PROVIDER=google@DISABLE_DOCS=true"
+
+      - name: Get Backend URL
+        id: backend-url
+        run: |
+          URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} --region ${{ env.REGION }} --format 'value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Backend deployed to: $URL"
+
+    outputs:
+      backend-url: ${{ steps.backend-url.outputs.url }}
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Get Google Client ID from Secret Manager
+        id: google-client-id
+        run: |
+          GOOGLE_CLIENT_ID=$(gcloud secrets versions access latest --secret=GOOGLE_CLIENT_ID)
+          echo "::add-mask::$GOOGLE_CLIENT_ID"
+          echo "value=$GOOGLE_CLIENT_ID" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        working-directory: frontend
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${{ github.ref_name }}"
+          BACKEND_URL="${{ needs.deploy-backend.outputs.backend-url }}"
+          docker build \
+            --build-arg VITE_API_BASE_URL=${BACKEND_URL} \
+            --build-arg VITE_WS_URL=${BACKEND_URL/https:/wss:}/ws \
+            --build-arg VITE_GOOGLE_CLIENT_ID=${{ steps.google-client-id.outputs.value }} \
+            -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
+            --image ${{ env.IMAGE }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 1 \
+            --memory 256Mi \
+            --min-instances 0 \
+            --max-instances 2 \
+            --timeout 60 \
+            --concurrency 80
+
+      - name: Get Frontend URL
+        id: frontend-url
+        run: |
+          URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} --region ${{ env.REGION }} --format 'value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Frontend deployed to: $URL"
+
+    outputs:
+      frontend-url: ${{ steps.frontend-url.outputs.url }}
+
+  update-cors:
+    name: Update Backend CORS
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Update CORS with Frontend URL
+        run: |
+          gcloud run services update ${{ env.BACKEND_SERVICE }} \
+            --region ${{ env.REGION }} \
+            --update-env-vars="CORS_ALLOWED_ORIGINS=${{ needs.deploy-frontend.outputs.frontend-url }}"
+
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend, update-cors]
+    steps:
+      - name: Print deployment info
+        run: |
+          echo "## Deployment Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Services:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: ${{ needs.deploy-backend.outputs.backend-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: ${{ needs.deploy-frontend.outputs.frontend-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Security:**" >> $GITHUB_STEP_SUMMARY
+          echo "- CORS restricted to frontend URL" >> $GITHUB_STEP_SUMMARY
+          echo "- API docs disabled" >> $GITHUB_STEP_SUMMARY
+          echo "- Google OAuth authentication enabled" >> $GITHUB_STEP_SUMMARY

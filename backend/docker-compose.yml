@@ -27,6 +27,7 @@ services:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
+      - ./.coveragerc:/app/.coveragerc
       - ./htmlcov:/app/htmlcov
       - ./coverage.xml:/app/coverage.xml
     environment:

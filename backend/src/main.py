@@ -4,9 +4,18 @@ import os
 from functools import lru_cache
 from typing import Annotated, Optional, cast
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
@@ -32,6 +41,7 @@ from dna.models import (
     SearchRequest,
     SearchResult,
     Shot,
+    StatusOption,
     StoredSegment,
     Task,
     Transcript,
@@ -140,28 +150,58 @@ tags_metadata = [
     },
 ]
 
+DISABLE_DOCS = os.getenv("DISABLE_DOCS", "false").lower() == "true"
+
 app = FastAPI(
     title=API_TITLE,
     description=API_DESCRIPTION,
     version=API_VERSION,
     openapi_tags=tags_metadata,
-    docs_url="/docs",  # Swagger UI
-    redoc_url="/redoc",  # ReDoc
-    openapi_url="/openapi.json",  # OpenAPI schema
+    docs_url=None if DISABLE_DOCS else "/docs",
+    redoc_url=None if DISABLE_DOCS else "/redoc",
+    openapi_url=None if DISABLE_DOCS else "/openapi.json",
     contact={
         "name": "DNA Project",
         "url": "https://github.com/AcademySoftwareFoundation/dna",
     },
 )
 
-# Configure CORS
+# Configure CORS - require explicit origins in production
+cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+if cors_origins_env == "*":
+    # Allow all origins for local development (credentials not supported with wildcard)
+    allowed_origins = ["*"]
+    allow_credentials = False
+elif cors_origins_env:
+    allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 
 # -----------------------------------------------------------------------------
@@ -217,6 +257,69 @@ def get_transcription_service_cached() -> TranscriptionService:
 TranscriptionServiceDep = Annotated[
     TranscriptionService, Depends(get_transcription_service_cached)
 ]
+
+
+# -----------------------------------------------------------------------------
+# Authentication
+# -----------------------------------------------------------------------------
+
+security = HTTPBearer(auto_error=False)
+
+
+@lru_cache
+def get_auth_provider_cached() -> AuthProviderBase:
+    """Get or create the auth provider singleton."""
+    return get_auth_provider()
+
+
+AuthProviderDep = Annotated[AuthProviderBase, Depends(get_auth_provider_cached)]
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    auth_provider: AuthProviderDep = None,
+) -> str:
+    """Validate the auth token and return the user's email.
+
+    Returns the user's email from the validated token.
+    Raises HTTPException 401 if token is missing or invalid.
+
+    When AUTH_PROVIDER=none, authentication is skipped and a placeholder
+    email is returned (for development/testing only).
+    """
+    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
+    if auth_provider_type == "none":
+        if credentials and credentials.credentials:
+            return auth_provider.get_user_email(credentials.credentials)
+        return "anonymous@localhost"
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        claims = auth_provider.validate_token(credentials.credentials)
+        # Safely access the email claim to avoid KeyError and return 401 on missing email
+        email = claims.get("email") if isinstance(claims, dict) else None
+        if not email:
+            raise HTTPException(
+                status_code=401,
+                detail="Missing email claim in authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return email
+    except ValueError as e:
+        raise HTTPException(
+            status_code=401,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+CurrentUserDep = Annotated[str, Depends(get_current_user)]
 
 
 # -----------------------------------------------------------------------------
@@ -311,7 +414,9 @@ async def websocket_endpoint(websocket: WebSocket):
     description="Retrieve version information from the production tracking system.",
     response_model=Version,
 )
-async def get_version(version_id: int, provider: ProdtrackProviderDep) -> Version:
+async def get_version(
+    version_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> Version:
     """Get a version entity by its ID."""
     try:
         return cast(Version, provider.get_entity("version", version_id))
@@ -326,7 +431,9 @@ async def get_version(version_id: int, provider: ProdtrackProviderDep) -> Versio
     description="Retrieve playlist information including linked versions.",
     response_model=Playlist,
 )
-async def get_playlist(playlist_id: int, provider: ProdtrackProviderDep) -> Playlist:
+async def get_playlist(
+    playlist_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> Playlist:
     """Get a playlist entity by its ID."""
     try:
         return cast(Playlist, provider.get_entity("playlist", playlist_id))
@@ -341,7 +448,9 @@ async def get_playlist(playlist_id: int, provider: ProdtrackProviderDep) -> Play
     description="Retrieve shot information from the production tracking system.",
     response_model=Shot,
 )
-async def get_shot(shot_id: int, provider: ProdtrackProviderDep) -> Shot:
+async def get_shot(
+    shot_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> Shot:
     """Get a shot entity by its ID."""
     try:
         return cast(Shot, provider.get_entity("shot", shot_id))
@@ -356,7 +465,9 @@ async def get_shot(shot_id: int, provider: ProdtrackProviderDep) -> Shot:
     description="Retrieve asset information from the production tracking system.",
     response_model=Asset,
 )
-async def get_asset(asset_id: int, provider: ProdtrackProviderDep) -> Asset:
+async def get_asset(
+    asset_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> Asset:
     """Get an asset entity by its ID."""
     try:
         return cast(Asset, provider.get_entity("asset", asset_id))
@@ -371,7 +482,9 @@ async def get_asset(asset_id: int, provider: ProdtrackProviderDep) -> Asset:
     description="Retrieve task information from the production tracking system.",
     response_model=Task,
 )
-async def get_task(task_id: int, provider: ProdtrackProviderDep) -> Task:
+async def get_task(
+    task_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> Task:
     """Get a task entity by its ID."""
     try:
         return cast(Task, provider.get_entity("task", task_id))
@@ -386,7 +499,9 @@ async def get_task(task_id: int, provider: ProdtrackProviderDep) -> Task:
     description="Retrieve note information from the production tracking system.",
     response_model=Note,
 )
-async def get_note(note_id: int, provider: ProdtrackProviderDep) -> Note:
+async def get_note(
+    note_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> Note:
     """Get a note entity by its ID."""
     try:
         return cast(Note, provider.get_entity("note", note_id))
@@ -427,7 +542,7 @@ def _create_stub_entity(entity_type: str, entity_id: int) -> EntityBase:
     status_code=201,
 )
 async def create_note(
-    request: CreateNoteRequest, provider: ProdtrackProviderDep
+    request: CreateNoteRequest, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> Note:
     """Create a new note entity."""
     try:
@@ -461,7 +576,7 @@ async def create_note(
     response_model=list[EntityBase],
 )
 async def find_entities(
-    request: FindRequest, provider: ProdtrackProviderDep
+    request: FindRequest, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> list[EntityBase]:
     """Find entities matching the given filters."""
     entity_type = request.entity_type.lower()
@@ -488,7 +603,7 @@ async def find_entities(
     response_model=dict[str, list[SearchResult]],
 )
 async def search_entities(
-    request: SearchRequest, provider: ProdtrackProviderDep
+    request: SearchRequest, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> dict[str, list[SearchResult]]:
     """Search for entities across multiple entity types."""
     # Validate entity types
@@ -512,6 +627,25 @@ async def search_entities(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get(
+    "/version-statuses",
+    tags=["Versions"],
+    summary="Get valid version statuses",
+    description="Get valid status options for versions from the production tracking system.",
+    response_model=list[StatusOption],
+)
+async def get_version_statuses(
+    provider: ProdtrackProviderDep,
+    project_id: Optional[int] = None,
+) -> list[StatusOption]:
+    """Get valid status options for versions."""
+    try:
+        statuses = provider.get_version_statuses(project_id)
+        return [StatusOption(**s) for s in statuses]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # -----------------------------------------------------------------------------
 # User endpoints
 # -----------------------------------------------------------------------------
@@ -524,7 +658,9 @@ async def search_entities(
     description="Retrieve user information by their email address.",
     response_model=User,
 )
-async def get_user_by_email(user_email: str, provider: ProdtrackProviderDep) -> User:
+async def get_user_by_email(
+    user_email: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+) -> User:
     """Get a user by their email address."""
     try:
         return provider.get_user_by_email(user_email)
@@ -545,7 +681,7 @@ async def get_user_by_email(user_email: str, provider: ProdtrackProviderDep) -> 
     response_model=list[Project],
 )
 async def get_projects_for_user(
-    user_email: str, provider: ProdtrackProviderDep
+    user_email: str, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> list[Project]:
     """Get projects for a user by their email address."""
     try:
@@ -562,7 +698,7 @@ async def get_projects_for_user(
     response_model=list[Playlist],
 )
 async def get_playlists_for_project(
-    project_id: int, provider: ProdtrackProviderDep
+    project_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> list[Playlist]:
     """Get playlists for a project."""
     try:
@@ -579,7 +715,7 @@ async def get_playlists_for_project(
     response_model=list[Version],
 )
 async def get_versions_for_playlist(
-    playlist_id: int, provider: ProdtrackProviderDep
+    playlist_id: int, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> list[Version]:
     """Get versions for a playlist."""
     try:
@@ -600,6 +736,7 @@ async def publish_notes(
     request: PublishNotesRequest,
     storage: StorageProviderDep,
     prodtrack: ProdtrackProviderDep,
+    _: CurrentUserDep,
 ) -> PublishNotesResponse:
     """Publish draft notes to the production tracking system."""
     # 1. Get all draft notes for this playlist
@@ -820,6 +957,7 @@ async def get_playlist_draft_notes(
     playlist_id: int,
     provider: StorageProviderDep,
     prodtrack: ProdtrackProviderDep,
+    _: CurrentUserDep,
 ) -> list[DraftNote]:
     """Get all draft notes for a playlist."""
     # Sync published notes first
@@ -838,6 +976,7 @@ async def get_all_draft_notes(
     playlist_id: int,
     version_id: int,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> list[DraftNote]:
     """Get all users' draft notes for this playlist/version."""
     return await provider.get_draft_notes_for_version(playlist_id, version_id)
@@ -855,6 +994,7 @@ async def get_draft_note(
     version_id: int,
     user_email: str,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> Optional[DraftNote]:
     """Get a specific user's draft note."""
     return await provider.get_draft_note(user_email, playlist_id, version_id)
@@ -873,6 +1013,7 @@ async def upsert_draft_note(
     user_email: str,
     data: DraftNoteUpdate,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> DraftNote:
     """Create or update a user's draft note."""
 
@@ -891,6 +1032,7 @@ async def delete_draft_note(
     version_id: int,
     user_email: str,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> bool:
     """Delete a user's draft note."""
     deleted = await provider.delete_draft_note(user_email, playlist_id, version_id)
@@ -914,6 +1056,7 @@ async def delete_draft_note(
 async def get_playlist_metadata(
     playlist_id: int,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> Optional[PlaylistMetadata]:
     """Get playlist metadata."""
     return await provider.get_playlist_metadata(playlist_id)
@@ -930,6 +1073,7 @@ async def upsert_playlist_metadata(
     playlist_id: int,
     data: PlaylistMetadataUpdate,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> PlaylistMetadata:
     """Create or update playlist metadata."""
     return await provider.upsert_playlist_metadata(playlist_id, data)
@@ -945,6 +1089,7 @@ async def upsert_playlist_metadata(
 async def delete_playlist_metadata(
     playlist_id: int,
     provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> bool:
     """Delete playlist metadata."""
     deleted = await provider.delete_playlist_metadata(playlist_id)
@@ -968,8 +1113,11 @@ async def delete_playlist_metadata(
 async def get_user_settings(
     user_email: str,
     provider: StorageProviderDep,
+    current_user: CurrentUserDep,
 ) -> Optional[UserSettings]:
     """Get user settings."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return await provider.get_user_settings(user_email)
 
 
@@ -984,8 +1132,11 @@ async def upsert_user_settings(
     user_email: str,
     data: UserSettingsUpdate,
     provider: StorageProviderDep,
+    current_user: CurrentUserDep,
 ) -> UserSettings:
     """Create or update user settings."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return await provider.upsert_user_settings(user_email, data)
 
 
@@ -999,8 +1150,11 @@ async def upsert_user_settings(
 async def delete_user_settings(
     user_email: str,
     provider: StorageProviderDep,
+    current_user: CurrentUserDep,
 ) -> bool:
     """Delete user settings."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
         raise HTTPException(status_code=404, detail="User settings not found")
@@ -1025,6 +1179,7 @@ async def dispatch_bot(
     transcription_provider: TranscriptionProviderDep,
     storage_provider: StorageProviderDep,
     transcription_service: TranscriptionServiceDep,
+    _: CurrentUserDep,
 ) -> BotSession:
     """Dispatch a transcription bot to a meeting."""
     try:
@@ -1082,6 +1237,7 @@ async def stop_bot(
     platform: Platform,
     meeting_id: str,
     transcription_provider: TranscriptionProviderDep,
+    _: CurrentUserDep,
 ) -> bool:
     """Stop a transcription bot."""
     try:
@@ -1111,6 +1267,7 @@ async def get_bot_status(
     platform: Platform,
     meeting_id: str,
     transcription_provider: TranscriptionProviderDep,
+    _: CurrentUserDep,
 ) -> BotStatus:
     """Get the status of a transcription bot."""
     try:
@@ -1130,6 +1287,7 @@ async def get_transcript(
     platform: Platform,
     meeting_id: str,
     transcription_provider: TranscriptionProviderDep,
+    _: CurrentUserDep,
 ) -> Transcript:
     """Get the transcript for a meeting."""
     try:
@@ -1149,6 +1307,7 @@ async def get_segments_for_version(
     playlist_id: int,
     version_id: int,
     storage_provider: StorageProviderDep,
+    _: CurrentUserDep,
 ) -> list[StoredSegment]:
     """Get all transcript segments for a version."""
     try:
@@ -1225,6 +1384,7 @@ async def generate_note(
     storage_provider: StorageProviderDep,
     prodtrack_provider: ProdtrackProviderDep,
     llm_provider: LLMProviderDep,
+    _: CurrentUserDep,
 ) -> GenerateNoteResponse:
     """Generate an AI-powered note suggestion."""
     try:

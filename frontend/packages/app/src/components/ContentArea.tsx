@@ -184,6 +184,8 @@ export function ContentArea({
         playlistId={playlistId}
         versionId={version.id}
         userEmail={userEmail}
+        projectId={version.project?.id}
+        currentVersion={version}
       />
       <AssistantPanel
         playlistId={playlistId}

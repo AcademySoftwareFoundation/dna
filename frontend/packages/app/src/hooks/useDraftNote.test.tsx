@@ -101,9 +101,9 @@ describe('useDraftNote', () => {
     expect(result.current.draftNote).toEqual({
       content: 'Test content',
       subject: 'Test subject',
-      to: 'recipient@example.com',
-      cc: '',
-      linksText: '',
+      to: [],
+      cc: [],
+      links: [],
       versionStatus: 'pending',
     });
   });
@@ -132,9 +132,9 @@ describe('useDraftNote', () => {
     expect(result.current.draftNote).toEqual({
       content: '',
       subject: '',
-      to: '',
-      cc: '',
-      linksText: '',
+      to: [],
+      cc: [],
+      links: [],
       versionStatus: '',
     });
   });
@@ -237,9 +237,9 @@ describe('useDraftNote', () => {
     expect(result.current.draftNote).toEqual({
       content: '',
       subject: '',
-      to: '',
-      cc: '',
-      linksText: '',
+      to: [],
+      cc: [],
+      links: [],
       versionStatus: '',
     });
 
