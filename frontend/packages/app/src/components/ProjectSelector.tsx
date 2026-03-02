@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Button, Flex, Select, Spinner } from '@radix-ui/themes';
 import { Playlist, Project } from '@dna/core';
-import { useGetProjectsForUser, useGetPlaylistsForProject } from '../api';
+import {
+  useGetProjectsForUser,
+  useGetPlaylistsForProject,
+  apiHandler,
+} from '../api';
 import { Logo } from './Logo';
 import {
   StyledTextField,
@@ -13,7 +17,11 @@ import {
 export const STORAGE_KEYS = {
   USER_EMAIL: 'dna_user_email',
   PROJECT: 'dna_selected_project',
+  TOKEN: 'dna_user_token',
+  AUTH_MODE: 'dna_auth_mode',
 };
+
+type AuthMode = 'passwordless' | 'self_hosted' | 'sso';
 
 interface ProjectSelectorProps {
   onSelectionComplete: (
@@ -208,14 +216,71 @@ function clearStoredProject(): void {
   }
 }
 
+function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.TOKEN);
+  } catch {
+    return null;
+  }
+}
+
+function saveToken(token: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearStoredToken(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function getStoredAuthMode(): AuthMode | null {
+  try {
+    const mode = localStorage.getItem(STORAGE_KEYS.AUTH_MODE);
+    if (mode === 'passwordless' || mode === 'self_hosted' || mode === 'sso') {
+      return mode;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAuthMode(mode: AuthMode): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.AUTH_MODE, mode);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearStoredAuthMode(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.AUTH_MODE);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function clearUserSession(): void {
   clearStoredEmail();
   clearStoredProject();
+  clearStoredToken();
+  clearStoredAuthMode();
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   const [step, setStep] = useState<Step>('loading');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('');
@@ -223,13 +288,24 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   useEffect(() => {
     const storedEmail = getStoredEmail();
     const storedProject = getStoredProject();
+    const storedToken = getStoredToken();
+    const storedAuthMode = getStoredAuthMode();
 
-    if (storedEmail && storedProject) {
+    if (storedToken && storedEmail) {
+      apiHandler.setUser({ id: '0', email: storedEmail, token: storedToken });
+    } else {
+      apiHandler.setUser(null);
+    }
+
+    const tokenRequired = storedAuthMode !== 'passwordless';
+    const hasValidAuth = storedToken || !tokenRequired;
+
+    if (storedEmail && storedProject && hasValidAuth) {
       setSubmittedEmail(storedEmail);
       setEmail(storedEmail);
       setSelectedProject(storedProject);
       setStep('playlist');
-    } else if (storedEmail) {
+    } else if (storedEmail && hasValidAuth) {
       setSubmittedEmail(storedEmail);
       setEmail(storedEmail);
       setStep('project');
@@ -252,13 +328,44 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     error: playlistsError,
   } = useGetPlaylistsForProject(selectedProject?.id ?? null);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      const trimmedEmail = email.trim();
-      setSubmittedEmail(trimmedEmail);
-      saveEmail(trimmedEmail);
-      setStep('project');
+    setLoginError(null);
+    setIsLoggingIn(true);
+
+    try {
+      if (email.trim()) {
+        const {
+          token,
+          email: userEmail,
+          mode,
+        } = await apiHandler.login({
+          username: email.trim(),
+          password: password.trim() || undefined,
+        });
+
+        const authMode = mode || (token ? 'self_hosted' : 'passwordless');
+        saveAuthMode(authMode);
+        saveEmail(userEmail);
+
+        if (token) {
+          apiHandler.setUser({ id: '0', email: userEmail, token });
+          saveToken(token);
+        } else {
+          apiHandler.setUser(null);
+          clearStoredToken();
+        }
+
+        setSubmittedEmail(userEmail);
+        setStep('project');
+      }
+    } catch (err: any) {
+      setLoginError(
+        err.response?.data?.detail ||
+          'Login failed. Please check your credentials.'
+      );
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -290,6 +397,11 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   const handleBackToEmail = () => {
     clearStoredEmail();
     clearStoredProject();
+    clearStoredToken();
+    clearStoredAuthMode();
+    apiHandler.setUser(null);
+    setPassword('');
+    setLoginError(null);
     setSubmittedEmail(null);
     setSelectedProject(null);
     setSelectedPlaylistId('');
@@ -330,26 +442,38 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
         <Subtitle>Dailies Notes Assistant</Subtitle>
 
         {step === 'email' && (
-          <StyledForm onSubmit={handleEmailSubmit}>
+          <StyledForm onSubmit={handleLogin}>
             <FormSection>
-              <Label htmlFor="email">Enter your email</Label>
+              <Label htmlFor="email">Username / Login</Label>
               <StyledTextField
                 id="email"
-                placeholder="you@example.com"
-                type="email"
+                placeholder="username"
+                type="text"
                 size="3"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              <Label htmlFor="password">Password</Label>
+              <StyledTextField
+                id="password"
+                placeholder="••••••••"
+                type="password"
+                size="3"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </FormSection>
+
+            {loginError && <ErrorText>{loginError}</ErrorText>}
+
             <Button
               type="submit"
               size="3"
-              disabled={!email.trim()}
+              disabled={!email.trim() || isLoggingIn}
               style={{ marginTop: '8px' }}
             >
-              Continue
+              {isLoggingIn ? <Spinner /> : 'Login'}
             </Button>
           </StyledForm>
         )}
