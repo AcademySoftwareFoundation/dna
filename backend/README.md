@@ -32,6 +32,20 @@ LLM providers are the services that provide the LLM functionality to the backend
 
 Transcription providers are the services that provide the transcription functionality to the backend and connect the transcript with versions being reviewed.
 
+### Authentication
+
+Authentication is handled by pluggable auth providers, configured via the `AUTH_PROVIDER` environment variable:
+
+| Value   | Provider        | Use case                                      |
+|--------|------------------|-----------------------------------------------|
+| `none` | Noop (default)   | Local development and testing; no validation  |
+| `google` | Google OAuth   | Production; validates Google ID/access tokens  |
+
+- **Local development:** Use the noop provider so you can sign in with any email and the backend accepts the token without validation. Set `AUTH_PROVIDER=none` in your override (the example local compose file does this).
+- **Production:** Set `AUTH_PROVIDER=google` and configure `GOOGLE_CLIENT_ID` (and optionally Google verification) as required.
+
+The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
+
 ## Setup
 
 To setup the backend, you need to have the following:
@@ -40,19 +54,18 @@ To setup the backend, you need to have the following:
 - An LLM provider (OpenAI, Anthropic, Google, etc.)
 - A transcription provider (Vexa, etc.)
 
-### ShotGrid Configuration
+### ShotGrid and local overrides
 
-To configure ShotGrid credentials, create a local docker-compose override file:
+To configure ShotGrid and other local settings, create a local docker-compose override file:
 
 1. Copy the example file:
    ```bash
-   cp sg_example.docker-compose.local.yml docker-compose.local.yml
+   cp example.docker-compose.local.yml docker-compose.local.yml
    ```
 
-2. Edit `docker-compose.local.yml` and update the environment variables with your ShotGrid credentials:
-   - `SHOTGRID_URL`: Your ShotGrid site URL (e.g., `https://your-studio.shotgrid.autodesk.com`)
-   - `SHOTGRID_API_KEY`: Your ShotGrid API key
-   - `SHOTGRID_SCRIPT_NAME`: Your ShotGrid script name
+2. Edit `docker-compose.local.yml` and set at least:
+   - **ShotGrid:** `SHOTGRID_URL`, `SHOTGRID_API_KEY`, `SHOTGRID_SCRIPT_NAME`
+   - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
 
 3. The `docker-compose.local.yml` file is gitignored, so your credentials will not be committed to the repository.
 

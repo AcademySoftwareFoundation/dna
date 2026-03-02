@@ -273,18 +273,21 @@ DNA uses Google OAuth for authentication. Users sign in with their Google accoun
 
 ### Local Development
 
-For local development, authentication is disabled by default:
+For local development, use the **noop** auth provider so you can sign in with any email and the backend does not validate tokens. Set this in your `docker-compose.local.yml` (the example file already does):
 
 ```yaml
-# docker-compose.local.yml
+# docker-compose.local.yml – noop provider for local dev
 environment:
   - AUTH_PROVIDER=none
 ```
 
+Set the frontend to match: `VITE_AUTH_PROVIDER=none` in the app `.env` (see `packages/app/.env.example`).
+
 To test with Google auth locally:
 1. Set `AUTH_PROVIDER=google` in docker-compose.local.yml
-2. Add `GOOGLE_CLIENT_ID=your-client-id` 
-3. Ensure `http://localhost:5173` is in your OAuth client's authorized origins
+2. Add `GOOGLE_CLIENT_ID=your-client-id`
+3. Set `VITE_AUTH_PROVIDER=google` and `VITE_GOOGLE_CLIENT_ID` in the frontend
+4. Ensure `http://localhost:5173` is in your OAuth client's authorized origins
 
 ---
 
@@ -310,6 +313,7 @@ The following secrets must be configured in GitHub repository settings:
 | `STORAGE_PROVIDER` | mongodb |
 | `PRODTRACK_PROVIDER` | shotgrid |
 | `LLM_PROVIDER` | openai |
+| `AUTH_PROVIDER` | `none` (noop) for local dev; `google` for production |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins |
 
 ### Frontend (Build-time)
@@ -318,7 +322,8 @@ The following secrets must be configured in GitHub repository settings:
 |----------|-------------|
 | `VITE_API_BASE_URL` | Backend API URL |
 | `VITE_WS_URL` | WebSocket URL |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth Client ID for authentication |
+| `VITE_AUTH_PROVIDER` | `none` for local (noop/email sign-in); `google` for Google OAuth |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth Client ID (required when `VITE_AUTH_PROVIDER=google`) |
 
 ---
 
