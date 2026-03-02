@@ -171,13 +171,7 @@ on:
 | Concurrency | 80 |
 | Timeout | 60s |
 
-#### 3. Update CORS (`update-cors`)
-
-**Depends on:** `deploy-backend`, `deploy-frontend`
-
-Updates the backend's CORS configuration to only allow requests from the deployed frontend URL.
-
-#### 4. Summary (`summary`)
+#### 3. Summary (`summary`)
 
 Prints deployment URLs to the GitHub Actions summary page and confirms security settings.
 
@@ -267,7 +261,7 @@ DNA uses Google OAuth for authentication. Users sign in with their Google accoun
 | Feature | Setting |
 |---------|---------|
 | Authentication | Google OAuth (ID tokens or access tokens) |
-| CORS | Restricted to frontend URL |
+| CORS | Allow-all in production (re-enable origin restriction when ready) |
 | API Documentation | Disabled in production (`DISABLE_DOCS=true`) |
 | Security Headers | X-Content-Type-Options, X-Frame-Options, HSTS |
 
@@ -372,7 +366,7 @@ gcloud run services logs read dna-frontend --region us-central1
 | 403 on deployment | Ensure service account has `roles/run.admin` and `roles/secretmanager.secretAccessor` |
 | Image not found | Verify Artifact Registry repository exists and image was pushed |
 | Cold start slow | Expected with scale-to-zero; first request takes ~5-10s |
-| CORS errors | Ensure the `update-cors` job ran. To fix manually: `gcloud run services update dna-backend --region us-central1 --update-env-vars="CORS_ALLOWED_ORIGINS=https://YOUR-FRONTEND-URL"` (use the frontend Cloud Run URL with no trailing slash). |
+| CORS errors | Production currently allows all origins (`CORS_ALLOWED_ORIGINS=*`). To restrict to the frontend: `gcloud run services update dna-backend --region us-central1 --update-env-vars="CORS_ALLOWED_ORIGINS=https://YOUR-FRONTEND-URL"` (no trailing slash). |
 | 401 Unauthorized | Verify Google OAuth is configured correctly and token is valid |
 
 ### Force Redeployment
