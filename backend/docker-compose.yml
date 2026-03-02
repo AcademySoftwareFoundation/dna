@@ -39,6 +39,8 @@ services:
       - STORAGE_PROVIDER=mongodb
       - OPENAI_API_KEY=your-openai-api-key
       - OPENAI_MODEL=gpt-4o-mini
+      - GEMINI_API_KEY=your-gemini-api-key
+      - GEMINI_MODEL=gemini-2.0-flash
       - LLM_PROVIDER=openai
     depends_on:
       - mongo
