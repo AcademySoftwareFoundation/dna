@@ -26,5 +26,11 @@
   },
   "dependencies": {
     "@radix-ui/react-toast": "^1.2.15"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-musl": "4.57.1",
+    "@rollup/rollup-linux-arm64-musl": "4.57.1",
+    "@swc/core-linux-x64-musl": "1.15.11",
+    "@swc/core-linux-arm64-musl": "1.15.11"
   }
 }

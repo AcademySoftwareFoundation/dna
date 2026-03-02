@@ -8,8 +8,10 @@ COPY package.json package-lock.json ./
 COPY packages/core/package*.json ./packages/core/
 COPY packages/app/package*.json ./packages/app/
 
-# Install dependencies with retry for npm rate limits using lockfile for reproducibility
-RUN npm ci --include=dev || (sleep 30 && npm ci --include=dev) || (sleep 60 && npm ci --include=dev)
+# Use npm install (not ci) so Rollup/Vite optional native bindings are resolved for the
+# container platform (linux/amd64 in CI). npm ci can fail with MODULE_NOT_FOUND for
+# @rollup/rollup-linux-*-musl due to optional dependency resolution (npm/cli#4828).
+RUN npm install --include=dev || (sleep 30 && npm install --include=dev) || (sleep 60 && npm install --include=dev)
 # Copy source code
 COPY packages/core/ ./packages/core/
 COPY packages/app/ ./packages/app/
