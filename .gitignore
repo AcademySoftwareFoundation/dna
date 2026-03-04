@@ -23,3 +23,7 @@ experimental/cameron/frontend_v3/venv
 KEYBINDINGS/
 backend/docker-compose.debug.yml
 backend/docker-compose.vexa.yml
+
+
+# Cursor files
+*.issue-body-temp.md*
