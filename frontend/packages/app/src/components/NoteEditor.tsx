@@ -1,8 +1,6 @@
-import { forwardRef, useImperativeHandle, useState, useRef, useCallback, useEffect } from 'react';
+import { forwardRef, useImperativeHandle, useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { X, Image } from 'lucide-react';
-import { forwardRef, useImperativeHandle, useMemo, useState, useRef, useCallback } from 'react';
-import styled from 'styled-components';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -452,7 +450,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         <EditorContent $height={editorHeight}>
           <MarkdownEditor
             value={draftNote?.content ?? ''}
-            onChange={handleContentChange}
+            onChange={(v) => handleFieldChange('content', v)}
             onAttach={handleAttach}
             placeholder="Write your notes here... (supports **markdown**)"
             minHeight={MIN_HEIGHT}
