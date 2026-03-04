@@ -15,8 +15,6 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-# A temp change to make the workflows run
-
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
