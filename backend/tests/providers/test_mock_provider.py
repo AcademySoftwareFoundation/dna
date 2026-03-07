@@ -10,6 +10,7 @@ from dna.prodtrack_providers.mock_data.seed_db import _download_thumbnail
 from dna.prodtrack_providers.mock_provider import (
     THUMBNAIL_LOCAL,
     MockProdtrackProvider,
+    _shallow_entity,
 )
 from dna.prodtrack_providers.prodtrack_provider_base import get_prodtrack_provider
 
@@ -34,7 +35,13 @@ def _create_seeded_db(path: Path) -> None:
         "INSERT INTO shots (id, name, description, project_id) VALUES (100, 's_001', 'A shot', 1)"
     )
     conn.execute(
+        "INSERT INTO assets (id, name, description, project_id) VALUES (150, 'char_rig', 'Character rig', 1)"
+    )
+    conn.execute(
         "INSERT INTO tasks (id, name, status, pipeline_step_id, pipeline_step_name, project_id, entity_type, entity_id) VALUES (200, 'Animation', 'ip', 1, 'Anim', 1, 'Shot', 100)"
+    )
+    conn.execute(
+        "INSERT INTO tasks (id, name, status, pipeline_step_id, pipeline_step_name, project_id, entity_type, entity_id) VALUES (201, 'Rig', 'ip', 1, 'Model', 1, 'Asset', 150)"
     )
     conn.execute(
         """INSERT INTO versions (id, name, description, status, user_id, created_at, updated_at, movie_path, frame_path, thumbnail, project_id, entity_type, entity_id, task_id) VALUES (300, 'v_001', 'First version', 'rev', 10, '2024-01-01T00:00:00', '2024-01-02T00:00:00', NULL, NULL, NULL, 1, 'Shot', 100, 200)"""
@@ -89,6 +96,73 @@ def test_get_entity_shot(mock_provider):
     assert shot.project == {"type": "Project", "id": 1}
     assert len(shot.tasks) == 1
     assert shot.tasks[0].name == "Animation"
+
+
+def test_get_entity_project_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: project 999"):
+        mock_provider.get_entity("project", 999)
+
+
+def test_get_entity_user_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: user 999"):
+        mock_provider.get_entity("user", 999)
+
+
+def test_get_entity_asset(mock_provider):
+    asset = mock_provider.get_entity("asset", 150, resolve_links=True)
+    assert asset.id == 150
+    assert asset.name == "char_rig"
+    assert asset.description == "Character rig"
+    assert len(asset.tasks) == 1
+    assert asset.tasks[0].name == "Rig"
+
+
+def test_get_entity_asset_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: asset 999"):
+        mock_provider.get_entity("asset", 999)
+
+
+def test_get_entity_shot_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: shot 999"):
+        mock_provider.get_entity("shot", 999)
+
+
+def test_get_entity_task_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: task 999"):
+        mock_provider.get_entity("task", 999)
+
+
+def test_get_entity_version_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: version 999"):
+        mock_provider.get_entity("version", 999)
+
+
+def test_get_entity_playlist_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: playlist 999"):
+        mock_provider.get_entity("playlist", 999)
+
+
+def test_get_entity_note_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Entity not found: note 999"):
+        mock_provider.get_entity("note", 999)
+
+
+def test_get_entity_task_with_entity_link(mock_provider):
+    task = mock_provider.get_entity("task", 200, resolve_links=True)
+    assert task.id == 200
+    assert task.entity is not None
+    assert task.entity.id == 100
+    assert task.entity.name == "s_001"
+
+
+def test_get_entity_note_with_links(mock_provider):
+    note = mock_provider.get_entity("note", 500, resolve_links=True)
+    assert note.id == 500
+    assert note.subject == "Note 1"
+    assert note.author is not None
+    assert note.author.id == 10
+    assert len(note.note_links) == 1
+    assert note.note_links[0].id == 300
 
 
 def test_get_entity_version(mock_provider):
@@ -158,6 +232,152 @@ def test_get_entity_not_found(mock_provider):
 def test_get_entity_unknown_type(mock_provider):
     with pytest.raises(ValueError, match="Unknown entity type: invalid"):
         mock_provider.get_entity("invalid", 1)
+
+
+def test_search_asset(mock_provider):
+    results = mock_provider.search("char", ["asset"], project_id=1)
+    assert len(results) == 1
+    assert results[0]["type"] == "Asset"
+    assert results[0]["id"] == 150
+    assert results[0]["name"] == "char_rig"
+
+
+def test_search_version(mock_provider):
+    results = mock_provider.search("v_001", ["version"], limit=5)
+    assert len(results) == 1
+    assert results[0]["type"] == "Version"
+    assert results[0]["id"] == 300
+    assert results[0]["name"] == "v_001"
+
+
+def test_search_version_with_project_id(mock_provider):
+    results = mock_provider.search("v_001", ["version"], project_id=1, limit=5)
+    assert len(results) == 1
+    assert results[0]["id"] == 300
+
+
+def test_search_unsupported_entity_type_returns_empty(mock_provider):
+    results = mock_provider.search("x", ["playlist"], limit=5)
+    assert results == []
+
+
+def test_search_shot_with_project_id(mock_provider):
+    results = mock_provider.search("s_", ["shot"], project_id=1)
+    assert len(results) == 1
+    assert results[0]["type"] == "Shot"
+    assert results[0]["id"] == 100
+
+
+def test_get_user_by_email_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="User not found: nobody@example.com"):
+        mock_provider.get_user_by_email("nobody@example.com")
+
+
+def test_get_user_by_email_returns_user(mock_provider):
+    user = mock_provider.get_user_by_email("test@example.com")
+    assert user.id == 10
+    assert user.name == "Test User"
+
+
+def test_get_versions_for_playlist_empty(mock_db_path):
+    conn = sqlite3.connect(mock_db_path)
+    conn.execute("DELETE FROM playlist_versions")
+    conn.commit()
+    conn.close()
+    provider = MockProdtrackProvider(db_path=mock_db_path)
+    versions = provider.get_versions_for_playlist(400)
+    assert versions == []
+
+
+def test_get_version_statuses_with_project_id(mock_provider):
+    statuses = mock_provider.get_version_statuses(project_id=1)
+    assert len(statuses) >= 1
+    codes = [s["code"] for s in statuses]
+    assert "rev" in codes
+
+
+def test_get_version_statuses_without_project_id(mock_provider):
+    statuses = mock_provider.get_version_statuses()
+    assert len(statuses) >= 1
+
+
+def test_add_entity_raises(mock_provider):
+    with pytest.raises(
+        NotImplementedError,
+        match="MockProdtrackProvider is read-only",
+    ):
+        mock_provider.add_entity("shot", mock_provider.get_entity("shot", 100))
+
+
+def test_publish_note_raises(mock_provider):
+    with pytest.raises(
+        NotImplementedError,
+        match="publish_note is not supported",
+    ):
+        mock_provider.publish_note(
+            version_id=300,
+            content="test",
+            subject="subj",
+            to_users=[],
+            cc_users=[],
+            links=[],
+        )
+
+
+def test_find_unknown_field_raises(mock_provider):
+    with pytest.raises(
+        ValueError, match="Unknown field 'invalid' for entity type 'shot'"
+    ):
+        mock_provider.find(
+            "shot",
+            [{"field": "invalid", "operator": "is", "value": 1}],
+        )
+
+
+def test_find_with_in_operator(mock_provider):
+    shots = mock_provider.find(
+        "shot",
+        [
+            {
+                "field": "project",
+                "operator": "in",
+                "value": [{"type": "Project", "id": 1}],
+            }
+        ],
+    )
+    assert len(shots) == 1
+    assert shots[0].id == 100
+
+
+def test_find_unsupported_operator_raises(mock_provider):
+    with pytest.raises(ValueError, match="Unsupported filter operator"):
+        mock_provider.find(
+            "shot",
+            [{"field": "name", "operator": "regex", "value": "x"}],
+        )
+
+
+def test_shallow_entity_unknown_type_returns_entity_base():
+    entity = _shallow_entity("unknown_type", 42)
+    assert entity.id == 42
+    assert type(entity).__name__ == "EntityBase"
+
+
+def test_shallow_entity_playlist_uses_code():
+    entity = _shallow_entity("playlist", 400, "My Playlist")
+    assert entity.id == 400
+    assert entity.code == "My Playlist"
+
+
+def test_provider_init_uses_env_base_url(mock_db_path):
+    with mock.patch.dict(os.environ, {"API_BASE_URL": "http://api.test"}, clear=False):
+        provider = MockProdtrackProvider(db_path=mock_db_path)
+    conn = sqlite3.connect(mock_db_path)
+    conn.execute("UPDATE versions SET thumbnail = ? WHERE id = 300", (THUMBNAIL_LOCAL,))
+    conn.commit()
+    conn.close()
+    version = provider.get_entity("version", 300, resolve_links=False)
+    assert version.thumbnail == "http://api.test/api/mock-thumbnails/300"
 
 
 def test_find_with_filters(mock_provider):

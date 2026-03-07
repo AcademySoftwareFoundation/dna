@@ -660,6 +660,31 @@ class TestProdtrackProviderBase:
         with pytest.raises(NotImplementedError, match="Subclasses must implement"):
             provider.get_versions_for_playlist(1)
 
+    def test_search_raises_not_implemented(self):
+        """Test that search raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.search("query", ["shot"])
+
+    def test_get_version_statuses_raises_not_implemented(self):
+        """Test that get_version_statuses raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.get_version_statuses()
+
+    def test_publish_note_raises_not_implemented(self):
+        """Test that publish_note raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.publish_note(
+                version_id=1,
+                content="c",
+                subject="s",
+                to_users=[],
+                cc_users=[],
+                links=[],
+            )
+
 
 class TestGetProdtrackProvider:
     """Tests for the get_prodtrack_provider function."""
