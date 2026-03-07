@@ -17,7 +17,7 @@ git clone <repository-url>
 cd dna
 ```
 
-### 2. Configure Environment Variables for Shotgrid and LLMs.
+### 2. Configure Environment Variables
 
 Copy the example docker-compose.local.yml file:
 
@@ -28,9 +28,9 @@ cp example.docker-compose.local.yml docker-compose.local.yml
 
 Edit `docker-compose.local.yml` with your credentials.
 
-If you need access to shotgrid, you can reach out to the team.
+**Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`. See [Mock setup](#mock-production-tracking-setup) below for how to refresh or customize the mock data.
 
-To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
+**Transcription (Vexa):** To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
 
 When setting up, skip the Vexa API key for now. Once the stack is running you can get your Vexa API key from the Vexa Dashboard.
 
@@ -108,10 +108,10 @@ The React app will be available at `http://localhost:5173`.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SHOTGRID_URL` | Yes | - | Your ShotGrid site URL |
-| `SHOTGRID_API_KEY` | Yes | - | ShotGrid API key for authentication |
-| `SHOTGRID_SCRIPT_NAME` | Yes | - | ShotGrid script name for API access |
-| `PRODTRACK_PROVIDER` | No | `shotgrid` | Production tracking provider |
+| `SHOTGRID_URL` | Yes\* | - | ShotGrid site URL (required when using ShotGrid) |
+| `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
+| `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
+| `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
@@ -160,6 +160,9 @@ make format-python
 
 # Open a shell in the API container
 make shell
+
+# Seed mock DB from a ShotGrid project (requires SHOTGRID_* credentials)
+SHOTGRID_API_KEY='your-key' make seed-mock-db
 ```
 
 ### Frontend Commands
@@ -218,6 +221,40 @@ The DNA API serves as the central hub:
 - Provides WebSocket endpoint (`/ws`) for real-time event streaming
 - Manages Vexa subscriptions for transcription events
 - Broadcasts segment and bot status events to connected frontend clients
+
+## Mock Production Tracking Setup
+
+When you set **`PRODTRACK_PROVIDER=mock`**, the backend uses a read-only mock provider backed by SQLite (`backend/src/dna/prodtrack_providers/mock_data/mock.db`). The app runs normally with this data so you can develop and test the UI without a ShotGrid seat.
+
+### Using the mock provider
+
+- In `docker-compose.local.yml`, set **`PRODTRACK_PROVIDER=mock`**. You do not need to set any ShotGrid variables when using the mock.
+- The mock provider is used only when explicitly set; there is no automatic fallback if ShotGrid credentials are missing.
+
+### Refreshing or customizing mock data from ShotGrid
+
+If you have ShotGrid access, you can populate the mock database from a real project so the mock data matches your pipeline. Run the seed script with a project ID, URL, script name, and API key:
+
+```bash
+cd backend
+
+# From your host (requires shotgun_api3); use single quotes so the API key is not interpreted by the shell
+SHOTGRID_API_KEY='your-api-key' make seed-mock-db
+
+# Or run the seed script directly in the API container with custom project
+docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api \
+  python -m dna.prodtrack_providers.mock_data.seed_db \
+  --project-id YOUR_PROJECT_ID \
+  --url https://yoursite.shotgrid.autodesk.com \
+  --script-name YourScript \
+  --api-key 'YOUR_API_KEY'
+```
+
+- This overwrites `mock_data/mock.db` with entities (projects, users, shots, assets, tasks, versions, playlists, notes) from the given ShotGrid project.
+- Use `--skip-thumbnails` to skip downloading version thumbnails (faster seed; thumbnails will not work after signed URLs expire).
+- Without `--skip-thumbnails`, thumbnails are downloaded to `mock_data/thumbnails/` and served by the API at `/api/mock-thumbnails/{version_id}` so they keep working after ShotGrid signed URLs expire.
+
+The mock provider is **read-only**: it does not write to ShotGrid or to the SQLite file at runtime. Writes such as publishing notes will raise an error when using the mock provider.
 
 ## Docker Compose Files
 

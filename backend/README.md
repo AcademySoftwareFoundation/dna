@@ -24,6 +24,8 @@ Providers are the services that populate abstractions or interfaces with other s
 
 Production Tracking providers are the services that provide data to the backend from the production tracking systems and allow for updates to the production tracking systems.
 
+**ShotGrid** is the primary production tracking integration. To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`**; the mock provider is read-only and backed by a SQLite database under `src/dna/prodtrack_providers/mock_data/`. See [Mock production tracking](#mock-production-tracking) below.
+
 ### LLM
 
 LLM providers are the services that provide the LLM functionality to the backend.
@@ -64,10 +66,18 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
    ```
 
 2. Edit `docker-compose.local.yml` and set at least:
-   - **ShotGrid:** `SHOTGRID_URL`, `SHOTGRID_API_KEY`, `SHOTGRID_SCRIPT_NAME`
+   - **ShotGrid:** To use ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave unset) and set `SHOTGRID_URL`, `SHOTGRID_API_KEY`, and `SHOTGRID_SCRIPT_NAME`. To run without ShotGrid, set `PRODTRACK_PROVIDER=mock`; see [Mock production tracking](#mock-production-tracking).
    - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
 
 3. The `docker-compose.local.yml` file is gitignored, so your credentials will not be committed to the repository.
+
+### Mock production tracking
+
+When **`PRODTRACK_PROVIDER=mock`** is set, the backend uses a read-only mock provider backed by `src/dna/prodtrack_providers/mock_data/mock.db`. The mock must be explicitly selected; there is no automatic fallback when ShotGrid credentials are missing. This allows the full stack to run without ShotGrid access.
+
+- **Data:** The repo includes a pre-built mock DB. To refresh or customize it from a real ShotGrid project, run the seed script with a project ID and credentials (e.g. from the backend directory: `SHOTGRID_API_KEY='your-key' make seed-mock-db`, or see the Makefile for the full command). This overwrites `mock_data/mock.db` with entities from that project.
+- **Thumbnails:** The seed script can download version thumbnails into `mock_data/thumbnails/` so they keep working after ShotGrid signed URLs expire. They are served at `GET /api/mock-thumbnails/{version_id}`. Use `--skip-thumbnails` when running the seed script to skip downloads.
+- **Read-only:** The mock provider does not support writes (e.g. publishing notes to ShotGrid); those operations raise an error when the mock is active.
 
 ### Running the Backend
 

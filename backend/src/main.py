@@ -2,6 +2,7 @@
 
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Optional, cast
 
 from fastapi import (
@@ -13,6 +14,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
@@ -372,6 +374,36 @@ async def root():
 async def health():
     """Health check endpoint for monitoring and load balancers."""
     return {"status": "healthy"}
+
+
+MOCK_THUMBNAILS_DIR = (
+    Path(__file__).parent / "dna" / "prodtrack_providers" / "mock_data" / "thumbnails"
+)
+THUMBNAIL_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+THUMBNAIL_MEDIA_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
+
+@app.get(
+    "/api/mock-thumbnails/{version_id}",
+    tags=["Versions"],
+    summary="Serve mock thumbnail image",
+    description="Returns a thumbnail image for a version from the mock dataset (when using mock prodtrack provider).",
+    response_class=FileResponse,
+)
+async def get_mock_thumbnail(version_id: int):
+    """Serve a thumbnail image from mock_data/thumbnails/ for the given version ID."""
+    for ext in THUMBNAIL_EXTENSIONS:
+        path = MOCK_THUMBNAILS_DIR / f"{version_id}{ext}"
+        if path.is_file():
+            media_type = THUMBNAIL_MEDIA_TYPES.get(ext, "image/jpeg")
+            return FileResponse(path, media_type=media_type)
+    raise HTTPException(status_code=404, detail="Thumbnail not found")
 
 
 # -----------------------------------------------------------------------------

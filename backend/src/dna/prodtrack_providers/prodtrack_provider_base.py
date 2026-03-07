@@ -164,9 +164,25 @@ class ProdtrackProviderBase:
 
 def get_prodtrack_provider() -> ProdtrackProviderBase:
     """Get the production tracking provider."""
-    from dna.prodtrack_providers.shotgrid import ShotgridProvider
-
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
+
+    if provider_type == "mock":
+        from dna.prodtrack_providers.mock_provider import MockProdtrackProvider
+
+        return MockProdtrackProvider()
+
     if provider_type == "shotgrid":
+        sg_url = os.getenv("SHOTGRID_URL")
+        sg_script = os.getenv("SHOTGRID_SCRIPT_NAME")
+        sg_key = os.getenv("SHOTGRID_API_KEY")
+        if not all([sg_url, sg_script, sg_key]):
+            raise ValueError(
+                "ShotGrid credentials not provided. Set SHOTGRID_URL, "
+                "SHOTGRID_SCRIPT_NAME, and SHOTGRID_API_KEY, or use "
+                "PRODTRACK_PROVIDER=mock for the mock provider."
+            )
+        from dna.prodtrack_providers.shotgrid import ShotgridProvider
+
         return ShotgridProvider()
+
     raise ValueError(f"Unknown production tracking provider: {provider_type}")

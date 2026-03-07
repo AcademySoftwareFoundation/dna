@@ -1,5 +1,6 @@
 """Tests for main FastAPI application."""
 
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -1114,3 +1115,19 @@ class TestGenerateNoteEndpoint:
             assert "DB Error" in data["detail"]
         finally:
             app.dependency_overrides.clear()
+
+
+class TestMockThumbnailsEndpoint:
+    """Tests for GET /api/mock-thumbnails/{version_id}."""
+
+    def test_get_mock_thumbnail_200(self, tmp_path):
+        (tmp_path / "999.jpg").write_bytes(b"\xff\xd8\xff\xe0\x00\x10JFIF")
+        with mock.patch("main.MOCK_THUMBNAILS_DIR", tmp_path):
+            response = client.get("/api/mock-thumbnails/999")
+        assert response.status_code == 200
+        assert "image/jpeg" in response.headers.get("content-type", "")
+
+    def test_get_mock_thumbnail_404(self, tmp_path):
+        with mock.patch("main.MOCK_THUMBNAILS_DIR", tmp_path):
+            response = client.get("/api/mock-thumbnails/99999")
+        assert response.status_code == 404
