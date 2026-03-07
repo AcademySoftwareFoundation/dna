@@ -6,10 +6,7 @@ from unittest import mock
 import pytest
 
 from dna.models.entity import Note, Project, User, Version
-from dna.prodtrack_providers.mock_data.seed_db import (
-    THUMBNAIL_SENTINEL,
-    _download_thumbnail,
-)
+from dna.prodtrack_providers.mock_data.seed_db import _download_thumbnail
 from dna.prodtrack_providers.mock_provider import (
     THUMBNAIL_LOCAL,
     MockProdtrackProvider,
@@ -115,16 +112,32 @@ def test_version_thumbnail_local_resolved_to_url(mock_db_path):
     assert version.thumbnail == "http://api.test/api/mock-thumbnails/300"
 
 
-def test_download_thumbnail_saves_file_and_returns_sentinel(tmp_path):
+def test_version_thumbnail_stored_url_rewritten_to_current_base(mock_db_path):
+    conn = sqlite3.connect(mock_db_path)
+    conn.execute(
+        "UPDATE versions SET thumbnail = ? WHERE id = 300",
+        ("http://localhost:8000/api/mock-thumbnails/300",),
+    )
+    conn.commit()
+    conn.close()
+    provider = MockProdtrackProvider(db_path=mock_db_path, base_url="http://api.test")
+    version = provider.get_entity("version", 300, resolve_links=False)
+    assert version.thumbnail == "http://api.test/api/mock-thumbnails/300"
+
+
+def test_download_thumbnail_saves_file_and_returns_local_url(tmp_path):
     body = b"\xff\xd8\xff\xe0\x00\x10JFIF"
     resp = mock.MagicMock()
     resp.read.return_value = body
     resp.headers = {"Content-Type": "image/jpeg"}
     resp.__enter__ = mock.Mock(return_value=resp)
     resp.__exit__ = mock.Mock(return_value=None)
+    base_url = "http://localhost:8000"
     with mock.patch("urllib.request.urlopen", return_value=resp):
-        result = _download_thumbnail("http://example.com/thumb.jpg", 42, tmp_path)
-    assert result == THUMBNAIL_SENTINEL
+        result = _download_thumbnail(
+            "http://example.com/thumb.jpg", 42, tmp_path, base_url
+        )
+    assert result == "http://localhost:8000/api/mock-thumbnails/42"
     assert (tmp_path / "42.jpg").exists()
     assert (tmp_path / "42.jpg").read_bytes() == body
 

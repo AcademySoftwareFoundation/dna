@@ -9,9 +9,9 @@ Usage:
         --api-key YOUR_API_KEY
 
 Output: overwrites mock_data/mock.db with extracted entities.
-Thumbnails are downloaded to mock_data/thumbnails/ and stored as __local__;
-they are served at /api/mock-thumbnails/{version_id}. Use --skip-thumbnails
-to skip downloads (faster seed, no local thumbnails).
+Thumbnails are downloaded to mock_data/thumbnails/ and the version's
+thumbnail is set to {base_url}/api/mock-thumbnails/{version_id} (use
+--base-url to override). Use --skip-thumbnails to skip downloads.
 """
 
 import argparse
@@ -22,8 +22,6 @@ import urllib.request
 from pathlib import Path
 
 LOG = logging.getLogger(__name__)
-
-THUMBNAIL_SENTINEL = "__local__"
 
 
 def _link_id(link) -> int | None:
@@ -66,8 +64,13 @@ def _sg_type_to_entity_type(sg_type: str) -> str | None:
     return mapping.get(sg_type)
 
 
-def _download_thumbnail(url: str, version_id: int, thumbnails_dir: Path) -> str | None:
-    """Download image from url and save under thumbnails_dir/{version_id}.{ext}. Returns THUMBNAIL_SENTINEL on success, None on failure."""
+def _download_thumbnail(
+    url: str,
+    version_id: int,
+    thumbnails_dir: Path,
+    base_url: str,
+) -> str | None:
+    """Download image from url and save under thumbnails_dir/{version_id}.{ext}. Returns the local thumbnail URL on success, None on failure."""
     if not url or not isinstance(url, str):
         return None
     try:
@@ -85,7 +88,8 @@ def _download_thumbnail(url: str, version_id: int, thumbnails_dir: Path) -> str 
                 ext = ".webp"
             path = thumbnails_dir / f"{version_id}{ext}"
             path.write_bytes(resp.read())
-            return THUMBNAIL_SENTINEL
+            base = base_url.rstrip("/")
+            return f"{base}/api/mock-thumbnails/{version_id}"
     except Exception as e:
         LOG.warning("Thumbnail download failed for version %s: %s", version_id, e)
         return None
@@ -116,6 +120,7 @@ def extract_and_seed(
     api_key: str,
     db_path: Path,
     skip_thumbnails: bool = False,
+    thumbnail_base_url: str = "http://localhost:8000",
 ) -> dict[str, int]:
     from shotgun_api3 import Shotgun
 
@@ -250,7 +255,9 @@ def extract_and_seed(
         if skip_thumbnails:
             thumbnail_value = thumb_url
         elif thumb_url:
-            thumbnail_value = _download_thumbnail(thumb_url, row["id"], thumbnails_dir)
+            thumbnail_value = _download_thumbnail(
+                thumb_url, row["id"], thumbnails_dir, thumbnail_base_url
+            )
             if thumbnail_value is None:
                 thumbnail_value = thumb_url
         else:
@@ -402,6 +409,11 @@ def main() -> int:
         action="store_true",
         help="Do not download thumbnails (faster seed; thumbnails will not work after URL expiry).",
     )
+    parser.add_argument(
+        "--base-url",
+        default="http://localhost:8000",
+        help="Base URL for stored thumbnail links (default: http://localhost:8000). Frontend will receive this URL.",
+    )
     args = parser.parse_args()
 
     db_path = args.output or (Path(__file__).parent / "mock.db")
@@ -426,6 +438,7 @@ def main() -> int:
             args.api_key,
             db_path,
             skip_thumbnails=args.skip_thumbnails,
+            thumbnail_base_url=args.base_url,
         )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

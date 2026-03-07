@@ -142,7 +142,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         user: Optional[User] = None,
     ) -> Version:
         thumb = row["thumbnail"]
-        if thumb == THUMBNAIL_LOCAL:
+        if thumb == THUMBNAIL_LOCAL or (thumb and "/api/mock-thumbnails/" in thumb):
             thumb = f"{self._base_url}/api/mock-thumbnails/{row['id']}"
         return Version(
             id=row["id"],
