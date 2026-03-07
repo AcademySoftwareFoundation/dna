@@ -24,5 +24,5 @@ export {
 export { TranscriptionMenu } from './TranscriptionMenu';
 export { TranscriptPanel } from './TranscriptPanel';
 export { SettingsModal } from './SettingsModal';
-export { EntityPill } from './EntityPill';
+export { EntityPill } from './EntityPill/EntityPill';
 export { EntitySearchInput } from './EntitySearchInput';

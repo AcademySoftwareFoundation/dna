@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Mention from '@tiptap/extension-mention';
 import TurndownService from 'turndown';
 import {
   Bold,
@@ -17,6 +19,9 @@ import {
   Minus,
   Image,
 } from 'lucide-react';
+import { SearchResult } from '@dna/core';
+import { apiHandler } from '../api';
+import { MentionList, type MentionListHandle } from './MentionList';
 
 interface MarkdownEditorProps {
   value?: string;
@@ -28,6 +33,8 @@ interface MarkdownEditorProps {
   onToggleAttachmentTray?: () => void;
   placeholder?: string;
   minHeight?: number;
+  projectId?: number | null;
+  onMentionInsert?: (entity: SearchResult) => void;
 }
 
 const turndownService = new TurndownService({
@@ -35,9 +42,30 @@ const turndownService = new TurndownService({
   codeBlockStyle: 'fenced',
 });
 
+// Serialize mention nodes to @[Label](type:id) syntax
+turndownService.addRule('mention', {
+  filter: (node) =>
+    node.nodeName === 'SPAN' &&
+    (node as Element).getAttribute('data-type') === 'mention',
+  replacement: (_content, node) => {
+    const id = (node as Element).getAttribute('data-id') ?? '';
+    const label = (node as Element).getAttribute('data-label') ?? _content;
+    return `@[${label}](${id})`;
+  },
+});
+
+const MENTION_REGEX = /@\[([^\]]+)\]\((\w+:\d+)\)/g;
+
 function markdownToHtml(markdown: string): string {
   if (!markdown) return '';
-  let html = markdown
+
+  // Replace mention syntax before other processing
+  let html = markdown.replace(
+    MENTION_REGEX,
+    '<span data-type="mention" data-id="$2" data-label="$1">@$1</span>'
+  );
+
+  html = html
     .replace(/^### (.*$)/gim, '<h3>$1</h3>')
     .replace(/^## (.*$)/gim, '<h2>$1</h2>')
     .replace(/^# (.*$)/gim, '<h1>$1</h1>')
@@ -295,8 +323,35 @@ const EditorContent_ = styled(EditorContent)`
       text-decoration: underline;
       cursor: pointer;
     }
+
+    /* Mention chip styles */
+    span[data-type='mention'] {
+      display: inline-flex;
+      align-items: center;
+      background: ${({ theme }) => theme.colors.accent.subtle};
+      color: ${({ theme }) => theme.colors.accent.main};
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: default;
+      user-select: none;
+    }
   }
 `;
+
+const MentionDropdownWrapper = styled.div`
+  position: fixed;
+  z-index: 9999;
+`;
+
+interface MentionSuggestionState {
+  active: boolean;
+  items: SearchResult[];
+  rect: DOMRect | null;
+  command: ((attrs: { id: string; label: string }) => void) | null;
+}
 
 export function MarkdownEditor({
   value,
@@ -308,6 +363,8 @@ export function MarkdownEditor({
   onToggleAttachmentTray,
   placeholder = 'Write your notes here...',
   minHeight = 80,
+  projectId,
+  onMentionInsert,
 }: MarkdownEditorProps) {
   const isUpdatingRef = useRef(false);
   const lastValueRef = useRef(value);
@@ -328,12 +385,103 @@ export function MarkdownEditor({
     [onAttach]
   );
 
+  const projectIdRef = useRef(projectId);
+  const onMentionInsertRef = useRef(onMentionInsert);
+  const mentionListRef = useRef<MentionListHandle | null>(null);
+  const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
+
+  useEffect(() => {
+    return () => {
+      if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    onMentionInsertRef.current = onMentionInsert;
+  }, [onMentionInsert]);
+
+  const [mention, setMention] = useState<MentionSuggestionState>({
+    active: false,
+    items: [],
+    rect: null,
+    command: null,
+  });
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
       Placeholder.configure({ placeholder }),
+      Mention.configure({
+        HTMLAttributes: { class: 'mention' },
+        renderText: ({ node }) =>
+          `@${node.attrs.label ?? node.attrs.id}`,
+        renderHTML: ({ node }) => [
+          'span',
+          {
+            'data-type': 'mention',
+            'data-id': node.attrs.id,
+            'data-label': node.attrs.label,
+            class: 'mention',
+          },
+          `@${node.attrs.label ?? node.attrs.id}`,
+        ],
+        suggestion: {
+          allowSpaces: false,
+          items: ({ query }): Promise<SearchResult[]> => {
+            if (!query) return Promise.resolve([]);
+            return new Promise((resolve) => {
+              if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current);
+              mentionDebounceRef.current = setTimeout(async () => {
+                try {
+                  const results = await apiHandler.searchEntities({
+                    query,
+                    entityTypes: ['user', 'shot', 'asset', 'version', 'task'],
+                    projectId: projectIdRef.current ?? undefined,
+                    limit: 10,
+                  });
+                  resolve(results);
+                } catch {
+                  resolve([]);
+                }
+              }, 300);
+            });
+          },
+          render: () => ({
+            onStart: (props) => {
+              setMention({
+                active: true,
+                items: props.items as SearchResult[],
+                rect: props.clientRect?.() ?? null,
+                command: props.command as (attrs: { id: string; label: string }) => void,
+              });
+            },
+            onUpdate: (props) => {
+              setMention((prev) => ({
+                ...prev,
+                items: props.items as SearchResult[],
+                rect: props.clientRect?.() ?? null,
+                command: props.command as (attrs: { id: string; label: string }) => void,
+              }));
+            },
+            onKeyDown: (props) => {
+              if (props.event.key === 'Escape') {
+                setMention((prev) => ({ ...prev, active: false }));
+                return true;
+              }
+              return mentionListRef.current?.onKeyDown(props) ?? false;
+            },
+            onExit: () => {
+              setMention({ active: false, items: [], rect: null, command: null });
+            },
+          }),
+        },
+      }),
     ],
     content: value ? markdownToHtml(value) : '',
     onUpdate: ({ editor }) => {
@@ -355,6 +503,22 @@ export function MarkdownEditor({
   }, [value, editor]);
 
   if (!editor) return null;
+
+  function handleMentionCommand(attrs: { id: string; label: string }) {
+    if (!mention.command) return;
+    mention.command(attrs);
+
+    // Parse type and id from "type:id" format and sync to properties panel
+    const [type, idStr] = attrs.id.split(':');
+    if (type && idStr) {
+      const entity: SearchResult = {
+        type: type.charAt(0).toUpperCase() + type.slice(1),
+        id: parseInt(idStr, 10),
+        name: attrs.label,
+      };
+      onMentionInsertRef.current?.(entity);
+    }
+  }
 
   return (
     <EditorWrapper $minHeight={minHeight}>
@@ -390,18 +554,14 @@ export function MarkdownEditor({
         </ToolbarButton>
         <Divider />
         <ToolbarButton
-          onClick={() =>
-            editor.chain().focus().toggleHeading({ level: 1 }).run()
-          }
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           $active={editor.isActive('heading', { level: 1 })}
           title="Heading 1"
         >
           <Heading1 />
         </ToolbarButton>
         <ToolbarButton
-          onClick={() =>
-            editor.chain().focus().toggleHeading({ level: 2 }).run()
-          }
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           $active={editor.isActive('heading', { level: 2 })}
           title="Heading 2"
         >
@@ -457,6 +617,23 @@ export function MarkdownEditor({
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
+
+      {mention.active && mention.rect && mention.command &&
+        createPortal(
+          <MentionDropdownWrapper
+            style={{
+              top: mention.rect.bottom + 4,
+              left: mention.rect.left,
+            }}
+          >
+            <MentionList
+              ref={mentionListRef}
+              items={mention.items}
+              command={handleMentionCommand}
+            />
+          </MentionDropdownWrapper>,
+          document.body
+        )}
     </EditorWrapper>
   );
 }

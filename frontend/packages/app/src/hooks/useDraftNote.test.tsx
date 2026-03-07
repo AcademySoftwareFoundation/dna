@@ -40,6 +40,7 @@ function createWrapper() {
 }
 
 const mockDraftNote: DraftNote = {
+  id: 1,
   _id: 'abc123',
   user_email: 'test@example.com',
   playlist_id: 1,
@@ -50,6 +51,9 @@ const mockDraftNote: DraftNote = {
   cc: '',
   links: [],
   version_status: 'pending',
+  published: false,
+  edited: false,
+  published_note_id: null,
   updated_at: '2025-01-15T00:00:00Z',
   created_at: '2025-01-15T00:00:00Z',
 };
@@ -105,6 +109,9 @@ describe('useDraftNote', () => {
       cc: [],
       links: [],
       versionStatus: 'pending',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
     });
   });
 
@@ -136,6 +143,9 @@ describe('useDraftNote', () => {
       cc: [],
       links: [],
       versionStatus: '',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
     });
   });
 
@@ -208,6 +218,7 @@ describe('useDraftNote', () => {
         cc: '',
         links: [],
         version_status: '',
+        edited: true,
       },
     });
   });
@@ -241,6 +252,9 @@ describe('useDraftNote', () => {
       cc: [],
       links: [],
       versionStatus: '',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
     });
 
     await waitFor(() => {

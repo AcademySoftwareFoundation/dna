@@ -273,6 +273,9 @@ export function useDraftNote({
             publishedNoteId: serverDraft.published_note_id ?? null,
           };
         });
+      } else if (!isLoading) {
+        // Loading finished with no server draft — initialise empty if still null
+        setLocalDraft((prev) => prev ?? createEmptyDraft(currentVersion, submitter));
       }
     }
   }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail]);

@@ -404,6 +404,25 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       );
     }, [draftNote?.links, currentVersionAsSearchResult]);
 
+    // When a @mention is inserted in the editor, sync it to the properties panel.
+    // Users → CC field; everything else → Links field. Duplicates are skipped.
+    const handleMentionInsert = useCallback(
+      (entity: SearchResult) => {
+        if (entity.type.toLowerCase() === 'user') {
+          const currentCc = draftNote?.cc ?? [];
+          if (!currentCc.some((e) => e.id === entity.id && e.type === entity.type)) {
+            handleFieldChange('cc', [...currentCc, entity]);
+          }
+        } else {
+          const fullLinks = draftNote?.links ?? [];
+          if (!fullLinks.some((e) => e.id === entity.id && e.type === entity.type)) {
+            handleFieldChange('links', [...fullLinks, entity]);
+          }
+        }
+      },
+      [draftNote?.cc, draftNote?.links]
+    );
+
     return (
       <EditorWrapper
         $height={editorHeight}
@@ -456,8 +475,10 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             attachmentFlashKey={attachFlashKey}
             animatePill={animatePill}
             onToggleAttachmentTray={() => setIsAttachmentTrayOpen(o => !o)}
-            placeholder="Write your notes here... (supports **markdown**)"
+            placeholder="Write your notes here... (supports **markdown**, type @ to mention)"
             minHeight={MIN_HEIGHT}
+            projectId={projectId}
+            onMentionInsert={handleMentionInsert}
           />
         </EditorContent>
 
