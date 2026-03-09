@@ -413,7 +413,7 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
                 }
               }}
             >
-              <Label>Enter your ShotGrid email</Label>
+              <Label>Enter your email</Label>
               <StyledInput
                 type="email"
                 placeholder="you@example.com"

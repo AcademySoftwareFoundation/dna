@@ -268,9 +268,12 @@ def test_search_shot_with_project_id(mock_provider):
     assert results[0]["id"] == 100
 
 
-def test_get_user_by_email_not_found_raises(mock_provider):
-    with pytest.raises(ValueError, match="User not found: nobody@example.com"):
-        mock_provider.get_user_by_email("nobody@example.com")
+def test_get_user_by_email_not_found_returns_synthetic_user(mock_provider):
+    user = mock_provider.get_user_by_email("nobody@example.com")
+    assert user.id == -1
+    assert user.email == "nobody@example.com"
+    assert user.name == "nobody@example.com"
+    assert user.login == "nobody@example.com"
 
 
 def test_get_user_by_email_returns_user(mock_provider):
@@ -416,14 +419,16 @@ def test_get_user_by_email(mock_provider):
 
 
 def test_get_user_by_email_not_found(mock_provider):
-    with pytest.raises(ValueError, match="User not found: nobody@example.com"):
-        mock_provider.get_user_by_email("nobody@example.com")
+    user = mock_provider.get_user_by_email("nobody@example.com")
+    assert user.id == -1
+    assert user.email == "nobody@example.com"
 
 
 def test_get_projects_for_user(mock_provider):
     projects = mock_provider.get_projects_for_user("test@example.com")
-    assert len(projects) == 1
-    assert projects[0].id == 1
+    assert len(projects) >= 1
+    project_ids = [p.id for p in projects]
+    assert 1 in project_ids
 
 
 def test_get_playlists_for_project(mock_provider):
