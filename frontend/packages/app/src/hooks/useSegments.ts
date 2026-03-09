@@ -1,10 +1,11 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   StoredSegment,
   type DNAEvent,
   type SegmentEventPayload,
 } from '@dna/core';
+import { deduplicateSegments } from '@vexaai/transcript-rendering';
 import { apiHandler } from '../api';
 import { useSegmentEvents } from './useDNAEvents';
 
@@ -91,8 +92,13 @@ export function useSegments({
     enabled: isEnabled,
   });
 
+  const deduped = useMemo(
+    () => deduplicateSegments(data ?? []),
+    [data]
+  );
+
   return {
-    segments: data ?? [],
+    segments: deduped,
     isLoading,
     isError,
     error: error ?? null,
