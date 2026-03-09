@@ -513,16 +513,18 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             (user_email,),
         ).fetchone()
         if not row:
-            raise ValueError(f"User not found: {user_email}")
+            return User(
+                id=-1,
+                name=user_email,
+                email=user_email,
+                login=user_email,
+            )
         return self._user_from_row(row)
 
     def get_projects_for_user(self, user_email: str) -> list[Project]:
-        user_row = self.get_user_by_email(user_email)
+        self.get_user_by_email(user_email)
         conn = self._get_conn()
-        rows = conn.execute(
-            "SELECT p.id, p.name FROM projects p JOIN project_users pu ON p.id = pu.project_id WHERE pu.user_id = ?",
-            (user_row.id,),
-        ).fetchall()
+        rows = conn.execute("SELECT id, name FROM projects").fetchall()
         return [self._project_from_row(r) for r in rows]
 
     def get_playlists_for_project(self, project_id: int) -> list[Playlist]:
