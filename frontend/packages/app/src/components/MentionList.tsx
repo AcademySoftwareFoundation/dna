@@ -1,4 +1,4 @@
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
 import styled from 'styled-components';
 import { SearchResult } from '@dna/core';
 
@@ -79,8 +79,13 @@ export interface MentionListHandle {
 export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
   function MentionList({ items, command }, ref) {
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const activeItemRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => setSelectedIndex(0), [items]);
+
+    useEffect(() => {
+      activeItemRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [selectedIndex]);
 
     useImperativeHandle(ref, () => ({
       onKeyDown: ({ event }) => {
@@ -136,6 +141,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                 <Item
                   key={`${item.type}-${item.id}`}
                   $active={currentIndex === selectedIndex}
+                  ref={currentIndex === selectedIndex ? activeItemRef : null}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     selectItem(item);
