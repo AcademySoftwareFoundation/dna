@@ -416,7 +416,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         {isDragOver && <DropOverlay><Image size={32} /></DropOverlay>}
         <EditorHeader>
           <TitleRow>
-            <EditorTitle>New Note</EditorTitle>
+            <EditorTitle>Notes</EditorTitle>
             {draftNote?.published && <StatusBadge>Published</StatusBadge>}
             {!draftNote?.published && draftNote?.publishedNoteId && (
               <StatusBadge $isWarning>Published (Edited)</StatusBadge>
@@ -464,7 +464,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         {isAttachmentTrayOpen && (
           <AttachmentTray>
             <AttachmentTrayHeader>
-              <AttachmentTrayTitle>Attached Images</AttachmentTrayTitle>
+              <AttachmentTrayTitle>Images</AttachmentTrayTitle>
               <AttachmentTrayClose onClick={() => setIsAttachmentTrayOpen(false)}>
                 <X size={14} />
               </AttachmentTrayClose>
