@@ -24,6 +24,7 @@ interface MarkdownEditorProps {
   onAttach?: (file: File) => void;
   attachmentCount?: number;
   attachmentFlashKey?: number;
+  animatePill?: boolean;
   onToggleAttachmentTray?: () => void;
   placeholder?: string;
   minHeight?: number;
@@ -161,7 +162,7 @@ const Divider = styled.div`
   margin: 4px 4px;
 `;
 
-const AttachmentPill = styled.button`
+const AttachmentPill = styled.button<{ $animated: boolean }>`
   display: inline-flex;
   align-items: center;
   padding: 3px 8px;
@@ -191,7 +192,7 @@ const AttachmentPill = styled.button`
       color: ${({ theme }) => theme.colors.text.secondary};
     }
   }
-  animation: pillGlow 1.1s ease-out;
+  animation: ${({ $animated }) => $animated ? 'pillGlow 1.1s ease-out' : 'none'};
 
   &:hover {
     background: ${({ theme }) => theme.colors.bg.surfaceHover};
@@ -303,6 +304,7 @@ export function MarkdownEditor({
   onAttach,
   attachmentCount = 0,
   attachmentFlashKey = 0,
+  animatePill = false,
   onToggleAttachmentTray,
   placeholder = 'Write your notes here...',
   minHeight = 80,
@@ -440,6 +442,7 @@ export function MarkdownEditor({
         {attachmentCount > 0 && (
           <AttachmentPill
             key={attachmentFlashKey}
+            $animated={animatePill}
             onClick={onToggleAttachmentTray}
             title="View attached images"
           >

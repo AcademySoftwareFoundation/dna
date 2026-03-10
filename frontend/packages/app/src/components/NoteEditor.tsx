@@ -246,6 +246,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
     const [attachFlashKey, setAttachFlashKey] = useState(0);
+    const [animatePill, setAnimatePill] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
@@ -259,6 +260,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       attachmentsRef.current = saved;
       setAttachments(saved);
       setIsAttachmentTrayOpen(false);
+      setAnimatePill(false);
     }, [versionId]);
 
     // Auto-close tray when all attachments are removed
@@ -272,7 +274,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       attachmentsRef.current = next;
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
-      setIsAttachmentTrayOpen(true);
+      setAnimatePill(true);
       setAttachFlashKey(k => k + 1);
     }, []);
 
@@ -452,6 +454,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             onAttach={handleAttach}
             attachmentCount={attachments.length}
             attachmentFlashKey={attachFlashKey}
+            animatePill={animatePill}
             onToggleAttachmentTray={() => setIsAttachmentTrayOpen(o => !o)}
             placeholder="Write your notes here... (supports **markdown**)"
             minHeight={MIN_HEIGHT}
