@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
-import { X } from 'lucide-react';
+import { X, Image } from 'lucide-react';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -27,15 +27,18 @@ export interface NoteEditorHandle {
 const DEFAULT_HEIGHT = 280;
 const MIN_HEIGHT = 120;
 
-const EditorWrapper = styled.div<{ $height: number }>`
+const EditorWrapper = styled.div<{ $height: number; $isDragOver: boolean }>`
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 20px;
   padding-bottom: 8px;
   background: ${({ theme }) => theme.colors.bg.surface};
-  border: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  border: 1px solid ${({ $isDragOver, theme }) =>
+    $isDragOver ? theme.colors.accent.main : theme.colors.border.subtle};
   border-radius: ${({ theme }) => theme.radii.lg};
+  transition: border-color ${({ theme }) => theme.transitions.fast};
 `;
 
 const EditorContent = styled.div<{ $height: number }>`
@@ -79,6 +82,18 @@ const StatusBadge = styled.div<{ $isWarning?: boolean }>`
   color: ${({ theme, $isWarning }) =>
     $isWarning ? theme.colors.status.warning : theme.colors.status.success};
   margin-left: 12px;
+`;
+
+const DropOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: ${({ theme }) => theme.colors.accent.subtle};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.accent.main};
+  z-index: 1;
 `;
 
 const AttachmentTray = styled.div`
@@ -231,6 +246,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
     const [attachFlashKey, setAttachFlashKey] = useState(0);
+    const [isDragOver, setIsDragOver] = useState(false);
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
     const attachmentsByVersion = useRef<Map<number | null | undefined, StagedAttachment[]>>(new Map());
@@ -268,6 +284,39 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
     }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer.types.includes('Files')) setIsDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback(
+      (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        Array.from(e.dataTransfer.files)
+          .filter(f => f.type.startsWith('image/'))
+          .forEach(handleAttach);
+      },
+      [handleAttach]
+    );
+
+    const handlePaste = useCallback(
+      (e: React.ClipboardEvent) => {
+        const images = Array.from(e.clipboardData.items)
+          .filter(item => item.type.startsWith('image/'))
+          .map(item => item.getAsFile())
+          .filter((f): f is File => f !== null);
+        if (images.length === 0) return;
+        e.preventDefault();
+        images.forEach(handleAttach);
+      },
+      [handleAttach]
+    );
 
     // Revoke all object URLs on unmount
     useEffect(() => {
@@ -354,7 +403,15 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     }, [draftNote?.links, currentVersionAsSearchResult]);
 
     return (
-      <EditorWrapper $height={editorHeight}>
+      <EditorWrapper
+        $height={editorHeight}
+        $isDragOver={isDragOver}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onPaste={handlePaste}
+      >
+        {isDragOver && <DropOverlay><Image size={32} /></DropOverlay>}
         <EditorHeader>
           <TitleRow>
             <EditorTitle>New Note</EditorTitle>
