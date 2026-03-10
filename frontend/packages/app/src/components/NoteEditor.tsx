@@ -1,9 +1,16 @@
-import { forwardRef, useImperativeHandle, useMemo, useState, useRef, useCallback } from 'react';
+import { forwardRef, useImperativeHandle, useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
+import { X } from 'lucide-react';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
 import { useDraftNote } from '../hooks';
+
+export interface StagedAttachment {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
 
 interface NoteEditorProps {
   playlistId?: number | null;
@@ -74,6 +81,95 @@ const StatusBadge = styled.div<{ $isWarning?: boolean }>`
   margin-left: 12px;
 `;
 
+const AttachmentTray = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: ${({ theme }) => theme.colors.bg.base};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+const AttachmentTrayHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const AttachmentTrayTitle = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.secondary};
+`;
+
+const AttachmentTrayClose = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: ${({ theme }) => theme.colors.text.muted};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
+const ThumbnailGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const ThumbnailBox = styled.div`
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: ${({ theme }) => theme.radii.md};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  box-shadow: ${({ theme }) => theme.shadows.sm};
+  overflow: visible;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+    display: block;
+  }
+`;
+
+const RemoveButton = styled.button`
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.bg.overlay};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  color: ${({ theme }) => theme.colors.text.secondary};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+  }
+`;
+
 const ResizeHandle = styled.div`
   display: flex;
   align-items: center;
@@ -132,6 +228,53 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     });
 
     const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
+    const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
+    const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
+
+    const attachmentsRef = useRef<StagedAttachment[]>([]);
+    const attachmentsByVersion = useRef<Map<number | null | undefined, StagedAttachment[]>>(new Map());
+    const versionIdRef = useRef(versionId);
+
+    // Restore per-version attachments when versionId changes
+    useEffect(() => {
+      versionIdRef.current = versionId;
+      const saved = attachmentsByVersion.current.get(versionId) ?? [];
+      attachmentsRef.current = saved;
+      setAttachments(saved);
+      setIsAttachmentTrayOpen(false);
+    }, [versionId]);
+
+    // Auto-close tray when all attachments are removed
+    useEffect(() => {
+      if (attachments.length === 0) setIsAttachmentTrayOpen(false);
+    }, [attachments.length]);
+
+    const handleAttach = useCallback((file: File) => {
+      const previewUrl = URL.createObjectURL(file);
+      const next = [...attachmentsRef.current, { id: crypto.randomUUID(), file, previewUrl }];
+      attachmentsRef.current = next;
+      attachmentsByVersion.current.set(versionIdRef.current, next);
+      setAttachments(next);
+      setIsAttachmentTrayOpen(true);
+    }, []);
+
+    const handleRemoveAttachment = useCallback((id: string) => {
+      const removed = attachmentsRef.current.find(a => a.id === id);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      const next = attachmentsRef.current.filter(a => a.id !== id);
+      attachmentsRef.current = next;
+      attachmentsByVersion.current.set(versionIdRef.current, next);
+      setAttachments(next);
+    }, []);
+
+    // Revoke all object URLs on unmount
+    useEffect(() => {
+      const byVersion = attachmentsByVersion.current;
+      return () => {
+        byVersion.forEach(list => list.forEach(a => URL.revokeObjectURL(a.previewUrl)));
+      };
+    }, []);
+
     const dragStartY = useRef<number>(0);
     const dragStartHeight = useRef<number>(DEFAULT_HEIGHT);
 
@@ -247,10 +390,32 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           <MarkdownEditor
             value={draftNote?.content ?? ''}
             onChange={(v) => handleFieldChange('content', v)}
+            onAttach={handleAttach}
             placeholder="Write your notes here... (supports **markdown**)"
             minHeight={MIN_HEIGHT}
           />
         </EditorContent>
+
+        {isAttachmentTrayOpen && (
+          <AttachmentTray>
+            <AttachmentTrayHeader>
+              <AttachmentTrayTitle>Attached Images</AttachmentTrayTitle>
+              <AttachmentTrayClose onClick={() => setIsAttachmentTrayOpen(false)}>
+                <X size={14} />
+              </AttachmentTrayClose>
+            </AttachmentTrayHeader>
+            <ThumbnailGrid>
+              {attachments.map(a => (
+                <ThumbnailBox key={a.id}>
+                  <img src={a.previewUrl} alt={a.file.name} title={a.file.name} />
+                  <RemoveButton onClick={() => handleRemoveAttachment(a.id)} title="Remove attachment">
+                    <X size={10} />
+                  </RemoveButton>
+                </ThumbnailBox>
+              ))}
+            </ThumbnailGrid>
+          </AttachmentTray>
+        )}
 
         <ResizeHandle onMouseDown={handleResizeMouseDown} title="Drag to resize" />
       </EditorWrapper>
