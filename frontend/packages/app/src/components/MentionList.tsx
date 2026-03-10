@@ -80,6 +80,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
   function MentionList({ items, command }, ref) {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const activeItemRef = useRef<HTMLDivElement | null>(null);
+    const isKeyboardNavRef = useRef(false);
 
     useEffect(() => setSelectedIndex(0), [items]);
 
@@ -90,10 +91,12 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
     useImperativeHandle(ref, () => ({
       onKeyDown: ({ event }) => {
         if (event.key === 'ArrowUp') {
+          isKeyboardNavRef.current = true;
           setSelectedIndex((i) => (i > 0 ? i - 1 : Math.max(0, items.length - 1)));
           return true;
         }
         if (event.key === 'ArrowDown') {
+          isKeyboardNavRef.current = true;
           setSelectedIndex((i) => (i < items.length - 1 ? i + 1 : 0));
           return true;
         }
@@ -115,7 +118,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
 
     if (!items.length) {
       return (
-        <List>
+        <List onMouseMove={() => { isKeyboardNavRef.current = false; }}>
           <Empty>No results</Empty>
         </List>
       );
@@ -146,7 +149,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                     e.preventDefault();
                     selectItem(item);
                   }}
-                  onMouseEnter={() => setSelectedIndex(currentIndex)}
+                  onMouseEnter={() => { if (!isKeyboardNavRef.current) setSelectedIndex(currentIndex); }}
                 >
                   <EntityIcon>{ENTITY_ICONS[type] ?? '•'}</EntityIcon>
                   <span>{item.name}</span>
