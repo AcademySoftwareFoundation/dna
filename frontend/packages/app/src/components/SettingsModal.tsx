@@ -520,7 +520,7 @@ export function SettingsModal({
   const { data: settings, isLoading } = useQuery<UserSettings | null>({
     queryKey: ['userSettings', userEmail],
     queryFn: () => apiHandler.getUserSettings({ userEmail }),
-    enabled: open && !!userEmail,
+    enabled: !!userEmail,
   });
 
   const mutation = useMutation({

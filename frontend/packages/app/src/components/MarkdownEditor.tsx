@@ -242,6 +242,10 @@ const EditorContent_ = styled(EditorContent)`
     line-height: 1.6;
     color: ${({ theme }) => theme.colors.text.primary};
 
+    p {
+      margin: 0;
+    }
+
     > * + * {
       margin-top: 0.5em;
     }
