@@ -48,6 +48,12 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
     description: 'Expand or collapse the side panel',
     defaultKeys: 'meta+shift+b',
   },
+  {
+    id: 'focusSearch',
+    label: 'Focus Search',
+    description: 'Open and focus the version search',
+    defaultKeys: 'meta+shift+f',
+  },
 ];
 
 export const HOTKEY_ACTIONS_MAP = Object.fromEntries(
