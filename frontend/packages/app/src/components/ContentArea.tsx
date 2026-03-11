@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import type { Version } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
@@ -57,17 +57,6 @@ function formatDate(dateString?: string): string {
   });
 }
 
-function getStatusLabel(status?: string): string {
-  const statusMap: Record<string, string> = {
-    rev: 'Pending Review',
-    apr: 'Approved',
-    rej: 'Rejected',
-    ip: 'In Progress',
-    hld: 'On Hold',
-  };
-  return status ? statusMap[status] || status : 'Unknown';
-}
-
 const IN_REVIEW_STATUS = 'rev';
 
 export function ContentArea({
@@ -79,6 +68,17 @@ export function ContentArea({
   onRefresh,
 }: ContentAreaProps) {
   const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const [selectedVersionStatus, setSelectedVersionStatus] = useState(version?.status ?? '');
+
+  useEffect(() => {
+    setSelectedVersionStatus(version?.status ?? '');
+  }, [version?.id]);
+
+  const handleVersionStatusChange = useCallback((code: string) => {
+    setSelectedVersionStatus(code);
+    noteEditorRef.current?.setVersionStatus(code);
+  }, []);
+
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)
     : -1;
@@ -146,10 +146,6 @@ export function ContentArea({
   }
 
   const entityName = version.entity?.name || '';
-  const versionNumber =
-    version.name?.replace(entityName, '').replace(/^[\s\-_]+/, '') ||
-    version.name ||
-    '';
   const links: string[] = [];
   if (version.task?.pipeline_step?.name) {
     links.push(version.task.pipeline_step.name);
@@ -161,17 +157,18 @@ export function ContentArea({
   return (
     <ContentWrapper>
       <VersionHeader
-        shotCode={entityName}
-        versionNumber={versionNumber}
+        versionNumber={version.name ?? undefined}
         submittedBy={version.user?.name}
         dateSubmitted={formatDate(version.created_at as string)}
-        versionStatus={getStatusLabel(version.status)}
+        versionStatus={selectedVersionStatus}
+        projectId={version.project?.id}
         thumbnailUrl={version.thumbnail}
         links={links}
         onBack={handleBack}
         onNext={handleNext}
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
+        onVersionStatusChange={handleVersionStatusChange}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         hasInReview={hasInReview}

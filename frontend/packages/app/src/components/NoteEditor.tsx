@@ -22,6 +22,7 @@ interface NoteEditorProps {
 
 export interface NoteEditorHandle {
   appendContent: (content: string) => void;
+  setVersionStatus: (code: string) => void;
 }
 
 const DEFAULT_HEIGHT = 280;
@@ -366,6 +367,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           const separator = currentContent.trim() ? '\n\n---\n\n' : '';
           updateDraftNote({ content: currentContent + separator + content });
         },
+        setVersionStatus: (code: string) => {
+          updateDraftNote({ versionStatus: code });
+        },
       }),
       [draftNote?.content, updateDraftNote]
     );
@@ -446,7 +450,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             ccValue={draftNote?.cc ?? []}
             subjectValue={draftNote?.subject ?? ''}
             linksValue={editableLinks}
-            versionStatus={draftNote?.versionStatus ?? ''}
             projectId={projectId ?? undefined}
             currentVersion={currentVersionAsSearchResult}
             lockedTo={versionSubmitter ? [versionSubmitter] : []}
@@ -462,7 +465,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
                 : v;
               handleFieldChange('links', links);
             }}
-            onVersionStatusChange={(v) => handleFieldChange('versionStatus', v)}
           />
         </EditorHeader>
 
