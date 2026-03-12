@@ -394,7 +394,8 @@ export function VersionHeader({
         </ThumbnailWrapper>
         <MetadataSection>
           <VersionTitle>
-            {displayCode}
+            {displayTitle}
+            <VersionTitleCode>{displayCode}</VersionTitleCode>
           </VersionTitle>
           <MetadataRow>
             <MetadataLabel>Submitted by:</MetadataLabel>

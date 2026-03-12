@@ -145,6 +145,11 @@ export function ContentArea({
     );
   }
 
+  const entityName = version.entity?.name || '';
+  const versionNumber =
+    version.name?.replace(entityName, '').replace(/^[\s\-_]+/, '') ||
+    version.name ||
+    '';
   const links: string[] = [];
   if (version.task?.pipeline_step?.name) {
     links.push(version.task.pipeline_step.name);
@@ -156,7 +161,8 @@ export function ContentArea({
   return (
     <ContentWrapper>
       <VersionHeader
-        versionNumber={version.name ?? undefined}
+        shotCode={entityName}
+        versionNumber={versionNumber}
         submittedBy={version.user?.name}
         dateSubmitted={formatDate(version.created_at as string)}
         versionStatus={selectedVersionStatus}
