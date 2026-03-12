@@ -72,7 +72,7 @@ export function ContentArea({
 
   useEffect(() => {
     setSelectedVersionStatus(version?.status ?? '');
-  }, [version?.id]);
+  }, [version?.id, version?.status]);
 
   const handleVersionStatusChange = useCallback((code: string) => {
     setSelectedVersionStatus(code);
@@ -145,7 +145,6 @@ export function ContentArea({
     );
   }
 
-  const entityName = version.entity?.name || '';
   const links: string[] = [];
   if (version.task?.pipeline_step?.name) {
     links.push(version.task.pipeline_step.name);
