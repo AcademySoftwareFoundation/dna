@@ -853,6 +853,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         cc_users: list[int],
         links: list[EntityBase],
         author_email: Optional[str] = None,
+        version_status: Optional[str] = None,
     ) -> int:
         """Publish a note to ShotGrid.
 
@@ -864,6 +865,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             cc_users: List of user IDs to CC.
             links: List of additional entities to link.
             author_email: Optional email of the author.
+            version_status: Optional status code to set on the version.
 
         Returns:
             The ID of the created (or existing) note.
@@ -942,6 +944,9 @@ class ShotgridProvider(ProdtrackProviderBase):
                 result = self._sg.create("Note", note_data)
         else:
             result = self._sg.create("Note", note_data)
+
+        if version_status:
+            self._sg.update("Version", version_id, {"sg_status_list": version_status})
 
         return result["id"]
 

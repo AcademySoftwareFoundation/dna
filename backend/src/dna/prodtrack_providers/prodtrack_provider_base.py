@@ -143,6 +143,7 @@ class ProdtrackProviderBase:
         cc_users: list[int],
         links: list["EntityBase"],
         author_email: str | None = None,
+        version_status: str | None = None,
     ) -> int:
         """Publish a note to the production tracking system.
 
@@ -155,6 +156,7 @@ class ProdtrackProviderBase:
             links: List of additional entities to link
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
+            version_status: Optional status code to set on the version.
 
         Returns:
             The ID of the created note

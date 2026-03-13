@@ -933,6 +933,7 @@ async def publish_notes(
                 cc_users=[],
                 links=links,
                 author_email=note.user_email,
+                version_status=note.version_status or None,
             )
 
             if note.attachment_ids:
