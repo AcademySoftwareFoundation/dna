@@ -161,7 +161,9 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def attach_file_to_note(self, note_id: int, file_path: str, display_name: str) -> bool:
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
         """Upload a local file as an attachment on an existing note.
 
         Args:

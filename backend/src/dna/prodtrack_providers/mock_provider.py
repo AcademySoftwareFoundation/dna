@@ -588,5 +588,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             "MockProdtrackProvider is read-only. publish_note is not supported."
         )
 
-    def attach_file_to_note(self, note_id: int, file_path: str, display_name: str) -> bool:
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
         return True
