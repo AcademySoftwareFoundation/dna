@@ -437,6 +437,7 @@ export interface PublishNotesRequest {
 
 export interface PublishNotesResponse {
   published_count: number;
+  republished_count: number;
   skipped_count: number;
   failed_count: number;
   total: number;

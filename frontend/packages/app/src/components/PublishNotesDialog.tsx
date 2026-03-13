@@ -65,6 +65,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
     draftNotes,
 }) => {
     const [includeOthers, setIncludeOthers] = useState(false);
+    const [publishedImageCount, setPublishedImageCount] = useState(0);
     const { mutate: publishNotes, isPending, isError, error, data, reset } = usePublishNotes();
 
     React.useEffect(() => {
@@ -77,12 +78,24 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
     const unpublishedNotes = draftNotes.filter((n: any) => !n.published);
     const myUnpublished = unpublishedNotes.filter(n => n.user_email === userEmail);
     const othersUnpublished = unpublishedNotes.filter(n => n.user_email !== userEmail);
+    const publishedNotes = draftNotes.filter(n => n.published);
 
     const notesToPublishCount = includeOthers
         ? unpublishedNotes.length
         : myUnpublished.length;
 
+    const countImages = (notes: DraftNote[]) =>
+        notes.reduce((sum, n) => sum + (n.attachment_ids?.length ?? 0), 0);
+
+    const myUnpublishedImages = countImages(myUnpublished);
+    const othersUnpublishedImages = countImages(othersUnpublished);
+    const alreadyPublishedImages = countImages(publishedNotes);
+    const totalImagesToPublish = includeOthers
+        ? myUnpublishedImages + othersUnpublishedImages
+        : myUnpublishedImages;
+
     const handlePublish = () => {
+        setPublishedImageCount(totalImagesToPublish);
         publishNotes(
             {
                 playlistId,
@@ -124,6 +137,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                                 <li>Republished: {data.republished_count}</li>
                                 <li>Skipped: {data.skipped_count}</li>
                                 <li>Failed: {data.failed_count}</li>
+                                {publishedImageCount > 0 && <li>Images Attached: {publishedImageCount}</li>}
                             </ResultList>
                         </SummaryBox>
 
@@ -136,7 +150,8 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                 ) : (
                     <Flex direction="column" gap="4">
                         <Text size="3">
-                            You are about to publish <strong>{notesToPublishCount}</strong> draft notes to ShotGrid.
+                            You are about to publish <strong>{notesToPublishCount}</strong> draft {notesToPublishCount !== 1 ? 'notes' : 'note'}
+                            {totalImagesToPublish > 0 && <> with <strong>{totalImagesToPublish}</strong> image{totalImagesToPublish !== 1 ? 's' : ''}</>} to ShotGrid.
                         </Text>
 
                         <SummaryBox>
@@ -148,6 +163,24 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                                 <StatRow>
                                     <span>Other Users' Notes</span>
                                     <strong>{othersUnpublished.length}</strong>
+                                </StatRow>
+                            )}
+                            {myUnpublishedImages > 0 && (
+                                <StatRow>
+                                    <span>My Unpublished Images</span>
+                                    <strong>{myUnpublishedImages}</strong>
+                                </StatRow>
+                            )}
+                            {othersUnpublished.length > 0 && othersUnpublishedImages > 0 && (
+                                <StatRow>
+                                    <span>Other Users' Images</span>
+                                    <strong>{othersUnpublishedImages}</strong>
+                                </StatRow>
+                            )}
+                            {alreadyPublishedImages > 0 && (
+                                <StatRow>
+                                    <span>Images Not Being Re-published</span>
+                                    <strong>{alreadyPublishedImages}</strong>
                                 </StatRow>
                             )}
                         </SummaryBox>

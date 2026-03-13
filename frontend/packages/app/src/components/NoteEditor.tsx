@@ -303,7 +303,11 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       if (removed) {
         URL.revokeObjectURL(removed.previewUrl);
         if (removed.backendId) {
-          await apiHandler.deleteAttachment(removed.backendId);
+          try {
+            await apiHandler.deleteAttachment(removed.backendId);
+          } catch {
+            // File may already be gone (e.g. after publishing) — still remove from UI
+          }
         }
       }
       const next = attachmentsRef.current.filter(a => a.id !== id);
