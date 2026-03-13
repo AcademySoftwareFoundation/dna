@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
 import os
+import shutil
+import uuid
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Optional, cast
@@ -8,8 +10,10 @@ from typing import Annotated, Optional, cast
 from fastapi import (
     Depends,
     FastAPI,
+    File,
     HTTPException,
     Request,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -387,6 +391,35 @@ THUMBNAIL_MEDIA_TYPES = {
     ".gif": "image/gif",
     ".webp": "image/webp",
 }
+
+ATTACHMENT_STORE_DIR = Path(os.getenv("ATTACHMENT_STORE_DIR", "/tmp/dna_attachments"))
+ATTACHMENT_STORE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.post("/api/attachments", tags=["Attachments"])
+async def upload_attachment(
+    _: CurrentUserDep,
+    file: UploadFile = File(...),
+) -> dict:
+    """Save an uploaded file and return its attachment ID."""
+    attachment_id = str(uuid.uuid4())
+    dest_dir = ATTACHMENT_STORE_DIR / attachment_id
+    dest_dir.mkdir(parents=True)
+    filename = file.filename or "attachment"
+    dest_path = dest_dir / filename
+    with dest_path.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"id": attachment_id, "filename": filename}
+
+
+@app.delete("/api/attachments/{attachment_id}", tags=["Attachments"])
+async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
+    """Delete a staged attachment by ID."""
+    attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
+    if not attachment_dir.exists():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    shutil.rmtree(attachment_dir)
+    return {"deleted": attachment_id}
 
 
 @app.get(
@@ -805,6 +838,23 @@ async def publish_notes(
 
     from datetime import datetime, timezone
 
+    def _upload_attachments(sg_note_id: int, attachment_ids: list[str]) -> None:
+        """Upload staged attachment files to a ShotGrid note and clean up local files."""
+        for attachment_id in attachment_ids:
+            attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
+            if not attachment_dir.exists():
+                continue
+            files = list(attachment_dir.iterdir())
+            if not files:
+                continue
+            file_path = files[0]
+            prodtrack.attach_file_to_note(
+                note_id=sg_note_id,
+                file_path=str(file_path),
+                display_name=file_path.name,
+            )
+            shutil.rmtree(attachment_dir)
+
     for note in notes_to_publish:
         try:
             # Skip empty notes
@@ -816,34 +866,36 @@ async def publish_notes(
 
             # Check if note is already published (re-publish/update)
             if note.published_note_id:
-                # Optimized: Only update if local changes are newer than last publish time
-                # If published=True, it means it's in sync. If published=False, it was edited.
-                # If edited=True, we must republish even if published=True.
-                if note.published and not note.edited:
+                if note.published and not note.edited and not note.attachment_ids:
                     skipped_count += 1
                     continue
 
-                success = prodtrack.update_note(
-                    note_id=note.published_note_id,
-                    content=note.content,
-                    subject=note.subject,
+                if not note.published or note.edited:
+                    success = prodtrack.update_note(
+                        note_id=note.published_note_id,
+                        content=note.content,
+                        subject=note.subject,
+                    )
+                    if not success:
+                        failed_count += 1
+                        continue
+
+                if note.attachment_ids:
+                    _upload_attachments(note.published_note_id, note.attachment_ids)
+
+                republished_count += 1
+                update_data = DraftNoteUpdate(
+                    published=True,
+                    edited=False,
+                    published_at=datetime.now(timezone.utc),
+                    attachment_ids=[],
                 )
-                if success:
-                    republished_count += 1
-                    # Update local draft timestamp
-                    update_data = DraftNoteUpdate(
-                        published=True,
-                        edited=False,
-                        published_at=datetime.now(timezone.utc),
-                    )
-                    await storage.upsert_draft_note(
-                        user_email=note.user_email,
-                        playlist_id=note.playlist_id,
-                        version_id=note.version_id,
-                        data=update_data,
-                    )
-                else:
-                    failed_count += 1
+                await storage.upsert_draft_note(
+                    user_email=note.user_email,
+                    playlist_id=note.playlist_id,
+                    version_id=note.version_id,
+                    data=update_data,
+                )
                 continue
 
             # Get links
@@ -883,12 +935,16 @@ async def publish_notes(
                 author_email=note.user_email,
             )
 
-            # Update draft note as published
+            if note.attachment_ids:
+                _upload_attachments(note_id, note.attachment_ids)
+
+            # Update draft note as published (clear attachment_ids after upload)
             update_data = DraftNoteUpdate(
                 published=True,
                 edited=False,
                 published_at=datetime.now(timezone.utc),
                 published_note_id=note_id,
+                attachment_ids=[],
             )
 
             await storage.upsert_draft_note(

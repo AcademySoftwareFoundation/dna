@@ -161,6 +161,19 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def attach_file_to_note(self, note_id: int, file_path: str, display_name: str) -> bool:
+        """Upload a local file as an attachment on an existing note.
+
+        Args:
+            note_id: The ID of the note to attach the file to
+            file_path: Absolute path to the local file
+            display_name: Filename to display in the tracking system
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
 
 def get_prodtrack_provider() -> ProdtrackProviderBase:
     """Get the production tracking provider."""

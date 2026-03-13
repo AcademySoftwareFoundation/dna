@@ -945,6 +945,22 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return result["id"]
 
+    def attach_file_to_note(self, note_id: int, file_path: str, display_name: str) -> bool:
+        """Upload a local file as an attachment on an existing ShotGrid note."""
+        if not self._sg:
+            return False
+        try:
+            self._sg.upload(
+                "Note",
+                note_id,
+                file_path,
+                field_name="attachments",
+                display_name=display_name,
+            )
+            return True
+        except Exception:
+            return False
+
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:
     """Get the DNA entity type from the ShotGrid entity type."""

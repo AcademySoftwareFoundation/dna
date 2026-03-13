@@ -13,6 +13,7 @@ export interface LocalDraftNote {
   published: boolean;
   edited: boolean;
   publishedNoteId: number | null;
+  attachmentIds: string[];
 }
 
 export interface UseDraftNoteParams {
@@ -26,6 +27,7 @@ export interface UseDraftNoteParams {
 export interface UseDraftNoteResult {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
+  saveAttachmentIds: (ids: string[]) => Promise<void>;
   clearDraftNote: () => void;
   isSaving: boolean;
   isLoading: boolean;
@@ -45,6 +47,7 @@ function createEmptyDraft(
     published: false,
     edited: false,
     publishedNoteId: null,
+    attachmentIds: [],
   };
 }
 
@@ -79,6 +82,7 @@ function backendToLocal(note: DraftNote): LocalDraftNote {
     published: note.published,
     edited: note.edited,
     publishedNoteId: note.published_note_id ?? null,
+    attachmentIds: note.attachment_ids ?? [],
   };
 }
 
@@ -102,6 +106,7 @@ function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
     links,
     version_status: local.versionStatus,
     edited: local.edited,
+    attachment_ids: local.attachmentIds,
   };
 }
 
@@ -361,6 +366,22 @@ export function useDraftNote({
     [isEnabled, upsertMutation, currentVersion, submitter]
   );
 
+  const saveAttachmentIds = useCallback(
+    async (ids: string[]) => {
+      if (!isEnabled) return;
+      setLocalDraft((prev) => {
+        const base = prev ?? createEmptyDraft(currentVersion, submitter);
+        return { ...base, attachmentIds: ids };
+      });
+      // Patch pending debounce data so a late-firing debounce doesn't overwrite with []
+      if (pendingDataRef.current) {
+        pendingDataRef.current = { ...pendingDataRef.current, attachmentIds: ids };
+      }
+      await upsertMutation.mutateAsync({ data: { attachment_ids: ids } });
+    },
+    [isEnabled, upsertMutation, currentVersion, submitter]
+  );
+
   const clearDraftNote = useCallback(() => {
     if (!isEnabled) return;
     if (debounceTimerRef.current) {
@@ -375,6 +396,7 @@ export function useDraftNote({
   return {
     draftNote: localDraft,
     updateDraftNote,
+    saveAttachmentIds,
     clearDraftNote,
     isSaving: upsertMutation.isPending || deleteMutation.isPending,
     isLoading,

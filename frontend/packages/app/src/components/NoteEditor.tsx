@@ -5,11 +5,13 @@ import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
 import { useDraftNote } from '../hooks';
+import { apiHandler } from '../api';
 
 export interface StagedAttachment {
   id: string;
   file: File;
   previewUrl: string;
+  backendId?: string;
 }
 
 interface NoteEditorProps {
@@ -235,7 +237,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       };
     }, [currentVersion?.user]);
 
-    const { draftNote, updateDraftNote } = useDraftNote({
+    const { draftNote, updateDraftNote, saveAttachmentIds } = useDraftNote({
       playlistId,
       versionId,
       userEmail,
@@ -269,24 +271,51 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       if (attachments.length === 0) setIsAttachmentTrayOpen(false);
     }, [attachments.length]);
 
-    const handleAttach = useCallback((file: File) => {
+    const handleAttach = useCallback(async (file: File) => {
       const previewUrl = URL.createObjectURL(file);
-      const next = [...attachmentsRef.current, { id: crypto.randomUUID(), file, previewUrl }];
+      const localId = crypto.randomUUID();
+      const staged: StagedAttachment = { id: localId, file, previewUrl };
+      const next = [...attachmentsRef.current, staged];
       attachmentsRef.current = next;
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
       setAnimatePill(true);
       setAttachFlashKey(k => k + 1);
-    }, []);
 
-    const handleRemoveAttachment = useCallback((id: string) => {
+      const result = await apiHandler.uploadAttachment(file);
+
+      // Patch backendId onto the staged entry
+      const updated = attachmentsRef.current.map(a =>
+        a.id === localId ? { ...a, backendId: result.id } : a
+      );
+      attachmentsRef.current = updated;
+      attachmentsByVersion.current.set(versionIdRef.current, updated);
+      setAttachments(updated);
+
+      const allBackendIds = updated
+        .map(a => a.backendId)
+        .filter((id): id is string => Boolean(id));
+      await saveAttachmentIds(allBackendIds);
+    }, [saveAttachmentIds]);
+
+    const handleRemoveAttachment = useCallback(async (id: string) => {
       const removed = attachmentsRef.current.find(a => a.id === id);
-      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+        if (removed.backendId) {
+          await apiHandler.deleteAttachment(removed.backendId);
+        }
+      }
       const next = attachmentsRef.current.filter(a => a.id !== id);
       attachmentsRef.current = next;
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
-    }, []);
+
+      const allBackendIds = next
+        .map(a => a.backendId)
+        .filter((id): id is string => Boolean(id));
+      await saveAttachmentIds(allBackendIds);
+    }, [saveAttachmentIds]);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
       e.preventDefault();
