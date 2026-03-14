@@ -23,6 +23,7 @@ const ContentWrapper = styled.div`
   height: 100%;
   min-height: 0;
   overflow-y: auto;
+  padding-right: 32px;
 `;
 
 const EmptyState = styled.div`
