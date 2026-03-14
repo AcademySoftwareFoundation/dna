@@ -106,7 +106,9 @@ function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
     links,
     version_status: local.versionStatus,
     edited: local.edited,
-    attachment_ids: local.attachmentIds,
+    // attachment_ids are managed exclusively by saveAttachmentIds — omitting here
+    // prevents a race condition where a post-publish content edit restores
+    // attachment_ids that the server already cleared during publish
   };
 }
 

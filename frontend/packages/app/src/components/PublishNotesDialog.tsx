@@ -148,12 +148,11 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                         <SummaryBox>
                             <Text weight="bold" size="2">Results:</Text>
                             <ResultList>
-                                <li>Published: {data.published_count}</li>
-                                <li>Republished: {data.republished_count}</li>
-                                <li>Skipped: {data.skipped_count}</li>
-                                <li>Failed: {data.failed_count}</li>
+                                {data.published_count > 0 && <li>Notes Published: {data.published_count}</li>}
+                                {data.republished_count > 0 && <li>Notes Republished: {data.republished_count}</li>}
                                 {publishedImageCount > 0 && <li>Images Attached: {publishedImageCount}</li>}
                                 {publishedStatusCount > 0 && <li>Statuses Updated: {publishedStatusCount}</li>}
+                                {data.failed_count > 0 && <li>Notes Failed: {data.failed_count}</li>}
                             </ResultList>
                         </SummaryBox>
 
