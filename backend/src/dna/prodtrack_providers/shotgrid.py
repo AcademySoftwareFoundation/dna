@@ -844,7 +844,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         try:
             self._sg.update("Note", note_id, data)
             if version_status and version_id:
-                self._sg.update("Version", version_id, {"sg_status_list": version_status})
+                self._sg.update(
+                    "Version", version_id, {"sg_status_list": version_status}
+                )
             return True
         except Exception as e:
             print(f"Error updating note {note_id}: {e}")
@@ -909,7 +911,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         )
         if existing_note:
             if version_status:
-                self._sg.update("Version", version_id, {"sg_status_list": version_status})
+                self._sg.update(
+                    "Version", version_id, {"sg_status_list": version_status}
+                )
             return existing_note["id"]
 
         # 3. Prepare Note Data

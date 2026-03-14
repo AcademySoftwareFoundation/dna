@@ -78,10 +78,12 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
         }
     }, [open, reset]);
 
-    const unpublishedNotes = draftNotes.filter((n: any) => !n.published);
+    // Notes that need publishing: never published OR published but edited (republish)
+    const unpublishedNotes = draftNotes.filter((n) => !n.published || n.edited);
     const myUnpublished = unpublishedNotes.filter(n => n.user_email === userEmail);
     const othersUnpublished = unpublishedNotes.filter(n => n.user_email !== userEmail);
-    const publishedNotes = draftNotes.filter(n => n.published);
+    // Only truly done notes: published AND not edited
+    const doneNotes = draftNotes.filter(n => n.published && !n.edited);
 
     const notesToPublishCount = includeOthers
         ? unpublishedNotes.length
@@ -92,7 +94,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
 
     const myUnpublishedImages = countImages(myUnpublished);
     const othersUnpublishedImages = countImages(othersUnpublished);
-    const alreadyPublishedImages = countImages(publishedNotes);
+    const alreadyPublishedImages = countImages(doneNotes);
     const totalImagesToPublish = includeOthers
         ? myUnpublishedImages + othersUnpublishedImages
         : myUnpublishedImages;
