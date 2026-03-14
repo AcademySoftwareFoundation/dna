@@ -463,7 +463,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           }
         }
       },
-      [draftNote?.cc, draftNote?.links]
+      [draftNote?.cc, draftNote?.links, handleFieldChange]
     );
 
     return (
@@ -483,7 +483,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             {!draftNote?.published && draftNote?.publishedNoteId && (
               <StatusBadge $isWarning>Published (Edited)</StatusBadge>
             )}
-            {!draftNote?.published && !draftNote?.publishedNoteId && (draftNote?.content || draftNote?.subject || draftNote?.attachmentIds?.length || draftNote?.versionStatus) && (
+            {!draftNote?.published && !draftNote?.publishedNoteId && (draftNote?.content || draftNote?.subject) && (
               <StatusBadge $isDraft>Draft</StatusBadge>
             )}
           </TitleRow>
