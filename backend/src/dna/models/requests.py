@@ -117,3 +117,9 @@ class PublishNotesResponse(BaseModel):
     skipped_count: int
     failed_count: int
     total: int
+
+
+class AddVersionToPlaylistRequest(BaseModel):
+    """Request model for appending a version to a playlist."""
+
+    version_id: int = Field(description="ID of the version to append to the playlist")

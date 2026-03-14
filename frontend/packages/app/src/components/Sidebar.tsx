@@ -19,6 +19,7 @@ import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishNotesDialog } from './PublishNotesDialog';
+import { AddVersionDialog } from './AddVersionDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
@@ -28,6 +29,7 @@ interface SidebarProps {
   onCollapsedChange: (collapsed: boolean) => void;
   onReplacePlaylist?: () => void;
   playlistId: number | null;
+  projectId: number | null;
   selectedVersionId?: number | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
@@ -238,6 +240,7 @@ export function Sidebar({
   onCollapsedChange,
   onReplacePlaylist,
   playlistId,
+  projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
@@ -245,6 +248,7 @@ export function Sidebar({
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [isAddVersionDialogOpen, setIsAddVersionDialogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -277,7 +281,10 @@ export function Sidebar({
 
   const playlistMenuItems = [
     { label: 'Replace Playlist', onSelect: onReplacePlaylist },
-    { label: 'Add Version' },
+    {
+      label: 'Add Version',
+      onSelect: () => setIsAddVersionDialogOpen(true),
+    },
   ];
 
   const handleSearchVersionSelect = (version: Version) => {
@@ -487,6 +494,15 @@ export function Sidebar({
           playlistId={playlistId}
           userEmail={userEmail}
           draftNotes={draftNotes || []}
+        />
+      )}
+
+      {playlistId && projectId && (
+        <AddVersionDialog
+          open={isAddVersionDialogOpen}
+          onClose={() => setIsAddVersionDialogOpen(false)}
+          playlistId={playlistId}
+          projectId={projectId}
         />
       )}
     </SidebarWrapper>

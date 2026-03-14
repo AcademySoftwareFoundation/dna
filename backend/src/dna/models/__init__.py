@@ -28,6 +28,7 @@ from dna.models.playlist_metadata import (
     PlaylistMetadataUpdate,
 )
 from dna.models.requests import (
+    AddVersionToPlaylistRequest,
     CreateNoteRequest,
     EntityLink,
     FilterCondition,
@@ -71,6 +72,7 @@ __all__ = [
     "User",
     "DNAEntity",
     "ENTITY_MODELS",
+    "AddVersionToPlaylistRequest",
     "EntityLink",
     "CreateNoteRequest",
     "FilterCondition",

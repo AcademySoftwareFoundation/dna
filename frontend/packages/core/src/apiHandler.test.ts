@@ -384,6 +384,60 @@ describe('ApiHandler', () => {
     });
   });
 
+  describe('getRecentVersionsForProject', () => {
+    it('should make GET request to correct endpoint with default limit', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockVersions = [{ id: 1, type: 'Version', name: 'v001' }];
+      mockAxiosInstance.get.mockResolvedValue({ data: mockVersions });
+
+      const result = await api.getRecentVersionsForProject({ projectId: 42 });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/projects/42/recent-versions?limit=20',
+        undefined
+      );
+      expect(result).toEqual(mockVersions);
+    });
+
+    it('should pass custom limit when provided', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+
+      await api.getRecentVersionsForProject({
+        projectId: 123,
+        limit: 10,
+      });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/projects/123/recent-versions?limit=10',
+        undefined
+      );
+    });
+  });
+
+  describe('addVersionToPlaylist', () => {
+    it('should make POST request with version_id and return versions', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockVersions = [
+        { id: 1, type: 'Version', name: 'v001' },
+        { id: 2, type: 'Version', name: 'v002' },
+      ];
+      mockAxiosInstance.post.mockResolvedValue({ data: mockVersions });
+
+      const result = await api.addVersionToPlaylist({
+        playlistId: 42,
+        versionId: 2,
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/playlists/42/versions',
+        { version_id: 2 },
+        undefined
+      );
+      expect(result).toEqual(mockVersions);
+    });
+  });
+
   describe('delete', () => {
     it('should make DELETE request and return data', async () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });

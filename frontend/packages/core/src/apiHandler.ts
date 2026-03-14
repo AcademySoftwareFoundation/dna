@@ -1,8 +1,10 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import {
+  AddVersionToPlaylistParams,
   GetProjectsForUserParams,
   GetPlaylistsForProjectParams,
   GetVersionsForPlaylistParams,
+  GetRecentVersionsForProjectParams,
   GetUserByEmailParams,
   GetDraftNoteParams,
   GetAllDraftNotesParams,
@@ -145,6 +147,24 @@ class ApiHandler {
     params: GetVersionsForPlaylistParams
   ): Promise<Version[]> {
     return this.get<Version[]>(`/playlists/${params.playlistId}/versions`);
+  }
+
+  async getRecentVersionsForProject(
+    params: GetRecentVersionsForProjectParams
+  ): Promise<Version[]> {
+    const limit = params.limit ?? 20;
+    return this.get<Version[]>(
+      `/projects/${params.projectId}/recent-versions?limit=${limit}`
+    );
+  }
+
+  async addVersionToPlaylist(
+    params: AddVersionToPlaylistParams
+  ): Promise<Version[]> {
+    return this.post<Version[]>(
+      `/playlists/${params.playlistId}/versions`,
+      { version_id: params.versionId }
+    );
   }
 
   async getUserByEmail(params: GetUserByEmailParams): Promise<DNAUser> {

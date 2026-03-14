@@ -50,3 +50,7 @@ export type {
 } from './useVersionStatuses';
 
 export { usePlaylistDraftNotes } from './usePlaylistDraftNotes';
+
+export { useAddVersionToPlaylist } from './useAddVersionToPlaylist';
+
+export { usePublishNotes } from './usePublishNotes';

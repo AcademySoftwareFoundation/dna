@@ -64,6 +64,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             base_url or os.getenv("API_BASE_URL", "http://localhost:8000")
         ).rstrip("/")
         self._conn: Optional[sqlite3.Connection] = None
+        self._conn_write: Optional[sqlite3.Connection] = None
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -71,6 +72,12 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             self._conn = sqlite3.connect(uri, uri=True)
             self._conn.row_factory = sqlite3.Row
         return self._conn
+
+    def _get_conn_write(self) -> sqlite3.Connection:
+        if self._conn_write is None:
+            self._conn_write = sqlite3.connect(str(self._db_path))
+            self._conn_write.row_factory = sqlite3.Row
+        return self._conn_write
 
     def _project_from_row(self, row: sqlite3.Row) -> Project:
         return Project(id=row["id"], name=row["name"])
@@ -554,6 +561,47 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         for vid in version_ids:
             versions.append(self.get_entity("version", vid, resolve_links=True))
         return versions
+
+    def get_recent_versions_for_project(
+        self, project_id: int, limit: int = 20
+    ) -> list[Version]:
+        conn = self._get_conn()
+        rows = conn.execute(
+            """SELECT id, name, description, status, user_id, created_at, updated_at,
+               movie_path, frame_path, thumbnail, project_id, entity_type, entity_id, task_id
+               FROM versions WHERE project_id = ?
+               ORDER BY updated_at DESC, id DESC
+               LIMIT ?""",
+            (project_id, limit),
+        ).fetchall()
+        if not rows:
+            return []
+        return [
+            self.get_entity("version", row["id"], resolve_links=True) for row in rows
+        ]
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> None:
+        conn = self._get_conn()
+        playlist_row = conn.execute(
+            "SELECT id, project_id FROM playlists WHERE id = ?", (playlist_id,)
+        ).fetchone()
+        if not playlist_row:
+            raise ValueError(f"Playlist not found: {playlist_id}")
+        version_row = conn.execute(
+            "SELECT id, project_id FROM versions WHERE id = ?", (version_id,)
+        ).fetchone()
+        if not version_row:
+            raise ValueError(f"Version not found: {version_id}")
+        if version_row["project_id"] != playlist_row["project_id"]:
+            raise ValueError(
+                f"Version {version_id} is not in the same project as playlist {playlist_id}"
+            )
+        write_conn = self._get_conn_write()
+        write_conn.execute(
+            "INSERT OR IGNORE INTO playlist_versions (playlist_id, version_id) VALUES (?, ?)",
+            (playlist_id, version_id),
+        )
+        write_conn.commit()
 
     def get_version_statuses(
         self, project_id: int | None = None

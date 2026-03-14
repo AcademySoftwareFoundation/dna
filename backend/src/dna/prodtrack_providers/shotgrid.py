@@ -776,6 +776,96 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return versions
 
+    def get_recent_versions_for_project(
+        self, project_id: int, limit: int = 20
+    ) -> list[Version]:
+        """Get recent versions for a project (most recently updated first)."""
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        entity_mapping = FIELD_MAPPING["version"]
+        version_fields = list(entity_mapping["fields"].keys()) + list(
+            entity_mapping["linked_fields"].keys()
+        )
+        sg_versions = self._sg.find(
+            "Version",
+            filters=[["project", "is", {"type": "Project", "id": project_id}]],
+            fields=version_fields,
+            order=[{"field_name": "created_at", "direction": "desc"}],
+            limit=limit,
+        )
+        if not sg_versions:
+            return []
+
+        task_ids = list(
+            {
+                v["sg_task"]["id"]
+                for v in sg_versions
+                if v.get("sg_task") and v["sg_task"].get("id")
+            }
+        )
+        task_mapping = FIELD_MAPPING["task"]
+        tasks_by_id: dict[int, dict] = {}
+        if task_ids:
+            sg_tasks = self._sg.find(
+                "Task",
+                filters=[["id", "in", task_ids]],
+                fields=list(task_mapping["fields"].keys()),
+            )
+            for sg_task in sg_tasks:
+                tasks_by_id[sg_task["id"]] = sg_task
+
+        versions = []
+        for sg_version in sg_versions:
+            version = self._convert_sg_entity_to_dna_entity(
+                sg_version, entity_mapping, "version", resolve_links=False
+            )
+            if sg_version.get("sg_task") and sg_version["sg_task"].get("id"):
+                task_id = sg_version["sg_task"]["id"]
+                if task_id in tasks_by_id:
+                    version.task = self._convert_sg_entity_to_dna_entity(
+                        tasks_by_id[task_id], task_mapping, "task", resolve_links=False
+                    )
+            version.notes = []
+            versions.append(version)
+        return versions
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> None:
+        """Append a version to a playlist. Idempotent if already in playlist."""
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_playlist = self._sg.find_one(
+            "Playlist",
+            filters=[["id", "is", playlist_id]],
+            fields=["versions", "project"],
+        )
+        if not sg_playlist:
+            raise ValueError(f"Playlist not found: {playlist_id}")
+
+        version_data = self._sg.find_one(
+            "Version",
+            filters=[["id", "is", version_id]],
+            fields=["project"],
+        )
+        if not version_data:
+            raise ValueError(f"Version not found: {version_id}")
+
+        playlist_project = sg_playlist.get("project") or {}
+        version_project = version_data.get("project") or {}
+        if playlist_project.get("id") != version_project.get("id"):
+            raise ValueError(
+                f"Version {version_id} is not in the same project as playlist {playlist_id}"
+            )
+
+        current = sg_playlist.get("versions") or []
+        current_ids = [v["id"] for v in current if isinstance(v, dict) and v.get("id")]
+        if version_id in current_ids:
+            return
+
+        new_versions = list(current) + [{"type": "Version", "id": version_id}]
+        self._sg.update("Playlist", playlist_id, {"versions": new_versions})
+
     def get_version_statuses(
         self, project_id: int | None = None
     ) -> list[dict[str, str]]:

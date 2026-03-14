@@ -444,3 +444,13 @@ export interface PublishNotesParams {
   playlistId: number;
   request: PublishNotesRequest;
 }
+
+export interface GetRecentVersionsForProjectParams {
+  projectId: number;
+  limit?: number;
+}
+
+export interface AddVersionToPlaylistParams {
+  playlistId: number;
+  versionId: number;
+}

@@ -121,6 +121,32 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def get_recent_versions_for_project(
+        self, project_id: int, limit: int = 20
+    ) -> list["Version"]:
+        """Get recent versions for a project (e.g. for browse/add-to-playlist).
+
+        Args:
+            project_id: The ID of the project
+            limit: Maximum number of versions to return
+
+        Returns:
+            List of Version entities, most recent first
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> None:
+        """Append a version to a playlist. Idempotent if version already in playlist.
+
+        Args:
+            playlist_id: The ID of the playlist
+            version_id: The ID of the version to append
+
+        Raises:
+            ValueError: If playlist or version not found, or version not in same project
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_version_statuses(
         self, project_id: int | None = None
     ) -> list[dict[str, str]]:

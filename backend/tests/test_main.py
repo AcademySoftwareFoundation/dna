@@ -908,6 +908,131 @@ class TestGetVersionsForPlaylistEndpoint:
             app.dependency_overrides.clear()
 
 
+class TestGetRecentVersionsForProjectEndpoint:
+    """Tests for GET /projects/{project_id}/recent-versions endpoint."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        return mock.MagicMock()
+
+    def test_get_recent_versions_returns_200_with_results(self, mock_provider):
+        from dna.models.entity import Version
+
+        mock_provider.get_recent_versions_for_project.return_value = [
+            Version(id=1, name="v001", status="rev"),
+            Version(id=2, name="v002", status="ip"),
+        ]
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.get("/projects/42/recent-versions?limit=20")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 2
+            assert data[0]["id"] == 1
+            assert data[1]["id"] == 2
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_recent_versions_calls_provider_with_project_id_and_limit(
+        self, mock_provider
+    ):
+        from dna.models.entity import Version
+
+        mock_provider.get_recent_versions_for_project.return_value = [
+            Version(id=1, name="v001")
+        ]
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            client.get("/projects/123/recent-versions?limit=10")
+            mock_provider.get_recent_versions_for_project.assert_called_once_with(
+                123, limit=10
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_recent_versions_returns_404_on_error(self, mock_provider):
+        mock_provider.get_recent_versions_for_project.side_effect = ValueError(
+            "Project not found"
+        )
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.get("/projects/999/recent-versions")
+            assert response.status_code == 404
+            data = response.json()
+            assert "Project not found" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestAddVersionToPlaylistEndpoint:
+    """Tests for POST /playlists/{playlist_id}/versions endpoint."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        return mock.MagicMock()
+
+    def test_add_version_to_playlist_returns_201_with_versions(self, mock_provider):
+        from dna.models.entity import Version
+
+        mock_provider.get_versions_for_playlist.return_value = [
+            Version(id=1, name="v001"),
+            Version(id=2, name="v002"),
+        ]
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/playlists/42/versions",
+                json={"version_id": 2},
+            )
+            assert response.status_code == 201
+            data = response.json()
+            assert len(data) == 2
+            mock_provider.add_version_to_playlist.assert_called_once_with(42, 2)
+            mock_provider.get_versions_for_playlist.assert_called_once_with(42)
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_add_version_to_playlist_returns_400_on_error(self, mock_provider):
+        mock_provider.add_version_to_playlist.side_effect = ValueError(
+            "Version not found"
+        )
+
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/playlists/42/versions",
+                json={"version_id": 999},
+            )
+            assert response.status_code == 400
+            data = response.json()
+            assert "Version not found" in data["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_add_version_to_playlist_missing_version_id_returns_422(
+        self, mock_provider
+    ):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/playlists/42/versions",
+                json={},
+            )
+            assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+
 class TestGenerateNoteEndpoint:
     """Tests for POST /generate-note endpoint."""
 

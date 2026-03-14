@@ -47,6 +47,9 @@ def _create_seeded_db(path: Path) -> None:
         """INSERT INTO versions (id, name, description, status, user_id, created_at, updated_at, movie_path, frame_path, thumbnail, project_id, entity_type, entity_id, task_id) VALUES (300, 'v_001', 'First version', 'rev', 10, '2024-01-01T00:00:00', '2024-01-02T00:00:00', NULL, NULL, NULL, 1, 'Shot', 100, 200)"""
     )
     conn.execute(
+        """INSERT INTO versions (id, name, description, status, user_id, created_at, updated_at, movie_path, frame_path, thumbnail, project_id, entity_type, entity_id, task_id) VALUES (301, 'v_002', 'Second version', 'ip', 10, '2024-01-03T00:00:00', '2024-01-04T00:00:00', NULL, NULL, NULL, 1, 'Shot', 100, 200)"""
+    )
+    conn.execute(
         "INSERT INTO playlists (id, code, description, project_id, created_at, updated_at) VALUES (400, 'pl_001', 'Playlist 1', 1, '2024-01-01', '2024-01-01')"
     )
     conn.execute(
@@ -290,6 +293,44 @@ def test_get_versions_for_playlist_empty(mock_db_path):
     provider = MockProdtrackProvider(db_path=mock_db_path)
     versions = provider.get_versions_for_playlist(400)
     assert versions == []
+
+
+def test_get_recent_versions_for_project(mock_provider):
+    versions = mock_provider.get_recent_versions_for_project(1, limit=10)
+    assert len(versions) >= 1
+    ids = [v.id for v in versions]
+    assert 300 in ids
+    assert versions[0].project == {"type": "Project", "id": 1}
+
+
+def test_get_recent_versions_for_project_respects_limit(mock_provider):
+    versions = mock_provider.get_recent_versions_for_project(1, limit=1)
+    assert len(versions) == 1
+
+
+def test_add_version_to_playlist(mock_provider):
+    mock_provider.add_version_to_playlist(400, 301)
+    versions = mock_provider.get_versions_for_playlist(400)
+    version_ids = [v.id for v in versions]
+    assert 300 in version_ids
+    assert 301 in version_ids
+
+
+def test_add_version_to_playlist_idempotent(mock_provider):
+    mock_provider.add_version_to_playlist(400, 301)
+    mock_provider.add_version_to_playlist(400, 301)
+    versions = mock_provider.get_versions_for_playlist(400)
+    assert sum(1 for v in versions if v.id == 301) == 1
+
+
+def test_add_version_to_playlist_playlist_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Playlist not found: 999"):
+        mock_provider.add_version_to_playlist(999, 300)
+
+
+def test_add_version_to_playlist_version_not_found_raises(mock_provider):
+    with pytest.raises(ValueError, match="Version not found: 999"):
+        mock_provider.add_version_to_playlist(400, 999)
 
 
 def test_get_version_statuses_with_project_id(mock_provider):

@@ -30,6 +30,21 @@ function useGetVersionsForPlaylist(playlistId: number | null) {
   });
 }
 
+function useGetRecentVersionsForProject(
+  projectId: number | null,
+  limit: number = 10
+) {
+  return useQuery<Version[], Error>({
+    queryKey: ['recentVersions', projectId, limit],
+    queryFn: () =>
+      apiHandler.getRecentVersionsForProject({
+        projectId: projectId!,
+        limit,
+      }),
+    enabled: !!projectId,
+  });
+}
+
 function useGetUserByEmail(userEmail: string | null) {
   return useQuery<User, Error>({
     queryKey: ['user', userEmail],
@@ -42,6 +57,7 @@ export {
   useGetProjectsForUser,
   useGetPlaylistsForProject,
   useGetVersionsForPlaylist,
+  useGetRecentVersionsForProject,
   useGetUserByEmail,
   apiHandler,
 };

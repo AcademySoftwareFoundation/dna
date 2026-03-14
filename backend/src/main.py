@@ -22,6 +22,7 @@ from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
+    AddVersionToPlaylistRequest,
     Asset,
     BotSession,
     BotStatus,
@@ -757,6 +758,48 @@ async def get_versions_for_playlist(
         return provider.get_versions_for_playlist(playlist_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get(
+    "/projects/{project_id}/recent-versions",
+    tags=["Versions"],
+    summary="Get recent versions for a project",
+    description="Retrieve recent versions in the project for browse/add-to-playlist.",
+    response_model=list[Version],
+)
+async def get_recent_versions_for_project(
+    project_id: int,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    limit: int = 20,
+) -> list[Version]:
+    """Get recent versions for a project."""
+    try:
+        return provider.get_recent_versions_for_project(project_id, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post(
+    "/playlists/{playlist_id}/versions",
+    tags=["Playlists"],
+    summary="Add a version to a playlist",
+    description="Append a version to the playlist. Version appears at the end.",
+    response_model=list[Version],
+    status_code=201,
+)
+async def add_version_to_playlist(
+    playlist_id: int,
+    request: AddVersionToPlaylistRequest,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> list[Version]:
+    """Append a version to a playlist."""
+    try:
+        provider.add_version_to_playlist(playlist_id, request.version_id)
+        return provider.get_versions_for_playlist(playlist_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post(
