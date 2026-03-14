@@ -276,7 +276,7 @@ export function Sidebar({
   const inReviewVersionId = playlistMetadata?.in_review;
 
   const playlistMenuItems = [
-    { label: 'Replace Playlist', onSelect: onReplacePlaylist },
+    { label: 'Change Playlist', onSelect: onReplacePlaylist },
     { label: 'Add Version' },
   ];
 
