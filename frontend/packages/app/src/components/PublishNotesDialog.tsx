@@ -106,7 +106,11 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
         : myUnpublishedImages;
 
     const countStatuses = (notes: DraftNote[]) =>
-        notes.filter(n => !!n.version_status).length;
+        notes.filter(n => {
+            if (!n.version_status) return false;
+            const version = versions.find(v => v.id === n.version_id);
+            return n.version_status !== version?.status;
+        }).length;
 
     const myUnpublishedStatuses = countStatuses(myUnpublished);
     const othersUnpublishedStatuses = countStatuses(othersUnpublished);

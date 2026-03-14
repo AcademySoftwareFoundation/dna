@@ -80,6 +80,13 @@ export function ContentArea({
     noteEditorRef.current?.setVersionStatus(code);
   }, []);
 
+  const handleRefreshClick = useCallback(() => {
+    const currentStatus = version?.status ?? '';
+    setSelectedVersionStatus(currentStatus);
+    noteEditorRef.current?.setVersionStatus(currentStatus);
+    onRefresh?.();
+  }, [version?.status, onRefresh]);
+
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)
     : -1;
@@ -180,7 +187,7 @@ export function ContentArea({
         hasInReview={hasInReview}
         isCurrentVersionInReview={isCurrentVersionInReview}
         isSettingInReview={isSettingInReview}
-        onRefresh={onRefresh}
+        onRefresh={handleRefreshClick}
       />
       <NoteEditor
         ref={noteEditorRef}

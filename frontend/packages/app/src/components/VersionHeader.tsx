@@ -421,9 +421,7 @@ export function VersionHeader({
                   onChange={(e) => onVersionStatusChange?.(e.target.value)}
                   disabled={isLoadingStatuses}
                 >
-                  <option value="">
-                    {isLoadingStatuses ? 'Loading...' : 'Select status...'}
-                  </option>
+                  {isLoadingStatuses && <option value="">Loading...</option>}
                   {statuses.map((status) => (
                     <option key={status.code} value={status.code}>
                       {status.name}
