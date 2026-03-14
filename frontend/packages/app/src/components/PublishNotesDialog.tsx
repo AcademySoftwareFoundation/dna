@@ -66,12 +66,15 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
 }) => {
     const [includeOthers, setIncludeOthers] = useState(false);
     const [publishedImageCount, setPublishedImageCount] = useState(0);
+    const [publishedStatusCount, setPublishedStatusCount] = useState(0);
     const { mutate: publishNotes, isPending, isError, error, data, reset } = usePublishNotes();
 
     React.useEffect(() => {
         if (open) {
             reset();
             setIncludeOthers(false);
+            setPublishedImageCount(0);
+            setPublishedStatusCount(0);
         }
     }, [open, reset]);
 
@@ -94,8 +97,18 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
         ? myUnpublishedImages + othersUnpublishedImages
         : myUnpublishedImages;
 
+    const countStatuses = (notes: DraftNote[]) =>
+        notes.filter(n => !!n.version_status).length;
+
+    const myUnpublishedStatuses = countStatuses(myUnpublished);
+    const othersUnpublishedStatuses = countStatuses(othersUnpublished);
+    const totalStatusesToPublish = includeOthers
+        ? myUnpublishedStatuses + othersUnpublishedStatuses
+        : myUnpublishedStatuses;
+
     const handlePublish = () => {
         setPublishedImageCount(totalImagesToPublish);
+        setPublishedStatusCount(totalStatusesToPublish);
         publishNotes(
             {
                 playlistId,
@@ -138,6 +151,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                                 <li>Skipped: {data.skipped_count}</li>
                                 <li>Failed: {data.failed_count}</li>
                                 {publishedImageCount > 0 && <li>Images Attached: {publishedImageCount}</li>}
+                                {publishedStatusCount > 0 && <li>Statuses Updated: {publishedStatusCount}</li>}
                             </ResultList>
                         </SummaryBox>
 
@@ -181,6 +195,18 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                                 <StatRow>
                                     <span>Images Not Being Re-published</span>
                                     <strong>{alreadyPublishedImages}</strong>
+                                </StatRow>
+                            )}
+                            {myUnpublishedStatuses > 0 && (
+                                <StatRow>
+                                    <span>My Unpublished Statuses</span>
+                                    <strong>{myUnpublishedStatuses}</strong>
+                                </StatRow>
+                            )}
+                            {othersUnpublished.length > 0 && othersUnpublishedStatuses > 0 && (
+                                <StatRow>
+                                    <span>Other Users' Status Changes</span>
+                                    <strong>{othersUnpublishedStatuses}</strong>
                                 </StatRow>
                             )}
                         </SummaryBox>

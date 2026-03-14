@@ -875,6 +875,8 @@ async def publish_notes(
                         note_id=note.published_note_id,
                         content=note.content,
                         subject=note.subject,
+                        version_id=note.version_id,
+                        version_status=note.version_status or None,
                     )
                     if not success:
                         failed_count += 1
