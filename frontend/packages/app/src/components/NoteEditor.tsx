@@ -71,19 +71,25 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
-const StatusBadge = styled.div<{ $isWarning?: boolean }>`
+const StatusBadge = styled.div<{ $isWarning?: boolean; $isDraft?: boolean }>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
-  background-color: ${({ theme, $isWarning }) => {
-    const color = $isWarning
-      ? theme.colors.status.warning
-      : theme.colors.status.success;
-    return color + '20'; // 12% opacity (hex)
+  background-color: ${({ theme, $isWarning, $isDraft }) => {
+    const color = $isDraft
+      ? theme.colors.status.info
+      : $isWarning
+        ? theme.colors.status.warning
+        : theme.colors.status.success;
+    return color + '20';
   }};
-  color: ${({ theme, $isWarning }) =>
-    $isWarning ? theme.colors.status.warning : theme.colors.status.success};
+  color: ${({ theme, $isWarning, $isDraft }) =>
+    $isDraft
+      ? theme.colors.status.info
+      : $isWarning
+        ? theme.colors.status.warning
+        : theme.colors.status.success};
   margin-left: 12px;
 `;
 
@@ -476,6 +482,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             {draftNote?.published && <StatusBadge>Published</StatusBadge>}
             {!draftNote?.published && draftNote?.publishedNoteId && (
               <StatusBadge $isWarning>Published (Edited)</StatusBadge>
+            )}
+            {!draftNote?.published && !draftNote?.publishedNoteId && (draftNote?.content || draftNote?.subject) && (
+              <StatusBadge $isDraft>Draft</StatusBadge>
             )}
           </TitleRow>
           <NoteOptionsInline
