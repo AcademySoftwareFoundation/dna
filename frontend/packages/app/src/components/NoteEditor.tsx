@@ -483,7 +483,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             {!draftNote?.published && draftNote?.publishedNoteId && (
               <StatusBadge $isWarning>Published (Edited)</StatusBadge>
             )}
-            {!draftNote?.published && !draftNote?.publishedNoteId && (draftNote?.content || draftNote?.subject) && (
+            {!draftNote?.published && !draftNote?.publishedNoteId && (draftNote?.content || draftNote?.subject || draftNote?.attachmentIds?.length || draftNote?.versionStatus) && (
               <StatusBadge $isDraft>Draft</StatusBadge>
             )}
           </TitleRow>

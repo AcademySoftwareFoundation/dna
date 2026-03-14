@@ -364,7 +364,7 @@ export function Sidebar({
                   if (!note) return null;
                   if (note.published) return 'published';
                   if (note.published_note_id) return 'edited';
-                  if (note.content || note.subject) return 'draft';
+                  if (note.content || note.subject || note.attachment_ids?.length || note.version_status) return 'draft';
                   return null;
                 })()}
                 onClick={() => onVersionSelect?.(version)}
@@ -487,6 +487,7 @@ export function Sidebar({
           playlistId={playlistId}
           userEmail={userEmail}
           draftNotes={draftNotes || []}
+          versions={versions || []}
         />
       )}
     </SidebarWrapper>
