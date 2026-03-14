@@ -857,10 +857,11 @@ async def publish_notes(
 
     for note in notes_to_publish:
         try:
-            # Skip empty notes
-            if not (note.content and note.content.strip()) and not (
+            # Skip notes with no meaningful content to publish
+            has_body = (note.content and note.content.strip()) or (
                 note.subject and note.subject.strip()
-            ):
+            )
+            if not has_body and not note.attachment_ids and not note.version_status:
                 skipped_count += 1
                 continue
 
