@@ -4,7 +4,7 @@ import { X, Image } from 'lucide-react';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
-import { useDraftNote } from '../hooks';
+import type { LocalDraftNote } from '../hooks';
 import { apiHandler } from '../api';
 
 export interface StagedAttachment {
@@ -15,16 +15,15 @@ export interface StagedAttachment {
 }
 
 interface NoteEditorProps {
-  playlistId?: number | null;
-  versionId?: number | null;
-  userEmail?: string | null;
   projectId?: number | null;
   currentVersion?: Version | null;
+  draftNote: LocalDraftNote | null;
+  updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
+  saveAttachmentIds: (ids: string[]) => Promise<void>;
 }
 
 export interface NoteEditorHandle {
   appendContent: (content: string) => void;
-  setVersionStatus: (code: string) => void;
 }
 
 const DEFAULT_HEIGHT = 280;
@@ -221,10 +220,9 @@ const ResizeHandle = styled.div`
 
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   function NoteEditor(
-    { playlistId, versionId, userEmail, projectId, currentVersion },
+    { projectId, currentVersion, draftNote, updateDraftNote, saveAttachmentIds },
     ref
   ) {
-    // Derive SearchResult representations first so they can seed the draft
     const currentVersionAsSearchResult: SearchResult | undefined = useMemo(() => {
       if (!currentVersion) return undefined;
       return {
@@ -243,14 +241,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       };
     }, [currentVersion?.user]);
 
-    const { draftNote, updateDraftNote, saveAttachmentIds } = useDraftNote({
-      playlistId,
-      versionId,
-      userEmail,
-      currentVersion: currentVersionAsSearchResult,
-      submitter: versionSubmitter,
-    });
-
     const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
@@ -260,17 +250,17 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
     const attachmentsByVersion = useRef<Map<number | null | undefined, StagedAttachment[]>>(new Map());
-    const versionIdRef = useRef(versionId);
+    const versionIdRef = useRef(currentVersion?.id);
 
-    // Restore per-version attachments when versionId changes
+    // Restore per-version attachments when version changes
     useEffect(() => {
-      versionIdRef.current = versionId;
-      const saved = attachmentsByVersion.current.get(versionId) ?? [];
+      versionIdRef.current = currentVersion?.id;
+      const saved = attachmentsByVersion.current.get(currentVersion?.id) ?? [];
       attachmentsRef.current = saved;
       setAttachments(saved);
       setIsAttachmentTrayOpen(false);
       setAnimatePill(false);
-    }, [versionId]);
+    }, [currentVersion?.id]);
 
     // Auto-close tray when all attachments are removed
     useEffect(() => {
@@ -405,9 +395,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           const currentContent = draftNote?.content ?? '';
           const separator = currentContent.trim() ? '\n\n---\n\n' : '';
           updateDraftNote({ content: currentContent + separator + content });
-        },
-        setVersionStatus: (code: string) => {
-          updateDraftNote({ versionStatus: code });
         },
       }),
       [draftNote?.content, updateDraftNote]
