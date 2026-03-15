@@ -276,12 +276,14 @@ security = HTTPBearer(auto_error=False)
 
 
 @lru_cache
-def get_auth_provider_cached() -> AuthProviderBase:
+def get_auth_provider_cached() -> Optional[AuthProviderBase]:
     """Get or create the auth provider singleton."""
     return get_auth_provider()
 
 
-AuthProviderDep = Annotated[AuthProviderBase, Depends(get_auth_provider_cached)]
+AuthProviderDep = Annotated[
+    Optional[AuthProviderBase], Depends(get_auth_provider_cached)
+]
 
 
 async def get_current_user(
@@ -877,7 +879,9 @@ async def publish_notes(
                 if note.published and not note.edited and not note.attachment_ids:
                     # Still apply any pending version status change
                     if note.version_status:
-                        prodtrack.update_version_status(note.version_id, note.version_status)
+                        prodtrack.update_version_status(
+                            note.version_id, note.version_status
+                        )
                     skipped_count += 1
                     continue
 

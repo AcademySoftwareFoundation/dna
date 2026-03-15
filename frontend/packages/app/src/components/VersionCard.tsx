@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import styled from 'styled-components';
+import styled, { type DefaultTheme } from 'styled-components';
 import { Eye } from 'lucide-react';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
@@ -90,7 +90,7 @@ const InReviewIcon = styled.span`
   }
 `;
 
-const statusColor = (theme: any, status: NoteStatus) => {
+const statusColor = (theme: DefaultTheme, status: NoteStatus) => {
   switch (status) {
     case 'published': return theme.colors.status.success;
     case 'edited': return theme.colors.status.warning;

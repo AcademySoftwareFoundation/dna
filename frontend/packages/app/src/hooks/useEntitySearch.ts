@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { SearchResult, SearchableEntityType } from '@dna/core';
 import { apiHandler } from '../api';

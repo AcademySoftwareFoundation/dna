@@ -74,7 +74,7 @@ function markdownToHtml(markdown: string): string {
     .replace(/\*(.*?)\*/gim, '<em>$1</em>')
     .replace(/~~(.*?)~~/gim, '<s>$1</s>')
     .replace(/`([^`]+)`/gim, '<code>$1</code>')
-    .replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>')
+    .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
     .replace(/^---$/gim, '<hr>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2">$1</a>');
 
@@ -84,7 +84,7 @@ function markdownToHtml(markdown: string): string {
   let listType = '';
 
   for (const line of lines) {
-    const ulMatch = line.match(/^[\-\*] (.*)$/);
+    const ulMatch = line.match(/^[-*] (.*)$/);
     const olMatch = line.match(/^\d+\. (.*)$/);
 
     if (ulMatch) {
