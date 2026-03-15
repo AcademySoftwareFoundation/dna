@@ -163,6 +163,18 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def update_version_status(self, version_id: int, status: str) -> bool:
+        """Update the status of a version without publishing a note.
+
+        Args:
+            version_id: The ID of the version to update
+            status: The status code to set
+
+        Returns:
+            True if the update succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def attach_file_to_note(
         self, note_id: int, file_path: str, display_name: str
     ) -> bool:

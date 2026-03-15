@@ -865,9 +865,19 @@ async def publish_notes(
                 skipped_count += 1
                 continue
 
+            # Status-only change with no note body: update version status without
+            # creating or publishing a note, and do not mark the draft as published.
+            if not has_body and not note.attachment_ids and note.version_status:
+                prodtrack.update_version_status(note.version_id, note.version_status)
+                skipped_count += 1
+                continue
+
             # Check if note is already published (re-publish/update)
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
+                    # Still apply any pending version status change
+                    if note.version_status:
+                        prodtrack.update_version_status(note.version_id, note.version_status)
                     skipped_count += 1
                     continue
 

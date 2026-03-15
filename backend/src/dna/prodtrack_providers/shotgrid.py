@@ -814,6 +814,15 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return statuses
 
+    def update_version_status(self, version_id: int, status: str) -> bool:
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+        try:
+            self._sg.update("Version", version_id, {"sg_status_list": status})
+            return True
+        except Exception:
+            return False
+
     def update_note(
         self,
         note_id: int,
