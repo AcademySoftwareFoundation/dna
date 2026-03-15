@@ -146,8 +146,8 @@ export function ContentArea({
     noteEditorRef.current?.appendContent(content);
   }, []);
 
-  useHotkeyAction('nextVersion', handleNext, { enabled: canGoNext });
-  useHotkeyAction('previousVersion', handleBack, { enabled: canGoBack });
+  useHotkeyAction('nextVersion', handleNext);
+  useHotkeyAction('previousVersion', handleBack);
   useHotkeyAction('setInReview', handleSetInReview, {
     enabled: !!version && !!playlistId,
   });
