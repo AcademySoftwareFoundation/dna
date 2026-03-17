@@ -309,6 +309,7 @@ def test_get_recent_versions_for_project_respects_limit(mock_provider):
 
 
 def test_add_version_to_playlist(mock_provider):
+    breakpoint()
     mock_provider.add_version_to_playlist(400, 301)
     versions = mock_provider.get_versions_for_playlist(400)
     version_ids = [v.id for v in versions]

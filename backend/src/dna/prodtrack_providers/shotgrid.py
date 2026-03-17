@@ -1,8 +1,17 @@
 """ShotGrid production tracking provider implementation."""
 
 import contextlib
+import json
 import os
+from pathlib import Path
 from typing import Any, Optional
+
+# #region agent log
+# Under backend/src so the file is in the volume mounted into the container.
+_DEBUG_LOG_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "debug-55c9f0.log"
+)
+# #endregion
 
 from shotgun_api3 import Shotgun
 
@@ -656,9 +665,53 @@ class ShotgridProvider(ProdtrackProviderBase):
         )
 
         if not sg_playlist or not sg_playlist.get("versions"):
+            # #region agent log
+            try:
+                with open(_DEBUG_LOG_PATH, "a") as f:
+                    f.write(
+                        json.dumps(
+                            {
+                                "hypothesisId": "C",
+                                "location": "shotgrid.py:get_versions_for_playlist",
+                                "message": "no versions",
+                                "data": {"playlist_id": playlist_id, "has_playlist": bool(sg_playlist)},
+                                "timestamp": __import__("time").time() * 1000,
+                            }
+                        )
+                        + "\n"
+                    )
+            except Exception:
+                pass
+            # #endregion
             return []
 
-        version_ids = [v["id"] for v in sg_playlist["versions"]]
+        raw_versions = sg_playlist["versions"]
+        version_ids = [v["id"] for v in raw_versions]
+        # #region agent log
+        try:
+            first = raw_versions[0] if raw_versions else None
+            with open(_DEBUG_LOG_PATH, "a") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "hypothesisId": "C",
+                            "location": "shotgrid.py:get_versions_for_playlist",
+                            "message": "versions read",
+                            "data": {
+                                "playlist_id": playlist_id,
+                                "version_ids": version_ids,
+                                "raw_len": len(raw_versions),
+                                "first_type": type(first).__name__ if first else None,
+                                "first_keys": list(first.keys()) if isinstance(first, dict) else None,
+                            },
+                            "timestamp": __import__("time").time() * 1000,
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # #endregion
 
         entity_mapping = FIELD_MAPPING["version"]
         version_fields = list(entity_mapping["fields"].keys()) + list(
@@ -864,7 +917,64 @@ class ShotgridProvider(ProdtrackProviderBase):
             return
 
         new_versions = list(current) + [{"type": "Version", "id": version_id}]
+        # #region agent log
+        try:
+            with open(_DEBUG_LOG_PATH, "a") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "hypothesisId": "A",
+                            "location": "shotgrid.py:add_version_to_playlist",
+                            "message": "before update",
+                            "data": {
+                                "playlist_id": playlist_id,
+                                "version_id": version_id,
+                                "current_ids": current_ids,
+                                "current_len": len(current),
+                                "new_versions_len": len(new_versions),
+                                "first_current_type": type(current[0]).__name__ if current else None,
+                            },
+                            "timestamp": __import__("time").time() * 1000,
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # #endregion
         self._sg.update("Playlist", playlist_id, {"versions": new_versions})
+        # #region agent log
+        try:
+            after = self._sg.find_one(
+                "Playlist",
+                filters=[["id", "is", playlist_id]],
+                fields=["versions"],
+            )
+            after_versions = (after or {}).get("versions") or []
+            after_ids = [
+                v["id"] for v in after_versions if isinstance(v, dict) and v.get("id")
+            ]
+            with open(_DEBUG_LOG_PATH, "a") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "hypothesisId": "B",
+                            "location": "shotgrid.py:add_version_to_playlist",
+                            "message": "after update",
+                            "data": {
+                                "playlist_id": playlist_id,
+                                "after_ids": after_ids,
+                                "after_len": len(after_versions),
+                                "version_id_in_after": version_id in after_ids,
+                            },
+                            "timestamp": __import__("time").time() * 1000,
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # #endregion
 
     def get_version_statuses(
         self, project_id: int | None = None

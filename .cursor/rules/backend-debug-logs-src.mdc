@@ -1,0 +1,20 @@
+---
+description: Backend debug mode — write log files to SRC so they're mounted in Docker
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend Debug Logs in SRC
+
+When running the backend in **debug mode**, write log files under the **SRC directory** so they are mounted into the Docker container and visible on the host.
+
+The API service mounts `./src:/app/src`. Log paths must resolve inside that tree (e.g. under `backend/src/` on the host).
+
+- **Do**: Resolve paths under `src` (e.g. `Path(__file__).resolve().parent` when the module is under `src`, or a subdir like `src/logs/`).
+- **Don't**: Write debug logs to `/tmp`, `/app`, or anywhere outside `src` in Docker; those are not bound to the host.
+
+```python
+# Module under backend/src/ → log in same tree (mounted)
+from pathlib import Path
+DEBUG_LOG_PATH = Path(__file__).resolve().parent.parent.parent / "debug.log"  # backend/src/debug.log
+```

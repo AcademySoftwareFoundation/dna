@@ -548,9 +548,10 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         ).fetchone()
         if not row:
             return []
+        write_conn = self._get_conn_write()
         version_ids = [
             r["version_id"]
-            for r in conn.execute(
+            for r in write_conn.execute(
                 "SELECT version_id FROM playlist_versions WHERE playlist_id = ? ORDER BY version_id",
                 (playlist_id,),
             ).fetchall()

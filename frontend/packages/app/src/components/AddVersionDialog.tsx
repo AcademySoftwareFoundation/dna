@@ -10,7 +10,7 @@ import {
   ScrollArea,
 } from '@radix-ui/themes';
 import { Loader2, Info, Search } from 'lucide-react';
-import { useGetRecentVersionsForProject } from '../api';
+import { useGetRecentVersionsForProject, useGetVersionsForPlaylist } from '../api';
 import { useEntitySearch } from '../hooks/useEntitySearch';
 import { useAddVersionToPlaylist } from '../hooks/useAddVersionToPlaylist';
 
@@ -93,6 +93,8 @@ export const AddVersionDialog: React.FC<AddVersionDialogProps> = ({
 }) => {
   const { data: recentVersions = [], isLoading: recentLoading } =
     useGetRecentVersionsForProject(projectId, RECENT_LIMIT);
+  const { data: playlistVersions = [] } = useGetVersionsForPlaylist(playlistId);
+  const idsInPlaylist = new Set(playlistVersions.map((v) => v.id));
 
   const {
     query: searchQuery,
@@ -120,7 +122,7 @@ export const AddVersionDialog: React.FC<AddVersionDialogProps> = ({
     ? searchResults.filter((r) => r.type === 'Version')
     : [];
   const isLoading = showSearch ? searchLoading : recentLoading;
-  const displayVersions: { id: number; name: string; description?: string }[] = showSearch
+  const allCandidates: { id: number; name: string; description?: string }[] = showSearch
     ? versionResults.map((r) => ({
         id: r.id,
         name: r.name,
@@ -131,6 +133,7 @@ export const AddVersionDialog: React.FC<AddVersionDialogProps> = ({
         name: v.name || `Version ${v.id}`,
         description: v.description,
       }));
+  const displayVersions = allCandidates.filter((v) => !idsInPlaylist.has(v.id));
 
   const handleSelect = (versionId: number) => {
     addVersion(
@@ -188,7 +191,9 @@ export const AddVersionDialog: React.FC<AddVersionDialogProps> = ({
           <EmptyState>
             {showSearch
               ? 'No versions match your search.'
-              : 'No recent versions in this project.'}
+              : allCandidates.length > 0
+                ? 'All recent versions are already in this playlist.'
+                : 'No recent versions in this project.'}
           </EmptyState>
         ) : (
           <ScrollArea type="auto" scrollbars="vertical">
