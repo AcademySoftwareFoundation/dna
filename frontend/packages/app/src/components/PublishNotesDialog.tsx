@@ -258,7 +258,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                                 <Callout.Text>
                                     {imageBlockers.map(n => (
                                         <div key={n.id}>
-                                            <strong>{versionMap.get(n.version_id) ?? `Version ${n.version_id}`}</strong> has {n.attachment_ids!.length === 1 ? 'an image' : 'images'} attached to a blank note. Please add a note before publishing.
+                                            <strong>{versionMap.get(n.version_id) ?? `Version ${n.version_id}`}</strong> has {n.attachment_ids!.length === 1 ? 'an image' : 'images'} attached to a blank note. {n.attachment_ids!.length === 1 ? 'It' : 'They'} will be published without a note body.
                                         </div>
                                     ))}
                                 </Callout.Text>
@@ -283,7 +283,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                                 </Button>
                             </Dialog.Close>
                             <Button
-                                disabled={isPending || imageBlockers.length > 0 || (notesToPublishCount === 0 && totalImagesToPublish === 0 && totalStatusesToPublish === 0)}
+                                disabled={isPending || (notesToPublishCount === 0 && totalImagesToPublish === 0 && totalStatusesToPublish === 0)}
                                 onClick={handlePublish}
                             >
                                 {isPending && <SpinnerIcon size={14} />}
