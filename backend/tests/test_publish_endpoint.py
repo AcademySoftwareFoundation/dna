@@ -186,3 +186,72 @@ class TestPublishNotesEndpoint:
         call_args = mock_storage.upsert_draft_note.call_args
         assert call_args[1]["data"].published is True
         assert call_args[1]["data"].edited is False
+
+    def test_publish_status_only_no_note(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Status-only notes (no body, no attachments) must update version status
+        without creating a note and without marking the draft as published."""
+        status_only_note = DraftNote(
+            _id="note5",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=105,
+            content="",
+            subject="",
+            version_status="rev",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [status_only_note]
+        mock_prodtrack.update_version_status.return_value = True
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={"user_email": "user@example.com", "include_others": False},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        # No note should be published
+        assert data["published_count"] == 0
+        mock_prodtrack.publish_note.assert_not_called()
+        # Version status should be updated
+        mock_prodtrack.update_version_status.assert_called_once_with(105, "rev")
+        # Draft must NOT be marked as published
+        mock_storage.upsert_draft_note.assert_not_called()
+
+    def test_publish_already_published_with_status_change(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """A published, unedited note with a pending version_status change should
+        apply the status update without republishing the note."""
+        published_with_status = DraftNote(
+            _id="note6",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=106,
+            content="Some note",
+            subject="Sub",
+            version_status="cmpt",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            published=True,
+            edited=False,
+            published_note_id=600,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [published_with_status]
+        mock_prodtrack.update_version_status.return_value = True
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={"user_email": "user@example.com", "include_others": False},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["skipped_count"] == 1
+        mock_prodtrack.publish_note.assert_not_called()
+        mock_prodtrack.update_note.assert_not_called()
+        mock_prodtrack.update_version_status.assert_called_once_with(106, "cmpt")

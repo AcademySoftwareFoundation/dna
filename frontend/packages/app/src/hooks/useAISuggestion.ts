@@ -105,6 +105,7 @@ export function useAISuggestion({
   }, [versionId, playlistId, userEmail, userSettings, isEnabled]);
 
   const handleSegmentEvent = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (_event: DNAEvent<SegmentEventPayload>) => {
       if (!isEnabled || !userSettings?.regenerate_on_transcript_update) {
         return;

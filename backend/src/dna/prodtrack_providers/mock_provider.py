@@ -583,7 +583,16 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         cc_users: list[int],
         links: list[EntityBase],
         author_email: Optional[str] = None,
+        version_status: Optional[str] = None,
     ) -> int:
         raise NotImplementedError(
             "MockProdtrackProvider is read-only. publish_note is not supported."
         )
+
+    def update_version_status(self, version_id: int, status: str) -> bool:
+        return True
+
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
+        return True

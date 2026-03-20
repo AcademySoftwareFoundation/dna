@@ -163,6 +163,7 @@ export interface DraftNote {
   published_note_id?: number | null;
   updated_at: string;
   created_at: string;
+  attachment_ids: string[];
 }
 
 export interface DraftNoteUpdate {
@@ -173,6 +174,7 @@ export interface DraftNoteUpdate {
   links?: DraftNoteLink[];
   version_status?: string;
   edited?: boolean;
+  attachment_ids?: string[];
 }
 
 export interface GetDraftNoteParams {
@@ -435,6 +437,7 @@ export interface PublishNotesRequest {
 
 export interface PublishNotesResponse {
   published_count: number;
+  republished_count: number;
   skipped_count: number;
   failed_count: number;
   total: number;

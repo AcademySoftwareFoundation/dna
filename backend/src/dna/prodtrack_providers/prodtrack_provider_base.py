@@ -143,6 +143,7 @@ class ProdtrackProviderBase:
         cc_users: list[int],
         links: list["EntityBase"],
         author_email: str | None = None,
+        version_status: str | None = None,
     ) -> int:
         """Publish a note to the production tracking system.
 
@@ -155,9 +156,37 @@ class ProdtrackProviderBase:
             links: List of additional entities to link
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
+            version_status: Optional status code to set on the version.
 
         Returns:
             The ID of the created note
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def update_version_status(self, version_id: int, status: str) -> bool:
+        """Update the status of a version without publishing a note.
+
+        Args:
+            version_id: The ID of the version to update
+            status: The status code to set
+
+        Returns:
+            True if the update succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
+        """Upload a local file as an attachment on an existing note.
+
+        Args:
+            note_id: The ID of the note to attach the file to
+            file_path: Absolute path to the local file
+            display_name: Filename to display in the tracking system
+
+        Returns:
+            True if upload succeeded, False otherwise
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

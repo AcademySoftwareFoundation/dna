@@ -4,25 +4,26 @@ import { X, Image } from 'lucide-react';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
-import { useDraftNote } from '../hooks';
+import type { LocalDraftNote } from '../hooks';
+import { apiHandler } from '../api';
 
 export interface StagedAttachment {
   id: string;
   file: File;
   previewUrl: string;
+  backendId?: string;
 }
 
 interface NoteEditorProps {
-  playlistId?: number | null;
-  versionId?: number | null;
-  userEmail?: string | null;
   projectId?: number | null;
   currentVersion?: Version | null;
+  draftNote: LocalDraftNote | null;
+  updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
+  saveAttachmentIds: (ids: string[]) => Promise<void>;
 }
 
 export interface NoteEditorHandle {
   appendContent: (content: string) => void;
-  setVersionStatus: (code: string) => void;
 }
 
 const DEFAULT_HEIGHT = 280;
@@ -69,19 +70,25 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
-const StatusBadge = styled.div<{ $isWarning?: boolean }>`
+const StatusBadge = styled.div<{ $isWarning?: boolean; $isDraft?: boolean }>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
-  background-color: ${({ theme, $isWarning }) => {
-    const color = $isWarning
-      ? theme.colors.status.warning
-      : theme.colors.status.success;
-    return color + '20'; // 12% opacity (hex)
+  background-color: ${({ theme, $isWarning, $isDraft }) => {
+    const color = $isDraft
+      ? theme.colors.status.info
+      : $isWarning
+        ? theme.colors.status.warning
+        : theme.colors.status.success;
+    return color + '20';
   }};
-  color: ${({ theme, $isWarning }) =>
-    $isWarning ? theme.colors.status.warning : theme.colors.status.success};
+  color: ${({ theme, $isWarning, $isDraft }) =>
+    $isDraft
+      ? theme.colors.status.info
+      : $isWarning
+        ? theme.colors.status.warning
+        : theme.colors.status.success};
   margin-left: 12px;
 `;
 
@@ -213,10 +220,9 @@ const ResizeHandle = styled.div`
 
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   function NoteEditor(
-    { playlistId, versionId, userEmail, projectId, currentVersion },
+    { projectId, currentVersion, draftNote, updateDraftNote, saveAttachmentIds },
     ref
   ) {
-    // Derive SearchResult representations first so they can seed the draft
     const currentVersionAsSearchResult: SearchResult | undefined = useMemo(() => {
       if (!currentVersion) return undefined;
       return {
@@ -235,14 +241,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       };
     }, [currentVersion?.user]);
 
-    const { draftNote, updateDraftNote } = useDraftNote({
-      playlistId,
-      versionId,
-      userEmail,
-      currentVersion: currentVersionAsSearchResult,
-      submitter: versionSubmitter,
-    });
-
     const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
@@ -252,41 +250,72 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
     const attachmentsByVersion = useRef<Map<number | null | undefined, StagedAttachment[]>>(new Map());
-    const versionIdRef = useRef(versionId);
+    const versionIdRef = useRef(currentVersion?.id);
 
-    // Restore per-version attachments when versionId changes
+    // Restore per-version attachments when version changes
     useEffect(() => {
-      versionIdRef.current = versionId;
-      const saved = attachmentsByVersion.current.get(versionId) ?? [];
+      versionIdRef.current = currentVersion?.id;
+      const saved = attachmentsByVersion.current.get(currentVersion?.id) ?? [];
       attachmentsRef.current = saved;
       setAttachments(saved);
       setIsAttachmentTrayOpen(false);
       setAnimatePill(false);
-    }, [versionId]);
+    }, [currentVersion?.id]);
 
     // Auto-close tray when all attachments are removed
     useEffect(() => {
       if (attachments.length === 0) setIsAttachmentTrayOpen(false);
     }, [attachments.length]);
 
-    const handleAttach = useCallback((file: File) => {
+    const handleAttach = useCallback(async (file: File) => {
       const previewUrl = URL.createObjectURL(file);
-      const next = [...attachmentsRef.current, { id: crypto.randomUUID(), file, previewUrl }];
+      const localId = crypto.randomUUID();
+      const staged: StagedAttachment = { id: localId, file, previewUrl };
+      const next = [...attachmentsRef.current, staged];
       attachmentsRef.current = next;
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
       setAnimatePill(true);
       setAttachFlashKey(k => k + 1);
-    }, []);
 
-    const handleRemoveAttachment = useCallback((id: string) => {
+      const result = await apiHandler.uploadAttachment(file);
+
+      // Patch backendId onto the staged entry
+      const updated = attachmentsRef.current.map(a =>
+        a.id === localId ? { ...a, backendId: result.id } : a
+      );
+      attachmentsRef.current = updated;
+      attachmentsByVersion.current.set(versionIdRef.current, updated);
+      setAttachments(updated);
+
+      const allBackendIds = updated
+        .map(a => a.backendId)
+        .filter((id): id is string => Boolean(id));
+      await saveAttachmentIds(allBackendIds);
+    }, [saveAttachmentIds]);
+
+    const handleRemoveAttachment = useCallback(async (id: string) => {
       const removed = attachmentsRef.current.find(a => a.id === id);
-      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+        if (removed.backendId) {
+          try {
+            await apiHandler.deleteAttachment(removed.backendId);
+          } catch {
+            // File may already be gone (e.g. after publishing) — still remove from UI
+          }
+        }
+      }
       const next = attachmentsRef.current.filter(a => a.id !== id);
       attachmentsRef.current = next;
       attachmentsByVersion.current.set(versionIdRef.current, next);
       setAttachments(next);
-    }, []);
+
+      const allBackendIds = next
+        .map(a => a.backendId)
+        .filter((id): id is string => Boolean(id));
+      await saveAttachmentIds(allBackendIds);
+    }, [saveAttachmentIds]);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
       e.preventDefault();
@@ -367,9 +396,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           const separator = currentContent.trim() ? '\n\n---\n\n' : '';
           updateDraftNote({ content: currentContent + separator + content });
         },
-        setVersionStatus: (code: string) => {
-          updateDraftNote({ versionStatus: code });
-        },
       }),
       [draftNote?.content, updateDraftNote]
     );
@@ -424,7 +450,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           }
         }
       },
-      [draftNote?.cc, draftNote?.links]
+      [draftNote?.cc, draftNote?.links, handleFieldChange]
     );
 
     return (
@@ -443,6 +469,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             {draftNote?.published && <StatusBadge>Published</StatusBadge>}
             {!draftNote?.published && draftNote?.publishedNoteId && (
               <StatusBadge $isWarning>Published (Edited)</StatusBadge>
+            )}
+            {!draftNote?.published && !draftNote?.publishedNoteId && (draftNote?.content || draftNote?.subject) && (
+              <StatusBadge $isDraft>Draft</StatusBadge>
             )}
           </TitleRow>
           <NoteOptionsInline
