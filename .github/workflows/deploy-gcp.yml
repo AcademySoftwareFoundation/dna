@@ -11,6 +11,8 @@ env:
   BACKEND_SERVICE: dna-backend
   FRONTEND_SERVICE: dna-frontend
   REPOSITORY: dna
+  # Cloud Run frontend URL (dna-demo-488421 / us-central1); update if the service URL changes
+  FRONTEND_CORS_ORIGIN: https://dna-frontend-kqq7r4fg4a-uc.a.run.app
 
 jobs:
   deploy-backend:
@@ -68,7 +70,7 @@ jobs:
             --timeout 300 \
             --concurrency 80 \
             --set-secrets="MONGODB_URL=MONGODB_URL:latest,SHOTGRID_URL=SHOTGRID_URL:latest,SHOTGRID_API_KEY=SHOTGRID_API_KEY:latest,SHOTGRID_SCRIPT_NAME=SHOTGRID_SCRIPT_NAME:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,VEXA_API_URL=VEXA_API_URL:latest,VEXA_API_KEY=VEXA_API_KEY:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest" \
-            --set-env-vars="^@^PYTHONUNBUFFERED=1@STORAGE_PROVIDER=mongodb@PRODTRACK_PROVIDER=shotgrid@LLM_PROVIDER=openai@AUTH_PROVIDER=google@DISABLE_DOCS=true@CORS_ALLOWED_ORIGINS=*"
+            --set-env-vars="^@^PYTHONUNBUFFERED=1@STORAGE_PROVIDER=mongodb@PRODTRACK_PROVIDER=shotgrid@LLM_PROVIDER=openai@AUTH_PROVIDER=google@DISABLE_DOCS=true@CORS_ALLOWED_ORIGINS=${{ env.FRONTEND_CORS_ORIGIN }}"
 
       - name: Get Backend URL
         id: backend-url
@@ -187,6 +189,6 @@ jobs:
           echo "- Frontend: $FRONTEND_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Security:**" >> $GITHUB_STEP_SUMMARY
-          echo "- CORS allow-all (re-enable origin restriction when ready)" >> $GITHUB_STEP_SUMMARY
+          echo "- CORS restricted to frontend origin (\`FRONTEND_CORS_ORIGIN\`)" >> $GITHUB_STEP_SUMMARY
           echo "- API docs disabled" >> $GITHUB_STEP_SUMMARY
           echo "- Google OAuth authentication enabled" >> $GITHUB_STEP_SUMMARY
