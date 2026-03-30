@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
+from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
 from dna.llm_providers.default_prompt import DEFAULT_PROMPT
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
@@ -172,29 +173,7 @@ app = FastAPI(
     },
 )
 
-# Configure CORS - require explicit origins in production
-cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
-if cors_origins_env == "*":
-    # Allow all origins for local development (credentials not supported with wildcard)
-    allowed_origins = ["*"]
-    allow_credentials = False
-elif cors_origins_env:
-    # Normalize: strip whitespace and trailing slashes so Origin header (no trailing slash) matches
-    allowed_origins = [
-        o.strip().rstrip("/") for o in cors_origins_env.split(",") if o.strip()
-    ]
-    allow_credentials = True
-else:
-    allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
-    allow_credentials = True
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **get_cors_middleware_kwargs())
 
 
 # Security headers middleware
