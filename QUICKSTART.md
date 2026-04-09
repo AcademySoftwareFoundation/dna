@@ -24,6 +24,7 @@ Copy the example docker-compose.local.yml file:
 ```bash
 cd backend
 cp example.docker-compose.local.yml docker-compose.local.yml
+cp example.docker-compose.local.vexa.yml docker-compose.local.vexa.yml
 ```
 
 Edit `docker-compose.local.yml` with your credentials.
