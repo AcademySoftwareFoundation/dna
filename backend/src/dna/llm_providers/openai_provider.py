@@ -9,6 +9,7 @@ from typing import Optional
 from openai import AsyncOpenAI
 
 from dna.llm_providers.llm_provider_base import LLMProviderBase
+from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_TIMEOUT = 30.0
@@ -78,15 +79,7 @@ class OpenAIProvider(LLMProviderBase):
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an assistant helping generate professional "
-                        "review notes for visual effects and animation work. "
-                        "Generate concise, actionable notes based on the "
-                        "transcript and context provided."
-                    ),
-                },
+                {"role": "system", "content": GENERATE_NOTE_PROMPT},
                 {"role": "user", "content": user_message},
             ],
             temperature=0.7,
