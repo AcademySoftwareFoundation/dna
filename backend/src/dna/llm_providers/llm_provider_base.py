@@ -10,8 +10,6 @@ from typing import Optional
 class LLMProviderBase:
     """Abstract base class for LLM providers."""
 
-    DEFAULT_PROMPT = """Generate notes on the following conversation, notes that were taken, and context for the version. transcript: {{{{ transcript }}}}, context: {{{{ context }}}}, notes: {{{{ notes }}}}"""
-
     async def generate_note(
         self,
         prompt: str,
