@@ -10,6 +10,32 @@ from typing import Optional
 class LLMProviderBase:
     """Abstract base class for LLM providers."""
 
+    ENV_PREFIX = None
+
+    DEFAULT_MODEL = None
+    DEFAULT_TIMEOUT = 30.0
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: Optional[float] = None,
+    ) -> None:
+        if self.ENV_PREFIX is None:
+            raise NotImplementedError(f"{self.__class__.__name__} is missing an ENV_PREFIX")
+        
+        api_env = f"{self.ENV_PREFIX}_API_KEY"
+        self.api_key = api_key or os.getenv(api_env)
+        if not self.api_key:
+            raise ValueError(
+                f"API key not provided. Set {api_env} environment variable."
+            )
+
+        self.model = model or os.getenv(f"{self.ENV_PREFIX}_MODEL", self.DEFAULT_MODEL)
+        self.timeout = timeout or float(
+            os.getenv(f"{self.ENV_PREFIX}_TIMEOUT", str(self.DEFAULT_TIMEOUT))
+        )
+
     async def generate_note(
         self,
         prompt: str,

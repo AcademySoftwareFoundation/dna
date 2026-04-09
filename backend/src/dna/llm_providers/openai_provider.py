@@ -11,12 +11,13 @@ from openai import AsyncOpenAI
 from dna.llm_providers.llm_provider_base import LLMProviderBase
 from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 
-DEFAULT_MODEL = "gpt-4o-mini"
-DEFAULT_TIMEOUT = 30.0
-
 
 class OpenAIProvider(LLMProviderBase):
     """OpenAI implementation of the LLM provider."""
+
+    ENV_PREFIX = "OPENAI"
+
+    DEFAULT_MODEL = "gpt-4o-mini"
 
     def __init__(
         self,
@@ -24,16 +25,7 @@ class OpenAIProvider(LLMProviderBase):
         model: Optional[str] = None,
         timeout: Optional[float] = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.model = model or os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
-        self.timeout = timeout or float(
-            os.getenv("OPENAI_TIMEOUT", str(DEFAULT_TIMEOUT))
-        )
-
-        if not self.api_key:
-            raise ValueError(
-                "OpenAI API key not provided. Set OPENAI_API_KEY environment variable."
-            )
+        super().__init__(api_key=api_key, model=model, timeout=timeout)
 
         self._client: Optional[AsyncOpenAI] = None
 
