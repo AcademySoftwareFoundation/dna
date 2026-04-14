@@ -5,7 +5,7 @@ import {
   type DNAEvent,
   type SegmentEventPayload,
 } from '@dna/core';
-import { deduplicateSegments } from '@vexaai/transcript-rendering';
+import { deduplicateByIdentity, deduplicateSegments, sortByStartTime } from '@vexaai/transcript-rendering';
 import { apiHandler } from '../api';
 import { useSegmentEvents } from './useDNAEvents';
 
@@ -93,7 +93,7 @@ export function useSegments({
   });
 
   const deduped = useMemo(
-    () => deduplicateSegments(data ?? []),
+    () => sortByStartTime(deduplicateSegments(deduplicateByIdentity(data ?? []))),
     [data]
   );
 
