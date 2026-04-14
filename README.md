@@ -7,15 +7,7 @@
 
 Introduction: Dailies Notes Assistant (DNA)
 ===========================================
-
-DNA (Dailies Note Assistant) is an open initiative under the Academy Software Foundation to standardize how creative review notes are:
-
-- Captured
-- Structured
-- Stored
-- Shared across tools
-
-It aims to explore how large-language-model-assisted transcription and summarization can meaningfully enhance the VFX dailies note-taking process, prioritizing practical utility and thoughtful support for production professionals. This is the first project proposed in the [ASWF Machine Learning Workgroup](https://github.com/AcademySoftwareFoundation/tac/issues/1029)
+DNA (Dailies Note Assistant) is an open initiative under the Academy Software Foundation to create a platform to unify manual note taking, version context, and transcriptions. This empowers studios to build tools to enhance the accuracy and speed at which creative notes are passed to artsits for dailies sessions. It aims to explore how large-language-model-assisted transcription and summarization can meaningfully enhance the VFX dailies note-taking process, prioritizing practical utility and thoughtful support for production professionals. This is the first project proposed in the [ASWF Machine Learning Workgroup](https://github.com/AcademySoftwareFoundation/tac/issues/1029)
 
 To get involved, see user stories, understand workflow and much more please visit the [WIKI](https://github.com/AcademySoftwareFoundation/dna/wiki/Get-Involved)
 
