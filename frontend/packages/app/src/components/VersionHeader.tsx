@@ -1,6 +1,14 @@
 import styled from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
-import { ChevronLeft, Eye, ChevronRight, RotateCw, Target, ChevronDown } from 'lucide-react';
+import {
+  ChevronLeft,
+  Eye,
+  ChevronRight,
+  RotateCw,
+  Target,
+  ChevronDown,
+  ExternalLink,
+} from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 import { useHotkeyConfig } from '../hotkeys';
 import { useVersionStatuses } from '../hooks';
@@ -21,6 +29,9 @@ interface VersionHeaderProps {
   onRefresh?: () => void;
   onSetInReview?: () => void;
   onVersionStatusChange?: (code: string) => void;
+  onSyncProdtrackTab?: () => void;
+  syncProdtrackDisabled?: boolean;
+  syncProdtrackTitle?: string;
   canGoBack?: boolean;
   canGoNext?: boolean;
   hasInReview?: boolean;
@@ -74,6 +85,33 @@ const TopBarActions = styled.div`
 `;
 
 const InReviewButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.secondary};
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+`;
+
+const SyncProdtrackButton = styled.button`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -329,6 +367,9 @@ export function VersionHeader({
   onRefresh,
   onSetInReview,
   onVersionStatusChange,
+  onSyncProdtrackTab,
+  syncProdtrackDisabled = false,
+  syncProdtrackTitle = 'Open current version in production tracking (browser tab)',
   canGoBack = true,
   canGoNext = true,
   hasInReview = true,
@@ -354,6 +395,18 @@ export function VersionHeader({
             <Eye size={14} />
             In Review
           </InReviewButton>
+          {onSyncProdtrackTab && (
+            <Tooltip content={syncProdtrackTitle}>
+              <SyncProdtrackButton
+                type="button"
+                onClick={onSyncProdtrackTab}
+                disabled={syncProdtrackDisabled}
+              >
+                <ExternalLink size={14} />
+                PT tab
+              </SyncProdtrackButton>
+            </Tooltip>
+          )}
           <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>
             <NextVersionButton onClick={onNext} disabled={!canGoNext}>
               Next Version

@@ -23,6 +23,11 @@ class UserSettingsUpdate(BaseModel):
         default=None,
         description="Regenerate AI note when transcript segments are updated",
     )
+    sync_prodtrack_tab_on_version_change: Optional[bool] = Field(
+        default=None,
+        description="When true, DNA tells the browser extension to open the PT "
+        "version page whenever the selected version changes",
+    )
 
 
 class UserSettings(BaseModel):
@@ -35,5 +40,6 @@ class UserSettings(BaseModel):
     note_prompt: str = ""
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
+    sync_prodtrack_tab_on_version_change: bool = False
     updated_at: datetime
     created_at: datetime

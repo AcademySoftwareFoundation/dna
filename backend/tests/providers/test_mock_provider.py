@@ -168,6 +168,9 @@ def test_get_entity_note_with_links(mock_provider):
 def test_get_entity_version(mock_provider):
     version = mock_provider.get_entity("version", 300, resolve_links=True)
     assert version.id == 300
+    assert version.prodtrack_detail_url == (
+        "https://mock-shotgrid.example.com/detail/Version/300"
+    )
     assert version.name == "v_001"
     assert version.status == "rev"
     assert version.task is not None
@@ -441,6 +444,9 @@ def test_get_versions_for_playlist(mock_provider):
     versions = mock_provider.get_versions_for_playlist(400)
     assert len(versions) == 1
     assert versions[0].id == 300
+    assert versions[0].prodtrack_detail_url == (
+        "https://mock-shotgrid.example.com/detail/Version/300"
+    )
     assert versions[0].task is not None
 
 

@@ -9,6 +9,7 @@ import {
   Flex,
   Switch,
   Tooltip,
+  Text,
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Loader2, Info } from 'lucide-react';
@@ -224,10 +225,12 @@ interface GeneralTabProps {
   notePrompt: string;
   regenerateOnVersionChange: boolean;
   regenerateOnTranscriptUpdate: boolean;
+  syncProdtrackTabOnVersionChange: boolean;
   isPending: boolean;
   onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onRegenerateOnVersionChange: (checked: boolean) => void;
   onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
+  onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
 }
 
 function GeneralTab({
@@ -235,10 +238,12 @@ function GeneralTab({
   notePrompt,
   regenerateOnVersionChange,
   regenerateOnTranscriptUpdate,
+  syncProdtrackTabOnVersionChange,
   isPending,
   onNotePromptChange,
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
+  onSyncProdtrackTabOnVersionChange,
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
 
@@ -338,6 +343,34 @@ function GeneralTab({
               Automatically regenerate the AI note when a new
               transcript segment comes in or an existing segment is
               updated.
+            </CheckboxDescription>
+          </CheckboxContent>
+        </CheckboxRow>
+      </Section>
+
+      <Section>
+        <SectionTitle>Production tracking (browser)</SectionTitle>
+        <SectionDescription>
+          Requires the DNA tab sync Chrome extension and{' '}
+          <Text as="span" weight="medium">
+            VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID
+          </Text>{' '}
+          in your DNA environment.
+        </SectionDescription>
+        <CheckboxRow>
+          <Checkbox
+            checked={syncProdtrackTabOnVersionChange}
+            onCheckedChange={onSyncProdtrackTabOnVersionChange}
+            disabled={isPending}
+          />
+          <CheckboxContent>
+            <CheckboxLabel>
+              Sync PT tab when version changes
+            </CheckboxLabel>
+            <CheckboxDescription>
+              When enabled, the extension updates your production-tracking
+              tab whenever you select a different version. When disabled,
+              use the &quot;PT tab&quot; button in the version header.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
@@ -510,6 +543,8 @@ export function SettingsModal({
     useState(false);
   const [regenerateOnTranscriptUpdate, setRegenerateOnTranscriptUpdate] =
     useState(false);
+  const [syncProdtrackTabOnVersionChange, setSyncProdtrackTabOnVersionChange] =
+    useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
@@ -537,11 +572,15 @@ export function SettingsModal({
       setNotePrompt(settings.note_prompt);
       setRegenerateOnVersionChange(settings.regenerate_on_version_change);
       setRegenerateOnTranscriptUpdate(settings.regenerate_on_transcript_update);
+      setSyncProdtrackTabOnVersionChange(
+        settings.sync_prodtrack_tab_on_version_change
+      );
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
       setRegenerateOnVersionChange(false);
       setRegenerateOnTranscriptUpdate(false);
+      setSyncProdtrackTabOnVersionChange(false);
       setIsDirty(false);
     }
   }, [settings]);
@@ -564,17 +603,27 @@ export function SettingsModal({
     setIsDirty(true);
   }, []);
 
+  const handleSyncProdtrackTabOnVersionChange = useCallback(
+    (checked: boolean) => {
+      setSyncProdtrackTabOnVersionChange(checked);
+      setIsDirty(true);
+    },
+    []
+  );
+
   const handleSave = useCallback(() => {
     mutation.mutate({
       note_prompt: notePrompt,
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
+      sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
     });
   }, [
     mutation,
     notePrompt,
     regenerateOnVersionChange,
     regenerateOnTranscriptUpdate,
+    syncProdtrackTabOnVersionChange,
   ]);
 
   const handleOpenChange = useCallback(
@@ -620,10 +669,14 @@ export function SettingsModal({
               notePrompt={notePrompt}
               regenerateOnVersionChange={regenerateOnVersionChange}
               regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
+              syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
               isPending={mutation.isPending}
               onNotePromptChange={handleNotePromptChange}
               onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
               onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
+              onSyncProdtrackTabOnVersionChange={
+                handleSyncProdtrackTabOnVersionChange
+              }
             />
           </Tabs.Content>
 

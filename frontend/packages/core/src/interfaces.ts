@@ -83,6 +83,7 @@ export interface Version extends EntityBase {
   entity?: Shot | Asset;
   task?: Task;
   notes: Note[];
+  prodtrack_detail_url?: string;
 }
 
 export interface Playlist extends EntityBase {
@@ -331,6 +332,7 @@ export interface UserSettings {
   note_prompt: string;
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
+  sync_prodtrack_tab_on_version_change: boolean;
   updated_at: string;
   created_at: string;
 }
@@ -339,6 +341,7 @@ export interface UserSettingsUpdate {
   note_prompt?: string;
   regenerate_on_version_change?: boolean;
   regenerate_on_transcript_update?: boolean;
+  sync_prodtrack_tab_on_version_change?: boolean;
 }
 
 export interface GetUserSettingsParams {

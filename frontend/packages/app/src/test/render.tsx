@@ -5,6 +5,7 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import { theme } from '../styles';
 import { AuthProvider } from '../contexts/AuthContext';
+import { ThemeModeProvider } from '../contexts/ThemeContext';
 
 interface WrapperProps {
   children: ReactNode;
@@ -26,11 +27,13 @@ function AllTheProviders({ children }: WrapperProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <Theme>
-          <AuthProvider>{children}</AuthProvider>
-        </Theme>
-      </ThemeProvider>
+      <ThemeModeProvider>
+        <ThemeProvider theme={theme}>
+          <Theme>
+            <AuthProvider>{children}</AuthProvider>
+          </Theme>
+        </ThemeProvider>
+      </ThemeModeProvider>
     </QueryClientProvider>
   );
 }

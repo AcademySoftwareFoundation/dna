@@ -1,11 +1,15 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import styled from 'styled-components';
-import type { Version, SearchResult } from '@dna/core';
+import { useQuery } from '@tanstack/react-query';
+import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
+import { ProdtrackTabSyncInstallDialog } from './ProdtrackTabSyncInstallDialog';
 import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
+import { apiHandler } from '../api';
+import { openProdtrackVersionInExtension } from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -59,6 +63,9 @@ function formatDate(dateString?: string): string {
 }
 
 const IN_REVIEW_STATUS = 'rev';
+
+const DEFAULT_PT_SYNC_INSTALL_URL =
+  'https://github.com/AcademySoftwareFoundation/dna/blob/main/prodtrack-tab-sync-extension/README.md';
 
 export function ContentArea({
   version,
@@ -152,16 +159,97 @@ export function ContentArea({
     enabled: !!version && !!playlistId,
   });
 
+  const [installDialogOpen, setInstallDialogOpen] = useState(false);
+  const extensionId =
+    import.meta.env.VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?.trim() ?? '';
+  const installDocUrl =
+    import.meta.env.VITE_PRODTRACK_TAB_SYNC_INSTALL_URL?.trim() ||
+    DEFAULT_PT_SYNC_INSTALL_URL;
+
+  const { data: userSettings } = useQuery<UserSettings | null>({
+    queryKey: ['userSettings', userEmail],
+    queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
+    enabled: !!userEmail,
+  });
+
+  const syncProdtrackOnVersionChange =
+    userSettings?.sync_prodtrack_tab_on_version_change === true;
+
+  const handleSyncProdtrackTab = useCallback(async () => {
+    const url = version?.prodtrack_detail_url;
+    if (!url) return;
+    if (!extensionId) {
+      setInstallDialogOpen(true);
+      return;
+    }
+    const result = await openProdtrackVersionInExtension(extensionId, url);
+    if (!result.ok) {
+      if (
+        result.reason === 'no_extension' ||
+        result.reason === 'no_extension_id' ||
+        result.reason === 'no_chrome'
+      ) {
+        setInstallDialogOpen(true);
+      }
+    }
+  }, [version?.prodtrack_detail_url, extensionId]);
+
+  useEffect(() => {
+    if (!version?.prodtrack_detail_url) return;
+    if (!syncProdtrackOnVersionChange) return;
+    if (!extensionId) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await openProdtrackVersionInExtension(
+        extensionId,
+        version.prodtrack_detail_url!
+      );
+      if (cancelled) return;
+      if (!result.ok) {
+        if (
+          result.reason === 'no_extension' ||
+          result.reason === 'no_extension_id' ||
+          result.reason === 'no_chrome'
+        ) {
+          setInstallDialogOpen(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    version?.id,
+    version?.prodtrack_detail_url,
+    syncProdtrackOnVersionChange,
+    extensionId,
+  ]);
+
+  const syncProdtrackTitle = !version?.prodtrack_detail_url
+    ? 'Production tracking URL is not available for this version.'
+    : !extensionId
+      ? 'Set VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID in your DNA app environment (see install instructions).'
+      : 'Open this version in the extension-controlled production-tracking tab.';
+
+  const syncProdtrackDisabled = !version?.prodtrack_detail_url;
+
   if (!version) {
     return (
-      <ContentWrapper>
-        <EmptyState>
-          <EmptyStateTitle>No version selected</EmptyStateTitle>
-          <EmptyStateText>
-            Select a version from the sidebar to view its details
-          </EmptyStateText>
-        </EmptyState>
-      </ContentWrapper>
+      <>
+        <ProdtrackTabSyncInstallDialog
+          open={installDialogOpen}
+          onOpenChange={setInstallDialogOpen}
+          installDocUrl={installDocUrl}
+        />
+        <ContentWrapper>
+          <EmptyState>
+            <EmptyStateTitle>No version selected</EmptyStateTitle>
+            <EmptyStateText>
+              Select a version from the sidebar to view its details
+            </EmptyStateText>
+          </EmptyState>
+        </ContentWrapper>
+      </>
     );
   }
 
@@ -179,7 +267,13 @@ export function ContentArea({
   }
 
   return (
-    <ContentWrapper>
+    <>
+      <ProdtrackTabSyncInstallDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+        installDocUrl={installDocUrl}
+      />
+      <ContentWrapper>
       <VersionHeader
         shotCode={entityName}
         versionNumber={versionNumber}
@@ -194,6 +288,9 @@ export function ContentArea({
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
         onVersionStatusChange={handleVersionStatusChange}
+        onSyncProdtrackTab={handleSyncProdtrackTab}
+        syncProdtrackDisabled={syncProdtrackDisabled}
+        syncProdtrackTitle={syncProdtrackTitle}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         hasInReview={hasInReview}
@@ -215,6 +312,7 @@ export function ContentArea({
         userEmail={userEmail}
         onInsertNote={handleInsertNote}
       />
-    </ContentWrapper>
+      </ContentWrapper>
+    </>
   );
 }
