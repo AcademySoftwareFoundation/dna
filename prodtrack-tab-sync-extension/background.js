@@ -8,6 +8,39 @@ function reply(sendResponse, payload) {
   }
 }
 
+function splitViewNoneConstant() {
+  if (typeof chrome.tabs?.SPLIT_VIEW_ID_NONE === 'number') {
+    return chrome.tabs.SPLIT_VIEW_ID_NONE;
+  }
+  return -1;
+}
+
+function tabSplitViewId(tab) {
+  const v = tab?.splitViewId;
+  if (typeof v !== 'number') return splitViewNoneConstant();
+  return v;
+}
+
+/**
+ * If the anchor tab is already in a Chrome split view, try to attach the
+ * controlled tab to the same split. Chrome 140+ exposes splitViewId on Tab;
+ * tabs.update(splitViewId) is not in the public schema yet — this is a
+ * forward-compatible best-effort (see README). Always wrapped in try/catch.
+ */
+async function tryAttachControlledToAnchorSplit(anchorTabId, controlledTabId) {
+  if (anchorTabId == null || controlledTabId == null) return false;
+  const none = splitViewNoneConstant();
+  try {
+    const anchor = await chrome.tabs.get(anchorTabId);
+    const sid = tabSplitViewId(anchor);
+    if (sid === none) return false;
+    await chrome.tabs.update(controlledTabId, { splitViewId: sid });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getDnaAnchorTab() {
   const win = await chrome.windows.getLastFocused({ populate: true });
   if (!win?.tabs?.length) return null;
@@ -30,7 +63,13 @@ async function openOrUpdateControlledTab(url) {
     return false;
   };
 
-  if (await tryTab(controlledTabId)) return;
+  if (await tryTab(controlledTabId)) {
+    const anchor = await getDnaAnchorTab();
+    if (anchor?.id != null && controlledTabId != null) {
+      await tryAttachControlledToAnchorSplit(anchor.id, controlledTabId);
+    }
+    return;
+  }
 
   const dnaTab = await getDnaAnchorTab();
   const createProps = { url, active: false };
@@ -40,11 +79,17 @@ async function openOrUpdateControlledTab(url) {
     if (typeof dnaTab.index === 'number') {
       createProps.index = dnaTab.index + 1;
     }
+    if (typeof dnaTab.id === 'number') {
+      createProps.openerTabId = dnaTab.id;
+    }
   }
 
   const created = await chrome.tabs.create(createProps);
   if (created?.id != null) {
     controlledTabId = created.id;
+    if (dnaTab?.id != null) {
+      await tryAttachControlledToAnchorSplit(dnaTab.id, created.id);
+    }
   }
 }
 
