@@ -166,14 +166,18 @@ export function ContentArea({
     import.meta.env.VITE_PRODTRACK_TAB_SYNC_INSTALL_URL?.trim() ||
     DEFAULT_PT_SYNC_INSTALL_URL;
 
-  const { data: userSettings } = useQuery<UserSettings | null>({
-    queryKey: ['userSettings', userEmail],
-    queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
-    enabled: !!userEmail,
-  });
+  const { data: userSettings, isSuccess: userSettingsQuerySuccess } =
+    useQuery<UserSettings | null>({
+      queryKey: ['userSettings', userEmail],
+      queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
+      enabled: !!userEmail,
+    });
 
-  const syncProdtrackOnVersionChange =
-    userSettings?.sync_prodtrack_tab_on_version_change === true;
+
+  const shouldAutoSyncProdtrackTab =
+    userSettingsQuerySuccess &&
+    (userSettings === null ||
+      (userSettings.sync_prodtrack_tab_on_version_change ?? true) === true);
 
   const handleSyncProdtrackTab = useCallback(async () => {
     const url = version?.prodtrack_detail_url;
@@ -196,32 +200,28 @@ export function ContentArea({
 
   useEffect(() => {
     if (!version?.prodtrack_detail_url) return;
-    if (!syncProdtrackOnVersionChange) return;
+    if (!shouldAutoSyncProdtrackTab) return;
     if (!extensionId) return;
-    let cancelled = false;
-    void (async () => {
-      const result = await openProdtrackVersionInExtension(
-        extensionId,
-        version.prodtrack_detail_url!
-      );
-      if (cancelled) return;
-      if (!result.ok) {
-        if (
-          result.reason === 'no_extension' ||
-          result.reason === 'no_extension_id' ||
-          result.reason === 'no_chrome'
-        ) {
-          setInstallDialogOpen(true);
+    const url = version.prodtrack_detail_url;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const result = await openProdtrackVersionInExtension(extensionId, url);
+        if (!result.ok) {
+          if (
+            result.reason === 'no_extension' ||
+            result.reason === 'no_extension_id' ||
+            result.reason === 'no_chrome'
+          ) {
+            setInstallDialogOpen(true);
+          }
         }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      })();
+    }, 120);
+    return () => window.clearTimeout(timer);
   }, [
     version?.id,
     version?.prodtrack_detail_url,
-    syncProdtrackOnVersionChange,
+    shouldAutoSyncProdtrackTab,
     extensionId,
   ]);
 

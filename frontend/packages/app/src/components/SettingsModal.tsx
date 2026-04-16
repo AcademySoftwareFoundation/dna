@@ -368,9 +368,10 @@ function GeneralTab({
               Sync PT tab when version changes
             </CheckboxLabel>
             <CheckboxDescription>
-              When enabled, the extension updates your production-tracking
-              tab whenever you select a different version. When disabled,
-              use the &quot;PT tab&quot; button in the version header.
+              When enabled (default), the extension updates your
+              production-tracking tab whenever you select a different version.
+              Turn off to update the PT tab only with the &quot;PT tab&quot;
+              button in the version header.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
@@ -544,7 +545,7 @@ export function SettingsModal({
   const [regenerateOnTranscriptUpdate, setRegenerateOnTranscriptUpdate] =
     useState(false);
   const [syncProdtrackTabOnVersionChange, setSyncProdtrackTabOnVersionChange] =
-    useState(false);
+    useState(true);
   const [isDirty, setIsDirty] = useState(false);
 
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
@@ -561,7 +562,8 @@ export function SettingsModal({
   const mutation = useMutation({
     mutationFn: (data: UserSettingsUpdate) =>
       apiHandler.upsertUserSettings({ userEmail, data }),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['userSettings', userEmail], saved);
       queryClient.invalidateQueries({ queryKey: ['userSettings', userEmail] });
       setIsDirty(false);
     },
@@ -573,14 +575,14 @@ export function SettingsModal({
       setRegenerateOnVersionChange(settings.regenerate_on_version_change);
       setRegenerateOnTranscriptUpdate(settings.regenerate_on_transcript_update);
       setSyncProdtrackTabOnVersionChange(
-        settings.sync_prodtrack_tab_on_version_change
+        settings.sync_prodtrack_tab_on_version_change ?? true
       );
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
       setRegenerateOnVersionChange(false);
       setRegenerateOnTranscriptUpdate(false);
-      setSyncProdtrackTabOnVersionChange(false);
+      setSyncProdtrackTabOnVersionChange(true);
       setIsDirty(false);
     }
   }, [settings]);

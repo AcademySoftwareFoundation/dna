@@ -66,7 +66,7 @@ class TestUserSettingsModels:
         assert settings.note_prompt == ""
         assert settings.regenerate_on_version_change is False
         assert settings.regenerate_on_transcript_update is False
-        assert settings.sync_prodtrack_tab_on_version_change is False
+        assert settings.sync_prodtrack_tab_on_version_change is True
 
 
 class TestUserSettingsEndpoints:
@@ -102,7 +102,7 @@ class TestUserSettingsEndpoints:
             assert data["note_prompt"] == "Custom prompt"
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is False
-            assert data["sync_prodtrack_tab_on_version_change"] is False
+            assert data["sync_prodtrack_tab_on_version_change"] is True
             mock_storage_provider.get_user_settings.assert_called_once_with(
                 "test@example.com"
             )

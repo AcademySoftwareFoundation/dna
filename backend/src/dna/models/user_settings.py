@@ -40,6 +40,6 @@ class UserSettings(BaseModel):
     note_prompt: str = ""
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
-    sync_prodtrack_tab_on_version_change: bool = False
+    sync_prodtrack_tab_on_version_change: bool = True
     updated_at: datetime
     created_at: datetime
