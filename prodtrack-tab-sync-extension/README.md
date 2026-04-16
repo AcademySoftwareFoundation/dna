@@ -11,21 +11,14 @@ Chrome extension (Manifest V3) that pairs with the DNA web app ([issue #136](htt
 
 ## Allow DNA origins
 
-The extension only accepts messages from origins listed under `externally_connectable.matches` in [`manifest.json`](./manifest.json).
+The extension accepts external messages from:
 
-For local development, `http://localhost:*` and `http://127.0.0.1:*` are included by default.
+- **`https://*/*`** — any HTTPS origin (typical production deployments on arbitrary domains).
+- **`*://localhost/*`** and **`*://127.0.0.1/*`** — local dev on any port (`http` or `https`).
 
-**For production or other hosts**, add your DNA site pattern to `manifest.json`, for example:
+[`externally_connectable`](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable) cannot use a catch‑all like `http://*/*` for every hostname; Chrome treats that pattern as invalid for web pages. So **HTTP deployments that are not** `localhost` / `127.0.0.1` (for example `http://dna.corp.local/`) must add an explicit entry to `matches` in [`manifest.json`](./manifest.json), then reload the extension in `chrome://extensions`.
 
-```json
-"matches": [
-  "http://127.0.0.1:*/*",
-  "http://localhost:*/*",
-  "https://your-dna-host.example.com/*"
-]
-```
-
-Then reload the extension in `chrome://extensions`.
+`"ids": ["*"]` allows other extensions to message this one; it does not change which **websites** can connect (still governed by `matches` only).
 
 ## Chrome Web Store
 
@@ -33,7 +26,13 @@ When published, the install prompt in DNA can point users to the listing URL via
 
 ## Split view
 
-Chrome does not expose a stable API for extensions to force two arbitrary tabs into split view. This extension opens the production-tracking tab **in the same window, immediately after the active tab**, so you can use Chrome’s built-in split controls if you want a tiled layout.
+Chrome exposes [`tabs.Tab.splitViewId`](https://developer.chrome.com/docs/extensions/reference/api/tabs#property-Tab-splitViewId) and [`tabs.SPLIT_VIEW_ID_NONE`](https://developer.chrome.com/docs/extensions/reference/api/tabs#property-SPLIT_VIEW_ID_NONE) (Chrome 140+) so extensions can **see** which tabs share a split; it does **not** yet expose a supported way to **create** a split from an extension (see [WECG discussion](https://github.com/w3c/webextensions/issues/967)).
+
+This extension therefore:
+
+1. Opens the production-tracking tab in the **same window**, **immediately after** the active (DNA) tab, and sets **`openerTabId`** to the DNA tab when possible so the browser can treat it as a related tab.
+2. **Best-effort only:** if the DNA tab is **already** in a split view (`splitViewId` not `SPLIT_VIEW_ID_NONE`), the extension tries `chrome.tabs.update` on the controlled tab with that `splitViewId`. That call is **not** part of the published `tabs.update` schema today; it is wrapped in `try/catch` and ignored on failure. If Chrome adds support later, the same code may start attaching without changes.
+3. Otherwise behavior matches a **normal adjacent tab** (manual split via Chrome UI if you want a tiled layout).
 
 ## Message protocol (DNA → extension)
 

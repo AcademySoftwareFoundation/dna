@@ -28,11 +28,12 @@ export function ProdtrackTabSyncInstallDialog({
           <Flex direction="column" gap="3">
             <Text as="p" size="2" color="gray">
               DNA could not reach the Chrome extension that keeps your
-              production-tracking tab in sync. Install the extension, add your
-              DNA site to <Text weight="medium">externally_connectable</Text> in
-              its manifest if needed, set{' '}
+              production-tracking tab in sync. Install the extension, set{' '}
               <Text weight="medium">VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID</Text>{' '}
-              in your DNA environment, then try again.
+              in your DNA environment, then try again. If DNA is served over HTTP
+              on a host other than localhost or 127.0.0.1, add that origin to{' '}
+              <Text weight="medium">externally_connectable.matches</Text> in the
+              extension manifest (see the extension README).
             </Text>
             <Text size="2">
               <Link href={installDocUrl} target="_blank" rel="noreferrer">

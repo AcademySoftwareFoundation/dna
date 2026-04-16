@@ -9,10 +9,11 @@
   "permissions": ["tabs"],
   "host_permissions": ["https://*/*", "http://*/*"],
   "externally_connectable": {
+    "ids": ["*"],
     "matches": [
-      "http://127.0.0.1:*/*",
-      "http://localhost:*/*",
-      "https://localhost:*/*"
+      "https://*/*",
+      "*://localhost/*",
+      "*://127.0.0.1/*"
     ]
   }
 }

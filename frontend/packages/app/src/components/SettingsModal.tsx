@@ -351,11 +351,7 @@ function GeneralTab({
       <Section>
         <SectionTitle>Production tracking (browser)</SectionTitle>
         <SectionDescription>
-          Requires the DNA tab sync Chrome extension and{' '}
-          <Text as="span" weight="medium">
-            VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID
-          </Text>{' '}
-          in your DNA environment.
+          Requires the DNA tab sync Chrome extension.
         </SectionDescription>
         <CheckboxRow>
           <Checkbox
