@@ -64,12 +64,20 @@ function NoopAuthProviderInner({ children }: NoopAuthProviderInnerProps) {
   });
 
   useEffect(() => {
-    if (token && user) {
+    if (token !== 'noop-token' || !user?.email) return;
+    localStorage.setItem(STORAGE_KEY, user.email);
+    setToken(user.email);
+  }, [token, user?.email]);
+
+  useEffect(() => {
+    const authToken =
+      token === 'noop-token' && user?.email ? user.email : token;
+    if (authToken && user) {
       apiHandler.setUser({
         id: user.id,
         email: user.email,
         name: user.name,
-        token: token,
+        token: authToken,
       });
     } else {
       apiHandler.setUser(null);
@@ -91,12 +99,10 @@ function NoopAuthProviderInner({ children }: NoopAuthProviderInnerProps) {
       name: email.split('@')[0],
     };
 
-    const noopToken = 'noop-token';
-
-    localStorage.setItem(STORAGE_KEY, noopToken);
+    localStorage.setItem(STORAGE_KEY, email);
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser));
 
-    setToken(noopToken);
+    setToken(email);
     setUser(authUser);
   }, []);
 
