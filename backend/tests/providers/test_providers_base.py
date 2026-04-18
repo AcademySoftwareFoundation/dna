@@ -27,6 +27,7 @@ class TestProdtrackProviderBaseTranscriptContract:
         provider = ProdtrackProviderBase()
         with pytest.raises(NotImplementedError):
             provider.update_transcript(
+                entity_type="CustomEntity01",
                 entity_id=9001,
                 body="Speaker: updated",
                 meeting_date=date(2026, 4, 15),

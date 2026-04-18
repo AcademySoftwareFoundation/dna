@@ -1020,6 +1020,12 @@ async def publish_transcript(
         )
 
     payload = build_transcript_payload(segments)
+    if payload.segments_count == 0:
+        # 原始 list 不空但過完 whitespace filter 後清光光；不要在 SG 留空 row
+        raise HTTPException(
+            status_code=422,
+            detail="All stored segments were empty; nothing to publish",
+        )
 
     existing = await storage.get_published_transcript(
         playlist_id, request.version_id, metadata.meeting_id
@@ -1051,7 +1057,9 @@ async def publish_transcript(
 
     try:
         if existing:
+            # 用 bookkeeping 記的 entity_type，不是當前 env；避免站台改設定時 update 打錯 slot
             updated = prodtrack.update_transcript(
+                entity_type=existing.sg_entity_type,
                 entity_id=existing.sg_entity_id,
                 body=payload.body,
                 meeting_date=payload.meeting_date,

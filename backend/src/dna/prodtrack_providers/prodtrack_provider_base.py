@@ -211,11 +211,16 @@ class ProdtrackProviderBase:
     def update_transcript(
         self,
         *,
+        entity_type: str,
         entity_id: int,
         body: str,
         meeting_date: date,
     ) -> bool:
         """Update body + meeting_date on an existing transcript entity.
+
+        `entity_type` must come from the caller's bookkeeping (whichever
+        custom-entity slot the row was originally created in). Reading the
+        current env var here would misfire if studios migrate between slots.
 
         Only body and meeting_date are touched on purpose; summary and other
         fields are left alone so manual edits on the tracking-system side

@@ -320,6 +320,65 @@ class TestPublishTranscriptEndpoint:
         assert response.status_code == 422
         mock_prodtrack.publish_transcript.assert_not_called()
 
+    def test_update_path_uses_stored_entity_type_not_current_env(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """env var 改過以後，update 仍然要打到**原本** create 它那個 entity type。"""
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "changed")
+        ]
+        # 原本是在 CustomEntity01 那邊 create 的
+        mock_storage.get_published_transcript.return_value = PublishedTranscript(
+            _id="pt-id",
+            playlist_id=42,
+            version_id=101,
+            meeting_id="m-abc",
+            sg_entity_type="CustomEntity01",
+            sg_entity_id=9001,
+            author_email="user@test.com",
+            body_hash="old-hash",
+            segments_count=1,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        mock_prodtrack.update_transcript.return_value = True
+
+        # 現在 env 被改成 CustomEntity05，但 9001 還是屬於 CustomEntity01
+        with mock.patch.dict(
+            os.environ,
+            {**ENABLE_FLAG, "SHOTGRID_TRANSCRIPT_ENTITY": "CustomEntity05"},
+        ):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": 101},
+            )
+
+        assert response.status_code == 200
+        kwargs = mock_prodtrack.update_transcript.call_args.kwargs
+        # 必須指定原本的 CustomEntity01，不能跟著 env 走
+        assert kwargs.get("entity_type") == "CustomEntity01"
+
+    def test_all_segments_whitespace_is_422(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """通過原始 segments 的空檢查，但 build 完全被過濾掉 → 不該 publish 空 row。"""
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "   "),
+            _segment("2026-04-15T10:00:05Z", ""),
+        ]
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": 101},
+            )
+
+        assert response.status_code == 422
+        mock_prodtrack.publish_transcript.assert_not_called()
+        mock_prodtrack.update_transcript.assert_not_called()
+
     def test_bookkeeping_failure_after_sg_create_is_surfaced(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):

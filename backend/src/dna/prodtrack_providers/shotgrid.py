@@ -1024,6 +1024,7 @@ class ShotgridProvider(ProdtrackProviderBase):
     def update_transcript(
         self,
         *,
+        entity_type: str,
         entity_id: int,
         body: str,
         meeting_date: date,
@@ -1033,7 +1034,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             return False
         try:
             self._sg.update(
-                _transcript_entity_type(),
+                entity_type,
                 entity_id,
                 {
                     "sg_transcript_body": body,
