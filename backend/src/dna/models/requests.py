@@ -117,3 +117,20 @@ class PublishNotesResponse(BaseModel):
     skipped_count: int
     failed_count: int
     total: int
+
+
+class PublishTranscriptRequest(BaseModel):
+    """Request to publish a version's captured transcript."""
+
+    version_id: int = Field(description="Version whose segments to publish")
+
+
+class PublishTranscriptResponse(BaseModel):
+    """Response from the publish-transcript endpoint."""
+
+    transcript_entity_id: int = Field(
+        description="Entity ID of the row in the tracking system"
+    )
+    outcome: str = Field(description="created | updated | skipped")
+    skipped_reason: Optional[str] = None
+    segments_count: int
