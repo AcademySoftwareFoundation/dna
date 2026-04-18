@@ -7,6 +7,8 @@ import { apiHandler } from '../api';
 vi.mock('../api', () => ({
   apiHandler: {
     publishTranscript: vi.fn(),
+    setUser: vi.fn(),
+    getUser: vi.fn().mockReturnValue(null),
   },
 }));
 
