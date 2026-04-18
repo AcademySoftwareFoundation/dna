@@ -37,7 +37,7 @@ describe('ApiHandler', () => {
       },
     };
 
-    mockedAxios.create.mockReturnValue(
+    vi.mocked(mockedAxios.create).mockReturnValue(
       mockAxiosInstance as unknown as ReturnType<typeof axios.create>
     );
   });
@@ -695,7 +695,8 @@ describe('ApiHandler', () => {
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/playlists/42/publish-transcript',
-        { version_id: 101 }
+        { version_id: 101 },
+        undefined
       );
       expect(result.outcome).toBe('created');
       expect(result.transcript_entity_id).toBe(9001);
