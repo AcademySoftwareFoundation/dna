@@ -152,6 +152,8 @@ The React app will be available at `http://localhost:5173`.
 | `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model to use when `LLM_PROVIDER=gemini` |
 | `GEMINI_TIMEOUT` | No | `30.0` | Request timeout in seconds when `LLM_PROVIDER=gemini` |
 | `GEMINI_URL` | No | `https://generativelanguage.googleapis.com/v1beta/openai/` | Override the Gemini OpenAI-compatible base URL |
+| `DNA_ENABLE_TRANSCRIPT_PUBLISH` | No | `false` | Set to `true` to enable `POST /playlists/{id}/publish-transcript`. When off, the endpoint returns 404. |
+| `SHOTGRID_TRANSCRIPT_ENTITY` | No | `CustomEntity01` | ShotGrid custom entity slot used when publishing transcripts. Match whichever `CustomEntityNN` the site admin has enabled. |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ### Vexa Service (`vexa` service)

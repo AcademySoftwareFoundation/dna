@@ -1340,3 +1340,86 @@ logging.getLogger("dna.events.event_publisher").setLevel(logging.DEBUG)
 - The bot remains in the meeting during pause, ready to resume instantly
 - `transcription_resumed_at` prevents replay of stale segments
 - Minimal state changes: only a boolean flag and an optional timestamp
+
+---
+
+## Publishing to the Production Tracking System
+
+Tracked by issue #120. Off by default behind `DNA_ENABLE_TRANSCRIPT_PUBLISH=true`.
+
+### Pipeline
+
+```
+POST /playlists/{playlist_id}/publish-transcript {version_id}
+  -> storage.get_playlist_metadata(playlist_id)           # meeting_id, platform
+  -> storage.get_segments_for_version(...)                # existing call
+  -> build_transcript_payload(segments)                   # pure, dedupe + collapse
+  -> storage.get_published_transcript(...)                # bookkeeping lookup
+  -> prodtrack.publish_transcript(...) / update_transcript(entity_id, ...)
+  -> storage.upsert_published_transcript(...)
+  -> { transcript_entity_id, outcome: created | updated | skipped }
+```
+
+### Collections touched
+
+| Collection | Used for |
+|------------|----------|
+| `segments` | Source of the transcript body (read-only here) |
+| `playlist_metadata` | Pulls `meeting_id` + `platform` |
+| `published_transcripts` | Stores the SG entity ID and body_hash per `(playlist_id, version_id, meeting_id)` |
+
+### ShotGrid side
+
+Publishes a row into `SHOTGRID_TRANSCRIPT_ENTITY` (default `CustomEntity01`).
+Payload mapping:
+
+| DNA field | ShotGrid field |
+|-----------|----------------|
+| `code` (auto) | `code` |
+| `project_id` | `project` |
+| `playlist_id` | `sg_playlist` |
+| `[version_id]` | `sg_versions` |
+| `meeting_id` | `sg_meeting_id` |
+| `meeting_date` | `sg_meeting_date` |
+| `platform` | `sg_platform` |
+| `body` | `sg_transcript_body` |
+
+`sg_summary` is intentionally left blank in V1 so studio staff can fill it
+on the ShotGrid side without the publisher overwriting it.
+
+### ADR-005: Custom entity, not a ShotGrid Note
+
+**Decision:** Transcripts live in a custom entity (configurable via
+`SHOTGRID_TRANSCRIPT_ENTITY`), not as ShotGrid `Note` rows.
+
+**Rationale:**
+- Notes are tied to review addressings and read state; transcripts are
+  reference material with different fields.
+- Admins can restrict the custom-entity page per the mockup on #120
+  without affecting Notes.
+- The field shape (playlist link + multi-version link + `sg_platform`
+  list + long `sg_transcript_body`) does not fit Note's schema.
+
+### ADR-006: Idempotence via body_hash in MongoDB, not SG lookup
+
+**Decision:** Track which `(playlist, version, meeting)` tuples have
+been published in a local Mongo collection. Skip re-publish when the
+new body_hash matches the stored one.
+
+**Rationale:**
+- SG is not efficiently queryable for "has this been published before".
+- The existing DraftNote publish path uses the same pattern
+  (`published_note_id` on the draft).
+- Loss of the Mongo row is a known edge-case; duplicate SG rows in that
+  scenario are an acceptable V1 trade-off documented on issue #120.
+
+### ADR-007: Build publishable body at publish time, not ingest time
+
+**Decision:** `build_transcript_payload` is called inside the publish
+endpoint, not in the ingest pipeline.
+
+**Rationale:**
+- Dedup rules may change once issue #135 lands (Vexa-side segment IDs
+  become authoritative). Keeping the builder isolated means that change
+  is one file here rather than a re-ingest.
+- The builder is pure and trivially testable, unlike the ingest loop.
