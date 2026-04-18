@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 import os
 import shutil
 import uuid
@@ -1003,6 +1004,13 @@ async def publish_transcript(
             status_code=422,
             detail="Playlist has no meeting associated yet",
         )
+    if not metadata.platform:
+        # platform 是 SG 那邊的 list field，空字串會被站台 schema 拒；
+        # 比起讓 SG 回一個看不懂的 Fault，這裡攔下給明確錯誤。
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist metadata has no platform recorded",
+        )
 
     segments = await storage.get_segments_for_version(playlist_id, request.version_id)
     if not segments:
@@ -1063,7 +1071,7 @@ async def publish_transcript(
                 version_id=request.version_id,
                 meeting_id=metadata.meeting_id,
                 meeting_date=payload.meeting_date,
-                platform=metadata.platform or "",
+                platform=metadata.platform,
                 body=payload.body,
             )
             outcome = "created"
@@ -1071,18 +1079,40 @@ async def publish_transcript(
         raise HTTPException(status_code=501, detail=str(e))
 
     entity_type = os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
-    await storage.upsert_published_transcript(
-        PublishedTranscriptUpdate(
-            playlist_id=playlist_id,
-            version_id=request.version_id,
-            meeting_id=metadata.meeting_id,
-            sg_entity_type=entity_type,
-            sg_entity_id=sg_entity_id,
-            author_email=current_user,
-            body_hash=payload.body_hash,
-            segments_count=payload.segments_count,
+    try:
+        await storage.upsert_published_transcript(
+            PublishedTranscriptUpdate(
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=metadata.meeting_id,
+                sg_entity_type=entity_type,
+                sg_entity_id=sg_entity_id,
+                author_email=current_user,
+                body_hash=payload.body_hash,
+                segments_count=payload.segments_count,
+            )
         )
-    )
+    except Exception as e:
+        # SG 那邊已經寫進去了，但本地 bookkeeping 沒跟上。
+        # 下次同樣 body 的請求會再在 SG 建一列（因為 existing 會是 None）。
+        # 把 entity_id 放進錯誤訊息，讓 operator 能去 SG 手動善後；
+        # 同時讓 client 知道這個錯誤**不該直接重試**。
+        logger = logging.getLogger(__name__)
+        logger.exception(
+            "Transcript %s created on tracking system id=%s but local "
+            "bookkeeping failed. Next publish will create a duplicate unless "
+            "the SG row is removed or the bookkeeping row is written manually.",
+            outcome,
+            sg_entity_id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Transcript row {sg_entity_id} was {outcome} on the tracking "
+                f"system but local bookkeeping failed ({e.__class__.__name__}). "
+                f"Do not retry blindly; reconcile the row manually."
+            ),
+        )
 
     return PublishTranscriptResponse(
         transcript_entity_id=sg_entity_id,

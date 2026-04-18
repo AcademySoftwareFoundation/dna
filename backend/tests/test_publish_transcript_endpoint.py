@@ -304,3 +304,43 @@ class TestPublishTranscriptEndpoint:
 
         assert response.status_code == 502
         mock_storage.upsert_published_transcript.assert_not_awaited()
+
+    def test_metadata_without_platform_is_422(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """platform 為 None / 空字串時拒絕，避免把空值丟到 SG 的 list field。"""
+        mock_storage.get_playlist_metadata.return_value = _metadata(platform="")
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": 101},
+            )
+
+        assert response.status_code == 422
+        mock_prodtrack.publish_transcript.assert_not_called()
+
+    def test_bookkeeping_failure_after_sg_create_is_surfaced(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """SG 已經 create 但 Mongo upsert 爆炸時要 surface 500，並帶 entity_id
+        讓 operator 知道 SG 側有 orphan 要善後，下次請求不可直接重試。"""
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "hi")
+        ]
+        mock_storage.get_published_transcript.return_value = None
+        mock_prodtrack.publish_transcript.return_value = 9001
+        mock_storage.upsert_published_transcript.side_effect = RuntimeError(
+            "mongo connection lost"
+        )
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": 101},
+            )
+
+        assert response.status_code == 500
+        # entity_id 必須在錯誤訊息裡，operator 才能去 SG 手動刪除
+        assert "9001" in response.json()["detail"]
