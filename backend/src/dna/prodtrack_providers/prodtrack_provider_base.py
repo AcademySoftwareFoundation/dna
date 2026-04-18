@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -187,6 +188,38 @@ class ProdtrackProviderBase:
 
         Returns:
             True if upload succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def publish_transcript(
+        self,
+        *,
+        project_id: int,
+        playlist_id: int,
+        version_id: int,
+        meeting_id: str,
+        meeting_date: date,
+        platform: str,
+        body: str,
+    ) -> int:
+        """Create a transcript row in the production tracking system.
+
+        Returns the entity ID of the newly-created row.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def update_transcript(
+        self,
+        *,
+        entity_id: int,
+        body: str,
+        meeting_date: date,
+    ) -> bool:
+        """Update body + meeting_date on an existing transcript entity.
+
+        Only body and meeting_date are touched on purpose; summary and other
+        fields are left alone so manual edits on the tracking-system side
+        survive a re-publish.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

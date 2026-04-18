@@ -402,9 +402,7 @@ class TestShotgridProviderPublishTranscript:
                 body="hello",
             )
 
-    def test_update_transcript_only_patches_body_and_date(
-        self, provider, mock_shotgun
-    ):
+    def test_update_transcript_only_patches_body_and_date(self, provider, mock_shotgun):
         """update 時只能動 body 跟 meeting_date，不要把 SG 上手動改的欄位蓋掉。"""
         from datetime import date as date_
 
