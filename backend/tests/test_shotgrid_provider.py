@@ -307,3 +307,140 @@ class TestShotgridProviderRefactor:
 
         with pytest.raises(ValueError, match="Not connected to ShotGrid"):
             provider.update_version_status(101, "rev")
+
+
+class TestShotgridProviderPublishTranscript:
+    """publish_transcript / update_transcript 要把 transcript 寫到 SG 的自訂 entity。"""
+
+    @pytest.fixture
+    def mock_shotgun(self):
+        with mock.patch("dna.prodtrack_providers.shotgrid.Shotgun") as mock_sg:
+            yield mock_sg
+
+    @pytest.fixture
+    def provider(self, mock_shotgun):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHOTGRID_URL": "https://test.shotgunstudio.com",
+                "SHOTGRID_SCRIPT_NAME": "test_script",
+                "SHOTGRID_API_KEY": "test_key",
+            },
+        ):
+            return ShotgridProvider(connect=True)
+
+    def test_publish_transcript_creates_row_with_default_entity_type(
+        self, provider, mock_shotgun
+    ):
+        """預設狀況下，SG 的 entity 應該是 CustomEntity01。"""
+        from datetime import date as date_
+
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        mock_sg_instance.create.return_value = {"id": 9001}
+
+        entity_id = provider.publish_transcript(
+            project_id=1,
+            playlist_id=42,
+            version_id=101,
+            meeting_id="m-abc",
+            meeting_date=date_(2026, 4, 15),
+            platform="google_meet",
+            body="Cameron: hello",
+        )
+
+        assert entity_id == 9001
+        call_args = mock_sg_instance.create.call_args
+        assert call_args[0][0] == "CustomEntity01"
+        payload = call_args[0][1]
+        assert payload["project"] == {"type": "Project", "id": 1}
+        assert payload["sg_playlist"] == {"type": "Playlist", "id": 42}
+        assert payload["sg_versions"] == [{"type": "Version", "id": 101}]
+        assert payload["sg_meeting_id"] == "m-abc"
+        assert payload["sg_platform"] == "google_meet"
+        assert payload["sg_transcript_body"] == "Cameron: hello"
+        assert payload["sg_meeting_date"] == "2026-04-15"
+        assert "code" in payload and payload["code"]
+
+    def test_publish_transcript_honours_env_override(self, provider, mock_shotgun):
+        """站台若把 entity 放在 CustomEntity05，環境變數要能切換。"""
+        from datetime import date as date_
+
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        mock_sg_instance.create.return_value = {"id": 9002}
+
+        with mock.patch.dict(
+            os.environ, {"SHOTGRID_TRANSCRIPT_ENTITY": "CustomEntity05"}
+        ):
+            provider.publish_transcript(
+                project_id=1,
+                playlist_id=42,
+                version_id=101,
+                meeting_id="m-abc",
+                meeting_date=date_(2026, 4, 15),
+                platform="google_meet",
+                body="hello",
+            )
+
+        assert mock_sg_instance.create.call_args[0][0] == "CustomEntity05"
+
+    def test_publish_transcript_not_connected_raises(self, provider, mock_shotgun):
+        """沒連線時應該明確報錯，不要讓上層看到奇怪的 AttributeError。"""
+        from datetime import date as date_
+
+        provider.sg = None
+        provider._sudo_connection = None
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.publish_transcript(
+                project_id=1,
+                playlist_id=42,
+                version_id=101,
+                meeting_id="m-abc",
+                meeting_date=date_(2026, 4, 15),
+                platform="google_meet",
+                body="hello",
+            )
+
+    def test_update_transcript_only_patches_body_and_date(
+        self, provider, mock_shotgun
+    ):
+        """update 時只能動 body 跟 meeting_date，不要把 SG 上手動改的欄位蓋掉。"""
+        from datetime import date as date_
+
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+
+        ok = provider.update_transcript(
+            entity_id=9001,
+            body="Cameron: updated",
+            meeting_date=date_(2026, 4, 16),
+        )
+
+        assert ok is True
+        call_args = mock_sg_instance.update.call_args
+        assert call_args[0][0] == "CustomEntity01"
+        assert call_args[0][1] == 9001
+        patch = call_args[0][2]
+        assert patch == {
+            "sg_transcript_body": "Cameron: updated",
+            "sg_meeting_date": "2026-04-16",
+        }
+
+    def test_update_transcript_swallows_sg_errors_and_returns_false(
+        self, provider, mock_shotgun
+    ):
+        """SG 寫入失敗時不要炸，方便 endpoint 對照 body_hash 做決策。"""
+        from datetime import date as date_
+
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        mock_sg_instance.update.side_effect = Exception("sg boom")
+
+        ok = provider.update_transcript(
+            entity_id=9001,
+            body="x",
+            meeting_date=date_(2026, 4, 16),
+        )
+
+        assert ok is False
