@@ -6,12 +6,11 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 from dna.models.playlist_metadata import PlaylistMetadata
 from dna.models.published_transcript import PublishedTranscript
 from dna.models.stored_segment import StoredSegment
-
+from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 ENABLE_FLAG = {"DNA_ENABLE_TRANSCRIPT_PUBLISH": "true"}
 
@@ -34,7 +33,9 @@ def _segment(start: str, text: str, speaker: str = "A") -> StoredSegment:
     )
 
 
-def _metadata(meeting_id: str = "m-abc", platform: str = "google_meet") -> PlaylistMetadata:
+def _metadata(
+    meeting_id: str = "m-abc", platform: str = "google_meet"
+) -> PlaylistMetadata:
     return PlaylistMetadata(
         _id="meta-id",
         playlist_id=42,
@@ -86,7 +87,9 @@ class TestPublishTranscriptEndpoint:
         yield
         app.dependency_overrides.clear()
 
-    def test_flag_off_returns_404(self, client, mock_storage, mock_prodtrack, override_deps):
+    def test_flag_off_returns_404(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
         """沒開 feature flag 時必須 404。這個 endpoint 不該露出來。"""
         # 完全不帶 DNA_ENABLE_TRANSCRIPT_PUBLISH
         with mock.patch.dict(os.environ, {}, clear=False):
@@ -98,7 +101,9 @@ class TestPublishTranscriptEndpoint:
 
         assert response.status_code == 404
 
-    def test_happy_create_path(self, client, mock_storage, mock_prodtrack, override_deps):
+    def test_happy_create_path(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
         """第一次推上去要 create，並且把 bookkeeping 寫回 storage。"""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
@@ -142,7 +147,9 @@ class TestPublishTranscriptEndpoint:
 
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [seg]
-        mock_storage.get_published_transcript.return_value = _published(payload.body_hash)
+        mock_storage.get_published_transcript.return_value = _published(
+            payload.body_hash
+        )
 
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(

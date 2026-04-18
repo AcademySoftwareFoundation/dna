@@ -42,8 +42,11 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    PublishedTranscriptUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
+    PublishTranscriptRequest,
+    PublishTranscriptResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -963,6 +966,113 @@ async def publish_notes(
         skipped_count=skipped_count,
         failed_count=failed_count,
         total=len(notes_to_publish),
+    )
+
+
+def _transcript_publish_enabled() -> bool:
+    """讀 DNA_ENABLE_TRANSCRIPT_PUBLISH；沒設或不是 true 就當沒開。"""
+    return os.getenv("DNA_ENABLE_TRANSCRIPT_PUBLISH", "false").lower() == "true"
+
+
+@app.post(
+    "/playlists/{playlist_id}/publish-transcript",
+    tags=["Playlists", "Transcription"],
+    summary="Publish a version's captured transcript",
+    description=(
+        "Push the stored transcript for a version to the production tracking "
+        "system as a single custom-entity row. Idempotent via body_hash."
+    ),
+    response_model=PublishTranscriptResponse,
+)
+async def publish_transcript(
+    playlist_id: int,
+    request: PublishTranscriptRequest,
+    storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
+    current_user: CurrentUserDep,
+) -> PublishTranscriptResponse:
+    """Publish one version's transcript; skip when body_hash has not changed."""
+    if not _transcript_publish_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    from dna.transcription_publish import build_transcript_payload
+
+    metadata = await storage.get_playlist_metadata(playlist_id)
+    if metadata is None or not metadata.meeting_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist has no meeting associated yet",
+        )
+
+    segments = await storage.get_segments_for_version(playlist_id, request.version_id)
+    if not segments:
+        raise HTTPException(
+            status_code=422,
+            detail="No transcript segments stored for this version",
+        )
+
+    payload = build_transcript_payload(segments)
+
+    existing = await storage.get_published_transcript(
+        playlist_id, request.version_id, metadata.meeting_id
+    )
+    if existing and existing.body_hash == payload.body_hash:
+        return PublishTranscriptResponse(
+            transcript_entity_id=existing.sg_entity_id,
+            outcome="skipped",
+            skipped_reason="no_changes_since_last_publish",
+            segments_count=payload.segments_count,
+        )
+
+    version = prodtrack.get_entity("version", request.version_id, resolve_links=False)
+    if version is None or getattr(version, "project", None) is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Version or its project could not be resolved",
+        )
+    project_id = version.project.id
+
+    try:
+        if existing:
+            prodtrack.update_transcript(
+                entity_id=existing.sg_entity_id,
+                body=payload.body,
+                meeting_date=payload.meeting_date,
+            )
+            sg_entity_id = existing.sg_entity_id
+            outcome = "updated"
+        else:
+            sg_entity_id = prodtrack.publish_transcript(
+                project_id=project_id,
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=metadata.meeting_id,
+                meeting_date=payload.meeting_date,
+                platform=metadata.platform or "",
+                body=payload.body,
+            )
+            outcome = "created"
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+
+    entity_type = os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
+    await storage.upsert_published_transcript(
+        PublishedTranscriptUpdate(
+            playlist_id=playlist_id,
+            version_id=request.version_id,
+            meeting_id=metadata.meeting_id,
+            sg_entity_type=entity_type,
+            sg_entity_id=sg_entity_id,
+            author_email=current_user,
+            body_hash=payload.body_hash,
+            segments_count=payload.segments_count,
+        )
+    )
+
+    return PublishTranscriptResponse(
+        transcript_entity_id=sg_entity_id,
+        outcome=outcome,
+        segments_count=payload.segments_count,
     )
 
 
