@@ -150,3 +150,19 @@ class TestBuildTranscriptPayload:
 
         assert payload.body == "Speaker A: valid"
         assert payload.segments_count == 1
+
+    def test_naive_start_time_treated_as_utc(self):
+        """沒時區的時間戳要當成 UTC；不可以讓 astimezone 用本機時區去 infer。"""
+        segments = [
+            _segment(
+                segment_id="1",
+                text="late night",
+                # 主機時區若非 UTC，naive + astimezone 會把日期推到 04-16
+                start="2026-04-15T23:30:00",
+                end="2026-04-15T23:30:05",
+            )
+        ]
+
+        payload = build_transcript_payload(segments)
+
+        assert payload.meeting_date == date(2026, 4, 15)

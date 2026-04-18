@@ -347,11 +347,18 @@ class MongoDBStorageProvider(StorageProviderBase):
             "version_id": data.version_id,
             "meeting_id": data.meeting_id,
         }
-        # model_dump 已經把 query 那三欄一起帶進來，$set 時一併寫入沒關係；
-        # 真正要分開的只有 created_at（只有新增時才需要）
+        # composite key 只在 insert 時寫入；一般欄位用 $set。
+        # 對齊 upsert_draft_note 的用法。
+        payload = data.model_dump()
+        set_on_insert = {
+            "playlist_id": payload.pop("playlist_id"),
+            "version_id": payload.pop("version_id"),
+            "meeting_id": payload.pop("meeting_id"),
+            "created_at": now,
+        }
         update: dict[str, Any] = {
-            "$set": {**data.model_dump(), "updated_at": now},
-            "$setOnInsert": {"created_at": now},
+            "$set": {**payload, "updated_at": now},
+            "$setOnInsert": set_on_insert,
         }
         result = await self.published_transcripts_collection.find_one_and_update(
             query, update, upsert=True, return_document=ReturnDocument.AFTER

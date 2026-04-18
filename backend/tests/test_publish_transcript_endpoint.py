@@ -76,7 +76,9 @@ class TestPublishTranscriptEndpoint:
     def mock_prodtrack(self):
         p = mock.Mock()
         version = mock.Mock()
-        version.project = mock.Mock(id=1)
+        # 真實的 ShotgridProvider 回來的 Version.project 是 dict，不是物件。
+        # 用物件 mock 會把下面 version.project.id 這種筆誤藏起來。
+        version.project = {"type": "Project", "id": 1}
         p.get_entity.return_value = version
         return p
 
@@ -261,3 +263,44 @@ class TestPublishTranscriptEndpoint:
             )
 
         assert response.status_code == 404
+
+    def test_missing_version_returns_404(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """get_entity 對不存在的 version 會 raise ValueError，要接住轉成 404。"""
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "hi")
+        ]
+        mock_storage.get_published_transcript.return_value = None
+        mock_prodtrack.get_entity.side_effect = ValueError(
+            "Entity not found: version 101"
+        )
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": 101},
+            )
+
+        assert response.status_code == 404
+
+    def test_update_failure_does_not_advance_body_hash(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """update_transcript 回傳 False 時要報錯，且不能把新 body_hash 存起來。"""
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "new content")
+        ]
+        mock_storage.get_published_transcript.return_value = _published("old-hash")
+        mock_prodtrack.update_transcript.return_value = False
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": 101},
+            )
+
+        assert response.status_code == 502
+        mock_storage.upsert_published_transcript.assert_not_awaited()

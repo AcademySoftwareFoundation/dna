@@ -901,8 +901,16 @@ class TestMongoDBStorageProvider:
             "meeting_id": "meet-abc",
         }
         update = call_args[0][1]
+        # 跟 upsert_draft_note 的慣例對齊：composite key 只放在 $setOnInsert，
+        # 避免 $set 把 query 欄位重寫一次造成 review 起來難看
         assert update["$set"]["body_hash"] == "deadbeef"
         assert update["$set"]["sg_entity_id"] == 9001
         assert "updated_at" in update["$set"]
+        assert "playlist_id" not in update["$set"]
+        assert "version_id" not in update["$set"]
+        assert "meeting_id" not in update["$set"]
+        assert update["$setOnInsert"]["playlist_id"] == 42
+        assert update["$setOnInsert"]["version_id"] == 7
+        assert update["$setOnInsert"]["meeting_id"] == "meet-abc"
         assert update["$setOnInsert"]["created_at"] is not None
         assert call_args[1]["upsert"] is True

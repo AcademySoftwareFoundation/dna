@@ -75,4 +75,8 @@ def _first_segment_date(ordered: list[StoredSegment]) -> date:
     raw = ordered[0].absolute_start_time
     # ISO 8601 的 Z 字尾 fromisoformat 吃不下，先換成 +00:00
     normalized = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
-    return datetime.fromisoformat(normalized).astimezone(timezone.utc).date()
+    dt = datetime.fromisoformat(normalized)
+    # 沒帶時區的情況，按 StoredSegment 欄位的規範當成 UTC，不要讓本機時區 infer
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).date()

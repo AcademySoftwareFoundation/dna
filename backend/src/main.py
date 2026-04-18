@@ -1024,21 +1024,36 @@ async def publish_transcript(
             segments_count=payload.segments_count,
         )
 
-    version = prodtrack.get_entity("version", request.version_id, resolve_links=False)
-    if version is None or getattr(version, "project", None) is None:
+    try:
+        version = prodtrack.get_entity(
+            "version", request.version_id, resolve_links=False
+        )
+    except ValueError as e:
+        # get_entity 找不到對應資料時會 raise ValueError，這裡轉成 404
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Version.project 是 dict (type/id/name)，不是物件。不要用 .id 存取。
+    project_ref = getattr(version, "project", None)
+    project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
+    if project_id is None:
         raise HTTPException(
             status_code=404,
-            detail="Version or its project could not be resolved",
+            detail="Version has no project associated",
         )
-    project_id = version.project.id
 
     try:
         if existing:
-            prodtrack.update_transcript(
+            updated = prodtrack.update_transcript(
                 entity_id=existing.sg_entity_id,
                 body=payload.body,
                 meeting_date=payload.meeting_date,
             )
+            if not updated:
+                # SG 更新失敗時千萬不能把 body_hash 往前推，否則下次會誤判 skipped
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to update transcript on the tracking system",
+                )
             sg_entity_id = existing.sg_entity_id
             outcome = "updated"
         else:
