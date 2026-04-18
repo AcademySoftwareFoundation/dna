@@ -1355,7 +1355,10 @@ POST /playlists/{playlist_id}/publish-transcript {version_id}
   -> storage.get_segments_for_version(...)                # existing call
   -> build_transcript_payload(segments)                   # pure, dedupe + collapse
   -> storage.get_published_transcript(...)                # bookkeeping lookup
-  -> prodtrack.publish_transcript(...) / update_transcript(entity_id, ...)
+  -> prodtrack.publish_transcript(entity_type from env, ...)
+       # create path: reads SHOTGRID_TRANSCRIPT_ENTITY
+     / prodtrack.update_transcript(entity_type=existing.sg_entity_type, ...)
+       # update path: honours the bookkeeping row, not the current env
   -> storage.upsert_published_transcript(...)
   -> { transcript_entity_id, outcome: created | updated | skipped }
 ```
@@ -1404,7 +1407,11 @@ on the ShotGrid side without the publisher overwriting it.
 
 **Decision:** Track which `(playlist, version, meeting)` tuples have
 been published in a local Mongo collection. Skip re-publish when the
-new body_hash matches the stored one.
+new body_hash matches the stored one. The bookkeeping row also stores
+`sg_entity_type`; the update path uses that value instead of the
+current `SHOTGRID_TRANSCRIPT_ENTITY` env so studios can migrate to a
+new custom-entity slot without breaking updates on already-published
+rows.
 
 **Rationale:**
 - SG is not efficiently queryable for "has this been published before".
@@ -1412,6 +1419,8 @@ new body_hash matches the stored one.
   (`published_note_id` on the draft).
 - Loss of the Mongo row is a known edge-case; duplicate SG rows in that
   scenario are an acceptable V1 trade-off documented on issue #120.
+- Pinning the entity_type to the bookkeeping row (not env) prevents
+  misdirected updates after a slot migration.
 
 ### ADR-007: Build publishable body at publish time, not ingest time
 

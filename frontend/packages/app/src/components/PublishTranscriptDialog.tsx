@@ -80,13 +80,12 @@ export const PublishTranscriptDialog: React.FC<
     >
       <Dialog.Content maxWidth="440px">
         <Dialog.Title>Publish transcript</Dialog.Title>
+        <Dialog.Description size="2">
+          Push the captured transcript for this version to the production
+          tracking system as a custom-entity row.
+        </Dialog.Description>
 
         <Flex direction="column" gap="3">
-          <Text size="2">
-            Push the captured transcript for this version to the production
-            tracking system as a custom-entity row.
-          </Text>
-
           <SummaryBox>
             <StatRow>
               <span>Version</span>
