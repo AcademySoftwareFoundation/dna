@@ -6,11 +6,11 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
+from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 from dna.models.playlist_metadata import PlaylistMetadata
 from dna.models.published_transcript import PublishedTranscript
 from dna.models.stored_segment import StoredSegment
-from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 ENABLE_FLAG = {"DNA_ENABLE_TRANSCRIPT_PUBLISH": "true"}
 
