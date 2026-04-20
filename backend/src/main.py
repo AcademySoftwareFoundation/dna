@@ -323,6 +323,10 @@ async def startup_event():
     """Initialize services on startup."""
     service = get_transcription_service()
     await service.init_providers()
+    storage = service.storage_provider
+    ensure_indexes = getattr(storage, "ensure_indexes", None)
+    if callable(ensure_indexes):
+        await ensure_indexes()
     await service.resubscribe_to_active_meetings()
 
 
