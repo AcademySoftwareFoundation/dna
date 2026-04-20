@@ -126,11 +126,11 @@ class TestEventPublisher:
         async def callback(event_type, payload):
             received_events.append((event_type, payload))
 
-        publisher.subscribe(EventType.SEGMENT_CREATED, callback)
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data"})
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, callback)
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
 
         assert len(received_events) == 1
-        assert received_events[0] == (EventType.SEGMENT_CREATED, {"test": "data"})
+        assert received_events[0] == (EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
 
     @pytest.mark.asyncio
     async def test_publish_does_not_call_other_type_subscribers(self):
@@ -141,8 +141,8 @@ class TestEventPublisher:
         async def callback(event_type, payload):
             received_events.append((event_type, payload))
 
-        publisher.subscribe(EventType.SEGMENT_CREATED, callback)
-        await publisher.publish(EventType.SEGMENT_UPDATED, {"test": "data"})
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, callback)
+        await publisher.publish(EventType.TRANSCRIPTION_COMPLETED, {"test": "data"})
 
         assert len(received_events) == 0
 
@@ -156,12 +156,12 @@ class TestEventPublisher:
             received_events.append((event_type, payload))
 
         publisher.subscribe_all(callback)
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data"})
-        await publisher.publish(EventType.SEGMENT_UPDATED, {"test": "data2"})
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
+        await publisher.publish(EventType.TRANSCRIPTION_COMPLETED, {"test": "data2"})
 
         assert len(received_events) == 2
-        assert received_events[0] == (EventType.SEGMENT_CREATED, {"test": "data"})
-        assert received_events[1] == (EventType.SEGMENT_UPDATED, {"test": "data2"})
+        assert received_events[0] == (EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
+        assert received_events[1] == (EventType.TRANSCRIPTION_COMPLETED, {"test": "data2"})
 
     @pytest.mark.asyncio
     async def test_publish_calls_multiple_subscribers(self):
@@ -176,9 +176,9 @@ class TestEventPublisher:
         async def callback2(event_type, payload):
             received_events_2.append(payload)
 
-        publisher.subscribe(EventType.SEGMENT_CREATED, callback1)
-        publisher.subscribe(EventType.SEGMENT_CREATED, callback2)
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data"})
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, callback1)
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, callback2)
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
 
         assert len(received_events_1) == 1
         assert len(received_events_2) == 1
@@ -192,10 +192,10 @@ class TestEventPublisher:
         async def callback(event_type, payload):
             received_events.append(payload)
 
-        unsubscribe = publisher.subscribe(EventType.SEGMENT_CREATED, callback)
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data1"})
+        unsubscribe = publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, callback)
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data1"})
         unsubscribe()
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data2"})
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data2"})
 
         assert len(received_events) == 1
         assert received_events[0] == {"test": "data1"}
@@ -210,9 +210,9 @@ class TestEventPublisher:
             received_events.append(payload)
 
         unsubscribe = publisher.subscribe_all(callback)
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data1"})
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data1"})
         unsubscribe()
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data2"})
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data2"})
 
         assert len(received_events) == 1
 
@@ -228,10 +228,10 @@ class TestEventPublisher:
         async def working_callback(event_type, payload):
             received_events.append(payload)
 
-        publisher.subscribe(EventType.SEGMENT_CREATED, failing_callback)
-        publisher.subscribe(EventType.SEGMENT_CREATED, working_callback)
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, failing_callback)
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, working_callback)
 
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data"})
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
 
         assert len(received_events) == 1
 
@@ -242,11 +242,11 @@ class TestEventPublisher:
         mock_ws = AsyncMock()
 
         await publisher.ws_manager.connect(mock_ws)
-        await publisher.publish(EventType.SEGMENT_CREATED, {"test": "data"})
+        await publisher.publish(EventType.TRANSCRIPTION_UPDATED, {"test": "data"})
 
         mock_ws.send_text.assert_called_once()
         sent_message = json.loads(mock_ws.send_text.call_args[0][0])
-        assert sent_message["type"] == "segment.created"
+        assert sent_message["type"] == "transcription.updated"
         assert sent_message["payload"] == {"test": "data"}
 
     @pytest.mark.asyncio
@@ -257,7 +257,7 @@ class TestEventPublisher:
         async def callback(event_type, payload):
             pass
 
-        publisher.subscribe(EventType.SEGMENT_CREATED, callback)
+        publisher.subscribe(EventType.TRANSCRIPTION_UPDATED, callback)
         publisher.subscribe_all(callback)
 
         assert len(publisher._subscribers) > 0

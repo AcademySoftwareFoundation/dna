@@ -1,7 +1,5 @@
 export type EventType =
   | 'transcript'
-  | 'segment.created'
-  | 'segment.updated'
   | 'playlist.updated'
   | 'version.updated'
   | 'bot.status_changed'
@@ -11,16 +9,6 @@ export type EventType =
 export interface DNAEvent<T = unknown> {
   type: EventType;
   payload: T;
-}
-
-export interface SegmentEventPayload {
-  segment_id: string;
-  playlist_id: number;
-  version_id: number;
-  text: string;
-  speaker?: string;
-  absolute_start_time: string;
-  absolute_end_time?: string;
 }
 
 /**
@@ -197,7 +185,7 @@ export class DNAEventClient {
       // so `TranscriptManager.handleMessage()` can consume it directly.
       // All other events follow the classic `{type, payload}` envelope.
       const payload =
-        eventType === 'transcript' ? message : (message as { payload: unknown }).payload;
+        eventType === 'transcript' ? message : (message as unknown as { payload: unknown }).payload;
 
       const event: DNAEvent = { type: eventType, payload };
 
@@ -270,33 +258,6 @@ export class DNAEventClient {
     return () => {
       this.connectionStateCallbacks.delete(callback);
     };
-  }
-
-  subscribeToSegmentEvents(
-    callback: EventCallback<SegmentEventPayload>,
-    filter?: { playlistId?: number; versionId?: number }
-  ): () => void {
-    const filteredCallback = (event: DNAEvent<SegmentEventPayload>) => {
-      const payload = event.payload;
-      if (
-        filter?.playlistId != null &&
-        payload.playlist_id !== filter.playlistId
-      ) {
-        return;
-      }
-      if (
-        filter?.versionId != null &&
-        payload.version_id !== filter.versionId
-      ) {
-        return;
-      }
-      callback(event);
-    };
-
-    return this.subscribeMultiple<SegmentEventPayload>(
-      ['segment.created', 'segment.updated'],
-      filteredCallback
-    );
   }
 
   subscribeToBotStatusEvents(

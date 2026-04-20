@@ -3,12 +3,10 @@ import {
   type EventType,
   type DNAEvent,
   type EventCallback,
-  type SegmentEventPayload,
   type TranscriptEventPayload,
 } from '@dna/core';
 import { useEventContext, useEventClient } from '../contexts';
 
-export type { SegmentEventPayload as SegmentEvent };
 export type { TranscriptEventPayload };
 
 interface UseDNAEventsOptions {
@@ -53,40 +51,6 @@ export function useConnectionStatus(): {
 } {
   const { isConnected, connectionError } = useEventContext();
   return { isConnected, connectionError };
-}
-
-export function useSegmentEvents(
-  callback: EventCallback<SegmentEventPayload>,
-  options: UseDNAEventsOptions & {
-    playlistId?: number | null;
-    versionId?: number | null;
-  } = {}
-): void {
-  const client = useEventClient();
-  const { playlistId, versionId, enabled = true } = options;
-
-  const filteredCallback = useCallback(
-    (event: DNAEvent<SegmentEventPayload>) => {
-      if (playlistId != null && event.payload.playlist_id !== playlistId) {
-        return;
-      }
-      if (versionId != null && event.payload.version_id !== versionId) {
-        return;
-      }
-      callback(event);
-    },
-    [callback, playlistId, versionId]
-  );
-
-  useEffect(() => {
-    if (!enabled || !client) return;
-
-    const unsubscribe = client.subscribeMultiple<SegmentEventPayload>(
-      ['segment.created', 'segment.updated'],
-      filteredCallback
-    );
-    return unsubscribe;
-  }, [client, filteredCallback, enabled]);
 }
 
 export function useTranscriptEvents(

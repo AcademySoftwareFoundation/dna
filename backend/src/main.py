@@ -449,12 +449,15 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time event streaming.
 
     Clients connect to this endpoint to receive real-time events such as:
-    - segment.created / segment.updated: Transcript segment changes
+    - transcript: Raw Vexa-shaped transcript ticks (flat envelope with
+      `speaker`, `confirmed`, `pending`, `playlist_id`, `version_id`, `ts`).
+      Consumed by the frontend `TranscriptManager`.
     - bot.status_changed: Bot status updates
     - transcription.completed / transcription.error: Transcription lifecycle events
 
-    Events are sent as JSON messages with the format:
-    {"type": "event.type", "payload": {...}}
+    Most events use `{"type": "event.type", "payload": {...}}`. The
+    `transcript` event is flat — the whole message IS the payload so it can
+    be fed to `TranscriptManager.handleMessage()` without reshaping.
     """
     event_publisher = get_event_publisher()
     ws_manager = event_publisher.ws_manager
