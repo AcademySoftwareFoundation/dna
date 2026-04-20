@@ -313,6 +313,9 @@ export interface StoredSegment {
   text: string;
   speaker?: string;
   language?: string;
+  start_time?: number;
+  end_time?: number;
+  completed?: boolean;
   absolute_start_time: string;
   absolute_end_time: string;
   vexa_updated_at?: string;

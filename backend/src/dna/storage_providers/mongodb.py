@@ -239,6 +239,10 @@ class MongoDBStorageProvider(StorageProviderBase):
         existing = await self.segments_collection.find_one(query)
         is_new = existing is None
 
+        # `segment_id` is already in `data.model_dump()` — MongoDB rejects an
+        # update that lists the same field in both `$set` and `$setOnInsert`.
+        # `playlist_id`/`version_id` stay in `$setOnInsert` because they aren't
+        # part of `StoredSegmentCreate` (they come from the enclosing context).
         update: dict[str, Any] = {
             "$set": {
                 **data.model_dump(),
@@ -246,7 +250,6 @@ class MongoDBStorageProvider(StorageProviderBase):
             },
             "$setOnInsert": {
                 "created_at": now,
-                "segment_id": segment_id,
                 "playlist_id": playlist_id,
                 "version_id": version_id,
             },

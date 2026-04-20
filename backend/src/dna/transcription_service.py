@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from dna.events import EventPublisher, EventType, get_event_publisher
-from dna.models.stored_segment import StoredSegmentCreate, generate_segment_id
+from dna.models.stored_segment import StoredSegmentCreate
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -212,25 +212,28 @@ class TranscriptionService:
             logger.exception("Failed to subscribe to meeting %s: %s", meeting_key, e)
 
     async def on_transcription_updated(self, payload: dict[str, Any]) -> None:
-        """Process transcription segments and save to storage."""
+        """Passthrough: upsert Vexa's confirmed segments by their stable
+        `segment_id`, then forward the raw `{type:"transcript", confirmed,
+        pending, speaker, playlist_id, version_id, ts}` message to DNA WS
+        clients — the frontend TranscriptManager consumes it directly.
+        """
         if self.storage_provider is None or self.event_publisher is None:
             logger.error("Providers not initialized")
             return
 
         platform = payload.get("platform", "")
         meeting_id = payload.get("meeting_id", "")
-        segments = payload.get("segments", [])
-
-        if not segments:
-            logger.debug("No segments in transcription update")
-            return
+        speaker = payload.get("speaker")
+        confirmed: list[dict[str, Any]] = payload.get("confirmed", []) or []
+        pending: list[dict[str, Any]] = payload.get("pending", []) or []
+        ts = payload.get("ts")
 
         meeting_key = f"{platform}:{meeting_id}"
         playlist_id = self._meeting_to_playlist.get(meeting_key)
-
         if playlist_id is None:
             logger.warning(
-                "No playlist_id found for meeting %s, cannot save segments", meeting_key
+                "No playlist_id found for meeting %s, cannot save segments",
+                meeting_key,
             )
             return
 
@@ -252,13 +255,11 @@ class TranscriptionService:
         version_id = metadata.in_review
         resumed_at = metadata.transcription_resumed_at
 
-        for segment_data in segments:
-            text = segment_data.get("text", "").strip()
-            if not text:
-                continue
-
-            absolute_start_time = segment_data.get("absolute_start_time")
-            if not absolute_start_time:
+        for seg in confirmed:
+            segment_id = seg.get("segment_id")
+            absolute_start_time = seg.get("absolute_start_time")
+            text = (seg.get("text") or "").strip()
+            if not segment_id or not absolute_start_time or not text:
                 continue
 
             if resumed_at is not None:
@@ -266,73 +267,52 @@ class TranscriptionService:
                     segment_time = datetime.fromisoformat(
                         absolute_start_time.replace("Z", "+00:00")
                     )
-                    resumed_at_aware = resumed_at
-                    if resumed_at.tzinfo is None:
-                        resumed_at_aware = resumed_at.replace(tzinfo=timezone.utc)
+                    resumed_at_aware = (
+                        resumed_at
+                        if resumed_at.tzinfo is not None
+                        else resumed_at.replace(tzinfo=timezone.utc)
+                    )
                     if segment_time < resumed_at_aware:
-                        logger.debug(
-                            "Skipping segment from before resume: %s < %s",
-                            absolute_start_time,
-                            resumed_at_aware.isoformat(),
-                        )
                         continue
                 except ValueError:
                     pass
 
-            speaker = segment_data.get("speaker", "Unknown")
-            segment_id = generate_segment_id(
-                playlist_id, version_id, absolute_start_time
-            )
-
             segment_create = StoredSegmentCreate(
+                segment_id=segment_id,
                 text=text,
-                speaker=speaker,
-                language=segment_data.get("language"),
+                speaker=seg.get("speaker") or speaker,
+                language=seg.get("language"),
+                start_time=seg.get("start_time"),
+                end_time=seg.get("end_time"),
+                completed=True,
                 absolute_start_time=absolute_start_time,
-                absolute_end_time=segment_data.get("absolute_end_time", ""),
-                vexa_updated_at=segment_data.get("updated_at"),
+                absolute_end_time=seg.get("absolute_end_time", ""),
+                vexa_updated_at=seg.get("updated_at"),
             )
 
             try:
-                stored_segment, is_new = await self.storage_provider.upsert_segment(
+                await self.storage_provider.upsert_segment(
                     playlist_id=playlist_id,
                     version_id=version_id,
                     segment_id=segment_id,
                     data=segment_create,
                 )
+            except Exception:
+                logger.exception("Failed to upsert segment %s", segment_id)
 
-                event_type = (
-                    EventType.SEGMENT_CREATED if is_new else EventType.SEGMENT_UPDATED
-                )
-                await self.event_publisher.publish(
-                    event_type,
-                    {
-                        "segment_id": segment_id,
-                        "playlist_id": playlist_id,
-                        "version_id": version_id,
-                        "text": text,
-                        "speaker": speaker,
-                        "absolute_start_time": absolute_start_time,
-                        "absolute_end_time": segment_data.get("absolute_end_time", ""),
-                    },
-                )
-
-                logger.info(
-                    "Saved segment %s (%s) for version %s - text: '%s...', end_time: %s",
-                    segment_id,
-                    "new" if is_new else "updated",
-                    version_id,
-                    text[:30] if len(text) > 30 else text,
-                    segment_data.get("absolute_end_time", ""),
-                )
-                logger.debug(
-                    "Full segment %s (%s) for version %s",
-                    segment_id,
-                    "new" if is_new else "updated",
-                    version_id,
-                )
-            except Exception as e:
-                logger.exception("Failed to save segment: %s", e)
+        # Broadcast the raw Vexa shape with DNA envelope fields.
+        # Frontend TranscriptManager.handleMessage() consumes this directly.
+        await self.event_publisher.ws_manager.broadcast(
+            {
+                "type": "transcript",
+                "speaker": speaker,
+                "confirmed": confirmed,
+                "pending": pending,
+                "playlist_id": playlist_id,
+                "version_id": version_id,
+                "ts": ts,
+            }
+        )
 
     async def on_transcription_completed(self, payload: dict[str, Any]) -> None:
         """Handle transcription completion."""
