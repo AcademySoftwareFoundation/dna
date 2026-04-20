@@ -21,6 +21,28 @@ class MongoDBStorageProvider(StorageProviderBase):
 
     def __init__(self) -> None:
         self._client: Optional[AsyncMongoClient[Any]] = None
+        self._indexes_ensured = False
+
+    async def ensure_indexes(self) -> None:
+        """Create collection indexes. Idempotent; safe to call on every startup.
+
+        The compound unique index on the `segments` upsert key makes
+        `upsert_segment` O(log n) instead of a full-collection scan — at
+        Vexa's refine-heavy write rate, scans become user-visible at ~100k
+        segments and timeouts at ~1M.
+        """
+        if self._indexes_ensured:
+            return
+        await self.segments_collection.create_index(
+            [("segment_id", 1), ("playlist_id", 1), ("version_id", 1)],
+            unique=True,
+            name="segments_upsert_key",
+        )
+        await self.segments_collection.create_index(
+            [("playlist_id", 1), ("version_id", 1), ("absolute_start_time", 1)],
+            name="segments_list_by_version",
+        )
+        self._indexes_ensured = True
 
     @property
     def client(self) -> AsyncMongoClient[Any]:
