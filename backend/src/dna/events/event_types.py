@@ -9,8 +9,6 @@ class EventType(str, Enum):
     TRANSCRIPTION_UPDATED = "transcription.updated"
     TRANSCRIPTION_COMPLETED = "transcription.completed"
     TRANSCRIPTION_ERROR = "transcription.error"
-    SEGMENT_CREATED = "segment.created"
-    SEGMENT_UPDATED = "segment.updated"
     BOT_STATUS_CHANGED = "bot.status_changed"
     PLAYLIST_UPDATED = "playlist.updated"
     VERSION_UPDATED = "version.updated"
