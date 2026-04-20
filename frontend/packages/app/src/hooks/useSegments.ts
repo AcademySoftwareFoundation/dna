@@ -1,12 +1,17 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   StoredSegment,
   type DNAEvent,
-  type SegmentEventPayload,
+  type TranscriptEventPayload,
 } from '@dna/core';
+import {
+  createTranscriptManager,
+  type TranscriptManager,
+  type TranscriptMessage,
+} from '@vexaai/transcript-rendering';
 import { apiHandler } from '../api';
-import { useSegmentEvents } from './useDNAEvents';
+import { useEventSubscription } from './useDNAEvents';
 
 export interface UseSegmentsOptions {
   playlistId: number | null;
@@ -21,6 +26,14 @@ export interface UseSegmentsResult {
   error: Error | null;
 }
 
+/**
+ * React hook exposing deduplicated transcript segments for a playlist/version.
+ *
+ * Single dedup authority: `@vexaai/transcript-rendering`'s `TranscriptManager`.
+ * - REST bootstrap populates the manager's `confirmed` map.
+ * - WS `transcript` events (raw Vexa shape forwarded by DNA backend) feed
+ *   `manager.handleMessage()` directly — draft/confirmed distinction preserved.
+ */
 export function useSegments({
   playlistId,
   versionId,
@@ -28,71 +41,64 @@ export function useSegments({
 }: UseSegmentsOptions): UseSegmentsResult {
   const queryClient = useQueryClient();
   const isEnabled = enabled && playlistId != null && versionId != null;
+  const queryKey = useMemo(
+    () => ['segments', playlistId, versionId],
+    [playlistId, versionId]
+  );
 
-  const queryKey = ['segments', playlistId, versionId];
+  // One manager per (playlist, version); reset on change.
+  const managerRef = useRef<TranscriptManager<StoredSegment> | null>(null);
+  if (managerRef.current === null) {
+    managerRef.current = createTranscriptManager<StoredSegment>();
+  }
+  useEffect(() => {
+    managerRef.current?.clear();
+  }, [playlistId, versionId]);
+
+  const [liveSegments, setLiveSegments] = useState<StoredSegment[] | null>(null);
 
   const { data, isLoading, isError, error } = useQuery<StoredSegment[], Error>({
     queryKey,
-    queryFn: () =>
-      apiHandler.getSegmentsForVersion({
+    queryFn: async () => {
+      const rest = await apiHandler.getSegmentsForVersion({
         playlistId: playlistId!,
         versionId: versionId!,
-      }),
+      });
+      const bootstrapped = managerRef.current!.bootstrap(rest);
+      setLiveSegments(bootstrapped);
+      return bootstrapped;
+    },
     enabled: isEnabled,
     staleTime: 30000,
   });
 
-  const handleSegmentEvent = useCallback(
-    (event: DNAEvent<SegmentEventPayload>) => {
-      const segmentData = event.payload;
-
-      queryClient.setQueryData<StoredSegment[]>(queryKey, (oldData) => {
-        if (!oldData) return oldData;
-
-        const existingIndex = oldData.findIndex(
-          (s) => s.segment_id === segmentData.segment_id
-        );
-
-        const updatedSegment: StoredSegment = {
-          id: segmentData.segment_id,
-          segment_id: segmentData.segment_id,
-          playlist_id: segmentData.playlist_id,
-          version_id: segmentData.version_id,
-          text: segmentData.text,
-          speaker: segmentData.speaker,
-          absolute_start_time: segmentData.absolute_start_time,
-          absolute_end_time: segmentData.absolute_end_time || '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        if (existingIndex >= 0) {
-          const newData = [...oldData];
-          newData[existingIndex] = {
-            ...oldData[existingIndex],
-            ...updatedSegment,
-            updated_at: new Date().toISOString(),
-          };
-          return newData;
-        } else {
-          const newData = [...oldData, updatedSegment];
-          return newData.sort((a, b) =>
-            a.absolute_start_time.localeCompare(b.absolute_start_time)
-          );
-        }
-      });
+  const handleTranscript = useCallback(
+    (event: DNAEvent<TranscriptEventPayload>) => {
+      const payload = event.payload;
+      if (playlistId != null && payload.playlist_id !== playlistId) return;
+      if (versionId != null && payload.version_id !== versionId) return;
+      const message: TranscriptMessage = {
+        type: 'transcript',
+        speaker: payload.speaker,
+        confirmed: (payload.confirmed ?? []) as StoredSegment[],
+        pending: (payload.pending ?? []) as StoredSegment[],
+        ts: payload.ts,
+      };
+      const next = managerRef.current!.handleMessage(message);
+      if (next) {
+        setLiveSegments(next);
+        queryClient.setQueryData<StoredSegment[]>(queryKey, next);
+      }
     },
-    [queryClient, queryKey]
+    [queryClient, queryKey, playlistId, versionId]
   );
 
-  useSegmentEvents(handleSegmentEvent, {
-    playlistId,
-    versionId,
+  useEventSubscription<TranscriptEventPayload>('transcript', handleTranscript, {
     enabled: isEnabled,
   });
 
   return {
-    segments: data ?? [],
+    segments: liveSegments ?? data ?? [],
     isLoading,
     isError,
     error: error ?? null,

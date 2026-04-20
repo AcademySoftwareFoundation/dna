@@ -362,6 +362,25 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.post(
+    "/test/broadcast-transcript",
+    tags=["Testing"],
+    summary="Broadcast a synthetic transcript (dev-only).",
+    include_in_schema=False,
+)
+async def test_broadcast_transcript(payload: dict) -> dict:
+    """Dev-only endpoint for tests-vm/. Gated by DNA_TESTING_ENABLED=true.
+
+    Forwards the JSON body verbatim to every WebSocket client — lets us
+    assert the broadcast shape end-to-end without needing a real meeting.
+    """
+    if os.getenv("DNA_TESTING_ENABLED", "false").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="Not found")
+    publisher = get_event_publisher()
+    await publisher.ws_manager.broadcast(payload)
+    return {"broadcasted": True, "clients": publisher.ws_manager.connection_count}
+
+
 MOCK_THUMBNAILS_DIR = (
     Path(__file__).parent / "dna" / "prodtrack_providers" / "mock_data" / "thumbnails"
 )

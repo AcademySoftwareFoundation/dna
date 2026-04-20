@@ -1,4 +1,5 @@
 export type EventType =
+  | 'transcript'
   | 'segment.created'
   | 'segment.updated'
   | 'playlist.updated'
@@ -20,6 +21,23 @@ export interface SegmentEventPayload {
   speaker?: string;
   absolute_start_time: string;
   absolute_end_time?: string;
+}
+
+/**
+ * Raw transcript message forwarded by the DNA backend, verbatim from
+ * Vexa's WS contract plus DNA envelope fields (`playlist_id`, `version_id`).
+ *
+ * Shape: `{ type: "transcript", speaker, confirmed: [...], pending: [...],
+ *          playlist_id, version_id, ts }` — matches the `TranscriptMessage`
+ * interface of `@vexaai/transcript-rendering`.
+ */
+export interface TranscriptEventPayload {
+  speaker?: string;
+  confirmed?: Array<Record<string, unknown>>;
+  pending?: Array<Record<string, unknown>>;
+  playlist_id: number;
+  version_id: number;
+  ts?: string;
 }
 
 export interface BotStatusEventPayload {
@@ -169,9 +187,17 @@ export class DNAEventClient {
 
   private handleMessage(data: string): void {
     try {
-      const message = JSON.parse(data) as { type: string; payload: unknown };
+      const message = JSON.parse(data) as Record<string, unknown> & {
+        type: string;
+      };
       const eventType = message.type as EventType;
-      const payload = message.payload;
+
+      // Transcript messages are forwarded verbatim from Vexa — the whole
+      // message object (including confirmed/pending/speaker/…) IS the payload
+      // so `TranscriptManager.handleMessage()` can consume it directly.
+      // All other events follow the classic `{type, payload}` envelope.
+      const payload =
+        eventType === 'transcript' ? message : (message as { payload: unknown }).payload;
 
       const event: DNAEvent = { type: eventType, payload };
 
