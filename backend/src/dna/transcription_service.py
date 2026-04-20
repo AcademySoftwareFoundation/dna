@@ -155,10 +155,11 @@ class TranscriptionService:
             return
 
         if event_type == "transcript.updated":
-            await self.event_publisher.publish(
-                EventType.TRANSCRIPTION_UPDATED,
-                payload,
-            )
+            # The service persists confirmed segments + broadcasts the flat
+            # `{type:"transcript", ...}` shape directly from
+            # `on_transcription_updated`. No need to also emit
+            # TRANSCRIPTION_UPDATED through the publisher — nothing
+            # subscribes to it and frontends only consume the flat envelope.
             await self.on_transcription_updated(payload)
         elif event_type == "bot.status_changed":
             await self.event_publisher.publish(

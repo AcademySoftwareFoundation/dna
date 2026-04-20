@@ -48,7 +48,7 @@ class TestWebSocketEndpoint:
             loop = asyncio.new_event_loop()
             loop.run_until_complete(
                 publisher.publish(
-                    EventType.TRANSCRIPTION_UPDATED,
+                    EventType.TRANSCRIPTION_ERROR,
                     {
                         "segment_id": "abc123",
                         "text": "Hello world",
@@ -59,7 +59,7 @@ class TestWebSocketEndpoint:
             loop.close()
 
             data = websocket.receive_json()
-            assert data["type"] == "transcription.updated"
+            assert data["type"] == "transcription.error"
             assert data["payload"]["segment_id"] == "abc123"
             assert data["payload"]["text"] == "Hello world"
 
@@ -101,7 +101,7 @@ class TestWebSocketEndpoint:
                 loop = asyncio.new_event_loop()
                 loop.run_until_complete(
                     publisher.publish(
-                        EventType.TRANSCRIPTION_COMPLETED,
+                        EventType.TRANSCRIPTION_ERROR,
                         {"segment_id": "xyz", "text": "Updated text"},
                     )
                 )
@@ -110,7 +110,7 @@ class TestWebSocketEndpoint:
                 data1 = ws1.receive_json()
                 data2 = ws2.receive_json()
 
-                assert data1["type"] == "transcription.completed"
-                assert data2["type"] == "transcription.completed"
+                assert data1["type"] == "transcription.error"
+                assert data2["type"] == "transcription.error"
                 assert data1["payload"]["segment_id"] == "xyz"
                 assert data2["payload"]["segment_id"] == "xyz"

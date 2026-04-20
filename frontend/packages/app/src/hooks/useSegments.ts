@@ -30,9 +30,20 @@ export interface UseSegmentsResult {
  * React hook exposing deduplicated transcript segments for a playlist/version.
  *
  * Single dedup authority: `@vexaai/transcript-rendering`'s `TranscriptManager`.
- * - REST bootstrap populates the manager's `confirmed` map.
- * - WS `transcript` events (raw Vexa shape forwarded by DNA backend) feed
- *   `manager.handleMessage()` directly — draft/confirmed distinction preserved.
+ *
+ * Load order is designed so WS ticks never get wiped by a late REST response
+ * and a cached REST response is always merged into the manager before WS
+ * ticks start stacking on top:
+ *
+ * 1. On (playlist, version) change: `manager.clear()`, then seed the manager
+ *    from React Query's existing cache for this queryKey (if any) via the
+ *    additive tick path.
+ * 2. `useQuery` fetches fresh REST; the response is also merged additively
+ *    (NOT via `bootstrap()`, which clears state).
+ * 3. WS `transcript` events call `manager.handleMessage()` directly.
+ *
+ * All three paths converge on the same confirmed/pending maps, keyed by
+ * Vexa's stable `segment_id`, so duplicates are impossible.
  */
 export function useSegments({
   playlistId,
@@ -46,27 +57,60 @@ export function useSegments({
     [playlistId, versionId]
   );
 
-  // One manager per (playlist, version); reset on change.
   const managerRef = useRef<TranscriptManager<StoredSegment> | null>(null);
   if (managerRef.current === null) {
     managerRef.current = createTranscriptManager<StoredSegment>();
   }
-  useEffect(() => {
-    managerRef.current?.clear();
-  }, [playlistId, versionId]);
+
+  const activeKeyRef = useRef<string>('');
+  const activeKey = `${playlistId ?? '-'}:${versionId ?? '-'}`;
 
   const [liveSegments, setLiveSegments] = useState<StoredSegment[] | null>(null);
 
+  // Additive merge: feed confirmed segments into the manager via the tick
+  // path (which does not clear state), then pull the reconciled array out.
+  const mergeConfirmed = useCallback((rest: StoredSegment[]): StoredSegment[] => {
+    const mgr = managerRef.current!;
+    if (rest && rest.length > 0) {
+      mgr.handleMessage({ type: 'transcript', confirmed: rest, pending: [] });
+    }
+    return mgr.getSegments();
+  }, []);
+
+  // Version change — reset manager, then seed from any cached REST already
+  // in React Query so WS ticks append onto the historical transcript rather
+  // than replacing it.
+  useEffect(() => {
+    activeKeyRef.current = activeKey;
+    const mgr = managerRef.current!;
+    mgr.clear();
+    const cached = queryClient.getQueryData<StoredSegment[]>(queryKey);
+    if (cached && cached.length > 0) {
+      const seeded = mergeConfirmed(cached);
+      setLiveSegments(seeded);
+    } else {
+      setLiveSegments(null);
+    }
+  }, [activeKey, queryClient, queryKey, mergeConfirmed]);
+
   const { data, isLoading, isError, error } = useQuery<StoredSegment[], Error>({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ queryKey: qk }) => {
+      const [, qPlaylistId, qVersionId] = qk as [string, number, number];
+      const capturedKey = `${qPlaylistId ?? '-'}:${qVersionId ?? '-'}`;
       const rest = await apiHandler.getSegmentsForVersion({
-        playlistId: playlistId!,
-        versionId: versionId!,
+        playlistId: qPlaylistId,
+        versionId: qVersionId,
       });
-      const bootstrapped = managerRef.current!.bootstrap(rest);
-      setLiveSegments(bootstrapped);
-      return bootstrapped;
+      // If the user switched versions while we were fetching, cache the
+      // raw REST under the old queryKey (still valid data for that version)
+      // but don't touch the current manager (it's for a different version).
+      if (activeKeyRef.current !== capturedKey) {
+        return rest;
+      }
+      const merged = mergeConfirmed(rest);
+      setLiveSegments(merged);
+      return merged;
     },
     enabled: isEnabled,
     staleTime: 30000,

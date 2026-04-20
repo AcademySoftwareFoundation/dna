@@ -1,7 +1,5 @@
 export type EventType =
   | 'transcript'
-  | 'playlist.updated'
-  | 'version.updated'
   | 'bot.status_changed'
   | 'transcription.completed'
   | 'transcription.error';
