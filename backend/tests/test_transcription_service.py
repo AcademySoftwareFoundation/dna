@@ -130,8 +130,14 @@ class TestOnVexaEvent:
     """Tests for Vexa event forwarding."""
 
     @pytest.mark.asyncio
-    async def test_forwards_transcript_updated(self, service, mock_event_publisher):
-        """Test that transcript.updated is forwarded via event publisher."""
+    async def test_forwards_transcript_updated(self, service):
+        """`transcript.updated` must route to on_transcription_updated so the
+        flat `{type:"transcript", ...}` broadcast happens. The legacy
+        `TRANSCRIPTION_UPDATED` publish has been removed — nothing
+        subscribed and the flat envelope carries the full payload."""
+        from unittest.mock import AsyncMock
+
+        service.on_transcription_updated = AsyncMock()
         payload = {
             "platform": "google_meet",
             "meeting_id": "abc-def-ghi",
@@ -143,10 +149,7 @@ class TestOnVexaEvent:
 
         await service._on_vexa_event("transcript.updated", payload)
 
-        mock_event_publisher.publish.assert_called_once_with(
-            EventType.TRANSCRIPTION_UPDATED,
-            payload,
-        )
+        service.on_transcription_updated.assert_called_once_with(payload)
 
     @pytest.mark.asyncio
     async def test_forwards_bot_status_changed(self, service, mock_event_publisher):
