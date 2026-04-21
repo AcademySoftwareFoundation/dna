@@ -386,6 +386,32 @@ def test_provider_init_uses_env_base_url(mock_db_path):
     assert version.thumbnail == "http://api.test/api/mock-thumbnails/300"
 
 
+def test_provider_init_uses_env_db_path(mock_db_path):
+    with mock.patch.dict(
+        os.environ,
+        {"MOCK_PRODTRACK_DB_PATH": str(mock_db_path)},
+        clear=False,
+    ):
+        provider = MockProdtrackProvider()
+
+    assert provider._db_path == mock_db_path.resolve()
+
+
+def test_provider_missing_env_db_path_falls_back_to_default(mock_db_path):
+    with mock.patch.dict(
+        os.environ,
+        {"MOCK_PRODTRACK_DB_PATH": "does/not/exist/mock.db"},
+        clear=False,
+    ):
+        with mock.patch(
+            "dna.prodtrack_providers.mock_provider.DEFAULT_MOCK_DB_PATH",
+            mock_db_path,
+        ):
+            provider = MockProdtrackProvider()
+
+    assert provider._db_path == mock_db_path.resolve()
+
+
 def test_find_with_filters(mock_provider):
     shots = mock_provider.find(
         "shot",
