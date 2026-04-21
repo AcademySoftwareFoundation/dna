@@ -4,8 +4,9 @@ Abstract base class for LLM providers and factory function.
 """
 
 import os
-from openai import AsyncOpenAI
 from typing import Optional
+
+from openai import AsyncOpenAI
 
 from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 
@@ -13,7 +14,7 @@ from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 class LLMProviderBase:
     """Abstract base class for LLM providers."""
 
-    ENV_PREFIX = None
+    LLM_PROVIDER_NAME = None
 
     DEFAULT_MODEL = None
     DEFAULT_TIMEOUT = 30.0
@@ -24,19 +25,23 @@ class LLMProviderBase:
         model: Optional[str] = None,
         timeout: Optional[float] = None,
     ) -> None:
-        if self.ENV_PREFIX is None:
-            raise NotImplementedError(f"{self.__class__.__name__} is missing an ENV_PREFIX")
-        
-        api_env = f"{self.ENV_PREFIX}_API_KEY"
+        if self.LLM_PROVIDER_NAME is None:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} is missing an LLM_PROVIDER_NAME "
+            )
+
+        api_env = f"{self.LLM_PROVIDER_NAME }_API_KEY"
         self.api_key = api_key or os.getenv(api_env)
         if not self.api_key:
             raise ValueError(
                 f"API key not provided. Set {api_env} environment variable."
             )
 
-        self.model = model or os.getenv(f"{self.ENV_PREFIX}_MODEL", self.DEFAULT_MODEL)
+        self.model = model or os.getenv(
+            f"{self.LLM_PROVIDER_NAME }_MODEL", self.DEFAULT_MODEL
+        )
         self.timeout = timeout or float(
-            os.getenv(f"{self.ENV_PREFIX}_TIMEOUT", str(self.DEFAULT_TIMEOUT))
+            os.getenv(f"{self.LLM_PROVIDER_NAME }_TIMEOUT", str(self.DEFAULT_TIMEOUT))
         )
 
         self._client = None

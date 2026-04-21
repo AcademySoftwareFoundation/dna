@@ -14,13 +14,13 @@ from dna.transcription_providers.transcription_provider_base import (
 
 
 class MissingPrefixProvider(LLMProviderBase):
-    """Provider with no ENV_PREFIX for validation tests."""
+    """Provider with no LLM_PROVIDER_NAME  for validation tests."""
 
 
 class StubProvider(LLMProviderBase):
     """Concrete test provider for base-class behavior."""
 
-    ENV_PREFIX = "STUB"
+    LLM_PROVIDER_NAME = "STUB"
     DEFAULT_MODEL = "stub-model"
 
     def _get_provider_client(self):
@@ -30,9 +30,9 @@ class StubProvider(LLMProviderBase):
 class TestLLMProviderBase:
     """Tests for the LLMProviderBase class."""
 
-    def test_instantiation_requires_env_prefix(self):
+    def test_instantiation_requires_llm_provider_name(self):
         """Base subclasses must define an environment prefix."""
-        with pytest.raises(NotImplementedError, match="missing an ENV_PREFIX"):
+        with pytest.raises(NotImplementedError, match="missing an LLM_PROVIDER_NAME "):
             MissingPrefixProvider(api_key="test-key")
 
     def test_init_reads_configuration_from_environment(self):
@@ -83,9 +83,7 @@ class TestLLMProviderBase:
         )
 
         assert result == (
-            "Transcript: hello / hello\n"
-            "Context: ctx / ctx\n"
-            "Notes: notes / notes"
+            "Transcript: hello / hello\n" "Context: ctx / ctx\n" "Notes: notes / notes"
         )
 
     @pytest.mark.asyncio

@@ -11,7 +11,7 @@ from dna.llm_providers.llm_provider_base import LLMProviderBase
 class OpenAIProvider(LLMProviderBase):
     """OpenAI implementation of the LLM provider."""
 
-    ENV_PREFIX = "OPENAI"
+    LLM_PROVIDER_NAME = "OPENAI"
 
     DEFAULT_MODEL = "gpt-4o-mini"
 

@@ -13,7 +13,7 @@ from dna.llm_providers.llm_provider_base import LLMProviderBase
 class GeminiProvider(LLMProviderBase):
     """Gemini implementation of the LLM provider."""
 
-    ENV_PREFIX = "GEMINI"
+    LLM_PROVIDER_NAME = "GEMINI"
 
     DEFAULT_MODEL = "gemini-2.5-flash"
     DEFAULT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -22,6 +22,6 @@ class GeminiProvider(LLMProviderBase):
         """Construct an instance of the LLM provider's client."""
         return AsyncOpenAI(
             api_key=self.api_key,
-            base_url=os.getenv(f"{self.ENV_PREFIX}_URL", self.DEFAULT_URL),
+            base_url=os.getenv(f"{self.LLM_PROVIDER_NAME }_URL", self.DEFAULT_URL),
             timeout=self.timeout,
         )
