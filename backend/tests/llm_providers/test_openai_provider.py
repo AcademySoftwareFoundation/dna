@@ -34,7 +34,7 @@ class TestOpenAIProviderInit:
     def test_init_raises_without_api_key(self):
         """Test that initialization raises without API key."""
         with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="OpenAI API key not provided"):
+            with pytest.raises(ValueError, match="API key not provided"):
                 OpenAIProvider()
 
 

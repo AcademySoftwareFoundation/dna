@@ -30,6 +30,17 @@ Production Tracking providers are the services that provide data to the backend 
 
 LLM providers are the services that provide the LLM functionality to the backend.
 
+Configure the backend LLM with the `LLM_PROVIDER` environment variable. The backend currently supports these providers:
+
+| Value | Provider | Required environment variables | Optional environment variables |
+|-------|----------|--------------------------------|--------------------------------|
+| `openai` | OpenAI (default) | `OPENAI_API_KEY` | `OPENAI_MODEL` (default: `gpt-4o-mini`), `OPENAI_TIMEOUT` (default: `30.0`) |
+| `gemini` | Google Gemini via the OpenAI-compatible endpoint | `GEMINI_API_KEY` | `GEMINI_MODEL` (default: `gemini-2.5-flash`), `GEMINI_TIMEOUT` (default: `30.0`), `GEMINI_URL` (default: `https://generativelanguage.googleapis.com/v1beta/openai/`) |
+
+- **Local development:** If you do not set `LLM_PROVIDER`, the backend uses `openai`.
+- **Switching providers:** Set `LLM_PROVIDER` and only the matching provider variables for the provider you want to use.
+- **Missing credentials:** The backend will raise an error at startup/use time if the selected provider's `*_API_KEY` variable is not set.
+
 ### Transcription
 
 Transcription providers are the services that provide the transcription functionality to the backend and connect the transcript with versions being reviewed.
@@ -68,6 +79,27 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
 2. Edit `docker-compose.local.yml` and set at least:
    - **ShotGrid:** To use ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave unset) and set `SHOTGRID_URL`, `SHOTGRID_API_KEY`, and `SHOTGRID_SCRIPT_NAME`. To run without ShotGrid, set `PRODTRACK_PROVIDER=mock`; see [Mock production tracking](#mock-production-tracking).
    - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
+   - **LLM:** Choose an LLM provider and matching credentials. Examples:
+
+     ```yaml
+     services:
+       api:
+         environment:
+           - LLM_PROVIDER=openai
+           - OPENAI_API_KEY=your-openai-api-key
+           - OPENAI_MODEL=gpt-4o-mini
+     ```
+
+     ```yaml
+     services:
+       api:
+         environment:
+           - LLM_PROVIDER=gemini
+           - GEMINI_API_KEY=your-gemini-api-key
+           - GEMINI_MODEL=gemini-2.5-flash
+           # Optional if you need to override the default OpenAI-compatible Gemini endpoint
+           - GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+     ```
 
 3. The `docker-compose.local.yml` file is gitignored, so your credentials will not be committed to the repository.
 

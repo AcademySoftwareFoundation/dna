@@ -33,17 +33,17 @@ The transcription pipeline enables real-time meeting transcription by:
 6. **Recovering gracefully** from backend restarts by resubscribing to active meetings
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
 │    Frontend     │◀───▶│    DNA API      │────▶│     MongoDB     │
-│     (React)     │ WS  │    (FastAPI)    │     │    (segments)   │
-└─────────────────┘     └────────┬────────┘     └─────────────────┘
+│     (React)     │ WS   │    (FastAPI)    │      │    (segments)   │
+└─────────────────┘      └────────┬────────┘      └─────────────────┘
                                  │
                                  │ WebSocket
                                  ▼
-                        ┌─────────────────┐
-                        │      Vexa       │────▶ Google Meet / Teams
-                        │  (transcribe)   │
-                        └─────────────────┘
+                         ┌─────────────────┐
+                         │      Vexa       │────▶ Google Meet / Teams
+                         │  (transcribe)   │
+                         └─────────────────┘
 ```
 
 ---
