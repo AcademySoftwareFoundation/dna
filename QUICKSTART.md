@@ -31,6 +31,32 @@ Edit `docker-compose.local.yml` with your credentials.
 
 **Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`. See [Mock setup](#mock-production-tracking-setup) below for how to refresh or customize the mock data.
 
+**LLM provider:** Set `LLM_PROVIDER` to choose which backend LLM integration to use.
+
+- `openai` (default): requires `OPENAI_API_KEY`; optional `OPENAI_MODEL` and `OPENAI_TIMEOUT`
+- `gemini`: requires `GEMINI_API_KEY`; optional `GEMINI_MODEL`, `GEMINI_TIMEOUT`, and `GEMINI_URL`
+
+Examples:
+
+```yaml
+services:
+  api:
+    environment:
+      - LLM_PROVIDER=openai
+      - OPENAI_API_KEY=your-openai-api-key
+      - OPENAI_MODEL=gpt-4o-mini
+```
+
+```yaml
+services:
+  api:
+    environment:
+      - LLM_PROVIDER=gemini
+      - GEMINI_API_KEY=your-gemini-api-key
+      - GEMINI_MODEL=gemini-2.5-flash
+      - GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+```
+
 **Transcription (Vexa):** To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
 
 When setting up, skip the Vexa API key for now. Once the stack is running you can get your Vexa API key from the Vexa Dashboard.
@@ -43,6 +69,7 @@ services:
       - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
+      - LLM_PROVIDER=openai
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
@@ -117,9 +144,14 @@ The React app will be available at `http://localhost:5173`.
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
 | `VEXA_API_URL` | No | `http://vexa:8056` | Vexa REST API URL |
-| `OPENAI_API_KEY` | Yes | - | OpenAI API key for LLM features |
-| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
-| `LLM_PROVIDER` | No | `openai` | LLM provider (openai) |
+| `LLM_PROVIDER` | No | `openai` | LLM provider (`openai` or `gemini`) |
+| `OPENAI_API_KEY` | Yes\* | - | OpenAI API key when `LLM_PROVIDER=openai` |
+| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use when `LLM_PROVIDER=openai` |
+| `OPENAI_TIMEOUT` | No | `30.0` | Request timeout in seconds when `LLM_PROVIDER=openai` |
+| `GEMINI_API_KEY` | Yes\* | - | Gemini API key when `LLM_PROVIDER=gemini` |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model to use when `LLM_PROVIDER=gemini` |
+| `GEMINI_TIMEOUT` | No | `30.0` | Request timeout in seconds when `LLM_PROVIDER=gemini` |
+| `GEMINI_URL` | No | `https://generativelanguage.googleapis.com/v1beta/openai/` | Override the Gemini OpenAI-compatible base URL |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ### Vexa Service (`vexa` service)
