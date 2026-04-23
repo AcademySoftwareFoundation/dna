@@ -1,6 +1,14 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
-import { ChevronLeft, Eye, ChevronRight, RotateCw, Target, ChevronDown } from 'lucide-react';
+import {
+  ChevronLeft,
+  Eye,
+  ChevronRight,
+  RotateCw,
+  Target,
+  ChevronDown,
+  ExternalLink,
+} from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 import { useHotkeyConfig } from '../hotkeys';
 import { useVersionStatuses } from '../hooks';
@@ -21,6 +29,11 @@ interface VersionHeaderProps {
   onRefresh?: () => void;
   onSetInReview?: () => void;
   onVersionStatusChange?: (code: string) => void;
+  prodtrackDetailUrl?: string | null;
+  prodtrackTabUsesExtension?: boolean;
+  onSyncProdtrackTab?: () => void | Promise<void>;
+  syncProdtrackDisabled?: boolean;
+  syncProdtrackTitle?: string;
   canGoBack?: boolean;
   canGoNext?: boolean;
   hasInReview?: boolean;
@@ -97,6 +110,49 @@ const InReviewButton = styled.button`
   &:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+`;
+
+const syncProdtrackSurface = css`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.secondary};
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  box-sizing: border-box;
+`;
+
+const SyncProdtrackButton = styled.button`
+  ${syncProdtrackSurface}
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+`;
+
+const SyncProdtrackLink = styled.a`
+  ${syncProdtrackSurface}
+  text-decoration: none;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
   }
 `;
 
@@ -329,6 +385,11 @@ export function VersionHeader({
   onRefresh,
   onSetInReview,
   onVersionStatusChange,
+  prodtrackDetailUrl,
+  prodtrackTabUsesExtension = false,
+  onSyncProdtrackTab,
+  syncProdtrackDisabled = false,
+  syncProdtrackTitle = 'Open current version in production tracking (browser tab)',
   canGoBack = true,
   canGoNext = true,
   hasInReview = true,
@@ -354,6 +415,30 @@ export function VersionHeader({
             <Eye size={14} />
             In Review
           </InReviewButton>
+          {prodtrackDetailUrl && prodtrackTabUsesExtension && onSyncProdtrackTab && (
+            <Tooltip content={syncProdtrackTitle}>
+              <SyncProdtrackButton
+                type="button"
+                onClick={() => void onSyncProdtrackTab()}
+                disabled={syncProdtrackDisabled}
+              >
+                <ExternalLink size={14} />
+                PT tab
+              </SyncProdtrackButton>
+            </Tooltip>
+          )}
+          {prodtrackDetailUrl && !prodtrackTabUsesExtension && (
+            <Tooltip content={syncProdtrackTitle}>
+              <SyncProdtrackLink
+                href={prodtrackDetailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={14} />
+                PT tab
+              </SyncProdtrackLink>
+            </Tooltip>
+          )}
           <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>
             <NextVersionButton onClick={onNext} disabled={!canGoNext}>
               Next Version

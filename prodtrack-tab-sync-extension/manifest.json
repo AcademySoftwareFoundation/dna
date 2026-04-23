@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "DNA Production Tracking Tab Sync",
+  "version": "0.1.0",
+  "description": "Keeps a controlled ShotGrid / production-tracking tab in sync with DNA version selection.",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["tabs"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+  "externally_connectable": {
+    "ids": ["*"],
+    "matches": [
+      "https://*/*",
+      "*://localhost/*",
+      "*://127.0.0.1/*"
+    ]
+  }
+}

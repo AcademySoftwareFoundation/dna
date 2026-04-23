@@ -285,11 +285,16 @@ class MongoDBStorageProvider(StorageProviderBase):
         """Create or update user settings."""
         now = datetime.now(timezone.utc)
         query = {"user_email": user_email}
-        update_fields = {k: v for k, v in data.model_dump().items() if v is not None}
+        update_fields = {
+            k: v
+            for k, v in data.model_dump(exclude_unset=True).items()
+            if v is not None
+        }
         defaults = {
             "note_prompt": "",
             "regenerate_on_version_change": False,
             "regenerate_on_transcript_update": False,
+            "sync_prodtrack_tab_on_version_change": True,
         }
         set_on_insert = {
             "created_at": now,

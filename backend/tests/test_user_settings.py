@@ -21,6 +21,7 @@ class TestUserSettingsModels:
         assert update.note_prompt is None
         assert update.regenerate_on_version_change is None
         assert update.regenerate_on_transcript_update is None
+        assert update.sync_prodtrack_tab_on_version_change is None
 
     def test_user_settings_update_with_values(self):
         """Test UserSettingsUpdate with values."""
@@ -42,6 +43,7 @@ class TestUserSettingsModels:
             note_prompt="My custom prompt",
             regenerate_on_version_change=True,
             regenerate_on_transcript_update=False,
+            sync_prodtrack_tab_on_version_change=True,
             updated_at=now,
             created_at=now,
         )
@@ -50,6 +52,7 @@ class TestUserSettingsModels:
         assert settings.note_prompt == "My custom prompt"
         assert settings.regenerate_on_version_change is True
         assert settings.regenerate_on_transcript_update is False
+        assert settings.sync_prodtrack_tab_on_version_change is True
 
     def test_user_settings_defaults(self):
         """Test UserSettings default values."""
@@ -63,6 +66,7 @@ class TestUserSettingsModels:
         assert settings.note_prompt == ""
         assert settings.regenerate_on_version_change is False
         assert settings.regenerate_on_transcript_update is False
+        assert settings.sync_prodtrack_tab_on_version_change is True
 
 
 class TestUserSettingsEndpoints:
@@ -98,6 +102,7 @@ class TestUserSettingsEndpoints:
             assert data["note_prompt"] == "Custom prompt"
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is False
+            assert data["sync_prodtrack_tab_on_version_change"] is True
             mock_storage_provider.get_user_settings.assert_called_once_with(
                 "test@example.com"
             )
@@ -300,6 +305,7 @@ class TestMongoDBUserSettingsProvider:
             "note_prompt": "Custom prompt",
             "regenerate_on_version_change": True,
             "regenerate_on_transcript_update": False,
+            "sync_prodtrack_tab_on_version_change": False,
             "updated_at": now,
             "created_at": now,
         }
@@ -312,6 +318,7 @@ class TestMongoDBUserSettingsProvider:
         assert result.note_prompt == "Custom prompt"
         assert result.regenerate_on_version_change is True
         assert result.regenerate_on_transcript_update is False
+        assert result.sync_prodtrack_tab_on_version_change is False
 
     @pytest.mark.asyncio
     async def test_get_user_settings_returns_none(
@@ -336,6 +343,7 @@ class TestMongoDBUserSettingsProvider:
             "note_prompt": "Updated prompt",
             "regenerate_on_version_change": True,
             "regenerate_on_transcript_update": True,
+            "sync_prodtrack_tab_on_version_change": False,
             "updated_at": now,
             "created_at": now,
         }
@@ -353,6 +361,7 @@ class TestMongoDBUserSettingsProvider:
         assert result.note_prompt == "Updated prompt"
         assert result.regenerate_on_version_change is True
         assert result.regenerate_on_transcript_update is True
+        assert result.sync_prodtrack_tab_on_version_change is False
         mock_collection.find_one_and_update.assert_called_once()
 
     @pytest.mark.asyncio

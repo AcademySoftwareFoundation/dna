@@ -944,6 +944,7 @@ class TestGenerateNoteEndpoint:
             note_prompt="Test prompt {{ transcript }}",
             regenerate_on_version_change=False,
             regenerate_on_transcript_update=False,
+            sync_prodtrack_tab_on_version_change=False,
             updated_at=datetime.now(timezone.utc),
             created_at=datetime.now(timezone.utc),
         )
