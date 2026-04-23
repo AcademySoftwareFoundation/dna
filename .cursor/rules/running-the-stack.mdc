@@ -5,4 +5,13 @@ description: How to run the stack
 
 # Overview
 
-When running the backend of stack, you need to use docker-compose with the docker-compose.yml file and docker-compose.local.yml file. For examples, see the Makefile in the backend directory. When testing the backend, you should not need to restart as the fastapi application will automatically reload when changes are made. The Worker will need to be restarted if you make changes to the worker. 
+When running the backend of stack, you need to use docker-compose with the docker-compose.yml file and docker-compose.local.yml file. For examples, see the Makefile in the backend directory. When testing the backend, you should not need to restart as the fastapi application will automatically reload when changes are made. The Worker will need to be restarted if you make changes to the worker.
+
+## Docker: `blob sha256:… input/output error` / `unable to get image 'backend-api'`
+
+That comes from **Docker Desktop’s containerd store** (corrupt or unreadable layer blob), not from DNA. Typical recovery:
+
+1. **Quit Docker Desktop** fully (not just close the window).
+2. From `backend/`: **`make docker-fix-api-image`** (stops compose stack and removes the `backend-api` image if Docker can still delete it).
+3. **Start Docker Desktop again**, wait until it is ready, then **`make start-local`** (rebuilds the image).
+4. If the same blob error returns: **Docker Desktop → Troubleshoot → Clean / Purge data** (or “Reset to factory defaults” as a last resort), ensure **enough free disk space**, and check for **disk/drive errors** on the host. 
