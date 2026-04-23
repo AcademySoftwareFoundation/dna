@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+    from dna.models.published_transcript import (
+        PublishedTranscript,
+        PublishedTranscriptUpdate,
+    )
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
     from dna.models.user_settings import UserSettings, UserSettingsUpdate
 
@@ -108,6 +112,22 @@ class StorageProviderBase:
 
     async def delete_user_settings(self, user_email: str) -> bool:
         """Delete user settings. Returns True if deleted."""
+        raise NotImplementedError()
+
+    async def get_published_transcript(
+        self, playlist_id: int, version_id: int, meeting_id: str
+    ) -> Optional["PublishedTranscript"]:
+        """Get the published-transcript record for a (playlist, version, meeting)."""
+        raise NotImplementedError()
+
+    async def upsert_published_transcript(
+        self, data: "PublishedTranscriptUpdate"
+    ) -> "PublishedTranscript":
+        """Create or update the published-transcript record.
+
+        Upsert key is (playlist_id, version_id, meeting_id). A re-publish with a
+        different body_hash overwrites the existing row rather than inserting.
+        """
         raise NotImplementedError()
 
 

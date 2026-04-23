@@ -27,6 +27,10 @@ from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
 )
+from dna.models.published_transcript import (
+    PublishedTranscript,
+    PublishedTranscriptUpdate,
+)
 from dna.models.requests import (
     CreateNoteRequest,
     EntityLink,
@@ -36,6 +40,8 @@ from dna.models.requests import (
     GenerateNoteResponse,
     PublishNotesRequest,
     PublishNotesResponse,
+    PublishTranscriptRequest,
+    PublishTranscriptResponse,
     SearchRequest,
     SearchResult,
     StatusOption,
@@ -69,6 +75,7 @@ __all__ = [
     "Version",
     "Playlist",
     "User",
+    "Transcript",
     "DNAEntity",
     "ENTITY_MODELS",
     "EntityLink",
@@ -82,6 +89,8 @@ __all__ = [
     "StatusOption",
     "PublishNotesRequest",
     "PublishNotesResponse",
+    "PublishTranscriptRequest",
+    "PublishTranscriptResponse",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",
@@ -89,6 +98,8 @@ __all__ = [
     "DraftNoteUpdate",
     "PlaylistMetadata",
     "PlaylistMetadataUpdate",
+    "PublishedTranscript",
+    "PublishedTranscriptUpdate",
     "StoredSegment",
     "StoredSegmentCreate",
     "generate_segment_id",
@@ -97,7 +108,6 @@ __all__ = [
     "BotStatusEnum",
     "DispatchBotRequest",
     "Platform",
-    "Transcript",
     "TranscriptSegment",
     "UserSettings",
     "UserSettingsUpdate",
