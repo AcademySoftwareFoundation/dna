@@ -135,20 +135,46 @@ function findSplitViewPartnerTab(dnaAnchor, tabs, prodtrackUrl) {
   return [...others].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
 }
 
-async function openOrUpdateControlledTab(url, sender) {
-  const tryTab = async (id) => {
-    if (id == null) return false;
+/**
+ * @param {string} url
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {unknown} [clientTabId] — last known tab id from the page; used first if still valid
+ * @returns {Promise<number|null>} Chrome tab id that was navigated, or null on total failure
+ */
+async function openOrUpdateControlledTab(url, sender, clientTabId) {
+  const updateTabById = async (id) => {
+    if (id == null) return null;
     try {
       const tab = await chrome.tabs.get(id);
       if (tab?.id != null) {
         await chrome.tabs.update(tab.id, { url, active: false });
-        return true;
+        return tab.id;
       }
     } catch {
       /* tab closed */
     }
-    return false;
+    return null;
   };
+
+  if (typeof clientTabId === 'number' && clientTabId > 0) {
+    const fromClient = await updateTabById(clientTabId);
+    if (fromClient != null) {
+      controlledTabId = fromClient;
+      const dnaTab = await resolveDnaAnchorTab(sender);
+      let dnaAnchorForSplit = dnaTab;
+      if (dnaTab?.id != null) {
+        try {
+          dnaAnchorForSplit = await chrome.tabs.get(dnaTab.id);
+        } catch {
+          /* use resolved */
+        }
+      }
+      if (dnaAnchorForSplit?.id != null) {
+        await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, fromClient);
+      }
+      return fromClient;
+    }
+  }
 
   const dnaTab = await resolveDnaAnchorTab(sender);
   let dnaAnchorForSplit = dnaTab;
@@ -175,17 +201,18 @@ async function openOrUpdateControlledTab(url, sender) {
       if (dnaAnchorForSplit?.id != null) {
         await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, splitPartner.id);
       }
-      return;
+      return splitPartner.id;
     } catch {
       /* fall through: try tracked tab or create */
     }
   }
 
-  if (await tryTab(controlledTabId)) {
-    if (dnaAnchorForSplit?.id != null && controlledTabId != null) {
-      await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, controlledTabId);
+  const fromTracked = await updateTabById(controlledTabId);
+  if (fromTracked != null) {
+    if (dnaAnchorForSplit?.id != null) {
+      await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, fromTracked);
     }
-    return;
+    return fromTracked;
   }
 
   controlledTabId = null;
@@ -208,7 +235,9 @@ async function openOrUpdateControlledTab(url, sender) {
     if (dnaAnchorForSplit?.id != null) {
       await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, created.id);
     }
+    return created.id;
   }
+  return null;
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -232,8 +261,14 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       reply(sendResponse, { ok: false, error: 'invalid_url' });
       return true;
     }
-    openOrUpdateControlledTab(url, sender)
-      .then(() => reply(sendResponse, { ok: true }))
+    openOrUpdateControlledTab(url, sender, message.tabId)
+      .then((tabId) => {
+        if (typeof tabId === 'number') {
+          reply(sendResponse, { ok: true, tabId });
+        } else {
+          reply(sendResponse, { ok: false, error: 'no_tab' });
+        }
+      })
       .catch((err) =>
         reply(sendResponse, {
           ok: false,

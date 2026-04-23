@@ -32,7 +32,7 @@ describe('openProdtrackVersionInExtension', () => {
     expect(r).toEqual({ ok: false, reason: 'no_chrome' });
   });
 
-  it('returns ok when extension responds with ok true', async () => {
+  it('returns ok when extension responds with ok true (legacy, no tabId)', async () => {
     (
       globalThis as {
         chrome?: {
@@ -61,6 +61,77 @@ describe('openProdtrackVersionInExtension', () => {
     );
     expect(r).toEqual({ ok: true });
   });
+
+  it('sends tabId in message when options include it', async () => {
+    let lastMsg: object = {};
+    (
+      globalThis as {
+        chrome?: {
+          runtime: {
+            sendMessage: (
+              _id: string,
+              msg: object,
+              cb: (r: unknown) => void
+            ) => void;
+            lastError?: { message?: string };
+          };
+        };
+      }
+    ).chrome = {
+      runtime: {
+        sendMessage: (_id, msg, cb) => {
+          lastMsg = msg;
+          cb({ ok: true, tabId: 99 });
+        },
+        lastError: undefined,
+      },
+    };
+
+    const r = await openProdtrackVersionInExtension(
+      'abcdefghijklmnopabcdefghijklmnop',
+      'https://studio.shotgrid.autodesk.com/detail/Version/1',
+      { tabId: 99 }
+    );
+    expect(lastMsg).toEqual(
+      expect.objectContaining({
+        type: 'OPEN_VERSION',
+        url: 'https://studio.shotgrid.autodesk.com/detail/Version/1',
+        tabId: 99,
+      })
+    );
+    expect(r).toEqual({ ok: true, tabId: 99 });
+  });
+
+  it('omits tabId from message when option is not a positive id', async () => {
+    let lastMsg: object = {};
+    (
+      globalThis as {
+        chrome?: {
+          runtime: {
+            sendMessage: (
+              _id: string,
+              msg: object,
+              cb: (r: unknown) => void
+            ) => void;
+            lastError?: { message?: string };
+          };
+        };
+      }
+    ).chrome = {
+      runtime: {
+        sendMessage: (_id, msg, cb) => {
+          lastMsg = msg;
+          cb({ ok: true, tabId: 3 });
+        },
+        lastError: undefined,
+      },
+    };
+
+    await openProdtrackVersionInExtension('abcdefghijklmnopabcdefghijklmnop', 'https://a.com/b', {
+      tabId: 0,
+    });
+    expect((lastMsg as { tabId?: number }).tabId).toBeUndefined();
+  });
 });
 
 describe('openProdtrackUrlInUncontrolledNewTab', () => {
@@ -85,10 +156,11 @@ describe('openProdtrackVersionViaExtensionOrNewTab', () => {
   it('opens a new tab when the extension does not respond', async () => {
     const mockWin = { opener: {} as unknown };
     const open = vi.spyOn(window, 'open').mockImplementation(() => mockWin as Window);
-    await openProdtrackVersionViaExtensionOrNewTab(
+    const r = await openProdtrackVersionViaExtensionOrNewTab(
       'abcdefghijklmnopabcdefghijklmnop',
       'https://studio.shotgrid.autodesk.com/detail/Version/1'
     );
+    expect(r).toEqual({ ok: false, reason: 'no_chrome' });
     expect(open).toHaveBeenCalledWith(
       'https://studio.shotgrid.autodesk.com/detail/Version/1',
       '_blank'
@@ -119,10 +191,11 @@ describe('openProdtrackVersionViaExtensionOrNewTab', () => {
       },
     };
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
-    await openProdtrackVersionViaExtensionOrNewTab(
+    const r = await openProdtrackVersionViaExtensionOrNewTab(
       'abcdefghijklmnopabcdefghijklmnop',
       'https://studio.shotgrid.autodesk.com/detail/Version/2'
     );
+    expect(r).toEqual({ ok: true });
     expect(open).not.toHaveBeenCalled();
     open.mockRestore();
   });

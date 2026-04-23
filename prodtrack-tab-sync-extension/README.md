@@ -37,4 +37,4 @@ This extension therefore:
 ## Message protocol (DNA → extension)
 
 - `{ "type": "PING" }` → `{ "ok": true, "pong": true }` (presence check).
-- `{ "type": "OPEN_VERSION", "url": "<https://...>" }` → `{ "ok": true }` or `{ "ok": false, "error": "..." }`.
+- `{ "type": "OPEN_VERSION", "url": "<https://...>", "tabId"?: <number> }` — `tabId` is optional: last known Chrome **tab** id of the production-tracking window from a prior `OPEN_VERSION` success. The extension **tries that id first** (if still open); if it is missing, it uses split-view heuristics, the extension’s in-memory id, or creates a new tab. Response: `{ "ok": true, "tabId": <number> }` (the id that was navigated) or `{ "ok": false, "error": "..." }`.

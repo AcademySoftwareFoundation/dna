@@ -1,5 +1,5 @@
 export type ProdtrackTabSyncResult =
-  | { ok: true }
+  | { ok: true; tabId?: number }
   | {
       ok: false;
       reason:
@@ -58,11 +58,28 @@ function sendExternalMessage(
   });
 }
 
-function parseAck(raw: unknown): { ok: boolean } | null {
+export type OpenVersionOptions = {
+  /** Last known controlled tab id from a prior OPEN_VERSION; forwarded to the extension */
+  tabId?: number;
+  /** Defaults to 800 */
+  timeoutMs?: number;
+};
+
+function parseOpenVersionResponse(
+  raw: unknown
+): { ok: true; tabId?: number } | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  if (o.ok === true) return { ok: true };
-  return null;
+  if (o.ok !== true) return null;
+  if (typeof o.tabId === 'number' && Number.isFinite(o.tabId)) {
+    return { ok: true, tabId: o.tabId };
+  }
+  return { ok: true };
+}
+
+function parsePingResponse(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false;
+  return (raw as { ok?: unknown }).ok === true;
 }
 
 /** Opens the production-tracking URL in a normal new browser tab (not extension-controlled). */
@@ -96,16 +113,20 @@ export async function pingProdtrackTabExtension(
       detail: String((raw as { __error: string }).__error),
     };
   }
-  if (raw === undefined || parseAck(raw)?.ok !== true) {
+  if (raw === undefined || !parsePingResponse(raw)) {
     return { ok: false, reason: 'no_extension' };
   }
   return { ok: true };
 }
 
+/**
+ * @param timeoutOrOptions — A millisecond timeout (default 800) or open options
+ *  including `tabId` (last known controlled tab) and `timeoutMs`.
+ */
 export async function openProdtrackVersionInExtension(
   extensionId: string,
   url: string,
-  timeoutMs = 800
+  timeoutOrOptions: number | OpenVersionOptions = 800
 ): Promise<ProdtrackTabSyncResult> {
   const trimmed = extensionId.trim();
   if (!trimmed) {
@@ -119,11 +140,20 @@ export async function openProdtrackVersionInExtension(
     return { ok: false, reason: 'no_chrome' };
   }
 
-  const raw = await sendExternalMessage(
-    trimmed,
-    { type: 'OPEN_VERSION', url },
-    timeoutMs
-  );
+  const openOpts =
+    typeof timeoutOrOptions === 'number' ? { timeoutMs: timeoutOrOptions } : timeoutOrOptions;
+  const timeoutMs = openOpts.timeoutMs ?? 800;
+  const lastKnownTabId = openOpts.tabId;
+
+  const message: { type: string; url: string; tabId?: number } = {
+    type: 'OPEN_VERSION',
+    url,
+  };
+  if (typeof lastKnownTabId === 'number' && lastKnownTabId > 0) {
+    message.tabId = lastKnownTabId;
+  }
+
+  const raw = await sendExternalMessage(trimmed, message, timeoutMs);
 
   if (raw && typeof raw === 'object' && '__error' in raw) {
     return {
@@ -133,8 +163,9 @@ export async function openProdtrackVersionInExtension(
     };
   }
 
-  if (parseAck(raw)?.ok === true) {
-    return { ok: true };
+  const ack = parseOpenVersionResponse(raw);
+  if (ack != null) {
+    return { ok: true, tabId: ack.tabId };
   }
 
   return { ok: false, reason: 'no_extension' };
@@ -143,14 +174,15 @@ export async function openProdtrackVersionInExtension(
 export async function openProdtrackVersionViaExtensionOrNewTab(
   extensionId: string,
   url: string,
-  timeoutMs = 800
-): Promise<void> {
+  timeoutOrOptions: number | OpenVersionOptions = 800
+): Promise<ProdtrackTabSyncResult> {
   const result = await openProdtrackVersionInExtension(
     extensionId,
     url,
-    timeoutMs
+    timeoutOrOptions
   );
   if (!result.ok) {
     openProdtrackUrlInUncontrolledNewTab(url);
   }
+  return result;
 }
