@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react';
+import { useRef, useCallback, useMemo, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import type { Version, SearchResult, UserSettings } from '@dna/core';
@@ -158,6 +158,12 @@ export function ContentArea({
   const extensionId =
     import.meta.env.VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?.trim() ?? '';
 
+  const [prodtrackControlledTabId, setProdtrackControlledTabId] = useState<
+    number | null
+  >(null);
+  const prodtrackTabIdRef = useRef<number | null>(null);
+  prodtrackTabIdRef.current = prodtrackControlledTabId;
+
   const { data: userSettings, isSuccess: userSettingsQuerySuccess } =
     useQuery<UserSettings | null>({
       queryKey: ['userSettings', userEmail],
@@ -174,8 +180,14 @@ export function ContentArea({
   const handleSyncProdtrackTab = useCallback(() => {
     const url = version?.prodtrack_detail_url;
     if (!url || !extensionId) return;
-    void openProdtrackVersionViaExtensionOrNewTab(extensionId, url);
-  }, [version?.prodtrack_detail_url, extensionId]);
+    void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
+      tabId: prodtrackControlledTabId ?? undefined,
+    }).then((result) => {
+      if (result.ok && typeof result.tabId === 'number') {
+        setProdtrackControlledTabId(result.tabId);
+      }
+    });
+  }, [version?.prodtrack_detail_url, extensionId, prodtrackControlledTabId]);
 
   useEffect(() => {
     if (!version?.prodtrack_detail_url) return;
@@ -183,7 +195,13 @@ export function ContentArea({
     if (!extensionId) return;
     const url = version.prodtrack_detail_url;
     const timer = window.setTimeout(() => {
-      void openProdtrackVersionViaExtensionOrNewTab(extensionId, url);
+      void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
+        tabId: prodtrackTabIdRef.current ?? undefined,
+      }).then((result) => {
+        if (result.ok && typeof result.tabId === 'number') {
+          setProdtrackControlledTabId(result.tabId);
+        }
+      });
     }, 120);
     return () => window.clearTimeout(timer);
   }, [
