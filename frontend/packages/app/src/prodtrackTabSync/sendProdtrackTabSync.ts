@@ -65,6 +65,16 @@ function parseAck(raw: unknown): { ok: boolean } | null {
   return null;
 }
 
+/** Opens the production-tracking URL in a normal new browser tab (not extension-controlled). */
+export function openProdtrackUrlInUncontrolledNewTab(url: string): void {
+  if (!url.startsWith('http')) return;
+  if (typeof window === 'undefined' || typeof window.open !== 'function') return;
+  const opened = window.open(url, '_blank');
+  if (opened) {
+    opened.opener = null;
+  }
+}
+
 export async function pingProdtrackTabExtension(
   extensionId: string,
   timeoutMs = 400
@@ -128,4 +138,19 @@ export async function openProdtrackVersionInExtension(
   }
 
   return { ok: false, reason: 'no_extension' };
+}
+
+export async function openProdtrackVersionViaExtensionOrNewTab(
+  extensionId: string,
+  url: string,
+  timeoutMs = 800
+): Promise<void> {
+  const result = await openProdtrackVersionInExtension(
+    extensionId,
+    url,
+    timeoutMs
+  );
+  if (!result.ok) {
+    openProdtrackUrlInUncontrolledNewTab(url);
+  }
 }

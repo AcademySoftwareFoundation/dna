@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
 import {
   ChevronLeft,
@@ -29,7 +29,9 @@ interface VersionHeaderProps {
   onRefresh?: () => void;
   onSetInReview?: () => void;
   onVersionStatusChange?: (code: string) => void;
-  onSyncProdtrackTab?: () => void;
+  prodtrackDetailUrl?: string | null;
+  prodtrackTabUsesExtension?: boolean;
+  onSyncProdtrackTab?: () => void | Promise<void>;
   syncProdtrackDisabled?: boolean;
   syncProdtrackTitle?: string;
   canGoBack?: boolean;
@@ -111,7 +113,7 @@ const InReviewButton = styled.button`
   }
 `;
 
-const SyncProdtrackButton = styled.button`
+const syncProdtrackSurface = css`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -125,6 +127,11 @@ const SyncProdtrackButton = styled.button`
   border-radius: ${({ theme }) => theme.radii.md};
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
+  box-sizing: border-box;
+`;
+
+const SyncProdtrackButton = styled.button`
+  ${syncProdtrackSurface}
 
   &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.bg.surfaceHover};
@@ -135,6 +142,17 @@ const SyncProdtrackButton = styled.button`
   &:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+`;
+
+const SyncProdtrackLink = styled.a`
+  ${syncProdtrackSurface}
+  text-decoration: none;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
   }
 `;
 
@@ -367,6 +385,8 @@ export function VersionHeader({
   onRefresh,
   onSetInReview,
   onVersionStatusChange,
+  prodtrackDetailUrl,
+  prodtrackTabUsesExtension = false,
   onSyncProdtrackTab,
   syncProdtrackDisabled = false,
   syncProdtrackTitle = 'Open current version in production tracking (browser tab)',
@@ -395,16 +415,28 @@ export function VersionHeader({
             <Eye size={14} />
             In Review
           </InReviewButton>
-          {onSyncProdtrackTab && (
+          {prodtrackDetailUrl && prodtrackTabUsesExtension && onSyncProdtrackTab && (
             <Tooltip content={syncProdtrackTitle}>
               <SyncProdtrackButton
                 type="button"
-                onClick={onSyncProdtrackTab}
+                onClick={() => void onSyncProdtrackTab()}
                 disabled={syncProdtrackDisabled}
               >
                 <ExternalLink size={14} />
                 PT tab
               </SyncProdtrackButton>
+            </Tooltip>
+          )}
+          {prodtrackDetailUrl && !prodtrackTabUsesExtension && (
+            <Tooltip content={syncProdtrackTitle}>
+              <SyncProdtrackLink
+                href={prodtrackDetailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={14} />
+                PT tab
+              </SyncProdtrackLink>
             </Tooltip>
           )}
           <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>

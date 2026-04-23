@@ -1,6 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   openProdtrackVersionInExtension,
+  openProdtrackUrlInUncontrolledNewTab,
+  openProdtrackVersionViaExtensionOrNewTab,
   pingProdtrackTabExtension,
 } from './sendProdtrackTabSync';
 
@@ -58,6 +60,71 @@ describe('openProdtrackVersionInExtension', () => {
       'https://studio.shotgrid.autodesk.com/detail/Version/99'
     );
     expect(r).toEqual({ ok: true });
+  });
+});
+
+describe('openProdtrackUrlInUncontrolledNewTab', () => {
+  it('does nothing for non-http URLs', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    openProdtrackUrlInUncontrolledNewTab('javascript:alert(1)');
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it('opens http(s) URL in a new tab and clears opener', () => {
+    const mockWin = { opener: {} as unknown };
+    const open = vi.spyOn(window, 'open').mockImplementation(() => mockWin as Window);
+    openProdtrackUrlInUncontrolledNewTab('https://example.com/v/1');
+    expect(open).toHaveBeenCalledWith('https://example.com/v/1', '_blank');
+    expect(mockWin.opener).toBeNull();
+    open.mockRestore();
+  });
+});
+
+describe('openProdtrackVersionViaExtensionOrNewTab', () => {
+  it('opens a new tab when the extension does not respond', async () => {
+    const mockWin = { opener: {} as unknown };
+    const open = vi.spyOn(window, 'open').mockImplementation(() => mockWin as Window);
+    await openProdtrackVersionViaExtensionOrNewTab(
+      'abcdefghijklmnopabcdefghijklmnop',
+      'https://studio.shotgrid.autodesk.com/detail/Version/1'
+    );
+    expect(open).toHaveBeenCalledWith(
+      'https://studio.shotgrid.autodesk.com/detail/Version/1',
+      '_blank'
+    );
+    open.mockRestore();
+  });
+
+  it('does not open a new tab when the extension succeeds', async () => {
+    (
+      globalThis as {
+        chrome?: {
+          runtime: {
+            sendMessage: (
+              _id: string,
+              _msg: object,
+              cb: (r: unknown) => void
+            ) => void;
+            lastError?: { message?: string };
+          };
+        };
+      }
+    ).chrome = {
+      runtime: {
+        sendMessage: (_id, _msg, cb) => {
+          cb({ ok: true });
+        },
+        lastError: undefined,
+      },
+    };
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    await openProdtrackVersionViaExtensionOrNewTab(
+      'abcdefghijklmnopabcdefghijklmnop',
+      'https://studio.shotgrid.autodesk.com/detail/Version/2'
+    );
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 });
 
