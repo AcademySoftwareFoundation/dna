@@ -322,6 +322,10 @@ async def startup_event():
     """Initialize services on startup."""
     service = get_transcription_service()
     await service.init_providers()
+    storage = service.storage_provider
+    ensure_indexes = getattr(storage, "ensure_indexes", None)
+    if callable(ensure_indexes):
+        await ensure_indexes()
     await service.resubscribe_to_active_meetings()
 
 
@@ -359,6 +363,25 @@ async def root():
 async def health():
     """Health check endpoint for monitoring and load balancers."""
     return {"status": "healthy"}
+
+
+@app.post(
+    "/test/broadcast-transcript",
+    tags=["Testing"],
+    summary="Broadcast a synthetic transcript (dev-only).",
+    include_in_schema=False,
+)
+async def test_broadcast_transcript(payload: dict) -> dict:
+    """Dev-only endpoint for tests-vm/. Gated by DNA_TESTING_ENABLED=true.
+
+    Forwards the JSON body verbatim to every WebSocket client — lets us
+    assert the broadcast shape end-to-end without needing a real meeting.
+    """
+    if os.getenv("DNA_TESTING_ENABLED", "false").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="Not found")
+    publisher = get_event_publisher()
+    await publisher.ws_manager.broadcast(payload)
+    return {"broadcasted": True, "clients": publisher.ws_manager.connection_count}
 
 
 MOCK_THUMBNAILS_DIR = (
@@ -430,12 +453,15 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time event streaming.
 
     Clients connect to this endpoint to receive real-time events such as:
-    - segment.created / segment.updated: Transcript segment changes
+    - transcript: Raw Vexa-shaped transcript ticks (flat envelope with
+      `speaker`, `confirmed`, `pending`, `playlist_id`, `version_id`, `ts`).
+      Consumed by the frontend `TranscriptManager`.
     - bot.status_changed: Bot status updates
     - transcription.completed / transcription.error: Transcription lifecycle events
 
-    Events are sent as JSON messages with the format:
-    {"type": "event.type", "payload": {...}}
+    Most events use `{"type": "event.type", "payload": {...}}`. The
+    `transcript` event is flat — the whole message IS the payload so it can
+    be fed to `TranscriptManager.handleMessage()` without reshaping.
     """
     event_publisher = get_event_publisher()
     ws_manager = event_publisher.ws_manager

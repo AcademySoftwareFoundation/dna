@@ -1,8 +1,5 @@
 export type EventType =
-  | 'segment.created'
-  | 'segment.updated'
-  | 'playlist.updated'
-  | 'version.updated'
+  | 'transcript'
   | 'bot.status_changed'
   | 'transcription.completed'
   | 'transcription.error';
@@ -12,14 +9,21 @@ export interface DNAEvent<T = unknown> {
   payload: T;
 }
 
-export interface SegmentEventPayload {
-  segment_id: string;
+/**
+ * Raw transcript message forwarded by the DNA backend, verbatim from
+ * Vexa's WS contract plus DNA envelope fields (`playlist_id`, `version_id`).
+ *
+ * Shape: `{ type: "transcript", speaker, confirmed: [...], pending: [...],
+ *          playlist_id, version_id, ts }` — matches the `TranscriptMessage`
+ * interface of `@vexaai/transcript-rendering`.
+ */
+export interface TranscriptEventPayload {
+  speaker?: string;
+  confirmed?: Array<Record<string, unknown>>;
+  pending?: Array<Record<string, unknown>>;
   playlist_id: number;
   version_id: number;
-  text: string;
-  speaker?: string;
-  absolute_start_time: string;
-  absolute_end_time?: string;
+  ts?: string;
 }
 
 export interface BotStatusEventPayload {
@@ -169,9 +173,17 @@ export class DNAEventClient {
 
   private handleMessage(data: string): void {
     try {
-      const message = JSON.parse(data) as { type: string; payload: unknown };
+      const message = JSON.parse(data) as Record<string, unknown> & {
+        type: string;
+      };
       const eventType = message.type as EventType;
-      const payload = message.payload;
+
+      // Transcript messages are forwarded verbatim from Vexa — the whole
+      // message object (including confirmed/pending/speaker/…) IS the payload
+      // so `TranscriptManager.handleMessage()` can consume it directly.
+      // All other events follow the classic `{type, payload}` envelope.
+      const payload =
+        eventType === 'transcript' ? message : (message as unknown as { payload: unknown }).payload;
 
       const event: DNAEvent = { type: eventType, payload };
 
@@ -244,33 +256,6 @@ export class DNAEventClient {
     return () => {
       this.connectionStateCallbacks.delete(callback);
     };
-  }
-
-  subscribeToSegmentEvents(
-    callback: EventCallback<SegmentEventPayload>,
-    filter?: { playlistId?: number; versionId?: number }
-  ): () => void {
-    const filteredCallback = (event: DNAEvent<SegmentEventPayload>) => {
-      const payload = event.payload;
-      if (
-        filter?.playlistId != null &&
-        payload.playlist_id !== filter.playlistId
-      ) {
-        return;
-      }
-      if (
-        filter?.versionId != null &&
-        payload.version_id !== filter.versionId
-      ) {
-        return;
-      }
-      callback(event);
-    };
-
-    return this.subscribeMultiple<SegmentEventPayload>(
-      ['segment.created', 'segment.updated'],
-      filteredCallback
-    );
   }
 
   subscribeToBotStatusEvents(

@@ -5,10 +5,10 @@ import {
   type AISuggestionState,
   type UserSettings,
   type DNAEvent,
-  type SegmentEventPayload,
+  type TranscriptEventPayload,
 } from '@dna/core';
 import { apiHandler } from '../api';
-import { useSegmentEvents } from './useDNAEvents';
+import { useTranscriptEvents } from './useDNAEvents';
 
 export interface UseAISuggestionOptions {
   playlistId: number | null;
@@ -104,9 +104,9 @@ export function useAISuggestion({
     prevVersionRef.current = versionId;
   }, [versionId, playlistId, userEmail, userSettings, isEnabled]);
 
-  const handleSegmentEvent = useCallback(
+  const handleTranscriptEvent = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    (_event: DNAEvent<SegmentEventPayload>) => {
+    (_event: DNAEvent<TranscriptEventPayload>) => {
       if (!isEnabled || !userSettings?.regenerate_on_transcript_update) {
         return;
       }
@@ -116,7 +116,7 @@ export function useAISuggestion({
     [playlistId, versionId, userEmail, userSettings, isEnabled]
   );
 
-  useSegmentEvents(handleSegmentEvent, {
+  useTranscriptEvents(handleTranscriptEvent, {
     playlistId,
     versionId,
     enabled: isEnabled && !!userSettings?.regenerate_on_transcript_update,
