@@ -495,8 +495,11 @@ class ShotgridProvider(ProdtrackProviderBase):
                 if "project" in fields_mapping:
                     sg_fields.append("project")
 
-            # Build ShotGrid filters
-            sg_filters = [[name_sg_field, "contains", query]]
+            # Build ShotGrid filters (empty query = prefetch up to limit, no name filter)
+            q = (query or "").strip()
+            sg_filters: list[list[Any]] = []
+            if q:
+                sg_filters.append([name_sg_field, "contains", q])
 
             # Add project filter for non-user entities
             if entity_type != "user" and project_id is not None:

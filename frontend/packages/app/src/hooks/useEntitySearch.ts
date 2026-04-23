@@ -8,11 +8,15 @@ interface UseEntitySearchOptions {
   projectId?: number;
   limit?: number;
   debounceMs?: number;
+  /** When false, never hits the network (e.g. local mention index is authoritative). */
+  networkEnabled?: boolean;
 }
 
 interface UseEntitySearchReturn {
   query: string;
   setQuery: (query: string) => void;
+  /** Query after debounce (matches what the network request uses). */
+  debouncedQuery: string;
   results: SearchResult[];
   isLoading: boolean;
   error: Error | null;
@@ -23,6 +27,7 @@ export function useEntitySearch({
   projectId,
   limit = 10,
   debounceMs = 300,
+  networkEnabled = true,
 }: UseEntitySearchOptions): UseEntitySearchReturn {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -49,15 +54,16 @@ export function useEntitySearch({
         projectId,
         limit,
       }),
-    enabled: debouncedQuery.length > 0,
+    enabled: networkEnabled && debouncedQuery.length > 0,
     staleTime: 30000, // Cache results for 30 seconds
   });
 
   return {
     query,
     setQuery,
+    debouncedQuery,
     results,
-    isLoading: isLoading && debouncedQuery.length > 0,
+    isLoading: networkEnabled && isLoading && debouncedQuery.length > 0,
     error,
   };
 }

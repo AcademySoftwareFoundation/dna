@@ -1,9 +1,15 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { Loader2 } from 'lucide-react';
 import { Popover } from '@radix-ui/themes';
-import { SearchResult, SearchableEntityType } from '@dna/core';
+import {
+  SearchResult,
+  SearchableEntityType,
+  filterMentionCandidates,
+  filterSearchResultsByEntityTypes,
+} from '@dna/core';
 import { useEntitySearch } from '../hooks/useEntitySearch';
+import { useMentionIndex } from '../contexts/MentionIndexContext';
 import { EntityPill, type EntityType } from './EntityPill/EntityPill';
 
 export interface EntitySearchInputProps {
@@ -135,13 +141,41 @@ export function EntitySearchInput({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const mentionIndex = useMentionIndex();
+  const indexReady =
+    mentionIndex != null &&
+    projectId != null &&
+    mentionIndex.projectId === projectId &&
+    !mentionIndex.isIndexLoading;
+
   const { query, setQuery, results, isLoading } = useEntitySearch({
     entityTypes,
     projectId,
     limit: 10,
+    networkEnabled: !indexReady,
   });
 
-  const availableResults = results.filter(
+  const localFiltered = useMemo(() => {
+    if (!indexReady || !mentionIndex) return [];
+    const pool = filterSearchResultsByEntityTypes(
+      mentionIndex.mergedCandidates,
+      entityTypes
+    );
+    return filterMentionCandidates(pool, query, 10);
+  }, [indexReady, mentionIndex, entityTypes, query]);
+
+  const displayResults = indexReady ? localFiltered : results;
+
+  const prefetchLoading =
+    projectId != null &&
+    mentionIndex != null &&
+    mentionIndex.projectId === projectId &&
+    mentionIndex.isIndexLoading &&
+    query.length > 0;
+
+  const dropdownLoading = prefetchLoading || isLoading;
+
+  const availableResults = displayResults.filter(
     (result) =>
       !value.some((v) => v.id === result.id && v.type === result.type) &&
       !lockedEntities.some((l) => l.id === result.id && l.type === result.type)
@@ -157,7 +191,9 @@ export function EntitySearchInput({
   }
 
   function handleRemove(entity: SearchResult) {
-    onChange(value.filter((v) => !(v.id === entity.id && v.type === entity.type)));
+    onChange(
+      value.filter((v) => !(v.id === entity.id && v.type === entity.type))
+    );
   }
 
   const handleKeyDown = useCallback(
@@ -169,7 +205,8 @@ export function EntitySearchInput({
         return;
       }
 
-      if (!showDropdown || availableResults.length === 0) return;
+      if (!showDropdown || (availableResults.length === 0 && !dropdownLoading))
+        return;
 
       switch (e.key) {
         case 'ArrowDown':
@@ -196,7 +233,15 @@ export function EntitySearchInput({
           break;
       }
     },
-    [query, value, showDropdown, availableResults, highlightedIndex, onChange]
+    [
+      query,
+      value,
+      showDropdown,
+      availableResults,
+      highlightedIndex,
+      onChange,
+      dropdownLoading,
+    ]
   );
 
   const hasEntities = lockedEntities.length > 0 || value.length > 0;
@@ -208,13 +253,21 @@ export function EntitySearchInput({
           {lockedEntities.map((entity) => (
             <EntityPill
               key={`${entity.type}-${entity.id}`}
-              entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+              entity={{
+                type: entity.type.toLowerCase() as EntityType,
+                id: entity.id,
+                name: entity.name,
+              }}
             />
           ))}
           {value.map((entity) => (
             <EntityPill
               key={`${entity.type}-${entity.id}`}
-              entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+              entity={{
+                type: entity.type.toLowerCase() as EntityType,
+                id: entity.id,
+                name: entity.name,
+              }}
               onRemove={() => handleRemove(entity)}
             />
           ))}
@@ -246,7 +299,7 @@ export function EntitySearchInput({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <div role="listbox">
-          {isLoading ? (
+          {dropdownLoading ? (
             <LoadingState>
               <Loader2 size={14} className="animate-spin" />
               Searching...

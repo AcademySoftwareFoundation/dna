@@ -19,8 +19,12 @@ import {
   Minus,
   Image,
 } from 'lucide-react';
-import { SearchResult } from '@dna/core';
+import { SearchResult, filterMentionCandidates } from '@dna/core';
 import { apiHandler } from '../api';
+import {
+  useMentionIndex,
+  type MentionIndexContextValue,
+} from '../contexts/MentionIndexContext';
 import { MentionList, type MentionListHandle } from './MentionList';
 
 interface MarkdownEditorProps {
@@ -220,7 +224,8 @@ const AttachmentPill = styled.button<{ $animated: boolean }>`
       color: ${({ theme }) => theme.colors.text.secondary};
     }
   }
-  animation: ${({ $animated }) => $animated ? 'pillGlow 1.1s ease-out' : 'none'};
+  animation: ${({ $animated }) =>
+    $animated ? 'pillGlow 1.1s ease-out' : 'none'};
 
   &:hover {
     background: ${({ theme }) => theme.colors.bg.surfaceHover};
@@ -355,6 +360,8 @@ interface MentionSuggestionState {
   items: SearchResult[];
   rect: DOMRect | null;
   command: ((attrs: { id: string; label: string }) => void) | null;
+  /** Prefetch still warming; avoid empty-state flash. */
+  isLoading: boolean;
 }
 
 export function MarkdownEditor({
@@ -393,6 +400,10 @@ export function MarkdownEditor({
   const onMentionInsertRef = useRef(onMentionInsert);
   const mentionListRef = useRef<MentionListHandle | null>(null);
   const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mentionCtx = useMentionIndex();
+  const mentionIndexRef = useRef<MentionIndexContextValue | null>(null);
+  mentionIndexRef.current = mentionCtx;
+  const mentionActiveQueryRef = useRef('');
 
   useEffect(() => {
     projectIdRef.current = projectId;
@@ -413,7 +424,36 @@ export function MarkdownEditor({
     items: [],
     rect: null,
     command: null,
+    isLoading: false,
   });
+
+  function mentionListLoading(
+    query: string,
+    ctx: MentionIndexContextValue | null
+  ): boolean {
+    const pid = projectIdRef.current ?? null;
+    const useCache = ctx != null && pid != null && ctx.projectId === pid;
+    return useCache && query.length > 0 && ctx.isIndexLoading;
+  }
+
+  useEffect(() => {
+    const ctx = mentionIndexRef.current;
+    if (!ctx || ctx.isIndexLoading) return;
+    const q = mentionActiveQueryRef.current;
+    if (!mention.active || !q) return;
+    const pid = projectIdRef.current ?? null;
+    if (pid == null || ctx.projectId !== pid) {
+      return;
+    }
+    setMention((prev) => {
+      if (!prev.active) return prev;
+      return {
+        ...prev,
+        items: filterMentionCandidates(ctx.mergedCandidates, q, 10),
+        isLoading: false,
+      };
+    });
+  }, [mentionCtx, mention.active]);
 
   const editor = useEditor({
     extensions: [
@@ -423,8 +463,7 @@ export function MarkdownEditor({
       Placeholder.configure({ placeholder }),
       Mention.configure({
         HTMLAttributes: { class: 'mention' },
-        renderText: ({ node }) =>
-          `@${node.attrs.label ?? node.attrs.id}`,
+        renderText: ({ node }) => `@${node.attrs.label ?? node.attrs.id}`,
         renderHTML: ({ node }) => [
           'span',
           {
@@ -439,8 +478,19 @@ export function MarkdownEditor({
           allowSpaces: false,
           items: ({ query }): Promise<SearchResult[]> => {
             if (!query) return Promise.resolve([]);
+            const ctx = mentionIndexRef.current;
+            const pid = projectIdRef.current ?? null;
+            const useCache =
+              ctx != null && pid != null && ctx.projectId === pid;
+            if (useCache) {
+              if (ctx.isIndexLoading) return Promise.resolve([]);
+              return Promise.resolve(
+                filterMentionCandidates(ctx.mergedCandidates, query, 10)
+              );
+            }
             return new Promise((resolve) => {
-              if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current);
+              if (mentionDebounceRef.current)
+                clearTimeout(mentionDebounceRef.current);
               mentionDebounceRef.current = setTimeout(async () => {
                 try {
                   const results = await apiHandler.searchEntities({
@@ -458,19 +508,31 @@ export function MarkdownEditor({
           },
           render: () => ({
             onStart: (props) => {
+              const q = props.query;
+              mentionActiveQueryRef.current = q;
               setMention({
                 active: true,
                 items: props.items as SearchResult[],
                 rect: props.clientRect?.() ?? null,
-                command: props.command as (attrs: { id: string; label: string }) => void,
+                command: props.command as (attrs: {
+                  id: string;
+                  label: string;
+                }) => void,
+                isLoading: mentionListLoading(q, mentionIndexRef.current),
               });
             },
             onUpdate: (props) => {
+              const q = props.query;
+              mentionActiveQueryRef.current = q;
               setMention((prev) => ({
                 ...prev,
                 items: props.items as SearchResult[],
                 rect: props.clientRect?.() ?? null,
-                command: props.command as (attrs: { id: string; label: string }) => void,
+                command: props.command as (attrs: {
+                  id: string;
+                  label: string;
+                }) => void,
+                isLoading: mentionListLoading(q, mentionIndexRef.current),
               }));
             },
             onKeyDown: (props) => {
@@ -481,7 +543,14 @@ export function MarkdownEditor({
               return mentionListRef.current?.onKeyDown(props) ?? false;
             },
             onExit: () => {
-              setMention({ active: false, items: [], rect: null, command: null });
+              mentionActiveQueryRef.current = '';
+              setMention({
+                active: false,
+                items: [],
+                rect: null,
+                command: null,
+                isLoading: false,
+              });
             },
           }),
         },
@@ -558,14 +627,18 @@ export function MarkdownEditor({
         </ToolbarButton>
         <Divider />
         <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 1 }).run()
+          }
           $active={editor.isActive('heading', { level: 1 })}
           title="Heading 1"
         >
           <Heading1 />
         </ToolbarButton>
         <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          onClick={() =>
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }
           $active={editor.isActive('heading', { level: 2 })}
           title="Heading 2"
         >
@@ -622,7 +695,9 @@ export function MarkdownEditor({
         onChange={handleFileChange}
       />
 
-      {mention.active && mention.rect && mention.command &&
+      {mention.active &&
+        mention.rect &&
+        mention.command &&
         createPortal(
           <MentionDropdownWrapper
             style={{
@@ -634,6 +709,7 @@ export function MarkdownEditor({
               ref={mentionListRef}
               items={mention.items}
               command={handleMentionCommand}
+              loading={mention.isLoading}
             />
           </MentionDropdownWrapper>,
           document.body
