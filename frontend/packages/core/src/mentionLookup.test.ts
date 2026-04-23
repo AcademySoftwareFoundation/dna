@@ -5,7 +5,15 @@ import {
   filterSearchResultsByEntityTypes,
   mergeMentionPrefetchResults,
   mentionResultKey,
+  normalizeEntitySearchQuery,
 } from './mentionLookup';
+
+describe('normalizeEntitySearchQuery', () => {
+  it('strips leading at-signs like a mention trigger', () => {
+    expect(normalizeEntitySearchQuery('@sa')).toBe('sa');
+    expect(normalizeEntitySearchQuery('  @@@sam  ')).toBe('sam');
+  });
+});
 
 describe('mentionResultKey', () => {
   it('normalizes type casing', () => {
@@ -64,6 +72,14 @@ describe('filterMentionCandidates', () => {
     expect(filterMentionCandidates(pool, 'studio', 10)).toEqual([
       { type: 'User', id: 2, name: 'Bob', email: 'bob@studio.com' },
     ]);
+  });
+
+  it('ignores leading @ so CC-style input matches names', () => {
+    const users: SearchResult[] = [
+      { type: 'User', id: 1, name: 'Sam Richards', email: 'sam@x.com' },
+    ];
+    expect(filterMentionCandidates(users, '@sa', 10)).toEqual(users);
+    expect(filterMentionCandidates(users, '@SAM', 10)).toEqual(users);
   });
 
   it('ranks prefix matches on name before substring', () => {

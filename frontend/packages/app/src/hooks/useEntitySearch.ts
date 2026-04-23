@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SearchResult, SearchableEntityType } from '@dna/core';
+import {
+  SearchResult,
+  SearchableEntityType,
+  normalizeEntitySearchQuery,
+} from '@dna/core';
 import { apiHandler } from '../api';
 
 interface UseEntitySearchOptions {
@@ -49,12 +53,13 @@ export function useEntitySearch({
     queryKey: ['entitySearch', debouncedQuery, entityTypes, projectId, limit],
     queryFn: () =>
       apiHandler.searchEntities({
-        query: debouncedQuery,
+        query: normalizeEntitySearchQuery(debouncedQuery),
         entityTypes,
         projectId,
         limit,
       }),
-    enabled: networkEnabled && debouncedQuery.length > 0,
+    enabled:
+      networkEnabled && normalizeEntitySearchQuery(debouncedQuery).length > 0,
     staleTime: 30000, // Cache results for 30 seconds
   });
 
@@ -63,7 +68,10 @@ export function useEntitySearch({
     setQuery,
     debouncedQuery,
     results,
-    isLoading: networkEnabled && isLoading && debouncedQuery.length > 0,
+    isLoading:
+      networkEnabled &&
+      isLoading &&
+      normalizeEntitySearchQuery(debouncedQuery).length > 0,
     error,
   };
 }

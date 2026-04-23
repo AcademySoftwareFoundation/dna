@@ -14,6 +14,14 @@ export type MentionPrefetchEntityType =
 
 export const MENTION_PREFETCH_LIMIT = 300;
 
+/**
+ * Trim and remove a leading mention-style `@` prefix so field search matches
+ * TipTap mention behavior (query without trigger character).
+ */
+export function normalizeEntitySearchQuery(query: string): string {
+  return query.trim().replace(/^@+/, '').trim();
+}
+
 export function mentionResultKey(result: SearchResult): string {
   return `${result.type.toLowerCase()}:${result.id}`;
 }
@@ -75,7 +83,7 @@ export function filterMentionCandidates(
   query: string,
   limit: number
 ): SearchResult[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizeEntitySearchQuery(query).toLowerCase();
   if (!q || limit <= 0) return [];
 
   const prefix: SearchResult[] = [];

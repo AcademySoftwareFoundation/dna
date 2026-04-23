@@ -7,6 +7,7 @@ import {
   SearchableEntityType,
   filterMentionCandidates,
   filterSearchResultsByEntityTypes,
+  normalizeEntitySearchQuery,
 } from '@dna/core';
 import { useEntitySearch } from '../hooks/useEntitySearch';
 import { useMentionIndex } from '../contexts/MentionIndexContext';
@@ -171,7 +172,7 @@ export function EntitySearchInput({
     mentionIndex != null &&
     mentionIndex.projectId === projectId &&
     mentionIndex.isIndexLoading &&
-    query.length > 0;
+    normalizeEntitySearchQuery(query).length > 0;
 
   const dropdownLoading = prefetchLoading || isLoading;
 
@@ -181,7 +182,7 @@ export function EntitySearchInput({
       !lockedEntities.some((l) => l.id === result.id && l.type === result.type)
   );
 
-  const showDropdown = isOpen && query.length > 0;
+  const showDropdown = isOpen && normalizeEntitySearchQuery(query).length > 0;
 
   function handleSelect(entity: SearchResult) {
     onChange([...value, entity]);
@@ -283,7 +284,9 @@ export function EntitySearchInput({
               setIsOpen(true);
               setHighlightedIndex(0);
             }}
-            onFocus={() => query.length > 0 && setIsOpen(true)}
+            onFocus={() =>
+              normalizeEntitySearchQuery(query).length > 0 && setIsOpen(true)
+            }
             onBlur={() => setIsOpen(false)}
             onKeyDown={handleKeyDown}
             placeholder={hasEntities ? '' : placeholder}
