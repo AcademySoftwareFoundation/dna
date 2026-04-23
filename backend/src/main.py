@@ -24,7 +24,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
-from dna.llm_providers.default_prompt import DEFAULT_PROMPT
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
     Asset,
@@ -62,6 +61,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
+from dna.prompts.default_prompt import DEFAULT_PROMPT
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
