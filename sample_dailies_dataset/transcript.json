@@ -1,5 +1,5 @@
 {
-  "session_id": "demo_dailies_2025_10_03",
+  "session_id": "demo_dailies_2025_10_02",
   "utterances": [
     {
       "ts": "00:00:00",
@@ -169,7 +169,7 @@
     {
       "ts": "00:04:32",
       "speaker": "Cameron",
-      "text": "Yeah, I'm seeing the same, the same on my end. I think it's also like his expression is not reading for me very well.
+      "text": "Yeah, I'm seeing the same, the same on my end. I think it's also like his expression is not reading for me very well."
     },
     {
       "ts": "00:04:44",
@@ -225,7 +225,7 @@
       "ts": "00:05:49",
       "speaker": "Cameron",
       "text": "Can we look at that? We got some somersaulting. This kind of, like, reminds me of, like, gravity. I don't know if you guys, you guys, saw gravity, but it's like, it's giving like a gravity,"
-
+    },
     {
       "ts": "00:06:00",
       "speaker": "Lars",

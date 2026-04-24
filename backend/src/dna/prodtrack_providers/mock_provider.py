@@ -3,9 +3,12 @@
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 THUMBNAIL_LOCAL = "__local__"
+MOCK_PRODTRACK_DB_PATH_ENV = "MOCK_PRODTRACK_DB_PATH"
+BACKEND_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_MOCK_DB_PATH = Path(__file__).parent / "mock_data" / "mock.db"
 
 from dna.models.entity import (
     ENTITY_MODELS,
@@ -40,12 +43,23 @@ def _project_link(project_id: int) -> dict[str, Any]:
 def _shallow_entity(
     entity_type: str, entity_id: int, name: Optional[str] = None
 ) -> EntityBase:
-    model_class = ENTITY_MODELS.get(entity_type)
-    if not model_class:
-        return EntityBase(id=entity_id)
     if entity_type == "playlist":
-        return model_class(id=entity_id, code=name)
-    return model_class(id=entity_id, name=name)
+        return Playlist(id=entity_id, code=name)
+    if entity_type == "project":
+        return Project(id=entity_id, name=name)
+    if entity_type == "shot":
+        return Shot(id=entity_id, name=name)
+    if entity_type == "asset":
+        return Asset(id=entity_id, name=name)
+    if entity_type == "task":
+        return Task(id=entity_id, name=name)
+    if entity_type == "version":
+        return Version(id=entity_id, name=name)
+    if entity_type == "note":
+        return Note(id=entity_id, subject=name)
+    if entity_type == "user":
+        return User(id=entity_id, name=name)
+    return EntityBase(id=entity_id)
 
 
 class MockProdtrackProvider(ProdtrackProviderBase):
@@ -57,13 +71,36 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         base_url: Optional[str] = None,
     ):
         super().__init__()
-        if db_path is None:
-            db_path = Path(__file__).parent / "mock_data" / "mock.db"
-        self._db_path = Path(db_path)
+        self._db_path = self._resolve_db_path(db_path)
         self._base_url = (
             base_url or os.getenv("API_BASE_URL", "http://localhost:8000")
         ).rstrip("/")
         self._conn: Optional[sqlite3.Connection] = None
+
+    @staticmethod
+    def _resolve_configured_path(path_str: str) -> Path:
+        configured_path = Path(path_str)
+        if configured_path.is_absolute():
+            return configured_path.resolve()
+
+        cwd_path = (Path.cwd() / configured_path).resolve()
+        if cwd_path.exists():
+            return cwd_path
+
+        return (BACKEND_ROOT / configured_path).resolve()
+
+    @classmethod
+    def _resolve_db_path(cls, db_path: Optional[Path]) -> Path:
+        if db_path is not None:
+            return Path(db_path).resolve()
+
+        configured_path = os.getenv(MOCK_PRODTRACK_DB_PATH_ENV)
+        if configured_path:
+            resolved_path = cls._resolve_configured_path(configured_path)
+            if resolved_path.exists():
+                return resolved_path
+
+        return DEFAULT_MOCK_DB_PATH.resolve()
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -236,8 +273,11 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             if resolve_links and row["entity_type"] and row["entity_id"]:
                 dna_type = _SG_TYPE_TO_DNA.get(row["entity_type"], "shot")
                 if dna_type in ("shot", "asset"):
-                    entity = self.get_entity(
-                        dna_type, row["entity_id"], resolve_links=False
+                    entity = cast(
+                        Shot | Asset,
+                        self.get_entity(
+                            dna_type, row["entity_id"], resolve_links=False
+                        ),
                     )
             return self._task_from_row(row, row["project_id"], entity)
         if entity_type == "version":
@@ -257,13 +297,22 @@ class MockProdtrackProvider(ProdtrackProviderBase):
                 if row["entity_type"] and row["entity_id"]:
                     dna_type = _SG_TYPE_TO_DNA.get(row["entity_type"], "shot")
                     if dna_type in ("shot", "asset"):
-                        entity = self.get_entity(
-                            dna_type, row["entity_id"], resolve_links=False
+                        entity = cast(
+                            Shot | Asset,
+                            self.get_entity(
+                                dna_type, row["entity_id"], resolve_links=False
+                            ),
                         )
                 if row["task_id"]:
-                    task = self.get_entity("task", row["task_id"], resolve_links=False)
+                    task = cast(
+                        Task,
+                        self.get_entity("task", row["task_id"], resolve_links=False),
+                    )
                 if row["user_id"]:
-                    user = self.get_entity("user", row["user_id"], resolve_links=False)
+                    user = cast(
+                        User,
+                        self.get_entity("user", row["user_id"], resolve_links=False),
+                    )
                 for n in conn.execute(
                     "SELECT nl.note_id FROM note_links nl WHERE nl.entity_type = 'Version' AND nl.entity_id = ?",
                     (entity_id,),
@@ -304,8 +353,9 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             note_links = []
             if resolve_links:
                 if row["author_id"]:
-                    author = self.get_entity(
-                        "user", row["author_id"], resolve_links=False
+                    author = cast(
+                        User,
+                        self.get_entity("user", row["author_id"], resolve_links=False),
                     )
                 for link in conn.execute(
                     "SELECT entity_type, entity_id FROM note_links WHERE note_id = ?",
@@ -376,6 +426,8 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         params: list[Any] = []
         for f in filters:
             field = f.get("field")
+            if not isinstance(field, str):
+                raise ValueError("Filter field must be a string")
             operator = f.get("operator", "is")
             value = f.get("value")
             if isinstance(value, dict) and "id" in value:
@@ -389,6 +441,8 @@ class MockProdtrackProvider(ProdtrackProviderBase):
                 conditions.append(f"{sql_col} = ?")
                 params.append(value)
             elif operator == "in":
+                if value is None:
+                    raise ValueError("Filter value for 'in' operator cannot be None")
                 ids = [
                     v["id"] if isinstance(v, dict) and "id" in v else v for v in value
                 ]
