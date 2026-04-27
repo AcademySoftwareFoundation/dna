@@ -660,6 +660,31 @@ class TestProdtrackProviderBase:
         with pytest.raises(NotImplementedError, match="Subclasses must implement"):
             provider.get_versions_for_playlist(1)
 
+    def test_search_raises_not_implemented(self):
+        """Test that search raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.search("query", ["shot"])
+
+    def test_get_version_statuses_raises_not_implemented(self):
+        """Test that get_version_statuses raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.get_version_statuses()
+
+    def test_publish_note_raises_not_implemented(self):
+        """Test that publish_note raises NotImplementedError."""
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.publish_note(
+                version_id=1,
+                content="c",
+                subject="s",
+                to_users=[],
+                cc_users=[],
+                links=[],
+            )
+
 
 class TestGetProdtrackProvider:
     """Tests for the get_prodtrack_provider function."""
@@ -830,6 +855,67 @@ class TestGetDnaEntityType:
     def test_get_dna_entity_type_for_project(self):
         """Test _get_dna_entity_type returns correct type for Project."""
         assert _get_dna_entity_type("Project") == "project"
+
+
+# ============================================================================
+# ShotGrid search method tests
+# ============================================================================
+
+
+class TestShotgridProviderSearch:
+    """Tests for ShotgridProvider.search (mentions / prefetch)."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_search_empty_query_uses_project_only_for_shot(self, shotgrid_provider):
+        """Prefetch: no name 'contains' filter when query is empty."""
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.search(
+            "",
+            ["shot"],
+            project_id=42,
+            limit=100,
+        )
+
+        shotgrid_provider.sg.find.assert_called()
+        call_kwargs = shotgrid_provider.sg.find.call_args
+        filters = call_kwargs[1]["filters"]
+        assert ["project", "is", {"type": "Project", "id": 42}] in filters
+        assert not any(
+            len(f) >= 2 and f[1] == "contains" for f in filters if isinstance(f, list)
+        )
+
+    def test_search_whitespace_only_query_omits_contains_filter(
+        self, shotgrid_provider
+    ):
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.search("   ", ["user"], project_id=None, limit=5)
+
+        shotgrid_provider.sg.find.assert_called()
+        filters = shotgrid_provider.sg.find.call_args[1]["filters"]
+        assert filters == []
+
+    def test_search_non_empty_query_includes_contains_filter(self, shotgrid_provider):
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.search("hero", ["shot"], project_id=1, limit=10)
+
+        filters = shotgrid_provider.sg.find.call_args[1]["filters"]
+        assert any(
+            len(f) >= 3 and f[1] == "contains" and f[2] == "hero" for f in filters
+        )
 
 
 # ============================================================================

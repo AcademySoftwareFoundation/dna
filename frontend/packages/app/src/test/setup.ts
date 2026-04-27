@@ -7,7 +7,7 @@ class ResizeObserverMock {
   unobserve() {}
   disconnect() {}
 }
-(globalThis as any).ResizeObserver = ResizeObserverMock;
+(globalThis as Record<string, unknown>).ResizeObserver = ResizeObserverMock;
 
 // Cleanup after each test
 afterEach(() => {

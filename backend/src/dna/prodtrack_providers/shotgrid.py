@@ -495,8 +495,11 @@ class ShotgridProvider(ProdtrackProviderBase):
                 if "project" in fields_mapping:
                     sg_fields.append("project")
 
-            # Build ShotGrid filters
-            sg_filters = [[name_sg_field, "contains", query]]
+            # Build ShotGrid filters (empty query = prefetch up to limit, no name filter)
+            q = (query or "").strip()
+            sg_filters: list[list[Any]] = []
+            if q:
+                sg_filters.append([name_sg_field, "contains", q])
 
             # Add project filter for non-user entities
             if entity_type != "user" and project_id is not None:
@@ -814,11 +817,22 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return statuses
 
+    def update_version_status(self, version_id: int, status: str) -> bool:
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+        try:
+            self._sg.update("Version", version_id, {"sg_status_list": status})
+            return True
+        except Exception:
+            return False
+
     def update_note(
         self,
         note_id: int,
         content: str,
         subject: Optional[str] = None,
+        version_id: Optional[int] = None,
+        version_status: Optional[str] = None,
     ) -> bool:
         """Update an existing note in ShotGrid.
 
@@ -826,6 +840,8 @@ class ShotgridProvider(ProdtrackProviderBase):
             note_id: The ID of the note to update.
             content: New content for the note.
             subject: Optional new subject for the note.
+            version_id: Optional version ID to update status on.
+            version_status: Optional status code to set on the version.
 
         Returns:
             True if successful, False otherwise.
@@ -839,6 +855,10 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         try:
             self._sg.update("Note", note_id, data)
+            if version_status and version_id:
+                self._sg.update(
+                    "Version", version_id, {"sg_status_list": version_status}
+                )
             return True
         except Exception as e:
             print(f"Error updating note {note_id}: {e}")
@@ -853,6 +873,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         cc_users: list[int],
         links: list[EntityBase],
         author_email: Optional[str] = None,
+        version_status: Optional[str] = None,
     ) -> int:
         """Publish a note to ShotGrid.
 
@@ -864,6 +885,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             cc_users: List of user IDs to CC.
             links: List of additional entities to link.
             author_email: Optional email of the author.
+            version_status: Optional status code to set on the version.
 
         Returns:
             The ID of the created (or existing) note.
@@ -900,6 +922,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             "Note", filters=duplicate_filters, fields=["id"]
         )
         if existing_note:
+            if version_status:
+                self._sg.update(
+                    "Version", version_id, {"sg_status_list": version_status}
+                )
             return existing_note["id"]
 
         # 3. Prepare Note Data
@@ -943,7 +969,28 @@ class ShotgridProvider(ProdtrackProviderBase):
         else:
             result = self._sg.create("Note", note_data)
 
+        if version_status:
+            self._sg.update("Version", version_id, {"sg_status_list": version_status})
+
         return result["id"]
+
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
+        """Upload a local file as an attachment on an existing ShotGrid note."""
+        if not self._sg:
+            return False
+        try:
+            self._sg.upload(
+                "Note",
+                note_id,
+                file_path,
+                field_name="attachments",
+                display_name=display_name,
+            )
+            return True
+        except Exception:
+            return False
 
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:

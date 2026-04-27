@@ -25,7 +25,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@radix-ui/react-toast": "^1.2.15"
+    "@radix-ui/react-toast": "^1.2.15",
+    "@tiptap/extension-mention": "^3.20.1",
+    "@tiptap/suggestion": "^3.20.1"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-musl": "4.57.1",

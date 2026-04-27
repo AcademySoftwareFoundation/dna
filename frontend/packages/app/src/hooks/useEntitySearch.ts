@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SearchResult, SearchableEntityType } from '@dna/core';
+import {
+  SearchResult,
+  SearchableEntityType,
+  normalizeEntitySearchQuery,
+} from '@dna/core';
 import { apiHandler } from '../api';
 
 interface UseEntitySearchOptions {
@@ -8,11 +12,15 @@ interface UseEntitySearchOptions {
   projectId?: number;
   limit?: number;
   debounceMs?: number;
+  /** When false, never hits the network (e.g. local mention index is authoritative). */
+  networkEnabled?: boolean;
 }
 
 interface UseEntitySearchReturn {
   query: string;
   setQuery: (query: string) => void;
+  /** Query after debounce (matches what the network request uses). */
+  debouncedQuery: string;
   results: SearchResult[];
   isLoading: boolean;
   error: Error | null;
@@ -23,6 +31,7 @@ export function useEntitySearch({
   projectId,
   limit = 10,
   debounceMs = 300,
+  networkEnabled = true,
 }: UseEntitySearchOptions): UseEntitySearchReturn {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -44,20 +53,25 @@ export function useEntitySearch({
     queryKey: ['entitySearch', debouncedQuery, entityTypes, projectId, limit],
     queryFn: () =>
       apiHandler.searchEntities({
-        query: debouncedQuery,
+        query: normalizeEntitySearchQuery(debouncedQuery),
         entityTypes,
         projectId,
         limit,
       }),
-    enabled: debouncedQuery.length > 0,
+    enabled:
+      networkEnabled && normalizeEntitySearchQuery(debouncedQuery).length > 0,
     staleTime: 30000, // Cache results for 30 seconds
   });
 
   return {
     query,
     setQuery,
+    debouncedQuery,
     results,
-    isLoading: isLoading && debouncedQuery.length > 0,
+    isLoading:
+      networkEnabled &&
+      isLoading &&
+      normalizeEntitySearchQuery(debouncedQuery).length > 0,
     error,
   };
 }

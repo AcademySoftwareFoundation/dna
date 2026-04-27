@@ -147,17 +147,6 @@ const TriggerButton = styled.button<{
   }
 `;
 
-const LiveIndicator = styled.span`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: ${({ theme }) => theme.colors.status.success};
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`;
-
 const SpinnerIcon = styled(Loader2)`
   animation: spin 1s linear infinite;
   @keyframes spin {

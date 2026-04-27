@@ -13,7 +13,7 @@ import type { Version } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
-import { ExpandableSearch } from './ExpandableSearch';
+import { ExpandableSearch, type ExpandableSearchHandle } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
@@ -248,6 +248,7 @@ export function Sidebar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<ExpandableSearchHandle>(null);
 
   const { getLabel } = useHotkeyConfig();
 
@@ -257,6 +258,7 @@ export function Sidebar({
 
   useHotkeyAction('openSettings', toggleSettings);
   useHotkeyAction('toggleSidebar', () => onCollapsedChange(!collapsed));
+  useHotkeyAction('focusSearch', () => searchRef.current?.focus());
 
   const {
     data: versions,
@@ -274,7 +276,7 @@ export function Sidebar({
   const inReviewVersionId = playlistMetadata?.in_review;
 
   const playlistMenuItems = [
-    { label: 'Replace Playlist', onSelect: onReplacePlaylist },
+    { label: 'Change Playlist', onSelect: onReplacePlaylist },
     { label: 'Add Version' },
   ];
 
@@ -424,6 +426,7 @@ export function Sidebar({
           )}
 
           <ExpandableSearch
+            ref={searchRef}
             placeholder="Search versions..."
             versions={versions}
             selectedVersionId={selectedVersionId}
@@ -484,6 +487,7 @@ export function Sidebar({
           playlistId={playlistId}
           userEmail={userEmail}
           draftNotes={draftNotes || []}
+          versions={versions || []}
         />
       )}
     </SidebarWrapper>

@@ -111,7 +111,8 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding-top: 8px;
+  padding-top: 16px;
+  margin-top: 8px;
   border-top: 1px solid ${({ theme }) => theme.colors.border.subtle};
 `;
 
@@ -519,7 +520,7 @@ export function SettingsModal({
   const { data: settings, isLoading } = useQuery<UserSettings | null>({
     queryKey: ['userSettings', userEmail],
     queryFn: () => apiHandler.getUserSettings({ userEmail }),
-    enabled: open && !!userEmail,
+    enabled: !!userEmail,
   });
 
   const mutation = useMutation({

@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Mention from '@tiptap/extension-mention';
 import TurndownService from 'turndown';
 import {
   Bold,
@@ -15,13 +17,28 @@ import {
   ListOrdered,
   Quote,
   Minus,
+  Image,
 } from 'lucide-react';
+import { SearchResult, filterMentionCandidates } from '@dna/core';
+import { apiHandler } from '../api';
+import {
+  useMentionIndex,
+  type MentionIndexContextValue,
+} from '../contexts/MentionIndexContext';
+import { MentionList, type MentionListHandle } from './MentionList';
 
 interface MarkdownEditorProps {
   value?: string;
   onChange?: (value: string) => void;
+  onAttach?: (file: File) => void;
+  attachmentCount?: number;
+  attachmentFlashKey?: number;
+  animatePill?: boolean;
+  onToggleAttachmentTray?: () => void;
   placeholder?: string;
   minHeight?: number;
+  projectId?: number | null;
+  onMentionInsert?: (entity: SearchResult) => void;
 }
 
 const turndownService = new TurndownService({
@@ -29,9 +46,30 @@ const turndownService = new TurndownService({
   codeBlockStyle: 'fenced',
 });
 
+// Serialize mention nodes to @[Label](type:id) syntax
+turndownService.addRule('mention', {
+  filter: (node) =>
+    node.nodeName === 'SPAN' &&
+    (node as Element).getAttribute('data-type') === 'mention',
+  replacement: (_content, node) => {
+    const id = (node as Element).getAttribute('data-id') ?? '';
+    const label = (node as Element).getAttribute('data-label') ?? _content;
+    return `@[${label}](${id})`;
+  },
+});
+
+const MENTION_REGEX = /@\[([^\]]+)\]\((\w+:\d+)\)/g;
+
 function markdownToHtml(markdown: string): string {
   if (!markdown) return '';
-  let html = markdown
+
+  // Replace mention syntax before other processing
+  let html = markdown.replace(
+    MENTION_REGEX,
+    '<span data-type="mention" data-id="$2" data-label="$1">@$1</span>'
+  );
+
+  html = html
     .replace(/^### (.*$)/gim, '<h3>$1</h3>')
     .replace(/^## (.*$)/gim, '<h2>$1</h2>')
     .replace(/^# (.*$)/gim, '<h1>$1</h1>')
@@ -40,7 +78,7 @@ function markdownToHtml(markdown: string): string {
     .replace(/\*(.*?)\*/gim, '<em>$1</em>')
     .replace(/~~(.*?)~~/gim, '<s>$1</s>')
     .replace(/`([^`]+)`/gim, '<code>$1</code>')
-    .replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>')
+    .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
     .replace(/^---$/gim, '<hr>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2">$1</a>');
 
@@ -50,7 +88,7 @@ function markdownToHtml(markdown: string): string {
   let listType = '';
 
   for (const line of lines) {
-    const ulMatch = line.match(/^[\-\*] (.*)$/);
+    const ulMatch = line.match(/^[-*] (.*)$/);
     const olMatch = line.match(/^\d+\. (.*)$/);
 
     if (ulMatch) {
@@ -156,6 +194,46 @@ const Divider = styled.div`
   margin: 4px 4px;
 `;
 
+const AttachmentPill = styled.button<{ $animated: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  background: ${({ theme }) => theme.colors.bg.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: 999px;
+  color: ${({ theme }) => theme.colors.text.secondary};
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  /* Plays once on mount — NoteEditor remounts this via key on each new attachment */
+  @keyframes pillGlow {
+    0% {
+      background: ${({ theme }) => theme.colors.accent.subtle};
+      border-color: ${({ theme }) => theme.colors.accent.main};
+      box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.accent.subtle};
+      color: ${({ theme }) => theme.colors.accent.main};
+    }
+    100% {
+      background: ${({ theme }) => theme.colors.bg.surface};
+      border-color: ${({ theme }) => theme.colors.border.default};
+      box-shadow: none;
+      color: ${({ theme }) => theme.colors.text.secondary};
+    }
+  }
+  animation: ${({ $animated }) =>
+    $animated ? 'pillGlow 1.1s ease-out' : 'none'};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
 const EditorContent_ = styled(EditorContent)`
   flex: 1;
   overflow-y: auto;
@@ -168,6 +246,10 @@ const EditorContent_ = styled(EditorContent)`
     font-size: 14px;
     line-height: 1.6;
     color: ${({ theme }) => theme.colors.text.primary};
+
+    p {
+      margin: 0;
+    }
 
     > * + * {
       margin-top: 0.5em;
@@ -250,17 +332,128 @@ const EditorContent_ = styled(EditorContent)`
       text-decoration: underline;
       cursor: pointer;
     }
+
+    /* Mention chip styles */
+    span[data-type='mention'] {
+      display: inline-flex;
+      align-items: center;
+      background: ${({ theme }) => theme.colors.accent.subtle};
+      color: ${({ theme }) => theme.colors.accent.main};
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: default;
+      user-select: none;
+    }
   }
 `;
+
+const MentionDropdownWrapper = styled.div`
+  position: fixed;
+  z-index: 9999;
+`;
+
+interface MentionSuggestionState {
+  active: boolean;
+  items: SearchResult[];
+  rect: DOMRect | null;
+  command: ((attrs: { id: string; label: string }) => void) | null;
+  /** Prefetch still warming; avoid empty-state flash. */
+  isLoading: boolean;
+}
 
 export function MarkdownEditor({
   value,
   onChange,
+  onAttach,
+  attachmentCount = 0,
+  attachmentFlashKey = 0,
+  animatePill = false,
+  onToggleAttachmentTray,
   placeholder = 'Write your notes here...',
   minHeight = 80,
+  projectId,
+  onMentionInsert,
 }: MarkdownEditorProps) {
   const isUpdatingRef = useRef(false);
   const lastValueRef = useRef(value);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAttachClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        onAttach?.(file);
+        e.target.value = '';
+      }
+    },
+    [onAttach]
+  );
+
+  const projectIdRef = useRef(projectId);
+  const onMentionInsertRef = useRef(onMentionInsert);
+  const mentionListRef = useRef<MentionListHandle | null>(null);
+  const mentionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mentionCtx = useMentionIndex();
+  const mentionIndexRef = useRef<MentionIndexContextValue | null>(null);
+  mentionIndexRef.current = mentionCtx;
+  const mentionActiveQueryRef = useRef('');
+
+  useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
+
+  useEffect(() => {
+    return () => {
+      if (mentionDebounceRef.current) clearTimeout(mentionDebounceRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    onMentionInsertRef.current = onMentionInsert;
+  }, [onMentionInsert]);
+
+  const [mention, setMention] = useState<MentionSuggestionState>({
+    active: false,
+    items: [],
+    rect: null,
+    command: null,
+    isLoading: false,
+  });
+
+  function mentionListLoading(
+    query: string,
+    ctx: MentionIndexContextValue | null
+  ): boolean {
+    const pid = projectIdRef.current ?? null;
+    const useCache = ctx != null && pid != null && ctx.projectId === pid;
+    return useCache && query.length > 0 && ctx.isIndexLoading;
+  }
+
+  useEffect(() => {
+    const ctx = mentionIndexRef.current;
+    if (!ctx || ctx.isIndexLoading) return;
+    const q = mentionActiveQueryRef.current;
+    if (!mention.active || !q) return;
+    const pid = projectIdRef.current ?? null;
+    if (pid == null || ctx.projectId !== pid) {
+      return;
+    }
+    setMention((prev) => {
+      if (!prev.active) return prev;
+      return {
+        ...prev,
+        items: filterMentionCandidates(ctx.mergedCandidates, q, 10),
+        isLoading: false,
+      };
+    });
+  }, [mentionCtx, mention.active]);
 
   const editor = useEditor({
     extensions: [
@@ -268,6 +461,100 @@ export function MarkdownEditor({
         heading: { levels: [1, 2, 3] },
       }),
       Placeholder.configure({ placeholder }),
+      Mention.configure({
+        HTMLAttributes: { class: 'mention' },
+        renderText: ({ node }) => `@${node.attrs.label ?? node.attrs.id}`,
+        renderHTML: ({ node }) => [
+          'span',
+          {
+            'data-type': 'mention',
+            'data-id': node.attrs.id,
+            'data-label': node.attrs.label,
+            class: 'mention',
+          },
+          `@${node.attrs.label ?? node.attrs.id}`,
+        ],
+        suggestion: {
+          allowSpaces: false,
+          items: ({ query }): Promise<SearchResult[]> => {
+            if (!query) return Promise.resolve([]);
+            const ctx = mentionIndexRef.current;
+            const pid = projectIdRef.current ?? null;
+            const useCache =
+              ctx != null && pid != null && ctx.projectId === pid;
+            if (useCache) {
+              if (ctx.isIndexLoading) return Promise.resolve([]);
+              return Promise.resolve(
+                filterMentionCandidates(ctx.mergedCandidates, query, 10)
+              );
+            }
+            return new Promise((resolve) => {
+              if (mentionDebounceRef.current)
+                clearTimeout(mentionDebounceRef.current);
+              mentionDebounceRef.current = setTimeout(async () => {
+                try {
+                  const results = await apiHandler.searchEntities({
+                    query,
+                    entityTypes: ['user', 'shot', 'asset', 'version', 'task'],
+                    projectId: projectIdRef.current ?? undefined,
+                    limit: 10,
+                  });
+                  resolve(results);
+                } catch {
+                  resolve([]);
+                }
+              }, 300);
+            });
+          },
+          render: () => ({
+            onStart: (props) => {
+              const q = props.query;
+              mentionActiveQueryRef.current = q;
+              setMention({
+                active: true,
+                items: props.items as SearchResult[],
+                rect: props.clientRect?.() ?? null,
+                command: props.command as (attrs: {
+                  id: string;
+                  label: string;
+                }) => void,
+                isLoading: mentionListLoading(q, mentionIndexRef.current),
+              });
+            },
+            onUpdate: (props) => {
+              const q = props.query;
+              mentionActiveQueryRef.current = q;
+              setMention((prev) => ({
+                ...prev,
+                items: props.items as SearchResult[],
+                rect: props.clientRect?.() ?? null,
+                command: props.command as (attrs: {
+                  id: string;
+                  label: string;
+                }) => void,
+                isLoading: mentionListLoading(q, mentionIndexRef.current),
+              }));
+            },
+            onKeyDown: (props) => {
+              if (props.event.key === 'Escape') {
+                setMention((prev) => ({ ...prev, active: false }));
+                return true;
+              }
+              return mentionListRef.current?.onKeyDown(props) ?? false;
+            },
+            onExit: () => {
+              mentionActiveQueryRef.current = '';
+              setMention({
+                active: false,
+                items: [],
+                rect: null,
+                command: null,
+                isLoading: false,
+              });
+            },
+          }),
+        },
+      }),
     ],
     content: value ? markdownToHtml(value) : '',
     onUpdate: ({ editor }) => {
@@ -289,6 +576,22 @@ export function MarkdownEditor({
   }, [value, editor]);
 
   if (!editor) return null;
+
+  function handleMentionCommand(attrs: { id: string; label: string }) {
+    if (!mention.command) return;
+    mention.command(attrs);
+
+    // Parse type and id from "type:id" format and sync to properties panel
+    const [type, idStr] = attrs.id.split(':');
+    if (type && idStr) {
+      const entity: SearchResult = {
+        type: type.charAt(0).toUpperCase() + type.slice(1),
+        id: parseInt(idStr, 10),
+        name: attrs.label,
+      };
+      onMentionInsertRef.current?.(entity);
+    }
+  }
 
   return (
     <EditorWrapper $minHeight={minHeight}>
@@ -369,7 +672,48 @@ export function MarkdownEditor({
         >
           <Minus />
         </ToolbarButton>
+        <Divider />
+        <ToolbarButton title="Attach Image" onClick={handleAttachClick}>
+          <Image />
+        </ToolbarButton>
+        {attachmentCount > 0 && (
+          <AttachmentPill
+            key={attachmentFlashKey}
+            $animated={animatePill}
+            onClick={onToggleAttachmentTray}
+            title="View attached images"
+          >
+            {attachmentCount} {attachmentCount === 1 ? 'Image' : 'Images'}
+          </AttachmentPill>
+        )}
       </Toolbar>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
+      {mention.active &&
+        mention.rect &&
+        mention.command &&
+        createPortal(
+          <MentionDropdownWrapper
+            style={{
+              top: mention.rect.bottom + 4,
+              left: mention.rect.left,
+            }}
+          >
+            <MentionList
+              ref={mentionListRef}
+              items={mention.items}
+              command={handleMentionCommand}
+              loading={mention.isLoading}
+            />
+          </MentionDropdownWrapper>,
+          document.body
+        )}
     </EditorWrapper>
   );
 }

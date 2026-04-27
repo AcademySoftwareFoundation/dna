@@ -1,0 +1,9 @@
+Cameron: All right. Great job team. Okay, we've got we've got one more here. We've got Griffin's shot. It's HSM SATL 0060. It's like 14 frames pretty quick, but we just have a quick early pass at the effects — the shooting of the lasers. This is early stages, just the blocking of where the lasers should be going. This looks good. What are you feeling on your end, Griff?
+Griffin: They definitely read a little flat. I can layer in more parallax and flicker to get some depth if you want.
+Cameron: Yeah, I think that's great next steps. I think some good parallax, a little bit of flicker. Yeah, you're right, at the moment they're just kind of still early stages. But I think that's a great route to success there.
+Griffin: yeah, and maybe it's missing some occlusion shadows.
+Cameron: Yeah, yeah, definitely. I see that too.
+Griffin: I can add some contact smoke if you want.
+Cameron: I think on the contact smoke and the occlusion shadows, if I look back here and we look at Sonia's earlier pass at the droid on HSM satl 0010, her shot is looking pretty polished at this point. So I wonder if maybe the two of you can collaborate on just bringing that to final.
+Griffin: yeah, she's pretty good.
+Cameron: If you guys want to collaborate on just bringing that to final.

@@ -1,0 +1,159 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+description: "DNA - Notes Generation Eval"
+
+prompts:
+  - file://prompts/notes_v1.txt
+  - file://prompts/notes_v2.txt
+  - file://prompts/notes_v3.txt
+
+providers:
+  - "anthropic:messages:claude-opus-4-6"
+
+defaultTest:
+  vars:
+    notes: ""
+  assert:
+    - type: not-contains
+      value: "Let me know"
+    - type: not-contains
+      value: "Keep me posted"
+    - type: not-contains
+      value: "Keep me up to date"
+    - type: not-contains
+      value: "Feel free to"
+    - type: not-contains
+      value: "This appears to be"
+    - type: not-contains
+      value: "I think this is"
+
+    - type: llm-rubric
+      value: |
+        The output must satisfy all of the following:
+        1. Notes are formatted as a bullet point list using "- " for each item
+        2. Feedback is specific and actionable — not vague praise or filler
+        3. No soft requests ("let me know", "keep me posted", "feel free to reach out", etc.)
+        4. No meta-commentary or self-reference ("this appears to be...", "I think this is...")
+        5. No information fabricated beyond what the transcript and version data provide
+        6. No emojis
+      provider: "anthropic:messages:claude-opus-4-6"
+
+tests:
+  # ── HSM_SATL_0010 ── Lighting (Sonia Demo) ──────────────────────────────
+  - description: "HSM_SATL_0010 — Lighting, spaceship reflection not animated"
+    vars:
+      transcript: file://transcripts/HSM_SATL_0010.txt
+      context: |
+        Version: HSM_SATL_0010_TD
+        Shot: HSM_SATL_0010
+        Task: Lighting
+        Department: Light
+        Status: rev
+        Description: Lighting Render with the sun in the background, reflecting on the spaceship
+    assert:
+      - type: factuality
+        value: file://tests/HSM_SATL_0010_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "reflection"
+
+  # ── HSM_SATL_0015 ── Compositing (Lars Demo) ────────────────────────────
+  - description: "HSM_SATL_0015 — Comp, visor reflection and eye whites"
+    vars:
+      transcript: file://transcripts/HSM_SATL_0015.txt
+      context: |
+        Version: HSM_SATL_0015_TD
+        Shot: HSM_SATL_0015
+        Task: Compositing
+        Department: Comp
+        Status: rev
+        Description: Comp pass of spaceman with earth in the bg
+    assert:
+      - type: factuality
+        value: file://tests/HSM_SATL_0015_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "visor"
+          - "eye whites"
+
+  # ── HSM_SATL_0020 ── FX (Griffin Demo) ─────────────────────────────────
+  - description: "HSM_SATL_0020 — FX, asteroid hit turbulence and color falloff"
+    vars:
+      transcript: file://transcripts/HSM_SATL_0020.txt
+      context: |
+        Version: HSM_SATL_0020_TD
+        Shot: HSM_SATL_0020
+        Task: FX
+        Department: FX
+        Status: rev
+        Description: FX for asteroid hitting astronaut
+    assert:
+      - type: factuality
+        value: file://tests/HSM_SATL_0020_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "turbulence"
+          - "motion blur"
+
+  # ── HSM_SATL_0040 ── Animation (Sonia Demo) ─────────────────────────────
+  - description: "HSM_SATL_0040 — Animation, stiff joints and flat background"
+    vars:
+      transcript: file://transcripts/HSM_SATL_0040.txt
+      context: |
+        Version: HSM_SATL_0040_ANIM
+        Shot: HSM_SATL_0040
+        Task: Animation
+        Department: Animation
+        Status: rev
+        Description: Animation for astronaut flailing after hit
+    assert:
+      - type: factuality
+        value: file://tests/HSM_SATL_0040_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "joints"
+          - "facial"
+
+  # ── HSM_SATL_0050 ── Compositing (Lars Demo) ────────────────────────────
+  - description: "HSM_SATL_0050 — Comp, color balance and depth cueing"
+    vars:
+      transcript: file://transcripts/HSM_SATL_0050.txt
+      context: |
+        Version: HSM_SATL_0050_ANIM
+        Shot: HSM_SATL_0050
+        Task: Compositing
+        Department: Comp
+        Status: rev
+        Description: Comp of POV view of astronaut in full spin, full comp
+    assert:
+      - type: factuality
+        value: file://tests/HSM_SATL_0050_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "color"
+          - "haze"
+
+  # ── HSM_SATL_0060 ── FX (Griffin Demo) ─────────────────────────────────
+  - description: "HSM_SATL_0060 — FX, laser depth and occlusion shadows"
+    vars:
+      transcript: file://transcripts/HSM_SATL_0060.txt
+      context: |
+        Version: HSM_SATL_0060_ANIM
+        Shot: HSM_SATL_0060
+        Task: FX
+        Department: FX
+        Status: rev
+        Description: FX for lazers from droid
+    assert:
+      - type: factuality
+        value: file://tests/HSM_SATL_0060_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "parallax"
+          - "occlusion"

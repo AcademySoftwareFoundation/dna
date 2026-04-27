@@ -292,6 +292,20 @@ class ApiHandler {
       params.request
     );
   }
+
+  async uploadAttachment(file: File): Promise<{ id: string; filename: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.axiosInstance.postForm<{ id: string; filename: string }>(
+      '/api/attachments',
+      formData
+    );
+    return response.data;
+  }
+
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    await this.delete(`/api/attachments/${attachmentId}`);
+  }
 }
 
 export const createApiHandler = (config: ApiHandlerConfig): ApiHandler => {

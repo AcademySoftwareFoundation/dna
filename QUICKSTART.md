@@ -17,20 +17,47 @@ git clone <repository-url>
 cd dna
 ```
 
-### 2. Configure Environment Variables for Shotgrid and LLMs.
+### 2. Configure Environment Variables
 
 Copy the example docker-compose.local.yml file:
 
 ```bash
 cd backend
 cp example.docker-compose.local.yml docker-compose.local.yml
+cp example.docker-compose.local.vexa.yml docker-compose.local.vexa.yml
 ```
 
 Edit `docker-compose.local.yml` with your credentials.
 
-If you need access to shotgrid, you can reach out to the team.
+**Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`. See [Mock setup](#mock-production-tracking-setup) below for how to refresh or customize the mock data.
 
-To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
+**LLM provider:** Set `LLM_PROVIDER` to choose which backend LLM integration to use.
+
+- `openai` (default): requires `OPENAI_API_KEY`; optional `OPENAI_MODEL` and `OPENAI_TIMEOUT`
+- `gemini`: requires `GEMINI_API_KEY`; optional `GEMINI_MODEL`, `GEMINI_TIMEOUT`, and `GEMINI_URL`
+
+Examples:
+
+```yaml
+services:
+  api:
+    environment:
+      - LLM_PROVIDER=openai
+      - OPENAI_API_KEY=your-openai-api-key
+      - OPENAI_MODEL=gpt-4o-mini
+```
+
+```yaml
+services:
+  api:
+    environment:
+      - LLM_PROVIDER=gemini
+      - GEMINI_API_KEY=your-gemini-api-key
+      - GEMINI_MODEL=gemini-2.5-flash
+      - GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+```
+
+**Transcription (Vexa):** To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
 
 When setting up, skip the Vexa API key for now. Once the stack is running you can get your Vexa API key from the Vexa Dashboard.
 
@@ -42,6 +69,7 @@ services:
       - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
+      - LLM_PROVIDER=openai
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
@@ -108,17 +136,22 @@ The React app will be available at `http://localhost:5173`.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SHOTGRID_URL` | Yes | - | Your ShotGrid site URL |
-| `SHOTGRID_API_KEY` | Yes | - | ShotGrid API key for authentication |
-| `SHOTGRID_SCRIPT_NAME` | Yes | - | ShotGrid script name for API access |
-| `PRODTRACK_PROVIDER` | No | `shotgrid` | Production tracking provider |
+| `SHOTGRID_URL` | Yes\* | - | ShotGrid site URL (required when using ShotGrid) |
+| `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
+| `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
+| `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
 | `VEXA_API_URL` | No | `http://vexa:8056` | Vexa REST API URL |
-| `OPENAI_API_KEY` | Yes | - | OpenAI API key for LLM features |
-| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use |
-| `LLM_PROVIDER` | No | `openai` | LLM provider (openai) |
+| `LLM_PROVIDER` | No | `openai` | LLM provider (`openai` or `gemini`) |
+| `OPENAI_API_KEY` | Yes\* | - | OpenAI API key when `LLM_PROVIDER=openai` |
+| `OPENAI_MODEL` | No | `gpt-4o-mini` | OpenAI model to use when `LLM_PROVIDER=openai` |
+| `OPENAI_TIMEOUT` | No | `30.0` | Request timeout in seconds when `LLM_PROVIDER=openai` |
+| `GEMINI_API_KEY` | Yes\* | - | Gemini API key when `LLM_PROVIDER=gemini` |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model to use when `LLM_PROVIDER=gemini` |
+| `GEMINI_TIMEOUT` | No | `30.0` | Request timeout in seconds when `LLM_PROVIDER=gemini` |
+| `GEMINI_URL` | No | `https://generativelanguage.googleapis.com/v1beta/openai/` | Override the Gemini OpenAI-compatible base URL |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ### Vexa Service (`vexa` service)
@@ -160,6 +193,9 @@ make format-python
 
 # Open a shell in the API container
 make shell
+
+# Seed mock DB from a ShotGrid project (requires SHOTGRID_* credentials)
+SHOTGRID_API_KEY='your-key' make seed-mock-db
 ```
 
 ### Frontend Commands
@@ -193,15 +229,15 @@ npm run typecheck
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                                DNA Stack                                     │
+│                                DNA Stack                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │   ┌─────────────────┐         ┌─────────────────┐         ┌───────────────┐ │
-│   │    Frontend     │◀───────▶│    DNA API      │────────▶│   ShotGrid    │ │
+│   │    Frontend     │◀──────▶│    DNA API      │───────▶│   ShotGrid    │ │
 │   │  (React/Vite)   │   WS    │   (FastAPI)     │         │   (external)  │ │
 │   │  :5173          │         │   :8000         │         │               │ │
 │   └─────────────────┘         └────────┬────────┘         └───────────────┘ │
-│                                        │                                     │
+│                                        │                                    │
 │          ┌─────────────────────────────┴─────────────────────────────┐      │
 │          │                                                           │      │
 │          ▼                                                           ▼      │
@@ -209,7 +245,7 @@ npm run typecheck
 │   │    MongoDB      │                                       │    Vexa     │ │
 │   │    :27017       │                                       │   :8056     │ │
 │   └─────────────────┘                                       └─────────────┘ │
-│                                                                              │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -218,6 +254,40 @@ The DNA API serves as the central hub:
 - Provides WebSocket endpoint (`/ws`) for real-time event streaming
 - Manages Vexa subscriptions for transcription events
 - Broadcasts segment and bot status events to connected frontend clients
+
+## Mock Production Tracking Setup
+
+When you set **`PRODTRACK_PROVIDER=mock`**, the backend uses a read-only mock provider backed by SQLite (`backend/src/dna/prodtrack_providers/mock_data/mock.db`). The app runs normally with this data so you can develop and test the UI without a ShotGrid seat.
+
+### Using the mock provider
+
+- In `docker-compose.local.yml`, set **`PRODTRACK_PROVIDER=mock`**. You do not need to set any ShotGrid variables when using the mock.
+- The mock provider is used only when explicitly set; there is no automatic fallback if ShotGrid credentials are missing.
+
+### Refreshing or customizing mock data from ShotGrid
+
+If you have ShotGrid access, you can populate the mock database from a real project so the mock data matches your pipeline. Run the seed script with a project ID, URL, script name, and API key:
+
+```bash
+cd backend
+
+# From your host (requires shotgun_api3); use single quotes so the API key is not interpreted by the shell
+SHOTGRID_API_KEY='your-api-key' make seed-mock-db
+
+# Or run the seed script directly in the API container with custom project
+docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api \
+  python -m dna.prodtrack_providers.mock_data.seed_db \
+  --project-id YOUR_PROJECT_ID \
+  --url https://yoursite.shotgrid.autodesk.com \
+  --script-name YourScript \
+  --api-key 'YOUR_API_KEY'
+```
+
+- This overwrites `mock_data/mock.db` with entities (projects, users, shots, assets, tasks, versions, playlists, notes) from the given ShotGrid project.
+- Use `--skip-thumbnails` to skip downloading version thumbnails (faster seed; thumbnails will not work after signed URLs expire).
+- Without `--skip-thumbnails`, thumbnails are downloaded to `mock_data/thumbnails/` and served by the API at `/api/mock-thumbnails/{version_id}` so they keep working after ShotGrid signed URLs expire.
+
+The mock provider is **read-only**: it does not write to ShotGrid or to the SQLite file at runtime. Writes such as publishing notes will raise an error when using the mock provider.
 
 ## Docker Compose Files
 

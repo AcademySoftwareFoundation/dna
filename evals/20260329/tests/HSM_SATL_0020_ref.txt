@@ -1,0 +1,4 @@
+- Add turbulence to the asteroid hit effect to break up the linear motion.
+- Smooth the color falloff from yellow to red.
+- add cooler tones at the base of the flame to prevent the abrupt transition (ref frame 1015).
+- Add motion blur at the flame streak to sell the speed of impact.

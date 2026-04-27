@@ -275,3 +275,35 @@ class TestShotgridProviderRefactor:
                     links=[],
                     author_email="unknown@example.com",
                 )
+
+    def test_update_version_status_success(self, provider, mock_shotgun):
+        """Test update_version_status calls ShotGrid update and returns True."""
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        provider._sudo_connection = None
+
+        result = provider.update_version_status(101, "rev")
+
+        assert result is True
+        mock_sg_instance.update.assert_called_once_with(
+            "Version", 101, {"sg_status_list": "rev"}
+        )
+
+    def test_update_version_status_failure(self, provider, mock_shotgun):
+        """Test update_version_status returns False when ShotGrid raises."""
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        provider._sudo_connection = None
+        mock_sg_instance.update.side_effect = Exception("ShotGrid error")
+
+        result = provider.update_version_status(101, "rev")
+
+        assert result is False
+
+    def test_update_version_status_not_connected(self, provider, mock_shotgun):
+        """Test update_version_status raises when not connected."""
+        provider.sg = None
+        provider._sudo_connection = None
+
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.update_version_status(101, "rev")

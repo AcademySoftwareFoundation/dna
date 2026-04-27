@@ -1,10 +1,10 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import type { Version } from '@dna/core';
+import type { Version, SearchResult } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
-import { usePlaylistMetadata, useSetInReview } from '../hooks';
+import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 
 interface ContentAreaProps {
@@ -23,6 +23,7 @@ const ContentWrapper = styled.div`
   height: 100%;
   min-height: 0;
   overflow-y: auto;
+  padding-right: 32px;
 `;
 
 const EmptyState = styled.div`
@@ -57,17 +58,6 @@ function formatDate(dateString?: string): string {
   });
 }
 
-function getStatusLabel(status?: string): string {
-  const statusMap: Record<string, string> = {
-    rev: 'Pending Review',
-    apr: 'Approved',
-    rej: 'Rejected',
-    ip: 'In Progress',
-    hld: 'On Hold',
-  };
-  return status ? statusMap[status] || status : 'Unknown';
-}
-
 const IN_REVIEW_STATUS = 'rev';
 
 export function ContentArea({
@@ -79,6 +69,36 @@ export function ContentArea({
   onRefresh,
 }: ContentAreaProps) {
   const noteEditorRef = useRef<NoteEditorHandle>(null);
+
+  const currentVersionAsSearchResult = useMemo((): SearchResult | undefined => {
+    if (!version) return undefined;
+    return { type: 'Version', id: version.id, name: version.name || `Version ${version.id}` };
+  }, [version]);
+
+  const versionSubmitter = useMemo((): SearchResult | undefined => {
+    if (!version?.user) return undefined;
+    return { type: 'User', id: version.user.id, name: version.user.name || '' };
+  }, [version?.user]);
+
+  const { draftNote, updateDraftNote, saveAttachmentIds } = useDraftNote({
+    playlistId,
+    versionId: version?.id,
+    userEmail,
+    currentVersion: currentVersionAsSearchResult,
+    submitter: versionSubmitter,
+  });
+
+  const selectedVersionStatus = draftNote?.versionStatus || (version?.status ?? '');
+
+  const handleVersionStatusChange = useCallback((code: string) => {
+    updateDraftNote({ versionStatus: code });
+  }, [updateDraftNote]);
+
+  const handleRefreshClick = useCallback(() => {
+    updateDraftNote({ versionStatus: version?.status ?? '' });
+    onRefresh?.();
+  }, [version?.status, onRefresh, updateDraftNote]);
+
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)
     : -1;
@@ -126,8 +146,8 @@ export function ContentArea({
     noteEditorRef.current?.appendContent(content);
   }, []);
 
-  useHotkeyAction('nextVersion', handleNext, { enabled: canGoNext });
-  useHotkeyAction('previousVersion', handleBack, { enabled: canGoBack });
+  useHotkeyAction('nextVersion', handleNext);
+  useHotkeyAction('previousVersion', handleBack);
   useHotkeyAction('setInReview', handleSetInReview, {
     enabled: !!version && !!playlistId,
   });
@@ -165,27 +185,29 @@ export function ContentArea({
         versionNumber={versionNumber}
         submittedBy={version.user?.name}
         dateSubmitted={formatDate(version.created_at as string)}
-        versionStatus={getStatusLabel(version.status)}
+        versionStatus={selectedVersionStatus}
+        projectId={version.project?.id}
         thumbnailUrl={version.thumbnail}
         links={links}
         onBack={handleBack}
         onNext={handleNext}
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
+        onVersionStatusChange={handleVersionStatusChange}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         hasInReview={hasInReview}
         isCurrentVersionInReview={isCurrentVersionInReview}
         isSettingInReview={isSettingInReview}
-        onRefresh={onRefresh}
+        onRefresh={handleRefreshClick}
       />
       <NoteEditor
         ref={noteEditorRef}
-        playlistId={playlistId}
-        versionId={version.id}
-        userEmail={userEmail}
         projectId={version.project?.id}
         currentVersion={version}
+        draftNote={draftNote}
+        updateDraftNote={updateDraftNote}
+        saveAttachmentIds={saveAttachmentIds}
       />
       <AssistantPanel
         playlistId={playlistId}
