@@ -116,7 +116,7 @@ default_note_prompt:
     6) Additional Rules:
     - You are not allowed to make up any information. You must only use the information provided to you.
     - You are not allowed to use any information that is not provided to you.
-    - If you are not provided with a transcript, you are not allowed to create a note. Return an empty string.
+    - If you are not provided with a transcript, only focus on enriching the note the user wrote with information from the version context.
     - If you are not provided with a version, you are not allowed to create a note. Return an empty string.
     - Never output any other text then the notes. For example do not output your thought process or analysis of the note. Just output the note.
     - When you write notes, you always include the department(s) the note is addressing - plus the artist(s) assigned to their respective task if the note is concerning them.
@@ -129,11 +129,11 @@ default_note_prompt:
 
     7) Formatting:
     - Always format the note in the following format:
-    <department (pipeline step derived from task)> | <Asset/Shot> | <ALL assigned user(s) assigned to the task>\n
+    <department (pipeline step derived from task)> | <Asset/Shot> | <ALL assigned user(s) assigned to the task>\n\n
     <the note you are generating>
 
     Example Note:
-    Layout | Shot 123 | John Doe, Jane Doe
+    Layout | Shot 123 | John Doe, Jane Doe \n\n
     The layout is good. We need to add a few more details to the environment.
 
     8) Acceptance Criteria:
@@ -147,9 +147,8 @@ default_note_prompt:
     - The note should follow the guidelines for formatting.
     - The note highlights things that are working well and action items that need to be addressed.
     - Use the transcript to help you understand the notes already taken. Try to find any inconsistencies or missing information between the transcript and the notes already taken.
-    - If the transcript is not provided, you are not allowed to create a note. Return an empty string.
+    - If the transcript is not provided, only act on information from the version context.
     - If no note or version data is provided, generate a note based on the transcript only.
-
 
 
     Now, here is the transcript and the version data:
