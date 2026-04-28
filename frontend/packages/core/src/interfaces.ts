@@ -329,7 +329,10 @@ export interface GetSegmentsParams {
 export interface UserSettings {
   _id: string;
   user_email: string;
+  /** Saved custom prompt; empty means use deployment default. */
   note_prompt: string;
+  /** Configured default prompt template (for display when note_prompt is empty). */
+  default_note_prompt: string;
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;

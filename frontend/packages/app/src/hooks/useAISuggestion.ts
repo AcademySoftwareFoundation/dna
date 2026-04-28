@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useIsMutating } from '@tanstack/react-query';
 import {
   AISuggestionManager,
   type AISuggestionState,
@@ -51,12 +51,17 @@ export function useAISuggestion({
         }
   );
 
-  const { data: userSettings } = useQuery<UserSettings | null>({
+  const { data: userSettings } = useQuery<UserSettings>({
     queryKey: ['userSettings', userEmail],
     queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
     enabled: isEnabled,
     staleTime: 60000,
   });
+
+  const settingsUpsertInflight =
+    useIsMutating({
+      mutationKey: ['upsertUserSettings', userEmail ?? ''],
+    }) > 0 && userEmail != null;
 
   const prevVersionRef = useRef<number | null>(null);
 
@@ -124,7 +129,7 @@ export function useAISuggestion({
 
   const regenerate = useCallback(
     (additionalInstructions?: string) => {
-      if (!isEnabled) return;
+      if (!isEnabled || settingsUpsertInflight) return;
 
       managerInstance
         .generateSuggestion(
@@ -137,7 +142,13 @@ export function useAISuggestion({
           // Error is captured in state
         });
     },
-    [playlistId, versionId, userEmail, isEnabled]
+    [
+      playlistId,
+      versionId,
+      userEmail,
+      isEnabled,
+      settingsUpsertInflight,
+    ]
   );
 
   return useMemo(
@@ -145,7 +156,7 @@ export function useAISuggestion({
       suggestion: state.suggestion,
       prompt: state.prompt,
       context: state.context,
-      isLoading: state.isLoading,
+      isLoading: state.isLoading || settingsUpsertInflight,
       error: state.error,
       regenerate,
     }),
@@ -154,6 +165,7 @@ export function useAISuggestion({
       state.prompt,
       state.context,
       state.isLoading,
+      settingsUpsertInflight,
       state.error,
       regenerate,
     ]

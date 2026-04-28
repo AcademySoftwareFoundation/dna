@@ -229,10 +229,8 @@ class ApiHandler {
     );
   }
 
-  async getUserSettings(
-    params: GetUserSettingsParams
-  ): Promise<UserSettings | null> {
-    return this.get<UserSettings | null>(
+  async getUserSettings(params: GetUserSettingsParams): Promise<UserSettings> {
+    return this.get<UserSettings>(
       `/users/${encodeURIComponent(params.userEmail)}/settings`
     );
   }

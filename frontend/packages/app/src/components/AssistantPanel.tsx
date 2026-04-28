@@ -86,7 +86,9 @@ export function AssistantPanel({
   }, [regenerate]);
 
   useHotkeyAction('aiInsert', handleAiInsert, { enabled: !!suggestion });
-  useHotkeyAction('aiRegenerate', handleAiRegenerate);
+  useHotkeyAction('aiRegenerate', handleAiRegenerate, {
+    enabled: !isLoading,
+  });
 
   return (
     <PanelWrapper>

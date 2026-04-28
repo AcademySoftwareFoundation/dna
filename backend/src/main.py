@@ -53,15 +53,16 @@ from dna.models import (
     Transcript,
     User,
     UserSettings,
+    UserSettingsResponse,
     UserSettingsUpdate,
     Version,
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
+from dna.note_prompt_config import get_default_note_prompt
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
-from dna.prompts.default_prompt import DEFAULT_PROMPT
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -1191,22 +1192,60 @@ async def delete_playlist_metadata(
 # -----------------------------------------------------------------------------
 
 
+def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
+    """Attach configured default note prompt for API clients (e.g. settings UI)."""
+    return UserSettingsResponse(
+        _id=settings.id,
+        user_email=settings.user_email,
+        note_prompt=settings.note_prompt,
+        default_note_prompt=get_default_note_prompt(),
+        regenerate_on_version_change=settings.regenerate_on_version_change,
+        regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
+        updated_at=settings.updated_at,
+        created_at=settings.created_at,
+    )
+
+
+def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    default = get_default_note_prompt()
+    return UserSettingsResponse(
+        _id="",
+        user_email=user_email,
+        note_prompt="",
+        default_note_prompt=default,
+        regenerate_on_version_change=False,
+        regenerate_on_transcript_update=False,
+        updated_at=now,
+        created_at=now,
+    )
+
+
 @app.get(
     "/users/{user_email}/settings",
     tags=["User Settings"],
     summary="Get user settings",
-    description="Retrieve settings for a user by their email address.",
-    response_model=Optional[UserSettings],
+    description=(
+        "Retrieve settings for a user. When the user has no saved document, "
+        "returns default toggles and the configured default note prompt in "
+        "`default_note_prompt`; `note_prompt` is empty until the user saves a custom prompt."
+    ),
+    response_model=UserSettingsResponse,
 )
 async def get_user_settings(
     user_email: str,
     provider: StorageProviderDep,
     current_user: CurrentUserDep,
-) -> Optional[UserSettings]:
+) -> UserSettingsResponse:
     """Get user settings."""
     if user_email != current_user:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return await provider.get_user_settings(user_email)
+    stored = await provider.get_user_settings(user_email)
+    if stored is None:
+        return _empty_user_settings_response(user_email)
+    return _user_settings_to_response(stored)
 
 
 @app.put(
@@ -1214,18 +1253,19 @@ async def get_user_settings(
     tags=["User Settings"],
     summary="Create or update user settings",
     description="Create or update settings for a user.",
-    response_model=UserSettings,
+    response_model=UserSettingsResponse,
 )
 async def upsert_user_settings(
     user_email: str,
     data: UserSettingsUpdate,
     provider: StorageProviderDep,
     current_user: CurrentUserDep,
-) -> UserSettings:
+) -> UserSettingsResponse:
     """Create or update user settings."""
     if user_email != current_user:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return await provider.upsert_user_settings(user_email, data)
+    updated = await provider.upsert_user_settings(user_email, data)
+    return _user_settings_to_response(updated)
 
 
 @app.delete(
@@ -1480,7 +1520,7 @@ async def generate_note(
         prompt = (
             user_settings.note_prompt
             if user_settings and user_settings.note_prompt
-            else DEFAULT_PROMPT
+            else get_default_note_prompt()
         )
 
         segments = await storage_provider.get_segments_for_version(

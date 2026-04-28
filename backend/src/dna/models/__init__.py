@@ -58,6 +58,7 @@ from dna.models.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
+from dna.models.user_settings_response import UserSettingsResponse
 
 __all__ = [
     "EntityBase",
@@ -101,4 +102,5 @@ __all__ = [
     "TranscriptSegment",
     "UserSettings",
     "UserSettingsUpdate",
+    "UserSettingsResponse",
 ]

@@ -10,6 +10,7 @@ from dna.models.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
+from dna.note_prompt_config import get_default_note_prompt
 
 
 class TestUserSettingsModels:
@@ -100,6 +101,7 @@ class TestUserSettingsEndpoints:
             data = response.json()
             assert data["user_email"] == "test@example.com"
             assert data["note_prompt"] == "Custom prompt"
+            assert data["default_note_prompt"] == get_default_note_prompt()
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is False
             assert data["sync_prodtrack_tab_on_version_change"] is True
@@ -109,8 +111,10 @@ class TestUserSettingsEndpoints:
         finally:
             app.dependency_overrides.clear()
 
-    def test_get_user_settings_returns_null(self, mock_storage_provider, auth_client):
-        """Test GET returns null when user has no settings."""
+    def test_get_user_settings_no_document_returns_defaults(
+        self, mock_storage_provider, auth_client
+    ):
+        """Test GET returns defaults and configured default prompt when user has no doc."""
         mock_storage_provider.get_user_settings.return_value = None
 
         app.dependency_overrides[get_storage_provider_cached] = (
@@ -120,7 +124,12 @@ class TestUserSettingsEndpoints:
         try:
             response = auth_client.get("/users/test@example.com/settings")
             assert response.status_code == 200
-            assert response.json() is None
+            data = response.json()
+            assert data["user_email"] == "test@example.com"
+            assert data["note_prompt"] == ""
+            assert data["default_note_prompt"] == get_default_note_prompt()
+            assert data["regenerate_on_version_change"] is False
+            assert data["regenerate_on_transcript_update"] is False
         finally:
             app.dependency_overrides.clear()
 
@@ -153,6 +162,7 @@ class TestUserSettingsEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["note_prompt"] == "Updated prompt"
+            assert data["default_note_prompt"] == get_default_note_prompt()
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is True
             mock_storage_provider.upsert_user_settings.assert_called_once()
@@ -188,7 +198,36 @@ class TestUserSettingsEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["regenerate_on_version_change"] is True
+            assert data["default_note_prompt"] == get_default_note_prompt()
             mock_storage_provider.upsert_user_settings.assert_called_once()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_user_settings_empty_saved_prompt_includes_default_field(
+        self, mock_storage_provider, auth_client
+    ):
+        """Stored user with empty note_prompt still receives default_note_prompt."""
+        now = datetime.now(timezone.utc)
+        mock_storage_provider.get_user_settings.return_value = UserSettings(
+            _id="settings1",
+            user_email="test@example.com",
+            note_prompt="",
+            regenerate_on_version_change=False,
+            regenerate_on_transcript_update=False,
+            updated_at=now,
+            created_at=now,
+        )
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+
+        try:
+            response = auth_client.get("/users/test@example.com/settings")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["note_prompt"] == ""
+            assert data["default_note_prompt"] == get_default_note_prompt()
         finally:
             app.dependency_overrides.clear()
 

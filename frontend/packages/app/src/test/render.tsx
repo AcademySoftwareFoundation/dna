@@ -27,13 +27,13 @@ function AllTheProviders({ children }: WrapperProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeModeProvider>
-        <ThemeProvider theme={theme}>
-          <Theme>
+      <ThemeProvider theme={theme}>
+        <Theme>
+          <ThemeModeProvider>
             <AuthProvider>{children}</AuthProvider>
-          </Theme>
-        </ThemeProvider>
-      </ThemeModeProvider>
+          </ThemeModeProvider>
+        </Theme>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

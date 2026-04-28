@@ -9,7 +9,6 @@ import {
   Flex,
   Switch,
   Tooltip,
-  Text,
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Loader2, Info } from 'lucide-react';
@@ -549,13 +548,14 @@ export function SettingsModal({
 
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading } = useQuery<UserSettings | null>({
+  const { data: settings, isLoading } = useQuery<UserSettings>({
     queryKey: ['userSettings', userEmail],
     queryFn: () => apiHandler.getUserSettings({ userEmail }),
     enabled: !!userEmail,
   });
 
   const mutation = useMutation({
+    mutationKey: ['upsertUserSettings', userEmail],
     mutationFn: (data: UserSettingsUpdate) =>
       apiHandler.upsertUserSettings({ userEmail, data }),
     onSuccess: (saved) => {
@@ -567,7 +567,11 @@ export function SettingsModal({
 
   useEffect(() => {
     if (settings) {
-      setNotePrompt(settings.note_prompt);
+      const displayPrompt =
+        settings.note_prompt.trim() !== ''
+          ? settings.note_prompt
+          : settings.default_note_prompt;
+      setNotePrompt(displayPrompt);
       setRegenerateOnVersionChange(settings.regenerate_on_version_change);
       setRegenerateOnTranscriptUpdate(settings.regenerate_on_transcript_update);
       setSyncProdtrackTabOnVersionChange(
@@ -610,8 +614,12 @@ export function SettingsModal({
   );
 
   const handleSave = useCallback(() => {
+    const defaultTrimmed = (settings?.default_note_prompt ?? '').trim();
+    const currentTrimmed = notePrompt.trim();
+    const persistAsDefault =
+      currentTrimmed === '' || currentTrimmed === defaultTrimmed;
     mutation.mutate({
-      note_prompt: notePrompt,
+      note_prompt: persistAsDefault ? '' : notePrompt,
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
@@ -619,6 +627,7 @@ export function SettingsModal({
   }, [
     mutation,
     notePrompt,
+    settings?.default_note_prompt,
     regenerateOnVersionChange,
     regenerateOnTranscriptUpdate,
     syncProdtrackTabOnVersionChange,

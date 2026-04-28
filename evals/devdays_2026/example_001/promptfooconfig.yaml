@@ -1,0 +1,179 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+description: "DNA - Notes Generation Eval"
+
+prompts:
+  - file://prompts/notes_v1.txt
+  - file://prompts/notes_v2.txt
+  - file://prompts/notes_v3.txt
+
+providers:
+  - "anthropic:messages:claude-opus-4-6"
+
+defaultTest:
+  vars:
+    notes: ""
+  assert:
+    - type: not-contains
+      value: "Let me know"
+    - type: not-contains
+      value: "Keep me posted"
+    - type: not-contains
+      value: "Keep me up to date"
+    - type: not-contains
+      value: "Feel free to"
+    - type: not-contains
+      value: "This appears to be"
+    - type: not-contains
+      value: "I think this is"
+
+    - type: llm-rubric
+      value: |
+        The output must satisfy all of the following:
+        1. Notes are formatted as a bullet point list using "- " for each item
+        2. Feedback is specific and actionable — not vague praise or filler
+        3. No soft requests ("let me know", "keep me posted", "feel free to reach out", etc.)
+        4. No meta-commentary or self-reference ("this appears to be...", "I think this is...")
+        5. No information fabricated beyond what the transcript and version data provide
+        6. No emojis
+      provider: "anthropic:messages:claude-opus-4-6"
+
+tests:
+  # ── TST_010_0010 ── Comp, blown-out sky and desert dust ──────────────────
+  - description: "TST_010_0010 — Comp, blown-out sky and desert dust"
+    vars:
+      transcript: file://../dataset/transcripts/TST_010_0010.txt
+      context: |
+        Version: TST_010_0010_TD
+        Shot: TST_010_0010
+        Task: Compositing
+        Department: Comp
+        Status: rev
+        Description: Wide shot of desert sailing vessel with sky and mountain background
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_010_0010_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "sky"
+          - "flare"
+
+  # ── TST_010_0020 ── Anim/Lookdev, digi-doubles and throne highlights ──────
+  - description: "TST_010_0020 — Anim/Lookdev, digi-doubles movement and throne highlights"
+    vars:
+      transcript: file://../dataset/transcripts/TST_010_0020.txt
+      context: |
+        Version: TST_010_0020_TD
+        Shot: TST_010_0020
+        Task: Animation
+        Department: Animation
+        Status: rev
+        Description: Interior throne room shot with digi-double characters
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_010_0020_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "throne"
+          - "digi"
+
+  # ── TST_010_0030 ── Comp/FX, foreground tree and fire bloom ──────────────
+  - description: "TST_010_0030 — Comp/FX, foreground tree removal and fire bloom"
+    vars:
+      transcript: file://../dataset/transcripts/TST_010_0030.txt
+      context: |
+        Version: TST_010_0030_TD
+        Shot: TST_010_0030
+        Task: Compositing
+        Department: Comp
+        Status: rev
+        Description: Exterior shot with prisoners, foreground trees, and fire/smoke FX
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_010_0030_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "tree"
+          - "smoke"
+
+  # ── TST_010_0040 ── Camera, rack focus to Ornithopter ────────────────────
+  - description: "TST_010_0040 — Camera, rack focus to Ornithopter over Harvester"
+    vars:
+      transcript: file://../dataset/transcripts/TST_010_0040.txt
+      context: |
+        Version: TST_010_0040_TD
+        Shot: TST_010_0040
+        Task: Camera
+        Department: Camera
+        Status: rev
+        Description: Wide shot of Harvester with Ornithopter entering frame
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_010_0040_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "rack focus"
+          - "blades"
+
+  # ── TST_020_0010 ── Lighting, bulb glow approved ─────────────────────────
+  - description: "TST_020_0010 — Lighting, bulb glow approved for tech check"
+    vars:
+      transcript: file://../dataset/transcripts/TST_020_0010.txt
+      context: |
+        Version: TST_020_0010_TD
+        Shot: TST_020_0010
+        Task: Lighting
+        Department: Light
+        Status: rev
+        Description: Close shot with practical bulb glow lighting element
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_020_0010_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "tech check"
+
+  # ── TST_020_0020 ── Comp, desert contrast and haze ───────────────────────
+  - description: "TST_020_0020 — Comp, desert contrast and haze adjustment"
+    vars:
+      transcript: file://../dataset/transcripts/TST_020_0020.txt
+      context: |
+        Version: TST_020_0020_TD
+        Shot: TST_020_0020
+        Task: Compositing
+        Department: Comp
+        Status: rev
+        Description: Desert sunset shot with dunes and atmospheric haze
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_020_0020_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "haze"
+          - "dunes"
+
+  # ── TST_020_0030 ── FX/Comp, smoke plumes and cruiser reposition ──────────
+  - description: "TST_020_0030 — FX/Comp, smoke plumes approved and cruiser reposition"
+    vars:
+      transcript: file://../dataset/transcripts/TST_020_0030.txt
+      context: |
+        Version: TST_020_0030_TD
+        Shot: TST_020_0030
+        Task: FX
+        Department: FX
+        Status: rev
+        Description: Wide fleet shot with smoke plumes and cruiser among smaller ships
+    assert:
+      - type: factuality
+        value: file://../dataset/notes/TST_020_0030_ref.txt
+        provider: "anthropic:messages:claude-opus-4-6"
+      - type: contains-all
+        value:
+          - "cruiser"
+          - "smoke"
