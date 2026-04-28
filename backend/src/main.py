@@ -1201,6 +1201,9 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
         default_note_prompt=get_default_note_prompt(),
         regenerate_on_version_change=settings.regenerate_on_version_change,
         regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
+        sync_prodtrack_tab_on_version_change=(
+            settings.sync_prodtrack_tab_on_version_change
+        ),
         updated_at=settings.updated_at,
         created_at=settings.created_at,
     )
@@ -1218,6 +1221,7 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         default_note_prompt=default,
         regenerate_on_version_change=False,
         regenerate_on_transcript_update=False,
+        sync_prodtrack_tab_on_version_change=True,
         updated_at=now,
         created_at=now,
     )
