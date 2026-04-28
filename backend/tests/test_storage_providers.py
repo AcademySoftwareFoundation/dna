@@ -7,12 +7,29 @@ import pytest
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
 from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+from dna.models.published_transcript import (
+    PublishedTranscript,
+    PublishedTranscriptUpdate,
+)
 from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
 from dna.storage_providers.mongodb import MongoDBStorageProvider
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
 )
+
+
+def _transcript_update() -> PublishedTranscriptUpdate:
+    return PublishedTranscriptUpdate(
+        playlist_id=42,
+        version_id=7,
+        meeting_id="meet-abc",
+        sg_entity_type="CustomEntity01",
+        sg_entity_id=9001,
+        author_email="user@test.com",
+        body_hash="deadbeef",
+        segments_count=12,
+    )
 
 
 class TestStorageProviderBase:
@@ -95,6 +112,20 @@ class TestStorageProviderBase:
         provider = StorageProviderBase()
         with pytest.raises(NotImplementedError):
             await provider.get_segments_for_version(1, 1)
+
+    @pytest.mark.asyncio
+    async def test_get_published_transcript_raises_not_implemented(self):
+        """Base class should not try to talk to any backing store."""
+        provider = StorageProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.get_published_transcript(1, 1, "meet-1")
+
+    @pytest.mark.asyncio
+    async def test_upsert_published_transcript_raises_not_implemented(self):
+        """Abstract upsert must bubble up unless a subclass overrides."""
+        provider = StorageProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.upsert_published_transcript(_transcript_update())
 
 
 class TestGetStorageProvider:
@@ -771,3 +802,115 @@ class TestMongoDBStorageProvider:
         assert result[0].text == "Hello"
         assert result[1].text == "World"
         mock_cursor.sort.assert_called_once_with("absolute_start_time", 1)
+
+    @pytest.mark.asyncio
+    async def test_published_transcripts_collection_property(self, provider):
+        """published_transcripts 應該指向 dna 資料庫底下的 published_transcripts。"""
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_collection = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.published_transcripts = mock_collection
+        provider._client = mock_client
+
+        assert provider.published_transcripts_collection is mock_collection
+
+    @pytest.mark.asyncio
+    async def test_get_published_transcript_found(self, provider):
+        """找得到對應 (playlist, version, meeting) 時回傳完整 model。"""
+        mock_collection = mock.MagicMock()
+        now = datetime.now(timezone.utc)
+        doc = {
+            "_id": "mongo-id-1",
+            "playlist_id": 42,
+            "version_id": 7,
+            "meeting_id": "meet-abc",
+            "sg_entity_type": "CustomEntity01",
+            "sg_entity_id": 9001,
+            "author_email": "user@test.com",
+            "body_hash": "deadbeef",
+            "segments_count": 12,
+            "created_at": now,
+            "updated_at": now,
+        }
+        mock_collection.find_one = mock.AsyncMock(return_value=doc)
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.published_transcripts = mock_collection
+        provider._client = mock_client
+
+        result = await provider.get_published_transcript(42, 7, "meet-abc")
+
+        assert isinstance(result, PublishedTranscript)
+        assert result.sg_entity_id == 9001
+        mock_collection.find_one.assert_awaited_once_with(
+            {"playlist_id": 42, "version_id": 7, "meeting_id": "meet-abc"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_published_transcript_missing_returns_none(self, provider):
+        """沒有紀錄時 None 要一路傳回來。"""
+        mock_collection = mock.MagicMock()
+        mock_collection.find_one = mock.AsyncMock(return_value=None)
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.published_transcripts = mock_collection
+        provider._client = mock_client
+
+        result = await provider.get_published_transcript(1, 2, "nope")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_upsert_published_transcript_upserts_by_composite_key(self, provider):
+        """upsert 要用 (playlist, version, meeting) 當 query、並回傳完整 model。"""
+        mock_collection = mock.MagicMock()
+        now = datetime.now(timezone.utc)
+        result_doc = {
+            "_id": "mongo-id-2",
+            "playlist_id": 42,
+            "version_id": 7,
+            "meeting_id": "meet-abc",
+            "sg_entity_type": "CustomEntity01",
+            "sg_entity_id": 9001,
+            "author_email": "user@test.com",
+            "body_hash": "deadbeef",
+            "segments_count": 12,
+            "created_at": now,
+            "updated_at": now,
+        }
+        mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.published_transcripts = mock_collection
+        provider._client = mock_client
+
+        result = await provider.upsert_published_transcript(_transcript_update())
+
+        assert isinstance(result, PublishedTranscript)
+        assert result.sg_entity_id == 9001
+
+        call_args = mock_collection.find_one_and_update.call_args
+        query = call_args[0][0]
+        assert query == {
+            "playlist_id": 42,
+            "version_id": 7,
+            "meeting_id": "meet-abc",
+        }
+        update = call_args[0][1]
+        # 跟 upsert_draft_note 的慣例對齊：composite key 只放在 $setOnInsert，
+        # 避免 $set 把 query 欄位重寫一次造成 review 起來難看
+        assert update["$set"]["body_hash"] == "deadbeef"
+        assert update["$set"]["sg_entity_id"] == 9001
+        assert "updated_at" in update["$set"]
+        assert "playlist_id" not in update["$set"]
+        assert "version_id" not in update["$set"]
+        assert "meeting_id" not in update["$set"]
+        assert update["$setOnInsert"]["playlist_id"] == 42
+        assert update["$setOnInsert"]["version_id"] == 7
+        assert update["$setOnInsert"]["meeting_id"] == "meet-abc"
+        assert update["$setOnInsert"]["created_at"] is not None
+        assert call_args[1]["upsert"] is True

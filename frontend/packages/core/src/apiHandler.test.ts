@@ -37,7 +37,7 @@ describe('ApiHandler', () => {
       },
     };
 
-    mockedAxios.create.mockReturnValue(
+    vi.mocked(mockedAxios.create).mockReturnValue(
       mockAxiosInstance as unknown as ReturnType<typeof axios.create>
     );
   });
@@ -673,6 +673,34 @@ describe('ApiHandler', () => {
           versionId: 2,
         })
       ).rejects.toThrow('Server error');
+    });
+  });
+
+  describe('publishTranscript', () => {
+    it('posts to the publish-transcript endpoint and returns the response', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.post.mockResolvedValue({
+        data: {
+          transcript_entity_id: 9001,
+          outcome: 'created',
+          skipped_reason: null,
+          segments_count: 12,
+        },
+      });
+
+      const result = await api.publishTranscript({
+        playlistId: 42,
+        request: { version_id: 101 },
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/playlists/42/publish-transcript',
+        { version_id: 101 },
+        undefined
+      );
+      expect(result.outcome).toBe('created');
+      expect(result.transcript_entity_id).toBe(9001);
+      expect(result.segments_count).toBe(12);
     });
   });
 });

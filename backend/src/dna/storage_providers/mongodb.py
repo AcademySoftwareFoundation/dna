@@ -11,6 +11,10 @@ from pymongo import AsyncMongoClient, ReturnDocument
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
 from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+from dna.models.published_transcript import (
+    PublishedTranscript,
+    PublishedTranscriptUpdate,
+)
 from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
 from dna.models.user_settings import UserSettings, UserSettingsUpdate
 from dna.storage_providers.storage_provider_base import StorageProviderBase
@@ -48,6 +52,10 @@ class MongoDBStorageProvider(StorageProviderBase):
     @property
     def user_settings_collection(self) -> Any:
         return self.db.user_settings
+
+    @property
+    def published_transcripts_collection(self) -> Any:
+        return self.db.published_transcripts
 
     def _build_query(
         self, user_email: str, playlist_id: int, version_id: int
@@ -313,3 +321,47 @@ class MongoDBStorageProvider(StorageProviderBase):
         query = {"user_email": user_email}
         result = await self.user_settings_collection.delete_one(query)
         return result.deleted_count > 0
+
+    async def get_published_transcript(
+        self, playlist_id: int, version_id: int, meeting_id: str
+    ) -> Optional[PublishedTranscript]:
+        """Fetch the bookkeeping row for a previously published transcript."""
+        query = {
+            "playlist_id": playlist_id,
+            "version_id": version_id,
+            "meeting_id": meeting_id,
+        }
+        doc = await self.published_transcripts_collection.find_one(query)
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return PublishedTranscript(**doc)
+        return None
+
+    async def upsert_published_transcript(
+        self, data: PublishedTranscriptUpdate
+    ) -> PublishedTranscript:
+        """Insert or overwrite the bookkeeping row for a published transcript."""
+        now = datetime.now(timezone.utc)
+        query = {
+            "playlist_id": data.playlist_id,
+            "version_id": data.version_id,
+            "meeting_id": data.meeting_id,
+        }
+        # composite key 只在 insert 時寫入；一般欄位用 $set。
+        # 對齊 upsert_draft_note 的用法。
+        payload = data.model_dump()
+        set_on_insert = {
+            "playlist_id": payload.pop("playlist_id"),
+            "version_id": payload.pop("version_id"),
+            "meeting_id": payload.pop("meeting_id"),
+            "created_at": now,
+        }
+        update: dict[str, Any] = {
+            "$set": {**payload, "updated_at": now},
+            "$setOnInsert": set_on_insert,
+        }
+        result = await self.published_transcripts_collection.find_one_and_update(
+            query, update, upsert=True, return_document=ReturnDocument.AFTER
+        )
+        result["_id"] = str(result["_id"])
+        return PublishedTranscript(**result)

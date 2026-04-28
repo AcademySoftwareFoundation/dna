@@ -596,3 +596,15 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         self, note_id: int, file_path: str, display_name: str
     ) -> bool:
         return True
+
+    def publish_transcript(self, **_: object) -> int:
+        raise NotImplementedError(
+            "Transcript publishing requires a live ShotGrid connection. "
+            "Set PRODTRACK_PROVIDER=shotgrid to use it."
+        )
+
+    def update_transcript(self, **_: object) -> bool:
+        raise NotImplementedError(
+            "Transcript publishing requires a live ShotGrid connection. "
+            "Set PRODTRACK_PROVIDER=shotgrid to use it."
+        )

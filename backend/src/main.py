@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 import os
 import shutil
 import uuid
@@ -42,8 +43,11 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    PublishedTranscriptUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
+    PublishTranscriptRequest,
+    PublishTranscriptResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -964,6 +968,165 @@ async def publish_notes(
         skipped_count=skipped_count,
         failed_count=failed_count,
         total=len(notes_to_publish),
+    )
+
+
+def _transcript_publish_enabled() -> bool:
+    """讀 DNA_ENABLE_TRANSCRIPT_PUBLISH；沒設或不是 true 就當沒開。"""
+    return os.getenv("DNA_ENABLE_TRANSCRIPT_PUBLISH", "false").lower() == "true"
+
+
+@app.post(
+    "/playlists/{playlist_id}/publish-transcript",
+    tags=["Playlists", "Transcription"],
+    summary="Publish a version's captured transcript",
+    description=(
+        "Push the stored transcript for a version to the production tracking "
+        "system as a single custom-entity row. Idempotent via body_hash."
+    ),
+    response_model=PublishTranscriptResponse,
+)
+async def publish_transcript(
+    playlist_id: int,
+    request: PublishTranscriptRequest,
+    storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
+    current_user: CurrentUserDep,
+) -> PublishTranscriptResponse:
+    """Publish one version's transcript; skip when body_hash has not changed."""
+    if not _transcript_publish_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    from dna.transcription_publish import build_transcript_payload
+
+    metadata = await storage.get_playlist_metadata(playlist_id)
+    if metadata is None or not metadata.meeting_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist has no meeting associated yet",
+        )
+    if not metadata.platform:
+        # platform 是 SG 那邊的 list field，空字串會被站台 schema 拒；
+        # 比起讓 SG 回一個看不懂的 Fault，這裡攔下給明確錯誤。
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist metadata has no platform recorded",
+        )
+
+    segments = await storage.get_segments_for_version(playlist_id, request.version_id)
+    if not segments:
+        raise HTTPException(
+            status_code=422,
+            detail="No transcript segments stored for this version",
+        )
+
+    payload = build_transcript_payload(segments)
+    if payload.segments_count == 0:
+        # 原始 list 不空但過完 whitespace filter 後清光光；不要在 SG 留空 row
+        raise HTTPException(
+            status_code=422,
+            detail="All stored segments were empty; nothing to publish",
+        )
+
+    existing = await storage.get_published_transcript(
+        playlist_id, request.version_id, metadata.meeting_id
+    )
+    if existing and existing.body_hash == payload.body_hash:
+        return PublishTranscriptResponse(
+            transcript_entity_id=existing.sg_entity_id,
+            outcome="skipped",
+            skipped_reason="no_changes_since_last_publish",
+            segments_count=payload.segments_count,
+        )
+
+    try:
+        version = prodtrack.get_entity(
+            "version", request.version_id, resolve_links=False
+        )
+    except ValueError as e:
+        # get_entity 找不到對應資料時會 raise ValueError，這裡轉成 404
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Version.project 是 dict (type/id/name)，不是物件。不要用 .id 存取。
+    project_ref = getattr(version, "project", None)
+    project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
+    if project_id is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Version has no project associated",
+        )
+
+    try:
+        if existing:
+            # 用 bookkeeping 記的 entity_type，不是當前 env；避免站台改設定時 update 打錯 slot
+            updated = prodtrack.update_transcript(
+                entity_type=existing.sg_entity_type,
+                entity_id=existing.sg_entity_id,
+                body=payload.body,
+                meeting_date=payload.meeting_date,
+            )
+            if not updated:
+                # SG 更新失敗時千萬不能把 body_hash 往前推，否則下次會誤判 skipped
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to update transcript on the tracking system",
+                )
+            sg_entity_id = existing.sg_entity_id
+            outcome = "updated"
+        else:
+            sg_entity_id = prodtrack.publish_transcript(
+                project_id=project_id,
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=metadata.meeting_id,
+                meeting_date=payload.meeting_date,
+                platform=metadata.platform,
+                body=payload.body,
+            )
+            outcome = "created"
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+
+    entity_type = os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
+    try:
+        await storage.upsert_published_transcript(
+            PublishedTranscriptUpdate(
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=metadata.meeting_id,
+                sg_entity_type=entity_type,
+                sg_entity_id=sg_entity_id,
+                author_email=current_user,
+                body_hash=payload.body_hash,
+                segments_count=payload.segments_count,
+            )
+        )
+    except Exception as e:
+        # SG 那邊已經寫進去了，但本地 bookkeeping 沒跟上。
+        # 下次同樣 body 的請求會再在 SG 建一列（因為 existing 會是 None）。
+        # 把 entity_id 放進錯誤訊息，讓 operator 能去 SG 手動善後；
+        # 同時讓 client 知道這個錯誤**不該直接重試**。
+        logger = logging.getLogger(__name__)
+        logger.exception(
+            "Transcript %s created on tracking system id=%s but local "
+            "bookkeeping failed. Next publish will create a duplicate unless "
+            "the SG row is removed or the bookkeeping row is written manually.",
+            outcome,
+            sg_entity_id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Transcript row {sg_entity_id} was {outcome} on the tracking "
+                f"system but local bookkeeping failed ({e.__class__.__name__}). "
+                f"Do not retry blindly; reconcile the row manually."
+            ),
+        )
+
+    return PublishTranscriptResponse(
+        transcript_entity_id=sg_entity_id,
+        outcome=outcome,
+        segments_count=payload.segments_count,
     )
 
 

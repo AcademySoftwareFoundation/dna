@@ -503,6 +503,40 @@ def test_factory_raises_when_shotgrid_selected_but_no_credentials():
             get_prodtrack_provider()
 
 
+class TestMockPublishTranscript:
+    """Mock provider 不能寫入 SG，嘗試 publish/update 時必須拋清楚的錯。"""
+
+    def test_publish_transcript_raises_with_user_facing_message(self, tmp_path):
+        from datetime import date as date_
+
+        db_path = tmp_path / "mock.db"
+        _create_seeded_db(db_path)
+        provider = MockProdtrackProvider(db_path=db_path)
+
+        with pytest.raises(NotImplementedError, match="live ShotGrid connection"):
+            provider.publish_transcript(
+                project_id=1,
+                playlist_id=400,
+                version_id=300,
+                meeting_id="m-1",
+                meeting_date=date_(2026, 4, 15),
+                platform="google_meet",
+                body="hi",
+            )
+
+    def test_update_transcript_raises_with_user_facing_message(self, tmp_path):
+        from datetime import date as date_
+
+        db_path = tmp_path / "mock.db"
+        _create_seeded_db(db_path)
+        provider = MockProdtrackProvider(db_path=db_path)
+
+        with pytest.raises(NotImplementedError, match="live ShotGrid connection"):
+            provider.update_transcript(
+                entity_id=9001, body="hi", meeting_date=date_(2026, 4, 15)
+            )
+
+
 def test_factory_returns_shotgrid_when_credentials_present():
     with mock.patch.dict(
         os.environ,
