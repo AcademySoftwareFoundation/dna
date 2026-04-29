@@ -81,6 +81,7 @@ class TestStorageProviderBase:
         """Test that upsert_segment raises NotImplementedError."""
         provider = StorageProviderBase()
         data = StoredSegmentCreate(
+            segment_id="seg-1",
             text="Hello",
             speaker="John",
             absolute_start_time="2024-01-01T00:00:00Z",
@@ -661,6 +662,7 @@ class TestMongoDBStorageProvider:
         provider._client = mock_client
 
         data = StoredSegmentCreate(
+            segment_id="seg-1",
             text="Hello",
             speaker="John",
             absolute_start_time="2024-01-01T00:00:00Z",
@@ -707,6 +709,7 @@ class TestMongoDBStorageProvider:
         provider._client = mock_client
 
         data = StoredSegmentCreate(
+            segment_id="seg-1",
             text="Updated text",
             speaker="John",
             absolute_start_time="2024-01-01T00:00:00Z",
