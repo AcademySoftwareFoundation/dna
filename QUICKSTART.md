@@ -29,7 +29,7 @@ cp example.docker-compose.local.vexa.yml docker-compose.local.vexa.yml
 
 Edit `docker-compose.local.yml` with your credentials.
 
-**Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`. See [Mock setup](#mock-production-tracking-setup) below for how to refresh or customize the mock data.
+**Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. Set **`MOCK_PRODTRACK_DB_PATH=src/dna/prodtrack_providers/mock_data/mock.db`** to make the active mock DB explicit and easy to change later. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`. See [Mock setup](#mock-production-tracking-setup) below for how to refresh or customize the mock data.
 
 **LLM provider:** Set `LLM_PROVIDER` to choose which backend LLM integration to use.
 
@@ -140,6 +140,7 @@ The React app will be available at `http://localhost:5173`.
 | `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
 | `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
 | `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
+| `MOCK_PRODTRACK_DB_PATH` | No | bundled `mock.db` | Path to the SQLite DB used when `PRODTRACK_PROVIDER=mock` |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
@@ -257,12 +258,13 @@ The DNA API serves as the central hub:
 
 ## Mock Production Tracking Setup
 
-When you set **`PRODTRACK_PROVIDER=mock`**, the backend uses a read-only mock provider backed by SQLite (`backend/src/dna/prodtrack_providers/mock_data/mock.db`). The app runs normally with this data so you can develop and test the UI without a ShotGrid seat.
+When you set **`PRODTRACK_PROVIDER=mock`**, the backend uses a read-only mock provider backed by SQLite. By default, set **`MOCK_PRODTRACK_DB_PATH=src/dna/prodtrack_providers/mock_data/mock.db`** in `docker-compose.local.yml` so the active DB is explicit and easy to change. The app runs normally with this data so you can develop and test the UI without a ShotGrid seat.
 
 ### Using the mock provider
 
-- In `docker-compose.local.yml`, set **`PRODTRACK_PROVIDER=mock`**. You do not need to set any ShotGrid variables when using the mock.
+- In `docker-compose.local.yml`, set **`PRODTRACK_PROVIDER=mock`** and **`MOCK_PRODTRACK_DB_PATH=src/dna/prodtrack_providers/mock_data/mock.db`**.
 - The mock provider is used only when explicitly set; there is no automatic fallback if ShotGrid credentials are missing.
+- To switch the backend to a bootstrapped local DB, change `MOCK_PRODTRACK_DB_PATH` to `/app/.local/mock.db`.
 
 ### Refreshing or customizing mock data from ShotGrid
 
@@ -283,9 +285,33 @@ docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api \
   --api-key 'YOUR_API_KEY'
 ```
 
-- This overwrites `mock_data/mock.db` with entities (projects, users, shots, assets, tasks, versions, playlists, notes) from the given ShotGrid project.
+- To bootstrap sample review data, first start Mongo, then run `bootstrap_dataset`.
+- By default, `bootstrap_dataset` writes to `backend/.local/mock.db`, so it does not modify the checked-in mock DB.
+- If you want the backend to use that bootstrapped DB, set `MOCK_PRODTRACK_DB_PATH=/app/.local/mock.db` in `docker-compose.local.yml`.
+- `seed-mock-db` overwrites `mock_data/mock.db` with entities (projects, users, shots, assets, tasks, versions, playlists, notes) from the given ShotGrid project.
 - Use `--skip-thumbnails` to skip downloading version thumbnails (faster seed; thumbnails will not work after signed URLs expire).
 - Without `--skip-thumbnails`, thumbnails are downloaded to `mock_data/thumbnails/` and served by the API at `/api/mock-thumbnails/{version_id}` so they keep working after ShotGrid signed URLs expire.
+
+Example sample bootstrap workflow:
+
+```bash
+cd backend
+
+# Start only Mongo first
+make start-mongo
+
+# See available arguments
+python -m dna.devtools.bootstrap_dataset --help
+
+# Preview the import without writing anything
+python -m dna.devtools.bootstrap_dataset ../sample_dailies_dataset --dry-run
+
+# Seed SQLite + Mongo using the default local SQLite output
+python -m dna.devtools.bootstrap_dataset ../sample_dailies_dataset
+
+# Then start the full backend stack so the API comes up with the seeded data
+make start-local
+```
 
 The mock provider is **read-only**: it does not write to ShotGrid or to the SQLite file at runtime. Writes such as publishing notes will raise an error when using the mock provider.
 

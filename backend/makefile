@@ -57,3 +57,6 @@ format-python: venv-lint
 
 seed-mock-db:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m dna.prodtrack_providers.mock_data.seed_db --project-id 124 --url https://aswf.shotgrid.autodesk.com --script-name DNA_local_testing --api-key '$(SHOTGRID_API_KEY)'
+
+start-mongo:
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml up -d mongo
