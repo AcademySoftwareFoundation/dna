@@ -125,7 +125,6 @@ class TestSubscribeToMeeting:
         assert "Transcription provider not initialized" in caplog.text
 
 
-
 class TestOnVexaEvent:
     """Tests for Vexa event forwarding."""
 
@@ -556,6 +555,277 @@ class TestResubscribeToActiveMeetings:
 
         assert mock_event_publisher.publish.call_count == 2
 
+
+class TestOnTranscriptionUpdated:
+    """Tests for `on_transcription_updated` — the new flat-passthrough flow."""
+
+    @pytest.fixture
+    def service_ready(
+        self,
+        mock_transcription_provider,
+        mock_storage_provider,
+        mock_event_publisher,
+    ):
+        svc = TranscriptionService(
+            transcription_provider=mock_transcription_provider,
+            storage_provider=mock_storage_provider,
+            event_publisher=mock_event_publisher,
+        )
+        svc._meeting_to_playlist["google_meet:abc-def"] = 42
+        return svc
+
+    @pytest.fixture
+    def metadata(self):
+        return PlaylistMetadata(
+            _id="meta1",
+            playlist_id=42,
+            in_review=7,
+            transcription_paused=False,
+        )
+
+    def _payload(self, **overrides):
+        base = {
+            "platform": "google_meet",
+            "meeting_id": "abc-def",
+            "speaker": "Alice",
+            "confirmed": [],
+            "pending": [],
+            "ts": "2026-04-20T19:00:00.000Z",
+        }
+        base.update(overrides)
+        return base
+
+    def _seg(self, **overrides):
+        seg = {
+            "segment_id": "abc:speaker-0:1",
+            "text": "hello world",
+            "speaker": "Alice",
+            "language": "en",
+            "start_time": 0.0,
+            "end_time": 1.0,
+            "absolute_start_time": "2026-04-20T19:00:00.000Z",
+            "absolute_end_time": "2026-04-20T19:00:01.000Z",
+            "updated_at": "2026-04-20T19:00:01.500Z",
+        }
+        seg.update(overrides)
+        return seg
+
+    @pytest.mark.asyncio
+    async def test_upserts_confirmed_and_broadcasts_flat_shape(
+        self, service_ready, mock_storage_provider, mock_event_publisher, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        seg = self._seg()
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[seg], pending=[{"segment_id": "p1"}])
+        )
+
+        mock_storage_provider.upsert_segment.assert_called_once()
+        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        assert kwargs["playlist_id"] == 42
+        assert kwargs["version_id"] == 7
+        assert kwargs["segment_id"] == "abc:speaker-0:1"
+        assert kwargs["data"].segment_id == "abc:speaker-0:1"
+        assert kwargs["data"].completed is True
+        assert kwargs["data"].speaker == "Alice"
+
+        mock_event_publisher.ws_manager.broadcast.assert_called_once()
+        msg = mock_event_publisher.ws_manager.broadcast.call_args.args[0]
+        assert msg["type"] == "transcript"
+        assert msg["speaker"] == "Alice"
+        assert msg["confirmed"] == [seg]
+        assert msg["pending"] == [{"segment_id": "p1"}]
+        assert msg["playlist_id"] == 42
+        assert msg["version_id"] == 7
+        assert msg["ts"] == "2026-04-20T19:00:00.000Z"
+
+    @pytest.mark.asyncio
+    async def test_returns_when_storage_provider_missing(self, service_ready, caplog):
+        service_ready.storage_provider = None
+        await service_ready.on_transcription_updated(self._payload())
+        assert "Providers not initialized" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_when_event_publisher_missing(self, service_ready, caplog):
+        service_ready.event_publisher = None
+        await service_ready.on_transcription_updated(self._payload())
+        assert "Providers not initialized" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_when_no_playlist_mapping(
+        self, service_ready, mock_storage_provider, caplog
+    ):
+        await service_ready.on_transcription_updated(
+            self._payload(meeting_id="not-mapped")
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        assert "No playlist_id" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_when_metadata_missing(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = None
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_when_in_review_none(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m", playlist_id=42, in_review=None
+        )
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_when_paused(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m", playlist_id=42, in_review=7, transcription_paused=True
+        )
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_segment_before_resumed_at(
+        self, service_ready, mock_storage_provider
+    ):
+        from datetime import datetime, timezone
+
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m",
+            playlist_id=42,
+            in_review=7,
+            transcription_resumed_at=datetime(
+                2026, 4, 20, 19, 0, 30, tzinfo=timezone.utc
+            ),
+        )
+
+        old = self._seg(
+            segment_id="old", absolute_start_time="2026-04-20T19:00:00.000Z"
+        )
+        new = self._seg(
+            segment_id="new", absolute_start_time="2026-04-20T19:01:00.000Z"
+        )
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[old, new])
+        )
+
+        ids = [
+            c.kwargs["segment_id"]
+            for c in mock_storage_provider.upsert_segment.call_args_list
+        ]
+        assert ids == ["new"]
+
+    @pytest.mark.asyncio
+    async def test_handles_naive_resumed_at(self, service_ready, mock_storage_provider):
+        """Naive `transcription_resumed_at` is treated as UTC."""
+        from datetime import datetime
+
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m",
+            playlist_id=42,
+            in_review=7,
+            transcription_resumed_at=datetime(2026, 4, 20, 19, 0, 30),
+        )
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                confirmed=[
+                    self._seg(absolute_start_time="2026-04-20T19:01:00.000Z"),
+                ]
+            )
+        )
+
+        mock_storage_provider.upsert_segment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_swallows_invalid_absolute_start_time(
+        self, service_ready, mock_storage_provider
+    ):
+        """A malformed `absolute_start_time` falls through `ValueError` and the segment is still upserted."""
+        from datetime import datetime, timezone
+
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m",
+            playlist_id=42,
+            in_review=7,
+            transcription_resumed_at=datetime(
+                2026, 4, 20, 19, 0, 30, tzinfo=timezone.utc
+            ),
+        )
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg(absolute_start_time="not-a-date")])
+        )
+        mock_storage_provider.upsert_segment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_segments_missing_required_fields(
+        self, service_ready, mock_storage_provider, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                confirmed=[
+                    self._seg(segment_id=""),
+                    self._seg(absolute_start_time=""),
+                    self._seg(text=""),
+                    self._seg(text="   "),
+                ]
+            )
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_top_level_speaker(
+        self, service_ready, mock_storage_provider, metadata
+    ):
+        """Per-segment `speaker` overrides; otherwise the message-level `speaker` is used."""
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                speaker="Bob",
+                confirmed=[self._seg(speaker=None, segment_id="x")],
+            )
+        )
+        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        assert kwargs["data"].speaker == "Bob"
+
+    @pytest.mark.asyncio
+    async def test_logs_and_continues_on_upsert_failure(
+        self,
+        service_ready,
+        mock_storage_provider,
+        mock_event_publisher,
+        metadata,
+        caplog,
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        mock_storage_provider.upsert_segment.side_effect = RuntimeError("boom")
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+
+        assert "Failed to upsert segment" in caplog.text
+        mock_event_publisher.ws_manager.broadcast.assert_called_once()
 
 
 class TestTranscriptionServiceLifecycle:
