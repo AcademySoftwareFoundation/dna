@@ -1,6 +1,6 @@
 # DevDays 2026 — Prompt Evals
 
-This folder is for evaluating AI prompts for DNA's Notes Generation feature. Each participant creates their own numbered folder (e.g. `ptippett_001/`, `dmuren_002/`) containing their prompt variants and a config file that runs them against the shared dataset.
+Welcome! This folder is for evaluating AI prompts for DNA's AI Notes Generation feature. DNA has the ability to generate AI notes. To do so, it needs a really great prompt asking it to act as a talented coordinator. Below are the instructions for how to participate in this LLM prompt-off, and how to utilize `promptfoo` to evaluate and submit your results. You'll need an LLM API key to participate!
 
 ## How it works
 
@@ -9,15 +9,15 @@ devdays_2026/
 ├── dataset/                  ← shared, do not edit
 │   ├── transcripts/          ← review meeting transcripts (the inputs)
 │   └── notes/                ← reference notes (the expected outputs)
-├── example_001/              ← reference example
-│   ├── prompts/              ← your prompt files go here
-│   └── promptfooconfig.yaml  ← your eval config
+├── example_001/              ← participant reference example
+│   ├── prompts/              ← participant prompt files example
+│   └── promptfooconfig.yaml  ← participant eval config example (to copy)
 └── your_folder/              ← you create this
     ├── prompts/
     └── promptfooconfig.yaml
 ```
 
-The `dataset/` folder is the ground truth — everyone's prompts are tested against the same transcripts and reference notes. Your goal is to write a prompt that produces notes as close to the references as possible, across all test cases.
+The `dataset/` folder is a made up example of transcripts and notes from a review session — everyone's prompts are tested against the same transcripts and reference notes. Your goal is to write a prompt that produces notes as close to the reference notes as possible, across all test cases.
 
 ---
 
@@ -29,7 +29,7 @@ The `dataset/` folder is the ground truth — everyone's prompts are tested agai
 npm install -g promptfoo
 ```
 
-You'll also need an Anthropic API key:
+You'll also need an LLM API key:
 
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
@@ -37,15 +37,15 @@ export ANTHROPIC_API_KEY=your_key_here
 
 ### 2. Create your folder
 
-Copy `example_001/` to a new folder with the next available number:
+Copy `example_001/` to a new folder and name it for your first initial and last name (e.g. `ptippett_001/`, `dmuren_002/`).
 
 ```bash
-cp -r example_001/ example_002/
+cp -r example_001/ ctarget_002/
 ```
 
 ### 3. Write your prompts
 
-Edit the `.txt` files in your `prompts/` folder. You can have as many prompt variants as you like — each one becomes a column in the results table so you can compare them side by side.
+Edit the `.txt` files in your `prompts/` folder. You can have as many prompt variants as you like — each one becomes a column in the results table so you can compare them side by side. We recommend about three prompts at a time.
 
 The prompts use [Nunjucks](https://mozilla.github.io/nunjucks/) templating. The variables available are:
 
@@ -53,7 +53,7 @@ The prompts use [Nunjucks](https://mozilla.github.io/nunjucks/) templating. The 
 |---|---|
 | `{{ transcript }}` | The raw review meeting transcript |
 | `{{ context }}` | Shot metadata (shot ID, department, status, description) |
-| `{{ notes }}` | Any existing notes for the shot (usually empty) |
+| `{{ notes }}` | Any existing notes for the shot (often empty) |
 
 ### 4. Run the eval
 
@@ -94,7 +94,7 @@ providers:
   - "anthropic:messages:claude-opus-4-6"
 ```
 
-This is the model your prompts are evaluated against. It matches the model DNA uses in production, so results are representative. You can add more providers here to compare models, but keep Opus as the primary.
+This is the model your prompts are evaluated against. You can choose whatever model you brought with you! BYOLLM!
 
 ### `defaultTest`
 
@@ -155,11 +155,14 @@ Each test case represents one shot from the shared dataset. The paths use `../da
    promptfoo eval
    ```
 
-2. Check that you haven't modified anything outside your own folder. Only files inside `your_folder/` should be changed.
+2. Create a .csv file of your your eval results (pass/fail counts per prompt variant) and include it in your folder.
+  ```bash
+  promptfoo view --output example_001.csv
+  ```
 
-3. Push your branch and open a PR against `main`. Name your branch after your folder: `eval/example_002`.
+3. Check that you haven't modified anything outside your own folder. Only files inside `your_folder/` should be changed.
 
-4. In the PR description, paste a screenshot or summary of your eval results (pass/fail counts per prompt variant). The results table from `promptfoo eval --view` is ideal.
+4. Push your branch and open a PR against `main`. Name your branch after your folder: `eval/example_002`.
 
 5. Do not commit promptfoo cache or output files (`.promptfoo/`, `output/`). Add these to `.gitignore` if needed.
 
@@ -170,5 +173,4 @@ Each test case represents one shot from the shared dataset. The paths use `../da
 - **Start with `example_001/` as your baseline.** Run it first to see what scores the reference prompts get, then try to beat them.
 - **The `factuality` check is the most important.** A prompt that passes all string checks but fails factuality is not production-ready.
 - **Shorter prompts often win.** The reference prompts (`notes_v1`, `v2`, `v3`) vary from 150 lines down to 22 lines — longer is not always better.
-- **Check your `context` block.** The model uses shot metadata to understand what it's looking at. Providing accurate department and description helps grounding.
-- **A blank output is valid** when the transcript contains no actionable feedback. Don't force your prompt to produce notes when there's nothing to say.
+- **Check your `context` block.** The model uses shot metadata to understand what it's looking at. Providing accurate department and description helps.
