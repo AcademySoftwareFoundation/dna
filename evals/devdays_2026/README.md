@@ -29,10 +29,20 @@ The `dataset/` folder is a made up example of transcripts and notes from a revie
 npm install -g promptfoo
 ```
 
-You'll also need an LLM API key:
+**OR**
 
 ```bash
-export ANTHROPIC_API_KEY=your_key_here
+brew install promptfoo
+```
+
+### 2. Create your folder
+
+You'll also need an API key for whichever LLM you're bringing. Export the one that matches your provider:
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here   # Anthropic (Claude)
+export OPENAI_API_KEY=your_key_here      # OpenAI (GPT)
+export GOOGLE_API_KEY=your_key_here      # Google (Gemini)
 ```
 
 ### 2. Create your folder
@@ -90,11 +100,19 @@ Each file is a separate prompt variant. Promptfoo runs every prompt against ever
 ### `providers`
 
 ```yaml
+# Change this one line to use any provider.
+# Examples:
+#   anthropic:messages:claude-opus-4-6
+#   openai:gpt-4o
+#   google:gemini-2.5-pro
+metadata:
+  provider: &provider "anthropic:messages:claude-opus-4-6"
+
 providers:
-  - "anthropic:messages:claude-opus-4-6"
+  - *provider
 ```
 
-This is the model your prompts are evaluated against. You can choose whatever model you brought with you! BYOLLM!
+This is the model your prompts are evaluated against. The YAML anchor (`&provider`) means you only need to change one line — the same value is automatically reused for generation and grading. BYOLLM!
 
 ### `defaultTest`
 
@@ -107,7 +125,7 @@ This block applies to every test case. It has two kinds of assertions.
   value: "Let me know"
 ```
 
-**`llm-rubric`** uses a second Claude call to grade the output against a set of quality criteria. This is slower and costs more, but it catches subtler issues that a string match can't — like a note being too vague, or containing fabricated information.
+**`llm-rubric`** uses a second LLM call to grade the output against a set of quality criteria. This is slower and costs more, but it catches subtler issues that a string match can't — like a note being too vague, or containing fabricated information.
 
 ```yaml
 - type: llm-rubric
@@ -115,7 +133,7 @@ This block applies to every test case. It has two kinds of assertions.
     The output must satisfy all of the following:
     1. Notes are formatted as a bullet point list using "- " for each item
     ...
-  provider: "anthropic:messages:claude-opus-4-6"
+  provider: *provider
 ```
 
 The rubric criteria map directly to DNA's production standards for notes — bullet format, specific and actionable, no soft requests, no meta-commentary, no fabrication, no emojis.
@@ -135,7 +153,7 @@ Each test case represents one shot from the shared dataset. The paths use `../da
   assert:
     - type: factuality
       value: file://../dataset/notes/TST_010_0010_ref.txt
-      provider: "anthropic:messages:claude-opus-4-6"
+      provider: *provider
     - type: contains-all
       value:
         - "sky"
@@ -157,7 +175,7 @@ Each test case represents one shot from the shared dataset. The paths use `../da
 
 2. Create a .csv file of your your eval results (pass/fail counts per prompt variant) and include it in your folder.
   ```bash
-  promptfoo view --output example_001.csv
+  promptfoo eval --output example_001.csv
   ```
 
 3. Check that you haven't modified anything outside your own folder. Only files inside `your_folder/` should be changed.
