@@ -37,21 +37,19 @@ brew install promptfoo
 
 ### 2. Create your folder
 
-You'll also need an API key for whichever LLM you're bringing. Export the one that matches your provider:
-
-```bash
-export ANTHROPIC_API_KEY=your_key_here   # Anthropic (Claude)
-export OPENAI_API_KEY=your_key_here      # OpenAI (GPT)
-export GOOGLE_API_KEY=your_key_here      # Google (Gemini)
-```
-
-### 2. Create your folder
-
 Copy `example_001/` to a new folder and name it for your first initial and last name (e.g. `ptippett_001/`, `dmuren_002/`).
 
 ```bash
 cp -r example_001/ ctarget_002/
 ```
+
+Then copy `.env.example` to `.env` inside your new folder and fill in your provider and API key:
+
+```bash
+cp ctarget_002/.env.example ctarget_002/.env
+```
+
+Open `.env` and set `PROVIDER` to the model you're using and the matching API key. promptfoo loads this file automatically — no manual `export` needed.
 
 ### 3. Write your prompts
 
@@ -100,19 +98,14 @@ Each file is a separate prompt variant. Promptfoo runs every prompt against ever
 ### `providers`
 
 ```yaml
-# Change this one line to use any provider.
-# Examples:
-#   anthropic:messages:claude-opus-4-6
-#   openai:gpt-4o
-#   google:gemini-2.5-pro
 metadata:
-  provider: &provider "anthropic:messages:claude-opus-4-6"
+  provider: &provider "${PROVIDER}"
 
 providers:
   - *provider
 ```
 
-This is the model your prompts are evaluated against. The YAML anchor (`&provider`) means you only need to change one line — the same value is automatically reused for generation and grading. BYOLLM!
+`PROVIDER` comes from your `.env` file. The YAML anchor means that single value is automatically reused for generation and grading — you never need to touch the config. BYOLLM!
 
 ### `defaultTest`
 

@@ -2,13 +2,9 @@
 
 description: "DNA - Notes Generation Eval"
 
-# ── Set your model here — change this one line to use any provider. ──────────
-# Examples:
-#   anthropic:messages:claude-opus-4-6
-#   openai:gpt-4o
-#   google:gemini-2.5-pro
+# ── Provider is set via PROVIDER in your .env file (copy from .env.example). ─
 metadata:
-  provider: &provider "openai:gpt-4o"
+  provider: &provider "${PROVIDER}"
 
 prompts:
   - file://prompts/notes_v1.txt
