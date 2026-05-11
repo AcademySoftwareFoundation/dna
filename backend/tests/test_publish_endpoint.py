@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 from dna.models.draft_note import DraftNote
-from dna.models.requests import PublishNotesRequest
 
 
 class TestPublishNotesEndpoint:
@@ -255,3 +254,86 @@ class TestPublishNotesEndpoint:
         mock_prodtrack.publish_note.assert_not_called()
         mock_prodtrack.update_note.assert_not_called()
         mock_prodtrack.update_version_status.assert_called_once_with(106, "cmpt")
+
+    def test_publish_notes_targets_filters_pairs(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """When targets is set, only listed (user_email, version_id) pairs publish."""
+        now = datetime.now(timezone.utc)
+        mine = DraftNote(
+            _id="m1",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=201,
+            content="Mine",
+            subject="S",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        other = DraftNote(
+            _id="o1",
+            user_email="other@example.com",
+            playlist_id=100,
+            version_id=202,
+            content="Other",
+            subject="S",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [mine, other]
+        mock_prodtrack.publish_note.return_value = 700
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "include_others": False,
+                "targets": [
+                    {"user_email": "other@example.com", "version_id": 202},
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["published_count"] == 1
+        assert data["total"] == 1
+        mock_prodtrack.publish_note.assert_called_once()
+        args = mock_prodtrack.publish_note.call_args[1]
+        assert args["author_email"] == "other@example.com"
+        assert args["version_id"] == 202
+
+    def test_publish_notes_targets_empty_publishes_nothing(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Empty targets list means no notes are considered for publish."""
+        now = datetime.now(timezone.utc)
+        draft = DraftNote(
+            _id="d1",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=203,
+            content="Body",
+            subject="S",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [draft]
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "include_others": True,
+                "targets": [],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["published_count"] == 0
+        mock_prodtrack.publish_note.assert_not_called()

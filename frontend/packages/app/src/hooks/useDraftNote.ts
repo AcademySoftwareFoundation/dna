@@ -29,6 +29,7 @@ export interface UseDraftNoteResult {
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
   clearDraftNote: () => void;
+  flushDebouncedSave: () => Promise<void>;
   isSaving: boolean;
   isLoading: boolean;
 }
@@ -395,11 +396,26 @@ export function useDraftNote({
     setLocalDraft(createEmptyDraft(currentVersion, submitter));
   }, [isEnabled, deleteMutation, currentVersion, submitter]);
 
+  const flushDebouncedSave = useCallback(async () => {
+    if (!isEnabled) return;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (pendingDataRef.current) {
+      const data = localToUpdate(pendingDataRef.current);
+      pendingMutationRef.current = upsertMutation.mutateAsync({ data });
+      pendingDataRef.current = null;
+      await pendingMutationRef.current;
+    }
+  }, [isEnabled, upsertMutation]);
+
   return {
     draftNote: localDraft,
     updateDraftNote,
     saveAttachmentIds,
     clearDraftNote,
+    flushDebouncedSave,
     isSaving: upsertMutation.isPending || deleteMutation.isPending,
     isLoading,
   };

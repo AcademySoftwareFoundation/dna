@@ -29,16 +29,22 @@ interface NoteEditorProps {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
+  /** Omits outer border and uses inset highlight on drag-over (e.g. publish dialog). */
+  variant?: 'default' | 'embedded';
 }
 
 export interface NoteEditorHandle {
   appendContent: (content: string) => void;
 }
 
-const DEFAULT_HEIGHT = 280;
-const MIN_HEIGHT = 120;
+const DEFAULT_HEIGHT = 140;
+const MIN_HEIGHT = 60;
 
-const EditorWrapper = styled.div<{ $height: number; $isDragOver: boolean }>`
+const EditorWrapper = styled.div<{
+  $height: number;
+  $isDragOver: boolean;
+  $embedded?: boolean;
+}>`
   position: relative;
   display: flex;
   flex-direction: column;
@@ -46,11 +52,17 @@ const EditorWrapper = styled.div<{ $height: number; $isDragOver: boolean }>`
   padding: 20px;
   padding-bottom: 8px;
   background: ${({ theme }) => theme.colors.bg.surface};
-  border: 1px solid
-    ${({ $isDragOver, theme }) =>
-      $isDragOver ? theme.colors.accent.main : theme.colors.border.subtle};
+  border: ${({ $embedded, $isDragOver, theme }) =>
+    $embedded
+      ? 'none'
+      : `1px solid ${
+          $isDragOver ? theme.colors.accent.main : theme.colors.border.subtle
+        }`};
+  box-shadow: ${({ $embedded, $isDragOver, theme }) =>
+    $embedded && $isDragOver ? `inset 0 0 0 2px ${theme.colors.accent.main}` : 'none'};
   border-radius: ${({ theme }) => theme.radii.lg};
-  transition: border-color ${({ theme }) => theme.transitions.fast};
+  transition: border-color ${({ theme }) => theme.transitions.fast},
+    box-shadow ${({ theme }) => theme.transitions.fast};
 `;
 
 const EditorContent = styled.div<{ $height: number }>`
@@ -80,7 +92,11 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
-const StatusBadge = styled.div<{ $isWarning?: boolean; $isDraft?: boolean }>`
+const StatusBadge = styled.div<{
+  $isWarning?: boolean;
+  $isDraft?: boolean;
+  $compact?: boolean;
+}>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -99,8 +115,66 @@ const StatusBadge = styled.div<{ $isWarning?: boolean; $isDraft?: boolean }>`
       : $isWarning
         ? theme.colors.status.warning
         : theme.colors.status.success};
-  margin-left: 12px;
+  margin-left: ${({ $compact }) => ($compact ? '0' : '12px')};
 `;
+
+const InlineBadgeWrap = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+`;
+
+export type NoteDraftStatusFields = Pick<
+  LocalDraftNote,
+  'published' | 'publishedNoteId' | 'content' | 'subject'
+>;
+
+export function NoteDraftStatusBadges({
+  draft,
+  layout = 'title',
+}: {
+  draft: NoteDraftStatusFields | null;
+  layout?: 'title' | 'inline';
+}) {
+  if (!draft) return null;
+
+  const showPublished = draft.published;
+  const showEdited = !draft.published && Boolean(draft.publishedNoteId);
+  const showDraftBadge =
+    !draft.published &&
+    !draft.publishedNoteId &&
+    Boolean(draft.content || draft.subject);
+
+  if (!showPublished && !showEdited && !showDraftBadge) return null;
+
+  const compact = layout === 'inline';
+
+  const badges = (
+    <>
+      {showPublished && (
+        <StatusBadge $compact={compact}>Published</StatusBadge>
+      )}
+      {showEdited && (
+        <StatusBadge $isWarning $compact={compact}>
+          Published (Edited)
+        </StatusBadge>
+      )}
+      {showDraftBadge && (
+        <StatusBadge $isDraft $compact={compact}>
+          Draft
+        </StatusBadge>
+      )}
+    </>
+  );
+
+  if (layout === 'inline') {
+    return <InlineBadgeWrap>{badges}</InlineBadgeWrap>;
+  }
+
+  return <>{badges}</>;
+}
 
 const DropOverlay = styled.div`
   position: absolute;
@@ -237,9 +311,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       draftNote,
       updateDraftNote,
       saveAttachmentIds,
+      variant = 'default',
     },
     ref
   ) {
+    const isEmbedded = variant === 'embedded';
+
     const currentVersionAsSearchResult: SearchResult | undefined =
       useMemo(() => {
         if (!currentVersion) return undefined;
@@ -494,6 +571,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         <EditorWrapper
           $height={editorHeight}
           $isDragOver={isDragOver}
+          $embedded={variant === 'embedded'}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -505,18 +583,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             </DropOverlay>
           )}
           <EditorHeader>
-            <TitleRow>
-              <EditorTitle>Notes</EditorTitle>
-              {draftNote?.published && <StatusBadge>Published</StatusBadge>}
-              {!draftNote?.published && draftNote?.publishedNoteId && (
-                <StatusBadge $isWarning>Published (Edited)</StatusBadge>
-              )}
-              {!draftNote?.published &&
-                !draftNote?.publishedNoteId &&
-                (draftNote?.content || draftNote?.subject) && (
-                  <StatusBadge $isDraft>Draft</StatusBadge>
-                )}
-            </TitleRow>
+            {!isEmbedded && (
+              <TitleRow>
+                <EditorTitle>Notes</EditorTitle>
+                <NoteDraftStatusBadges draft={draftNote} layout="title" />
+              </TitleRow>
+            )}
             <NoteOptionsInline
               toValue={editableTo}
               ccValue={draftNote?.cc ?? []}
