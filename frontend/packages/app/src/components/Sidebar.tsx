@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
@@ -9,7 +9,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button, Tooltip } from '@radix-ui/themes';
-import type { Version } from '@dna/core';
+import type { Version, DraftNote } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
@@ -273,6 +273,15 @@ export function Sidebar({
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
   const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
 
+  const publishDialogNotes = useMemo(
+    () =>
+      (draftNotes ?? []).filter(
+        (n: DraftNote) =>
+          (!n.published || n.edited) && Boolean(n.content?.trim())
+      ),
+    [draftNotes]
+  );
+
   const inReviewVersionId = playlistMetadata?.in_review;
 
   const playlistMenuItems = [
@@ -486,7 +495,7 @@ export function Sidebar({
           onClose={() => setIsPublishDialogOpen(false)}
           playlistId={playlistId}
           userEmail={userEmail}
-          draftNotes={draftNotes || []}
+          notes={publishDialogNotes}
           versions={versions || []}
         />
       )}

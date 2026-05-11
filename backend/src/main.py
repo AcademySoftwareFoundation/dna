@@ -827,21 +827,14 @@ async def publish_notes(
         key = (note.user_email, note.version_id)
         notes_by_key[key].append(note)
 
-    notes_to_publish = []
-    target_keys: set[tuple[str, int]] | None = None
-    if request.targets is not None:
-        target_keys = {(t.user_email, t.version_id) for t in request.targets}
+    target_keys = {(t.user_email, t.version_id) for t in request.targets}
 
+    notes_to_publish = []
     for key, notes in notes_by_key.items():
         # Sort by updated_at descending and take the most recent one
         most_recent = max(notes, key=lambda n: n.updated_at)
 
-        if target_keys is not None:
-            if (most_recent.user_email, most_recent.version_id) not in target_keys:
-                continue
-        elif (
-            not request.include_others and most_recent.user_email != request.user_email
-        ):
+        if (most_recent.user_email, most_recent.version_id) not in target_keys:
             continue
 
         notes_to_publish.append(most_recent)

@@ -113,13 +113,8 @@ class PublishNotesRequest(BaseModel):
     """Request model for publishing draft notes."""
 
     user_email: str
-    include_others: bool = False
-    targets: Optional[list[PublishNoteTarget]] = Field(
-        default=None,
-        description=(
-            "When set, only these (user_email, version_id) pairs are published; "
-            "include_others is ignored. When omitted, legacy filtering applies."
-        ),
+    targets: list[PublishNoteTarget] = Field(
+        description="Only draft notes matching these (user_email, version_id) pairs are published."
     )
 
 

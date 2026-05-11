@@ -446,8 +446,7 @@ export interface PublishNoteTarget {
 
 export interface PublishNotesRequest {
   user_email: string;
-  include_others: boolean;
-  targets?: PublishNoteTarget[];
+  targets: PublishNoteTarget[];
 }
 
 export interface PublishNotesResponse {

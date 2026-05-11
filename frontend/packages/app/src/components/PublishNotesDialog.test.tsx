@@ -106,7 +106,7 @@ function renderDialog(props: Partial<ComponentProps<typeof PublishNotesDialog>> 
       onClose={vi.fn()}
       playlistId={100}
       userEmail="me@test.com"
-      draftNotes={[]}
+      notes={[]}
       versions={[]}
       {...props}
     />
@@ -114,19 +114,11 @@ function renderDialog(props: Partial<ComponentProps<typeof PublishNotesDialog>> 
 }
 
 describe('PublishNotesDialog', () => {
-  it('shows only unpublished or edited drafts that have note body text', () => {
+  it('renders one editor row per note in the notes list', () => {
     renderDialog({
-      draftNotes: [
-        draft({ _id: 'a', version_id: 10, published: true, edited: false }),
+      notes: [
         draft({ _id: 'b', version_id: 10, published: false }),
         draft({ _id: 'c', version_id: 10, published: true, edited: true }),
-        draft({
-          _id: 'd',
-          version_id: 10,
-          published: false,
-          content: '',
-          subject: 'Subject only',
-        }),
       ],
       versions: [version10],
     });
@@ -134,9 +126,14 @@ describe('PublishNotesDialog', () => {
     expect(screen.getAllByTestId('note-editor')).toHaveLength(2);
   });
 
-  it('does not list drafts when the notes body is empty', () => {
+  it('shows empty state when notes is empty', () => {
+    renderDialog({ notes: [] });
+    expect(screen.getByText('No notes to publish.')).toBeInTheDocument();
+  });
+
+  it('renders all notes passed in without filtering', () => {
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({
           _id: 'empty',
           version_id: 10,
@@ -149,12 +146,12 @@ describe('PublishNotesDialog', () => {
       versions: [version10],
     });
 
-    expect(screen.getAllByTestId('note-editor')).toHaveLength(1);
+    expect(screen.getAllByTestId('note-editor')).toHaveLength(2);
   });
 
   it('renders one card per version and one row per draft', () => {
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10, user_email: 'me@test.com' }),
         draft({ _id: 'b', version_id: 10, user_email: 'other@test.com' }),
         draft({ _id: 'c', version_id: 20, user_email: 'me@test.com' }),
@@ -169,7 +166,7 @@ describe('PublishNotesDialog', () => {
 
   it('calls useDraftNote with draft owner email for each row', () => {
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10, user_email: 'me@test.com' }),
         draft({ _id: 'b', version_id: 10, user_email: 'other@test.com' }),
       ],
@@ -184,7 +181,7 @@ describe('PublishNotesDialog', () => {
   it('updates Publish selected count when a checkbox is unchecked', async () => {
     const user = userEvent.setup();
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10 }),
         draft({ _id: 'b', version_id: 20 }),
       ],
@@ -202,7 +199,7 @@ describe('PublishNotesDialog', () => {
   it('batch menu selects only my notes', async () => {
     const user = userEvent.setup();
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10, user_email: 'me@test.com' }),
         draft({ _id: 'b', version_id: 10, user_email: 'other@test.com' }),
       ],
@@ -220,7 +217,7 @@ describe('PublishNotesDialog', () => {
   it('batch menu selects only notes from others', async () => {
     const user = userEvent.setup();
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10, user_email: 'me@test.com' }),
         draft({ _id: 'b', version_id: 10, user_email: 'other@test.com' }),
       ],
@@ -238,7 +235,7 @@ describe('PublishNotesDialog', () => {
   it('batch menu selects all notes', async () => {
     const user = userEvent.setup();
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10, user_email: 'me@test.com' }),
         draft({ _id: 'b', version_id: 10, user_email: 'other@test.com' }),
       ],
@@ -257,7 +254,7 @@ describe('PublishNotesDialog', () => {
   it('sends targets for only checked rows on publish', async () => {
     const user = userEvent.setup();
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10, user_email: 'me@test.com' }),
         draft({ _id: 'b', version_id: 10, user_email: 'other@test.com' }),
       ],
@@ -274,7 +271,6 @@ describe('PublishNotesDialog', () => {
         playlistId: 100,
         request: {
           user_email: 'me@test.com',
-          include_others: true,
           targets: [{ user_email: 'other@test.com', version_id: 10 }],
         },
       },
@@ -312,7 +308,7 @@ describe('PublishNotesDialog', () => {
     });
 
     renderDialog({
-      draftNotes: [
+      notes: [
         draft({ _id: 'a', version_id: 10 }),
         draft({ _id: 'b', version_id: 20 }),
       ],

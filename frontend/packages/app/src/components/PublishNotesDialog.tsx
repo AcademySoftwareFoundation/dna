@@ -30,7 +30,8 @@ interface PublishNotesDialogProps {
   onClose: () => void;
   playlistId: number;
   userEmail: string;
-  draftNotes: DraftNote[];
+  /** Draft notes to review and publish (caller supplies the list, e.g. from the playlist). */
+  notes: DraftNote[];
   versions?: Version[];
 }
 
@@ -121,10 +122,6 @@ const NoteRowBlock = styled.div`
 
 function draftRowKey(d: DraftNote): string {
   return d._id;
-}
-
-function draftHasNoteBoxContent(n: DraftNote): boolean {
-  return Boolean(n.content?.trim());
 }
 
 function displayNameFromEmail(email: string): string {
@@ -314,7 +311,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
   onClose,
   playlistId,
   userEmail,
-  draftNotes,
+  notes,
   versions = [],
 }) => {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -342,34 +339,26 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
     }
   }, [open, reset]);
 
-  const pendingDrafts = useMemo(
-    () =>
-      draftNotes.filter(
-        (n) => (!n.published || n.edited) && draftHasNoteBoxContent(n)
-      ),
-    [draftNotes]
-  );
-
-  const pendingFingerprint = useMemo(
-    () => pendingDrafts.map(draftRowKey).sort().join('\0'),
-    [pendingDrafts]
+  const notesFingerprint = useMemo(
+    () => notes.map(draftRowKey).sort().join('\0'),
+    [notes]
   );
 
   useEffect(() => {
     if (!open) return;
     setSelected((prev) => {
       const next: Record<string, boolean> = {};
-      for (const d of pendingDrafts) {
+      for (const d of notes) {
         const k = draftRowKey(d);
         next[k] = prev[k] ?? true;
       }
       return next;
     });
-  }, [open, pendingFingerprint]);
+  }, [open, notesFingerprint]);
 
   const versionCards = useMemo(() => {
     const byVid = new Map<number, DraftNote[]>();
-    for (const d of pendingDrafts) {
+    for (const d of notes) {
       const arr = byVid.get(d.version_id) ?? [];
       arr.push(d);
       byVid.set(d.version_id, arr);
@@ -393,11 +382,11 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
     }
 
     return ordered;
-  }, [pendingDrafts, versions]);
+  }, [notes, versions]);
 
   const selectedCount = useMemo(
-    () => pendingDrafts.filter((d) => selected[draftRowKey(d)]).length,
-    [pendingDrafts, selected]
+    () => notes.filter((d) => selected[draftRowKey(d)]).length,
+    [notes, selected]
   );
 
   const countImages = (notes: DraftNote[]) =>
@@ -414,7 +403,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
     (mode: 'all' | 'mine' | 'others') => {
       setSelected(() => {
         const next: Record<string, boolean> = {};
-        for (const d of pendingDrafts) {
+        for (const d of notes) {
           const k = draftRowKey(d);
           if (mode === 'all') next[k] = true;
           else if (mode === 'mine') next[k] = d.user_email === userEmail;
@@ -423,7 +412,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
         return next;
       });
     },
-    [pendingDrafts, userEmail]
+    [notes, userEmail]
   );
 
   const handleToggle = useCallback((key: string, checked: boolean) => {
@@ -431,7 +420,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
   }, []);
 
   const handlePublishSelected = async () => {
-    const toPublish = pendingDrafts.filter((d) => selected[draftRowKey(d)]);
+    const toPublish = notes.filter((d) => selected[draftRowKey(d)]);
     if (toPublish.length === 0) return;
 
     await flushAllDrafts();
@@ -449,7 +438,6 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
         playlistId,
         request: {
           user_email: userEmail,
-          include_others: true,
           targets,
         },
       },
@@ -520,7 +508,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                       variant="ghost"
                       color="gray"
                       aria-label="Batch note selection"
-                      disabled={pendingDrafts.length === 0}
+                      disabled={notes.length === 0}
                     >
                       <MoreVertical size={18} />
                     </IconButton>
@@ -540,9 +528,9 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
               </Flex>
 
               <ScrollBody>
-                {pendingDrafts.length === 0 ? (
+                {notes.length === 0 ? (
                   <Text size="2" color="gray">
-                    No unpublished or modified notes.
+                    No notes to publish.
                   </Text>
                 ) : (
                   versionCards.map(({ version, drafts }) => (
@@ -580,7 +568,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                   <Button
                     disabled={
                       isPending ||
-                      pendingDrafts.length === 0 ||
+                      notes.length === 0 ||
                       selectedCount === 0
                     }
                     onClick={() => void handlePublishSelected()}
