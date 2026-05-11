@@ -6,7 +6,7 @@ import pytest
 
 from dna.events import EventType
 from dna.models.playlist_metadata import PlaylistMetadata
-from dna.models.stored_segment import StoredSegment, generate_segment_id
+from dna.models.stored_segment import StoredSegment
 from dna.transcription_service import TranscriptionService
 
 
@@ -125,438 +125,30 @@ class TestSubscribeToMeeting:
         assert "Transcription provider not initialized" in caplog.text
 
 
-class TestOnTranscriptionUpdated:
-    """Tests for transcript segment processing."""
-
-    @pytest.fixture
-    def sample_vexa_segments(self):
-        """Sample Vexa transcript.mutable segments."""
-        return [
-            {
-                "text": "Hello, this is a test.",
-                "speaker": "John Doe",
-                "language": "en",
-                "absolute_start_time": "2026-01-23T04:00:00.000Z",
-                "absolute_end_time": "2026-01-23T04:00:05.000Z",
-                "updated_at": "2026-01-23T04:00:05.000Z",
-            },
-            {
-                "text": "This is another segment.",
-                "speaker": "Jane Smith",
-                "language": "en",
-                "absolute_start_time": "2026-01-23T04:00:05.000Z",
-                "absolute_end_time": "2026-01-23T04:00:10.000Z",
-                "updated_at": "2026-01-23T04:00:10.000Z",
-            },
-        ]
-
-    @pytest.fixture
-    def sample_metadata(self):
-        """Sample playlist metadata with in_review version."""
-        return PlaylistMetadata(
-            _id="meta123",
-            playlist_id=42,
-            in_review=5,
-            meeting_id="abc-def-ghi",
-            platform="google_meet",
-            vexa_meeting_id=123,
-        )
-
-    @pytest.mark.asyncio
-    async def test_saves_segments_to_storage(
-        self, service, mock_storage_provider, sample_vexa_segments, sample_metadata
-    ):
-        """Test that segments are saved to storage."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": sample_vexa_segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        assert mock_storage_provider.upsert_segment.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_publishes_segment_created_event(
-        self,
-        service,
-        mock_storage_provider,
-        mock_event_publisher,
-        sample_vexa_segments,
-        sample_metadata,
-    ):
-        """Test that SEGMENT_CREATED event is published for new segments."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [sample_vexa_segments[0]],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_event_publisher.publish.assert_called()
-        call_args = mock_event_publisher.publish.call_args_list[0]
-        assert call_args[0][0] == EventType.SEGMENT_CREATED
-        assert call_args[0][1]["text"] == "Hello, this is a test."
-        assert call_args[0][1]["speaker"] == "John Doe"
-
-    @pytest.mark.asyncio
-    async def test_publishes_segment_updated_event(
-        self,
-        service,
-        mock_storage_provider,
-        mock_event_publisher,
-        sample_vexa_segments,
-        sample_metadata,
-    ):
-        """Test that SEGMENT_UPDATED event is published for existing segments."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            False,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [sample_vexa_segments[0]],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_event_publisher.publish.assert_called()
-        call_args = mock_event_publisher.publish.call_args_list[0]
-        assert call_args[0][0] == EventType.SEGMENT_UPDATED
-
-    @pytest.mark.asyncio
-    async def test_generates_correct_segment_id(
-        self, service, mock_storage_provider, sample_vexa_segments, sample_metadata
-    ):
-        """Test that segment ID is generated correctly."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [sample_vexa_segments[0]],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        expected_segment_id = generate_segment_id(
-            playlist_id=42,
-            version_id=5,
-            absolute_start_time="2026-01-23T04:00:00.000Z",
-        )
-
-        call_kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
-        assert call_kwargs["segment_id"] == expected_segment_id
-
-    @pytest.mark.asyncio
-    async def test_skips_empty_text_segments(
-        self, service, mock_storage_provider, sample_metadata
-    ):
-        """Test that segments with empty text are skipped."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [
-                {
-                    "text": "",
-                    "speaker": "John Doe",
-                    "absolute_start_time": "2026-01-23T04:00:00.000Z",
-                },
-                {
-                    "text": "   ",
-                    "speaker": "Jane Smith",
-                    "absolute_start_time": "2026-01-23T04:00:05.000Z",
-                },
-            ],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_storage_provider.upsert_segment.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_skips_segments_without_start_time(
-        self, service, mock_storage_provider, sample_metadata
-    ):
-        """Test that segments without absolute_start_time are skipped."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [
-                {
-                    "text": "Hello world",
-                    "speaker": "John Doe",
-                },
-            ],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_storage_provider.upsert_segment.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_handles_missing_playlist_mapping(
-        self, service, mock_storage_provider, sample_vexa_segments, caplog
-    ):
-        """Test handling when playlist mapping is not found."""
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": sample_vexa_segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_storage_provider.upsert_segment.assert_not_called()
-        assert "No playlist_id found for meeting" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_handles_missing_in_review_version(
-        self, service, mock_storage_provider, sample_vexa_segments, caplog
-    ):
-        """Test handling when in_review version is not set."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
-            _id="meta123",
-            playlist_id=42,
-            in_review=None,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": sample_vexa_segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_storage_provider.upsert_segment.assert_not_called()
-        assert "No in_review version found" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_handles_empty_segments_list(self, service, mock_storage_provider):
-        """Test handling when segments list is empty."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_storage_provider.get_playlist_metadata.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_uses_default_speaker_when_missing(
-        self, service, mock_storage_provider, mock_event_publisher, sample_metadata
-    ):
-        """Test that 'Unknown' is used as default speaker."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": [
-                {
-                    "text": "Hello world",
-                    "absolute_start_time": "2026-01-23T04:00:00.000Z",
-                    "absolute_end_time": "2026-01-23T04:00:05.000Z",
-                },
-            ],
-        }
-
-        await service.on_transcription_updated(payload)
-
-        call_kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
-        assert call_kwargs["data"].speaker == "Unknown"
-
-    @pytest.mark.asyncio
-    async def test_skips_segments_when_transcription_paused(
-        self, service, mock_storage_provider, sample_vexa_segments, caplog
-    ):
-        """Test that segments are not saved when transcription is paused."""
-        import logging
-
-        caplog.set_level(logging.DEBUG)
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        paused_metadata = PlaylistMetadata(
-            _id="meta123",
-            playlist_id=42,
-            in_review=5,
-            meeting_id="abc-def-ghi",
-            platform="google_meet",
-            vexa_meeting_id=123,
-            transcription_paused=True,
-        )
-        mock_storage_provider.get_playlist_metadata.return_value = paused_metadata
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": sample_vexa_segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        mock_storage_provider.upsert_segment.assert_not_called()
-        assert "Transcription paused for playlist" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_saves_segments_when_transcription_not_paused(
-        self, service, mock_storage_provider, sample_vexa_segments, sample_metadata
-    ):
-        """Test that segments are saved when transcription is not paused."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": sample_vexa_segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        assert mock_storage_provider.upsert_segment.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_skips_segments_before_resume_time(
-        self, service, mock_storage_provider, caplog
-    ):
-        """Test that segments from before the resume time are skipped."""
-        import logging
-        from datetime import datetime, timezone
-
-        caplog.set_level(logging.DEBUG)
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-
-        resumed_at = datetime(2026, 1, 23, 4, 0, 10, tzinfo=timezone.utc)
-        resumed_metadata = PlaylistMetadata(
-            _id="meta123",
-            playlist_id=42,
-            in_review=5,
-            meeting_id="abc-def-ghi",
-            platform="google_meet",
-            transcription_paused=False,
-            transcription_resumed_at=resumed_at,
-        )
-        mock_storage_provider.get_playlist_metadata.return_value = resumed_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        segments = [
-            {
-                "text": "Before pause - should be skipped",
-                "speaker": "John",
-                "absolute_start_time": "2026-01-23T04:00:05.000Z",
-                "absolute_end_time": "2026-01-23T04:00:08.000Z",
-            },
-            {
-                "text": "After resume - should be saved",
-                "speaker": "Jane",
-                "absolute_start_time": "2026-01-23T04:00:15.000Z",
-                "absolute_end_time": "2026-01-23T04:00:20.000Z",
-            },
-        ]
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        assert mock_storage_provider.upsert_segment.call_count == 1
-        call_kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
-        assert call_kwargs["data"].text == "After resume - should be saved"
-        assert "Skipping segment from before resume" in caplog.text
-
-    @pytest.mark.asyncio
-    async def test_saves_all_segments_when_no_resume_time(
-        self, service, mock_storage_provider, sample_vexa_segments, sample_metadata
-    ):
-        """Test that all segments are saved when there is no resume time."""
-        service._meeting_to_playlist["google_meet:abc-def-ghi"] = 42
-        mock_storage_provider.get_playlist_metadata.return_value = sample_metadata
-        mock_storage_provider.upsert_segment.return_value = (
-            MagicMock(spec=StoredSegment),
-            True,
-        )
-
-        payload = {
-            "platform": "google_meet",
-            "meeting_id": "abc-def-ghi",
-            "segments": sample_vexa_segments,
-        }
-
-        await service.on_transcription_updated(payload)
-
-        assert mock_storage_provider.upsert_segment.call_count == 2
-
-
 class TestOnVexaEvent:
     """Tests for Vexa event forwarding."""
 
     @pytest.mark.asyncio
-    async def test_forwards_transcript_updated(self, service, mock_event_publisher):
-        """Test that transcript.updated is forwarded via event publisher."""
+    async def test_forwards_transcript_updated(self, service):
+        """`transcript.updated` must route to on_transcription_updated so the
+        flat `{type:"transcript", ...}` broadcast happens. The legacy
+        `TRANSCRIPTION_UPDATED` publish has been removed — nothing
+        subscribed and the flat envelope carries the full payload."""
+        from unittest.mock import AsyncMock
+
+        service.on_transcription_updated = AsyncMock()
         payload = {
             "platform": "google_meet",
             "meeting_id": "abc-def-ghi",
-            "segments": [],
+            "speaker": "Alice",
+            "confirmed": [],
+            "pending": [],
+            "ts": "2026-01-23T04:00:05.000Z",
         }
 
         await service._on_vexa_event("transcript.updated", payload)
 
-        mock_event_publisher.publish.assert_called_once_with(
-            EventType.TRANSCRIPTION_UPDATED,
-            payload,
-        )
+        service.on_transcription_updated.assert_called_once_with(payload)
 
     @pytest.mark.asyncio
     async def test_forwards_bot_status_changed(self, service, mock_event_publisher):
@@ -964,42 +556,276 @@ class TestResubscribeToActiveMeetings:
         assert mock_event_publisher.publish.call_count == 2
 
 
-class TestSegmentIdGeneration:
-    """Tests for segment ID generation consistency."""
+class TestOnTranscriptionUpdated:
+    """Tests for `on_transcription_updated` — the new flat-passthrough flow."""
 
-    def test_same_inputs_generate_same_id(self):
-        """Test that identical inputs generate the same segment ID."""
-        id1 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        id2 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        assert id1 == id2
+    @pytest.fixture
+    def service_ready(
+        self,
+        mock_transcription_provider,
+        mock_storage_provider,
+        mock_event_publisher,
+    ):
+        svc = TranscriptionService(
+            transcription_provider=mock_transcription_provider,
+            storage_provider=mock_storage_provider,
+            event_publisher=mock_event_publisher,
+        )
+        svc._meeting_to_playlist["google_meet:abc-def"] = 42
+        return svc
 
-    def test_different_start_time_generates_different_id(self):
-        """Test that different start times generate different IDs."""
-        id1 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        id2 = generate_segment_id(42, 5, "2026-01-23T04:00:05.000Z")
-        assert id1 != id2
+    @pytest.fixture
+    def metadata(self):
+        return PlaylistMetadata(
+            _id="meta1",
+            playlist_id=42,
+            in_review=7,
+            transcription_paused=False,
+        )
 
-    def test_different_playlist_generates_different_id(self):
-        """Test that different playlists generate different IDs."""
-        id1 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        id2 = generate_segment_id(43, 5, "2026-01-23T04:00:00.000Z")
-        assert id1 != id2
+    def _payload(self, **overrides):
+        base = {
+            "platform": "google_meet",
+            "meeting_id": "abc-def",
+            "speaker": "Alice",
+            "confirmed": [],
+            "pending": [],
+            "ts": "2026-04-20T19:00:00.000Z",
+        }
+        base.update(overrides)
+        return base
 
-    def test_different_version_generates_different_id(self):
-        """Test that different versions generate different IDs."""
-        id1 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        id2 = generate_segment_id(42, 6, "2026-01-23T04:00:00.000Z")
-        assert id1 != id2
+    def _seg(self, **overrides):
+        seg = {
+            "segment_id": "abc:speaker-0:1",
+            "text": "hello world",
+            "speaker": "Alice",
+            "language": "en",
+            "start_time": 0.0,
+            "end_time": 1.0,
+            "absolute_start_time": "2026-04-20T19:00:00.000Z",
+            "absolute_end_time": "2026-04-20T19:00:01.000Z",
+            "updated_at": "2026-04-20T19:00:01.500Z",
+        }
+        seg.update(overrides)
+        return seg
 
-    def test_speaker_changes_do_not_affect_id(self):
-        """Test that the same start time generates the same ID regardless of speaker.
+    @pytest.mark.asyncio
+    async def test_upserts_confirmed_and_broadcasts_flat_shape(
+        self, service_ready, mock_storage_provider, mock_event_publisher, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        seg = self._seg()
 
-        This is important because Vexa's mutable transcription can reassign
-        speakers as it refines the transcript.
-        """
-        id1 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        id2 = generate_segment_id(42, 5, "2026-01-23T04:00:00.000Z")
-        assert id1 == id2
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[seg], pending=[{"segment_id": "p1"}])
+        )
+
+        mock_storage_provider.upsert_segment.assert_called_once()
+        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        assert kwargs["playlist_id"] == 42
+        assert kwargs["version_id"] == 7
+        assert kwargs["segment_id"] == "abc:speaker-0:1"
+        assert kwargs["data"].segment_id == "abc:speaker-0:1"
+        assert kwargs["data"].completed is True
+        assert kwargs["data"].speaker == "Alice"
+
+        mock_event_publisher.ws_manager.broadcast.assert_called_once()
+        msg = mock_event_publisher.ws_manager.broadcast.call_args.args[0]
+        assert msg["type"] == "transcript"
+        assert msg["speaker"] == "Alice"
+        assert msg["confirmed"] == [seg]
+        assert msg["pending"] == [{"segment_id": "p1"}]
+        assert msg["playlist_id"] == 42
+        assert msg["version_id"] == 7
+        assert msg["ts"] == "2026-04-20T19:00:00.000Z"
+
+    @pytest.mark.asyncio
+    async def test_returns_when_storage_provider_missing(self, service_ready, caplog):
+        service_ready.storage_provider = None
+        await service_ready.on_transcription_updated(self._payload())
+        assert "Providers not initialized" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_when_event_publisher_missing(self, service_ready, caplog):
+        service_ready.event_publisher = None
+        await service_ready.on_transcription_updated(self._payload())
+        assert "Providers not initialized" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_when_no_playlist_mapping(
+        self, service_ready, mock_storage_provider, caplog
+    ):
+        await service_ready.on_transcription_updated(
+            self._payload(meeting_id="not-mapped")
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        assert "No playlist_id" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_when_metadata_missing(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = None
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_when_in_review_none(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m", playlist_id=42, in_review=None
+        )
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_when_paused(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m", playlist_id=42, in_review=7, transcription_paused=True
+        )
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_segment_before_resumed_at(
+        self, service_ready, mock_storage_provider
+    ):
+        from datetime import datetime, timezone
+
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m",
+            playlist_id=42,
+            in_review=7,
+            transcription_resumed_at=datetime(
+                2026, 4, 20, 19, 0, 30, tzinfo=timezone.utc
+            ),
+        )
+
+        old = self._seg(
+            segment_id="old", absolute_start_time="2026-04-20T19:00:00.000Z"
+        )
+        new = self._seg(
+            segment_id="new", absolute_start_time="2026-04-20T19:01:00.000Z"
+        )
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[old, new])
+        )
+
+        ids = [
+            c.kwargs["segment_id"]
+            for c in mock_storage_provider.upsert_segment.call_args_list
+        ]
+        assert ids == ["new"]
+
+    @pytest.mark.asyncio
+    async def test_handles_naive_resumed_at(self, service_ready, mock_storage_provider):
+        """Naive `transcription_resumed_at` is treated as UTC."""
+        from datetime import datetime
+
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m",
+            playlist_id=42,
+            in_review=7,
+            transcription_resumed_at=datetime(2026, 4, 20, 19, 0, 30),
+        )
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                confirmed=[
+                    self._seg(absolute_start_time="2026-04-20T19:01:00.000Z"),
+                ]
+            )
+        )
+
+        mock_storage_provider.upsert_segment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_swallows_invalid_absolute_start_time(
+        self, service_ready, mock_storage_provider
+    ):
+        """A malformed `absolute_start_time` falls through `ValueError` and the segment is still upserted."""
+        from datetime import datetime, timezone
+
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m",
+            playlist_id=42,
+            in_review=7,
+            transcription_resumed_at=datetime(
+                2026, 4, 20, 19, 0, 30, tzinfo=timezone.utc
+            ),
+        )
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg(absolute_start_time="not-a-date")])
+        )
+        mock_storage_provider.upsert_segment.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_segments_missing_required_fields(
+        self, service_ready, mock_storage_provider, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                confirmed=[
+                    self._seg(segment_id=""),
+                    self._seg(absolute_start_time=""),
+                    self._seg(text=""),
+                    self._seg(text="   "),
+                ]
+            )
+        )
+        mock_storage_provider.upsert_segment.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_top_level_speaker(
+        self, service_ready, mock_storage_provider, metadata
+    ):
+        """Per-segment `speaker` overrides; otherwise the message-level `speaker` is used."""
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                speaker="Bob",
+                confirmed=[self._seg(speaker=None, segment_id="x")],
+            )
+        )
+        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        assert kwargs["data"].speaker == "Bob"
+
+    @pytest.mark.asyncio
+    async def test_logs_and_continues_on_upsert_failure(
+        self,
+        service_ready,
+        mock_storage_provider,
+        mock_event_publisher,
+        metadata,
+        caplog,
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        mock_storage_provider.upsert_segment.side_effect = RuntimeError("boom")
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+
+        assert "Failed to upsert segment" in caplog.text
+        mock_event_publisher.ws_manager.broadcast.assert_called_once()
 
 
 class TestTranscriptionServiceLifecycle:

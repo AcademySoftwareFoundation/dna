@@ -2,13 +2,17 @@
 
 description: "DNA - Notes Generation Eval"
 
+# ── Provider is set via PROVIDER in your .env file (copy from .env.example). ─
+metadata:
+  provider: &provider "${PROVIDER}"
+
 prompts:
   - file://prompts/notes_v1.txt
   - file://prompts/notes_v2.txt
   - file://prompts/notes_v3.txt
 
 providers:
-  - "anthropic:messages:claude-opus-4-6"
+  - *provider
 
 defaultTest:
   vars:
@@ -36,7 +40,7 @@ defaultTest:
         4. No meta-commentary or self-reference ("this appears to be...", "I think this is...")
         5. No information fabricated beyond what the transcript and version data provide
         6. No emojis
-      provider: "anthropic:messages:claude-opus-4-6"
+      provider: *provider
 
 tests:
   # ── TST_010_0010 ── Comp, blown-out sky and desert dust ──────────────────
@@ -53,7 +57,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_010_0010_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "sky"
@@ -73,7 +77,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_010_0020_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "throne"
@@ -93,7 +97,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_010_0030_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "tree"
@@ -113,7 +117,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_010_0040_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "rack focus"
@@ -133,7 +137,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_020_0010_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "tech check"
@@ -152,7 +156,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_020_0020_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "haze"
@@ -172,7 +176,7 @@ tests:
     assert:
       - type: factuality
         value: file://../dataset/notes/TST_020_0030_ref.txt
-        provider: "anthropic:messages:claude-opus-4-6"
+        provider: *provider
       - type: contains-all
         value:
           - "cruiser"

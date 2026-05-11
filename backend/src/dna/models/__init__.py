@@ -43,7 +43,6 @@ from dna.models.requests import (
 from dna.models.stored_segment import (
     StoredSegment,
     StoredSegmentCreate,
-    generate_segment_id,
 )
 from dna.models.transcription import (
     BotSession,
@@ -92,7 +91,6 @@ __all__ = [
     "PlaylistMetadataUpdate",
     "StoredSegment",
     "StoredSegmentCreate",
-    "generate_segment_id",
     "BotSession",
     "BotStatus",
     "BotStatusEnum",
