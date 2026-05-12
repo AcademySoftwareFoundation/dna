@@ -417,6 +417,26 @@ async def upload_attachment(
     return {"id": attachment_id, "filename": filename}
 
 
+@app.get(
+    "/api/attachments/{attachment_id}",
+    tags=["Attachments"],
+    summary="Retrieve a staged attachment",
+    response_class=FileResponse,
+)
+async def get_attachment(attachment_id: str, _: CurrentUserDep) -> FileResponse:
+    """Return the image file for a staged attachment by ID."""
+    attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
+    if not attachment_dir.exists():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    files = list(attachment_dir.iterdir())
+    if not files:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    path = files[0]
+    suffix = path.suffix.lower()
+    media_type = THUMBNAIL_MEDIA_TYPES.get(suffix, "application/octet-stream")
+    return FileResponse(path, media_type=media_type)
+
+
 @app.delete("/api/attachments/{attachment_id}", tags=["Attachments"])
 async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
     """Delete a staged attachment by ID."""

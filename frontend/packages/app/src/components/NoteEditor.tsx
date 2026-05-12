@@ -18,7 +18,8 @@ import { apiHandler } from '../api';
 
 export interface StagedAttachment {
   id: string;
-  file: File;
+  /** Undefined for server-loaded attachments (file is not re-downloaded). */
+  file?: File;
   previewUrl: string;
   backendId?: string;
 }
@@ -364,6 +365,30 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       if (attachments.length === 0) setIsAttachmentTrayOpen(false);
     }, [attachments.length]);
 
+    // Sync server-saved attachment IDs into local state so previously uploaded
+    // images are visible when the editor mounts or a different draft is loaded.
+    const attachmentIdsKey = draftNote?.attachmentIds?.join(',') ?? '';
+    useEffect(() => {
+      const serverIds = draftNote?.attachmentIds ?? [];
+      if (!serverIds.length) return;
+      const existingBackendIds = new Set(
+        attachmentsRef.current.map((a) => a.backendId).filter(Boolean)
+      );
+      const newIds = serverIds.filter((id) => !existingBackendIds.has(id));
+      if (!newIds.length) return;
+      const newEntries: StagedAttachment[] = newIds.map((id) => ({
+        id,
+        previewUrl: apiHandler.getAttachmentUrl(id),
+        backendId: id,
+      }));
+      const next = [...attachmentsRef.current, ...newEntries];
+      attachmentsRef.current = next;
+      attachmentsByVersion.current.set(versionIdRef.current, next);
+      setAttachments(next);
+      setIsAttachmentTrayOpen(true);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [attachmentIdsKey, currentVersion?.id]);
+
     const handleAttach = useCallback(
       async (file: File) => {
         const previewUrl = URL.createObjectURL(file);
@@ -639,21 +664,24 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
                 </AttachmentTrayClose>
               </AttachmentTrayHeader>
               <ThumbnailGrid>
-                {attachments.map((a) => (
-                  <ThumbnailBox key={a.id}>
-                    <img
-                      src={a.previewUrl}
-                      alt={a.file.name}
-                      title={a.file.name}
-                    />
-                    <RemoveButton
-                      onClick={() => handleRemoveAttachment(a.id)}
-                      title="Remove attachment"
-                    >
-                      <X size={10} />
-                    </RemoveButton>
-                  </ThumbnailBox>
-                ))}
+                {attachments.map((a) => {
+                  const displayName = a.file?.name ?? a.backendId ?? '';
+                  return (
+                    <ThumbnailBox key={a.id}>
+                      <img
+                        src={a.previewUrl}
+                        alt={displayName}
+                        title={displayName}
+                      />
+                      <RemoveButton
+                        onClick={() => handleRemoveAttachment(a.id)}
+                        title="Remove attachment"
+                      >
+                        <X size={10} />
+                      </RemoveButton>
+                    </ThumbnailBox>
+                  );
+                })}
               </ThumbnailGrid>
             </AttachmentTray>
           )}
