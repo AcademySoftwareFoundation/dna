@@ -8,7 +8,7 @@ import {
   useEffect,
 } from 'react';
 import styled from 'styled-components';
-import { X, Image } from 'lucide-react';
+import { X, Image, ImageOff } from 'lucide-react';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -22,6 +22,8 @@ export interface StagedAttachment {
   file?: File;
   previewUrl: string;
   backendId?: string;
+  /** True when the server returned 404 for this attachment (e.g. after a backend restart). */
+  broken?: boolean;
 }
 
 interface NoteEditorProps {
@@ -254,6 +256,17 @@ const ThumbnailBox = styled.div`
   }
 `;
 
+const BrokenThumbnail = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: ${({ theme }) => theme.colors.bg.surfaceHover};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
 const RemoveButton = styled.button`
   position: absolute;
   top: -6px;
@@ -367,6 +380,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
     // Sync server-saved attachment IDs into local state so previously uploaded
     // images are visible when the editor mounts or a different draft is loaded.
+    // Fetches through the authenticated API client to avoid broken <img> tags.
     const attachmentIdsKey = draftNote?.attachmentIds?.join(',') ?? '';
     useEffect(() => {
       const serverIds = draftNote?.attachmentIds ?? [];
@@ -376,16 +390,40 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       );
       const newIds = serverIds.filter((id) => !existingBackendIds.has(id));
       if (!newIds.length) return;
-      const newEntries: StagedAttachment[] = newIds.map((id) => ({
-        id,
-        previewUrl: apiHandler.getAttachmentUrl(id),
-        backendId: id,
-      }));
-      const next = [...attachmentsRef.current, ...newEntries];
-      attachmentsRef.current = next;
-      attachmentsByVersion.current.set(versionIdRef.current, next);
-      setAttachments(next);
-      setIsAttachmentTrayOpen(true);
+
+      let cancelled = false;
+      const blobUrls: string[] = [];
+
+      void (async () => {
+        const results = await Promise.allSettled(
+          newIds.map(async (id) => {
+            const previewUrl = await apiHandler.getAttachmentBlobUrl(id);
+            blobUrls.push(previewUrl);
+            return { id, previewUrl, backendId: id } as StagedAttachment;
+          })
+        );
+
+        if (cancelled) {
+          blobUrls.forEach((u) => URL.revokeObjectURL(u));
+          return;
+        }
+
+        const entries: StagedAttachment[] = results.map((result, i) =>
+          result.status === 'fulfilled'
+            ? result.value
+            : ({ id: newIds[i], previewUrl: '', backendId: newIds[i], broken: true } as StagedAttachment)
+        );
+
+        const next = [...attachmentsRef.current, ...entries];
+        attachmentsRef.current = next;
+        attachmentsByVersion.current.set(versionIdRef.current, next);
+        setAttachments(next);
+        setIsAttachmentTrayOpen(true);
+      })();
+
+      return () => {
+        cancelled = true;
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [attachmentIdsKey, currentVersion?.id]);
 
@@ -668,11 +706,17 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
                   const displayName = a.file?.name ?? a.backendId ?? '';
                   return (
                     <ThumbnailBox key={a.id}>
-                      <img
-                        src={a.previewUrl}
-                        alt={displayName}
-                        title={displayName}
-                      />
+                      {a.broken ? (
+                        <BrokenThumbnail title="Image unavailable (re-upload to restore)">
+                          <ImageOff size={20} />
+                        </BrokenThumbnail>
+                      ) : (
+                        <img
+                          src={a.previewUrl}
+                          alt={displayName}
+                          title={displayName}
+                        />
+                      )}
                       <RemoveButton
                         onClick={() => handleRemoveAttachment(a.id)}
                         title="Remove attachment"

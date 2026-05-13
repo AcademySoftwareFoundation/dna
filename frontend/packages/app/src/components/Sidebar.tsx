@@ -275,10 +275,13 @@ export function Sidebar({
 
   const publishDialogNotes = useMemo(
     () =>
-      (draftNotes ?? []).filter(
-        (n: DraftNote) =>
-          (!n.published || n.edited) && Boolean(n.content?.trim())
-      ),
+      (draftNotes ?? []).filter((n: DraftNote) => {
+        const hasContent =
+          Boolean(n.content?.trim()) || Boolean(n.attachment_ids?.length);
+        const needsPublishing =
+          !n.published || n.edited || Boolean(n.attachment_ids?.length);
+        return hasContent && needsPublishing;
+      }),
     [draftNotes]
   );
 

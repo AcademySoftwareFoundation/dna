@@ -173,6 +173,7 @@ export function useDraftNote({
               cc: data.cc ?? updated[index].cc,
               version_status: data.version_status ?? updated[index].version_status,
               edited: data.edited ?? updated[index].edited,
+              attachment_ids: data.attachment_ids ?? updated[index].attachment_ids,
             };
             return updated;
           } else {
@@ -372,15 +373,26 @@ export function useDraftNote({
   const saveAttachmentIds = useCallback(
     async (ids: string[]) => {
       if (!isEnabled) return;
+      const addingAttachments = ids.length > 0;
       setLocalDraft((prev) => {
         const base = prev ?? createEmptyDraft(currentVersion, submitter);
-        return { ...base, attachmentIds: ids };
+        const edited = base.edited || addingAttachments;
+        return { ...base, attachmentIds: ids, edited };
       });
       // Patch pending debounce data so a late-firing debounce doesn't overwrite with []
       if (pendingDataRef.current) {
-        pendingDataRef.current = { ...pendingDataRef.current, attachmentIds: ids };
+        pendingDataRef.current = {
+          ...pendingDataRef.current,
+          attachmentIds: ids,
+          ...(addingAttachments ? { edited: true } : {}),
+        };
       }
-      await upsertMutation.mutateAsync({ data: { attachment_ids: ids } });
+      await upsertMutation.mutateAsync({
+        data: {
+          attachment_ids: ids,
+          ...(addingAttachments ? { edited: true } : {}),
+        },
+      });
     },
     [isEnabled, upsertMutation, currentVersion, submitter]
   );

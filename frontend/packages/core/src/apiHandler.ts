@@ -56,10 +56,8 @@ export interface ApiHandlerConfig {
 class ApiHandler {
   private axiosInstance: AxiosInstance;
   private currentUser: User | null = null;
-  readonly baseUrl: string;
 
   constructor(config: ApiHandlerConfig) {
-    this.baseUrl = config.baseURL;
     this.axiosInstance = axios.create({
       baseURL: config.baseURL,
       timeout: config.timeout ?? 30000,
@@ -307,8 +305,12 @@ class ApiHandler {
     await this.delete(`/api/attachments/${attachmentId}`);
   }
 
-  getAttachmentUrl(attachmentId: string): string {
-    return `${this.baseUrl}/api/attachments/${attachmentId}`;
+  async getAttachmentBlobUrl(attachmentId: string): Promise<string> {
+    const response = await this.axiosInstance.get<Blob>(
+      `/api/attachments/${attachmentId}`,
+      { responseType: 'blob' }
+    );
+    return URL.createObjectURL(response.data);
   }
 }
 
