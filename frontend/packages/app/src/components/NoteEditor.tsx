@@ -8,7 +8,7 @@ import {
   useEffect,
 } from 'react';
 import styled from 'styled-components';
-import { X, Image } from 'lucide-react';
+import { X, Image, ImageOff } from 'lucide-react';
 import { SearchResult, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -18,9 +18,10 @@ import { apiHandler } from '../api';
 
 export interface StagedAttachment {
   id: string;
-  file: File;
+  file?: File;
   previewUrl: string;
   backendId?: string;
+  broken?: boolean;
 }
 
 interface NoteEditorProps {
@@ -29,16 +30,21 @@ interface NoteEditorProps {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
+  variant?: 'default' | 'embedded';
 }
 
 export interface NoteEditorHandle {
   appendContent: (content: string) => void;
 }
 
-const DEFAULT_HEIGHT = 280;
-const MIN_HEIGHT = 120;
+const DEFAULT_HEIGHT = 140;
+const MIN_HEIGHT = 60;
 
-const EditorWrapper = styled.div<{ $height: number; $isDragOver: boolean }>`
+const EditorWrapper = styled.div<{
+  $height: number;
+  $isDragOver: boolean;
+  $embedded?: boolean;
+}>`
   position: relative;
   display: flex;
   flex-direction: column;
@@ -46,11 +52,17 @@ const EditorWrapper = styled.div<{ $height: number; $isDragOver: boolean }>`
   padding: 20px;
   padding-bottom: 8px;
   background: ${({ theme }) => theme.colors.bg.surface};
-  border: 1px solid
-    ${({ $isDragOver, theme }) =>
-      $isDragOver ? theme.colors.accent.main : theme.colors.border.subtle};
+  border: ${({ $embedded, $isDragOver, theme }) =>
+    $embedded
+      ? 'none'
+      : `1px solid ${
+          $isDragOver ? theme.colors.accent.main : theme.colors.border.subtle
+        }`};
+  box-shadow: ${({ $embedded, $isDragOver, theme }) =>
+    $embedded && $isDragOver ? `inset 0 0 0 2px ${theme.colors.accent.main}` : 'none'};
   border-radius: ${({ theme }) => theme.radii.lg};
-  transition: border-color ${({ theme }) => theme.transitions.fast};
+  transition: border-color ${({ theme }) => theme.transitions.fast},
+    box-shadow ${({ theme }) => theme.transitions.fast};
 `;
 
 const EditorContent = styled.div<{ $height: number }>`
@@ -80,7 +92,11 @@ const EditorTitle = styled.h2`
   flex-shrink: 0;
 `;
 
-const StatusBadge = styled.div<{ $isWarning?: boolean; $isDraft?: boolean }>`
+const StatusBadge = styled.div<{
+  $isWarning?: boolean;
+  $isDraft?: boolean;
+  $compact?: boolean;
+}>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -99,8 +115,66 @@ const StatusBadge = styled.div<{ $isWarning?: boolean; $isDraft?: boolean }>`
       : $isWarning
         ? theme.colors.status.warning
         : theme.colors.status.success};
-  margin-left: 12px;
+  margin-left: ${({ $compact }) => ($compact ? '0' : '12px')};
 `;
+
+const InlineBadgeWrap = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+`;
+
+export type NoteDraftStatusFields = Pick<
+  LocalDraftNote,
+  'published' | 'publishedNoteId' | 'content' | 'subject'
+>;
+
+export function NoteDraftStatusBadges({
+  draft,
+  layout = 'title',
+}: {
+  draft: NoteDraftStatusFields | null;
+  layout?: 'title' | 'inline';
+}) {
+  if (!draft) return null;
+
+  const showPublished = draft.published;
+  const showEdited = !draft.published && Boolean(draft.publishedNoteId);
+  const showDraftBadge =
+    !draft.published &&
+    !draft.publishedNoteId &&
+    Boolean(draft.content || draft.subject);
+
+  if (!showPublished && !showEdited && !showDraftBadge) return null;
+
+  const compact = layout === 'inline';
+
+  const badges = (
+    <>
+      {showPublished && (
+        <StatusBadge $compact={compact}>Published</StatusBadge>
+      )}
+      {showEdited && (
+        <StatusBadge $isWarning $compact={compact}>
+          Published (Edited)
+        </StatusBadge>
+      )}
+      {showDraftBadge && (
+        <StatusBadge $isDraft $compact={compact}>
+          Draft
+        </StatusBadge>
+      )}
+    </>
+  );
+
+  if (layout === 'inline') {
+    return <InlineBadgeWrap>{badges}</InlineBadgeWrap>;
+  }
+
+  return <>{badges}</>;
+}
 
 const DropOverlay = styled.div`
   position: absolute;
@@ -179,6 +253,17 @@ const ThumbnailBox = styled.div`
   }
 `;
 
+const BrokenThumbnail = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: ${({ theme }) => theme.colors.bg.surfaceHover};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
 const RemoveButton = styled.button`
   position: absolute;
   top: -6px;
@@ -237,9 +322,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       draftNote,
       updateDraftNote,
       saveAttachmentIds,
+      variant = 'default',
     },
     ref
   ) {
+    const isEmbedded = variant === 'embedded';
+
     const currentVersionAsSearchResult: SearchResult | undefined =
       useMemo(() => {
         if (!currentVersion) return undefined;
@@ -272,7 +360,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     >(new Map());
     const versionIdRef = useRef(currentVersion?.id);
 
-    // Restore per-version attachments when version changes
     useEffect(() => {
       versionIdRef.current = currentVersion?.id;
       const saved = attachmentsByVersion.current.get(currentVersion?.id) ?? [];
@@ -282,10 +369,55 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       setAnimatePill(false);
     }, [currentVersion?.id]);
 
-    // Auto-close tray when all attachments are removed
     useEffect(() => {
       if (attachments.length === 0) setIsAttachmentTrayOpen(false);
     }, [attachments.length]);
+
+    const attachmentIdsKey = draftNote?.attachmentIds?.join(',') ?? '';
+    useEffect(() => {
+      const serverIds = draftNote?.attachmentIds ?? [];
+      if (!serverIds.length) return;
+      const existingBackendIds = new Set(
+        attachmentsRef.current.map((a) => a.backendId).filter(Boolean)
+      );
+      const newIds = serverIds.filter((id) => !existingBackendIds.has(id));
+      if (!newIds.length) return;
+
+      let cancelled = false;
+      const blobUrls: string[] = [];
+
+      void (async () => {
+        const results = await Promise.allSettled(
+          newIds.map(async (id) => {
+            const previewUrl = await apiHandler.getAttachmentBlobUrl(id);
+            blobUrls.push(previewUrl);
+            return { id, previewUrl, backendId: id } as StagedAttachment;
+          })
+        );
+
+        if (cancelled) {
+          blobUrls.forEach((u) => URL.revokeObjectURL(u));
+          return;
+        }
+
+        const entries: StagedAttachment[] = results.map((result, i) =>
+          result.status === 'fulfilled'
+            ? result.value
+            : ({ id: newIds[i], previewUrl: '', backendId: newIds[i], broken: true } as StagedAttachment)
+        );
+
+        const next = [...attachmentsRef.current, ...entries];
+        attachmentsRef.current = next;
+        attachmentsByVersion.current.set(versionIdRef.current, next);
+        setAttachments(next);
+        setIsAttachmentTrayOpen(true);
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [attachmentIdsKey, currentVersion?.id]);
 
     const handleAttach = useCallback(
       async (file: File) => {
@@ -301,7 +433,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
         const result = await apiHandler.uploadAttachment(file);
 
-        // Patch backendId onto the staged entry
         const updated = attachmentsRef.current.map((a) =>
           a.id === localId ? { ...a, backendId: result.id } : a
         );
@@ -494,6 +625,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         <EditorWrapper
           $height={editorHeight}
           $isDragOver={isDragOver}
+          $embedded={isEmbedded}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -505,18 +637,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             </DropOverlay>
           )}
           <EditorHeader>
-            <TitleRow>
-              <EditorTitle>Notes</EditorTitle>
-              {draftNote?.published && <StatusBadge>Published</StatusBadge>}
-              {!draftNote?.published && draftNote?.publishedNoteId && (
-                <StatusBadge $isWarning>Published (Edited)</StatusBadge>
-              )}
-              {!draftNote?.published &&
-                !draftNote?.publishedNoteId &&
-                (draftNote?.content || draftNote?.subject) && (
-                  <StatusBadge $isDraft>Draft</StatusBadge>
-                )}
-            </TitleRow>
+            {!isEmbedded && (
+              <TitleRow>
+                <EditorTitle>Notes</EditorTitle>
+                <NoteDraftStatusBadges draft={draftNote} layout="title" />
+              </TitleRow>
+            )}
             <NoteOptionsInline
               toValue={editableTo}
               ccValue={draftNote?.cc ?? []}
@@ -567,21 +693,30 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
                 </AttachmentTrayClose>
               </AttachmentTrayHeader>
               <ThumbnailGrid>
-                {attachments.map((a) => (
-                  <ThumbnailBox key={a.id}>
-                    <img
-                      src={a.previewUrl}
-                      alt={a.file.name}
-                      title={a.file.name}
-                    />
-                    <RemoveButton
-                      onClick={() => handleRemoveAttachment(a.id)}
-                      title="Remove attachment"
-                    >
-                      <X size={10} />
-                    </RemoveButton>
-                  </ThumbnailBox>
-                ))}
+                {attachments.map((a) => {
+                  const displayName = a.file?.name ?? a.backendId ?? '';
+                  return (
+                    <ThumbnailBox key={a.id}>
+                      {a.broken ? (
+                        <BrokenThumbnail title="Image unavailable (re-upload to restore)">
+                          <ImageOff size={20} />
+                        </BrokenThumbnail>
+                      ) : (
+                        <img
+                          src={a.previewUrl}
+                          alt={displayName}
+                          title={displayName}
+                        />
+                      )}
+                      <RemoveButton
+                        onClick={() => handleRemoveAttachment(a.id)}
+                        title="Remove attachment"
+                      >
+                        <X size={10} />
+                      </RemoveButton>
+                    </ThumbnailBox>
+                  );
+                })}
               </ThumbnailGrid>
             </AttachmentTray>
           )}

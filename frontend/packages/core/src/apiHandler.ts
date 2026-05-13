@@ -304,6 +304,14 @@ class ApiHandler {
   async deleteAttachment(attachmentId: string): Promise<void> {
     await this.delete(`/api/attachments/${attachmentId}`);
   }
+
+  async getAttachmentBlobUrl(attachmentId: string): Promise<string> {
+    const response = await this.axiosInstance.get<Blob>(
+      `/api/attachments/${attachmentId}`,
+      { responseType: 'blob' }
+    );
+    return URL.createObjectURL(response.data);
+  }
 }
 
 export const createApiHandler = (config: ApiHandlerConfig): ApiHandler => {
