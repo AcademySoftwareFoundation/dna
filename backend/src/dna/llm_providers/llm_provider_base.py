@@ -3,8 +3,9 @@
 Abstract base class for LLM providers and factory function.
 """
 
+import json
 import os
-from typing import Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from openai import AsyncOpenAI
 
@@ -118,6 +119,66 @@ class LLMProviderBase:
         )
 
         return response.choices[0].message.content or ""
+
+    async def generate_with_tools(
+        self,
+        system_prompt: str,
+        user_message: str,
+        tools: list[dict[str, Any]],
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[str]],
+        max_iterations: int = 5,
+        temperature: float = 0.2,
+    ) -> str:
+        """Run an agentic loop: LLM may call tools until it returns final text."""
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        last_text = ""
+        for _ in range(max_iterations):
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=temperature,
+                max_tokens=2048,
+            )
+            choice = response.choices[0]
+            msg = choice.message
+            last_text = msg.content or ""
+            tool_calls = getattr(msg, "tool_calls", None) or []
+            if tool_calls:
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.content,
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": getattr(tc, "type", "function") or "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments or "{}",
+                                },
+                            }
+                            for tc in tool_calls
+                        ],
+                    }
+                )
+                for tc in tool_calls:
+                    args = json.loads(tc.function.arguments or "{}")
+                    result = await tool_executor(tc.function.name, args)
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": result,
+                        }
+                    )
+            else:
+                return last_text
+        return last_text
 
 
 def get_llm_provider() -> LLMProviderBase:

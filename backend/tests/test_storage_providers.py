@@ -97,6 +97,37 @@ class TestStorageProviderBase:
         with pytest.raises(NotImplementedError):
             await provider.get_segments_for_version(1, 1)
 
+    @pytest.mark.asyncio
+    async def test_get_qc_checks_raises_not_implemented(self):
+        provider = StorageProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.get_qc_checks("a@b.com")
+
+    @pytest.mark.asyncio
+    async def test_create_qc_check_raises_not_implemented(self):
+        from dna.models.qc_check import NoteQCCheckCreate
+
+        provider = StorageProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.create_qc_check(
+                "a@b.com",
+                NoteQCCheckCreate(name="n", prompt="p", severity="warning"),
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_qc_check_raises_not_implemented(self):
+        from dna.models.qc_check import NoteQCCheckUpdate
+
+        provider = StorageProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.update_qc_check("a@b.com", "id", NoteQCCheckUpdate(name="x"))
+
+    @pytest.mark.asyncio
+    async def test_delete_qc_check_raises_not_implemented(self):
+        provider = StorageProviderBase()
+        with pytest.raises(NotImplementedError):
+            await provider.delete_qc_check("a@b.com", "id")
+
 
 class TestGetStorageProvider:
     """Tests for get_storage_provider factory function."""

@@ -20,10 +20,18 @@ import {
 } from '@radix-ui/themes';
 import { Loader2, Info, MoreVertical } from 'lucide-react';
 import { usePublishNotes } from '../hooks/usePublishNotes';
-import { useDraftNote } from '../hooks/useDraftNote';
-import { DraftNote, Version, SearchResult } from '@dna/core';
+import { useDraftNote, type LocalDraftNote } from '../hooks/useDraftNote';
+import { useNoteQCChecks } from '../hooks/useNoteQCChecks';
+import {
+  DraftNote,
+  Version,
+  SearchResult,
+  NoteQCResult,
+} from '@dna/core';
 import { NoteEditor, NoteDraftStatusBadges } from './NoteEditor';
 import { UserAvatar } from './UserAvatar';
+import { NoteQCResultPill } from './NoteQCResultPill';
+import { NoteQCDiffModal } from './NoteQCDiffModal';
 
 interface PublishNotesDialogProps {
   open: boolean;
@@ -123,6 +131,26 @@ function draftRowKey(d: DraftNote): string {
   return d._id;
 }
 
+function rowDraftToLocalPreview(row: DraftNote): LocalDraftNote {
+  const links = (row.links || []).map((l) => ({
+    type: l.entity_type,
+    id: l.entity_id,
+    name: l.entity_name || '',
+  }));
+  return {
+    content: row.content ?? '',
+    subject: row.subject ?? '',
+    to: [],
+    cc: [],
+    links,
+    versionStatus: row.version_status ?? '',
+    published: row.published,
+    edited: row.edited,
+    publishedNoteId: row.published_note_id ?? null,
+    attachmentIds: row.attachment_ids ?? [],
+  };
+}
+
 function displayNameFromEmail(email: string): string {
   const local = email.split('@')[0] || email;
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -145,18 +173,35 @@ interface PublishNoteRowProps {
   playlistId: number;
   version: Version;
   draftOwnerEmail: string;
+  rowDraft: DraftNote;
   selected: boolean;
   onSelectedChange: (checked: boolean) => void;
+  qcLoading: boolean;
+  qcRowRefreshing: boolean;
+  qcResults: NoteQCResult[];
+  qcIgnored: Set<string>;
+  onQcToggleIgnore: (checkId: string) => void;
+  onQcRefreshDraft: () => Promise<void>;
 }
 
 function PublishNoteRow({
   playlistId,
   version,
   draftOwnerEmail,
+  rowDraft,
   selected,
   onSelectedChange,
+  qcLoading,
+  qcRowRefreshing,
+  qcResults,
+  qcIgnored,
+  onQcToggleIgnore,
+  onQcRefreshDraft,
 }: PublishNoteRowProps) {
   const registerFlush = useContext(RegisterFlushContext);
+  const [fixOpen, setFixOpen] = useState(false);
+  const [fixResult, setFixResult] = useState<NoteQCResult | null>(null);
+  const draftKey = draftRowKey(rowDraft);
 
   const currentVersionAsSearchResult: SearchResult = useMemo(
     () => ({
@@ -192,9 +237,33 @@ function PublishNoteRow({
   const versionDisplayName = version.name || `Version ${version.id}`;
   const title = `${displayNameFromEmail(draftOwnerEmail)}'s note on ${versionDisplayName}`;
 
+  const draftForModal = draftNote ?? rowDraftToLocalPreview(rowDraft);
+
+  const handleQcApply = async (patch: Partial<LocalDraftNote>) => {
+    updateDraftNote(patch);
+    void (async () => {
+      try {
+        await flushDebouncedSave();
+        await onQcRefreshDraft();
+      } catch {
+        /* best-effort; refreshingDraftKey clears in hook finally */
+      }
+    })();
+  };
+
   return (
     <NoteRowBlock>
-      <Flex align="center" gap="3" mb="3" wrap="wrap" style={{ width: '100%' }}>
+      <NoteQCDiffModal
+        open={fixOpen}
+        onOpenChange={(o) => {
+          setFixOpen(o);
+          if (!o) setFixResult(null);
+        }}
+        draft={draftForModal}
+        qcResult={fixResult}
+        onApply={handleQcApply}
+      />
+      <Flex align="center" gap="2" mb="2" wrap="wrap" style={{ width: '100%' }}>
         <Checkbox
           checked={selected}
           onCheckedChange={(c) => onSelectedChange(c === true)}
@@ -221,6 +290,19 @@ function PublishNoteRow({
             }
             layout="inline"
           />
+          <NoteQCResultPill
+            draftKey={draftKey}
+            results={qcResults}
+            loading={qcLoading || qcRowRefreshing}
+            ignored={qcIgnored}
+            onToggleIgnore={(checkId) => onQcToggleIgnore(checkId)}
+            onFix={(r) => {
+              setFixResult(r);
+              setFixOpen(true);
+            }}
+            localDraft={draftForModal}
+            onFixAll={handleQcApply}
+          />
         </Flex>
       </Flex>
       <NoteEditor
@@ -242,6 +324,12 @@ interface VersionPublishCardProps {
   currentUserEmail: string;
   selected: Record<string, boolean>;
   onToggle: (key: string, checked: boolean) => void;
+  qcLoading: boolean;
+  qcRefreshingDraftKey: string | null;
+  qcResults: Record<string, NoteQCResult[]>;
+  qcIgnored: Set<string>;
+  onQcToggleIgnore: (draftKey: string, checkId: string) => void;
+  onQcRefreshDraft: (d: DraftNote) => Promise<void>;
 }
 
 function VersionPublishCard({
@@ -251,6 +339,12 @@ function VersionPublishCard({
   currentUserEmail,
   selected,
   onToggle,
+  qcLoading,
+  qcRefreshingDraftKey,
+  qcResults,
+  qcIgnored,
+  onQcToggleIgnore,
+  onQcRefreshDraft,
 }: VersionPublishCardProps) {
   const sortedDrafts = useMemo(
     () =>
@@ -289,15 +383,22 @@ function VersionPublishCard({
           </Flex>
         </Flex>
       </VersionCardHeader>
-      <Flex direction="column" gap="4" p="3">
+      <Flex direction="column" gap="3" p="3">
         {sortedDrafts.map((d) => (
           <PublishNoteRow
             key={draftRowKey(d)}
             playlistId={playlistId}
             version={version}
             draftOwnerEmail={d.user_email}
+            rowDraft={d}
             selected={selected[draftRowKey(d)] ?? false}
             onSelectedChange={(c) => onToggle(draftRowKey(d), c)}
+            qcLoading={qcLoading}
+            qcRowRefreshing={qcRefreshingDraftKey === draftRowKey(d)}
+            qcResults={qcResults[draftRowKey(d)] ?? []}
+            qcIgnored={qcIgnored}
+            onQcToggleIgnore={(checkId) => onQcToggleIgnore(draftRowKey(d), checkId)}
+            onQcRefreshDraft={() => onQcRefreshDraft(d)}
           />
         ))}
       </Flex>
@@ -317,6 +418,16 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
   const [publishedImageCount, setPublishedImageCount] = useState(0);
   const [publishedStatusCount, setPublishedStatusCount] = useState(0);
   const { mutate: publishNotes, isPending, isError, error, data, reset } = usePublishNotes();
+
+  const {
+    results: qcResults,
+    loading: qcLoading,
+    ignored: qcIgnored,
+    toggleIgnore: qcToggleIgnore,
+    refreshDraft: qcRefreshDraft,
+    hasBlockingErrors: qcHasBlockingErrors,
+    refreshingDraftKey: qcRefreshingDraftKey,
+  } = useNoteQCChecks({ open, playlistId, drafts: notes });
 
   const flushFnsRef = useRef(new Set<() => Promise<void>>());
   const registerFlush = useCallback((fn: () => Promise<void>) => {
@@ -386,6 +497,14 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
   const selectedCount = useMemo(
     () => notes.filter((d) => selected[draftRowKey(d)]).length,
     [notes, selected]
+  );
+
+  const publishBlockedByQc = useMemo(
+    () =>
+      notes.some(
+        (d) => selected[draftRowKey(d)] && qcHasBlockingErrors(draftRowKey(d))
+      ),
+    [notes, selected, qcHasBlockingErrors]
   );
 
   const countImages = (notes: DraftNote[]) =>
@@ -538,6 +657,12 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                       currentUserEmail={userEmail}
                       selected={selected}
                       onToggle={handleToggle}
+                      qcLoading={qcLoading}
+                      qcRefreshingDraftKey={qcRefreshingDraftKey}
+                      qcResults={qcResults}
+                      qcIgnored={qcIgnored}
+                      onQcToggleIgnore={qcToggleIgnore}
+                      onQcRefreshDraft={qcRefreshDraft}
                     />
                   ))
                 )}
@@ -565,7 +690,8 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
                     disabled={
                       isPending ||
                       notes.length === 0 ||
-                      selectedCount === 0
+                      selectedCount === 0 ||
+                      publishBlockedByQc
                     }
                     onClick={() => void handlePublishSelected()}
                   >

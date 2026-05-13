@@ -37,6 +37,9 @@ from dna.models import (
     GenerateNoteRequest,
     GenerateNoteResponse,
     Note,
+    NoteQCCheck,
+    NoteQCCheckCreate,
+    NoteQCCheckUpdate,
     Platform,
     Playlist,
     PlaylistMetadata,
@@ -44,6 +47,8 @@ from dna.models import (
     Project,
     PublishNotesRequest,
     PublishNotesResponse,
+    RunQCChecksRequest,
+    RunQCChecksResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -63,6 +68,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
+from dna.qc.qc_runner import run_qc_checks_for_draft
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -155,6 +161,10 @@ tags_metadata = [
     {
         "name": "User Settings",
         "description": "Operations for managing user settings and preferences",
+    },
+    {
+        "name": "Note QC",
+        "description": "User-defined LLM quality checks for draft notes at publish time",
     },
 ]
 
@@ -1338,6 +1348,120 @@ async def delete_user_settings(
     if not deleted:
         raise HTTPException(status_code=404, detail="User settings not found")
     return True
+
+
+@app.get(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="List note QC checks",
+    response_model=list[NoteQCCheck],
+)
+async def list_qc_checks(
+    user_email: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> list[NoteQCCheck]:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.get_qc_checks(user_email)
+
+
+@app.post(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="Create a note QC check",
+    response_model=NoteQCCheck,
+    status_code=201,
+)
+async def create_qc_check(
+    user_email: str,
+    data: NoteQCCheckCreate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.create_qc_check(user_email, data)
+
+
+@app.put(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Update a note QC check",
+    response_model=NoteQCCheck,
+)
+async def update_qc_check(
+    user_email: str,
+    check_id: str,
+    data: NoteQCCheckUpdate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    updated = await storage_provider.update_qc_check(user_email, check_id, data)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="QC check not found")
+    return updated
+
+
+@app.delete(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Delete a note QC check",
+    status_code=204,
+)
+async def delete_qc_check(
+    user_email: str,
+    check_id: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> None:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    deleted = await storage_provider.delete_qc_check(user_email, check_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="QC check not found")
+
+
+@app.post(
+    "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks",
+    tags=["Note QC"],
+    summary="Run note QC checks for a draft",
+    response_model=RunQCChecksResponse,
+)
+async def run_qc_checks(
+    playlist_id: int,
+    version_id: int,
+    body: RunQCChecksRequest,
+    storage_provider: StorageProviderDep,
+    prodtrack_provider: ProdtrackProviderDep,
+    llm_provider: LLMProviderDep,
+    current_user: CurrentUserDep,
+) -> RunQCChecksResponse:
+    if body.user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    draft = await storage_provider.get_draft_note(
+        body.user_email, playlist_id, version_id
+    )
+    if draft is None:
+        return RunQCChecksResponse(results=[])
+    checks = await storage_provider.get_qc_checks(body.user_email)
+    segments = await storage_provider.get_segments_for_version(playlist_id, version_id)
+    transcript = _build_transcript_text(segments)
+    version = cast(
+        Version,
+        prodtrack_provider.get_entity("version", version_id, resolve_links=False),
+    )
+    results = await run_qc_checks_for_draft(
+        checks=checks,
+        draft=draft,
+        transcript_text=transcript,
+        version=version,
+        prodtrack_provider=prodtrack_provider,
+        llm_provider=llm_provider,
+    )
+    return RunQCChecksResponse(results=results)
 
 
 # -----------------------------------------------------------------------------
