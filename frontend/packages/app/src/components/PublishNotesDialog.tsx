@@ -30,7 +30,6 @@ interface PublishNotesDialogProps {
   onClose: () => void;
   playlistId: number;
   userEmail: string;
-  /** Draft notes to review and publish (caller supplies the list, e.g. from the playlist). */
   notes: DraftNote[];
   versions?: Version[];
 }
@@ -440,9 +439,6 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
           user_email: userEmail,
           targets,
         },
-      },
-      {
-        onSuccess: () => {},
       }
     );
   };

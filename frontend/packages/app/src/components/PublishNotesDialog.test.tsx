@@ -273,8 +273,7 @@ describe('PublishNotesDialog', () => {
           user_email: 'me@test.com',
           targets: [{ user_email: 'other@test.com', version_id: 10 }],
         },
-      },
-      expect.any(Object)
+      }
     );
   });
 

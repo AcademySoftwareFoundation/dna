@@ -332,9 +332,6 @@ export function useDraftNote({
       setLocalDraft((prev) => {
         const base = prev ?? createEmptyDraft(currentVersion, submitter);
 
-        // Determine if this update counts as an "edit" that should trigger republishing
-        // We only care if meaningful content changed (content, subject, to, cc)
-        // System updates (published status) shouldn't trigger this manually usually
         let isEdited = base.edited;
 
         const meaningfulFields: (keyof LocalDraftNote)[] = ['content', 'subject', 'to', 'cc'];
@@ -379,7 +376,6 @@ export function useDraftNote({
         const edited = base.edited || addingAttachments;
         return { ...base, attachmentIds: ids, edited };
       });
-      // Patch pending debounce data so a late-firing debounce doesn't overwrite with []
       if (pendingDataRef.current) {
         pendingDataRef.current = {
           ...pendingDataRef.current,

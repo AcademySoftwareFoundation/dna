@@ -18,11 +18,9 @@ import { apiHandler } from '../api';
 
 export interface StagedAttachment {
   id: string;
-  /** Undefined for server-loaded attachments (file is not re-downloaded). */
   file?: File;
   previewUrl: string;
   backendId?: string;
-  /** True when the server returned 404 for this attachment (e.g. after a backend restart). */
   broken?: boolean;
 }
 
@@ -32,7 +30,6 @@ interface NoteEditorProps {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
-  /** Omits outer border and uses inset highlight on drag-over (e.g. publish dialog). */
   variant?: 'default' | 'embedded';
 }
 
@@ -363,7 +360,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     >(new Map());
     const versionIdRef = useRef(currentVersion?.id);
 
-    // Restore per-version attachments when version changes
     useEffect(() => {
       versionIdRef.current = currentVersion?.id;
       const saved = attachmentsByVersion.current.get(currentVersion?.id) ?? [];
@@ -373,14 +369,10 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       setAnimatePill(false);
     }, [currentVersion?.id]);
 
-    // Auto-close tray when all attachments are removed
     useEffect(() => {
       if (attachments.length === 0) setIsAttachmentTrayOpen(false);
     }, [attachments.length]);
 
-    // Sync server-saved attachment IDs into local state so previously uploaded
-    // images are visible when the editor mounts or a different draft is loaded.
-    // Fetches through the authenticated API client to avoid broken <img> tags.
     const attachmentIdsKey = draftNote?.attachmentIds?.join(',') ?? '';
     useEffect(() => {
       const serverIds = draftNote?.attachmentIds ?? [];
@@ -441,7 +433,6 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
         const result = await apiHandler.uploadAttachment(file);
 
-        // Patch backendId onto the staged entry
         const updated = attachmentsRef.current.map((a) =>
           a.id === localId ? { ...a, backendId: result.id } : a
         );
@@ -634,7 +625,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         <EditorWrapper
           $height={editorHeight}
           $isDragOver={isDragOver}
-          $embedded={variant === 'embedded'}
+          $embedded={isEmbedded}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
