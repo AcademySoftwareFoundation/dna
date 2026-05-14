@@ -425,9 +425,14 @@ export interface GetVersionStatusesParams {
   projectId?: number;
 }
 
+export interface PublishNoteTarget {
+  user_email: string;
+  version_id: number;
+}
+
 export interface PublishNotesRequest {
   user_email: string;
-  include_others: boolean;
+  targets: PublishNoteTarget[];
 }
 
 export interface PublishNotesResponse {

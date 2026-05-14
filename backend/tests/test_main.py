@@ -1132,3 +1132,44 @@ class TestMockThumbnailsEndpoint:
         with mock.patch("main.MOCK_THUMBNAILS_DIR", tmp_path):
             response = client.get("/api/mock-thumbnails/99999")
         assert response.status_code == 404
+
+
+class TestAttachmentsEndpoint:
+    """Tests for POST/GET/DELETE /api/attachments."""
+
+    def test_upload_and_get_attachment(self, tmp_path):
+        """Upload an image then retrieve it via GET."""
+        image_bytes = b"\x89PNG\r\n\x1a\n"
+        with mock.patch("main.ATTACHMENT_STORE_DIR", tmp_path):
+            upload_resp = client.post(
+                "/api/attachments",
+                files={"file": ("photo.png", image_bytes, "image/png")},
+            )
+        assert upload_resp.status_code == 200
+        attachment_id = upload_resp.json()["id"]
+
+        with mock.patch("main.ATTACHMENT_STORE_DIR", tmp_path):
+            get_resp = client.get(f"/api/attachments/{attachment_id}")
+        assert get_resp.status_code == 200
+        assert "image/png" in get_resp.headers.get("content-type", "")
+        assert get_resp.content == image_bytes
+
+    def test_get_attachment_not_found(self, tmp_path):
+        """GET for a non-existent attachment returns 404."""
+        with mock.patch("main.ATTACHMENT_STORE_DIR", tmp_path):
+            response = client.get("/api/attachments/does-not-exist")
+        assert response.status_code == 404
+
+    def test_delete_attachment(self, tmp_path):
+        """Upload then delete; subsequent GET returns 404."""
+        image_bytes = b"\xff\xd8\xff\xe0\x00\x10JFIF"
+        with mock.patch("main.ATTACHMENT_STORE_DIR", tmp_path):
+            upload_resp = client.post(
+                "/api/attachments",
+                files={"file": ("shot.jpg", image_bytes, "image/jpeg")},
+            )
+            attachment_id = upload_resp.json()["id"]
+            del_resp = client.delete(f"/api/attachments/{attachment_id}")
+            assert del_resp.status_code == 200
+            get_resp = client.get(f"/api/attachments/{attachment_id}")
+        assert get_resp.status_code == 404

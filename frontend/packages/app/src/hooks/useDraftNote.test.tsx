@@ -288,4 +288,39 @@ describe('useDraftNote', () => {
 
     expect(mockedApiHandler.upsertDraftNote).not.toHaveBeenCalled();
   });
+
+  it('flushDebouncedSave persists pending changes without waiting for debounce', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote).not.toBeNull();
+    });
+
+    act(() => {
+      result.current.updateDraftNote({ content: 'Flush me' });
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.flushDebouncedSave();
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ content: 'Flush me' }),
+      })
+    );
+  });
 });
