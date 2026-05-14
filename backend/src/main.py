@@ -68,11 +68,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
-from dna.qc.qc_runner import (
-    _build_transcript_text,
-    _build_version_context,
-    run_qc_checks_for_draft,
-)
+from dna.qc.qc_runner import run_qc_checks_for_draft
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -1448,7 +1444,7 @@ async def run_qc_checks(
         return RunQCChecksResponse(results=[])
     checks = await storage_provider.get_qc_checks(body.user_email)
     segments = await storage_provider.get_segments_for_version(playlist_id, version_id)
-    transcript = _build_transcript_text(segments)
+    transcript = TranscriptionProviderBase.build_transcript_text(segments)
     version = cast(
         Version,
         prodtrack_provider.get_entity("version", version_id, resolve_links=False),
@@ -1670,7 +1666,7 @@ async def generate_note(
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
         )
-        transcript = _build_transcript_text(segments)
+        transcript = TranscriptionProviderBase.build_transcript_text(segments)
 
         version = cast(
             Version,
@@ -1678,7 +1674,7 @@ async def generate_note(
                 "version", request.version_id, resolve_links=False
             ),
         )
-        context = _build_version_context(version)
+        context = ProdtrackProviderBase.build_version_context(version)
 
         draft_note = await storage_provider.get_draft_note(
             request.user_email, request.playlist_id, request.version_id

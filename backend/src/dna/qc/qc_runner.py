@@ -13,7 +13,6 @@ from dna.models.qc_check import (
     NoteQCCheck,
     NoteQCResult,
 )
-from dna.models.stored_segment import StoredSegment
 from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBase
 
 QC_TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -74,35 +73,6 @@ Your final message MUST be a single JSON object only (no markdown fences), with 
 - "attributeSuggestion": object or null; optional fields "to", "cc", "subject",
   "version_status", "links" (array of objects with entity_type, entity_id, entity_name).
 """
-
-
-def _build_transcript_text(segments: list[StoredSegment]) -> str:
-    if not segments:
-        return "No transcript available."
-    lines: list[str] = []
-    for segment in segments:
-        speaker = segment.speaker or "Unknown"
-        lines.append(f"{speaker}: {segment.text}")
-    return "\n".join(lines)
-
-
-def _build_version_context(version: Version) -> str:
-    parts: list[str] = []
-    if version.name:
-        parts.append(f"Version: {version.name}")
-    if version.entity:
-        entity_type = version.entity.__class__.__name__
-        parts.append(f"{entity_type}: {version.entity.name}")
-    if version.task:
-        if version.task.name:
-            parts.append(f"Task: {version.task.name}")
-        if version.task.pipeline_step and version.task.pipeline_step.get("name"):
-            parts.append(f"Department: {version.task.pipeline_step['name']}")
-    if version.status:
-        parts.append(f"Status: {version.status}")
-    if version.description:
-        parts.append(f"Description: {version.description}")
-    return "\n".join(parts) if parts else "No version context available."
 
 
 def _draft_note_payload(draft: DraftNote) -> dict[str, Any]:
@@ -246,7 +216,7 @@ async def _run_one_check(
     prodtrack_provider: ProdtrackProviderBase,
     llm_provider: LLMProviderBase,
 ) -> NoteQCResult:
-    version_context = _build_version_context(version)
+    version_context = ProdtrackProviderBase.build_version_context(version)
     draft_json = json.dumps(_draft_note_payload(draft), indent=2)
     project_id: int | None = None
     if version.project and isinstance(version.project, dict):
