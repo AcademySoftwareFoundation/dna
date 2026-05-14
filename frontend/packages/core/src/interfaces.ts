@@ -376,20 +376,6 @@ export interface GenerateNoteResponse {
   context: string;
 }
 
-export interface AISuggestionState {
-  suggestion: string | null;
-  prompt: string | null;
-  context: string | null;
-  isLoading: boolean;
-  error: Error | null;
-}
-
-export type AISuggestionStateChangeCallback = (
-  playlistId: number,
-  versionId: number,
-  state: AISuggestionState
-) => void;
-
 // Search types for entity search endpoint
 export type SearchableEntityType =
   | 'user'
