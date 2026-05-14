@@ -117,17 +117,57 @@ def _draft_note_payload(draft: DraftNote) -> dict[str, Any]:
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
+    """Parse the model's final JSON object, tolerating markdown fences and trailing text."""
     raw = text.strip()
     fence = re.match(
         r"^```(?:json)?\s*\n?(.*?)\n?```\s*$", raw, re.DOTALL | re.IGNORECASE
     )
     if fence:
         raw = fence.group(1).strip()
-    return json.loads(raw)
+    else:
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, count=1, flags=re.IGNORECASE)
+        raw = re.sub(r"\s*```\s*$", "", raw, count=1)
+        raw = raw.strip()
+    raw = raw.lstrip("\ufeff")
+    if not raw.startswith("{"):
+        start = raw.find("{")
+        if start == -1:
+            raise ValueError("No JSON object found in QC response.")
+        raw = raw[start:]
+    decoder = json.JSONDecoder()
+    data, _end = decoder.raw_decode(raw)
+    if not isinstance(data, dict):
+        raise TypeError("QC response JSON root must be an object.")
+    return cast(dict[str, Any], data)
 
 
 def _normalize_keys(d: dict[str, Any]) -> dict[str, Any]:
     return {str(k).strip().lower(): v for k, v in d.items()}
+
+
+def _split_note_suggestion_payload(val: Any) -> tuple[Optional[str], dict[str, Any]]:
+    """LLM may return noteSuggestion as plain text or as a structured draft object."""
+    if val is None:
+        return None, {}
+    if isinstance(val, str):
+        s = val.strip()
+        return (s if s else None), {}
+    if not isinstance(val, dict):
+        return None, {}
+    nested = _normalize_keys(val)
+    body: Optional[str] = None
+    c = nested.get("content")
+    if isinstance(c, str) and c.strip():
+        body = c.strip()
+    extra: dict[str, Any] = {}
+    for key in ("subject", "to", "cc", "version_status", "links"):
+        if key not in nested:
+            continue
+        v = nested[key]
+        if v is None or v == "" or v == []:
+            continue
+        extra[key] = v
+    return body, extra
 
 
 def _parse_llm_payload(
@@ -138,16 +178,20 @@ def _parse_llm_payload(
     passed = bool(norm.get("passed", False))
     issue = norm.get("issue")
     evidence = norm.get("evidence")
-    note_suggestion = norm.get("notesuggestion") or norm.get("note_suggestion")
+    note_raw = norm.get("notesuggestion") or norm.get("note_suggestion")
+    body, extra_from_note = _split_note_suggestion_payload(note_raw)
     attr = norm.get("attributesuggestion") or norm.get("attribute_suggestion")
     attr_dict: Optional[dict[str, Any]] = None
+    merged: dict[str, Any] = dict(extra_from_note)
     if isinstance(attr, dict):
-        attr_dict = attr
+        merged.update(attr)
+    if merged:
+        attr_dict = merged
     return (
         passed,
         (str(issue) if issue is not None else None),
         (str(evidence) if evidence is not None else None),
-        (str(note_suggestion) if note_suggestion is not None else None),
+        body,
         attr_dict,
     )
 

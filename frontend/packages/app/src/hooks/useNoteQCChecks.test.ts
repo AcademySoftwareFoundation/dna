@@ -127,4 +127,25 @@ describe('useNoteQCChecks', () => {
       userEmail: 'a@test.com',
     });
   });
+
+  it('refetches bulk QC when dialog closes and reopens', async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const { rerender } = renderHook(
+      ({ open }: { open: boolean }) =>
+        useNoteQCChecks({
+          open,
+          playlistId: 10,
+          drafts: [draft()],
+        }),
+      { wrapper: wrapper(qc), initialProps: { open: true } }
+    );
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+
+    rerender({ open: false });
+    rerender({ open: true });
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+  });
 });

@@ -1,5 +1,6 @@
 """Tests for note QC checks API and QC runner."""
 
+import json
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -204,6 +205,91 @@ class TestQCCheckEndpoints:
             assert r.status_code == 403
         finally:
             app.dependency_overrides.clear()
+
+
+def test_parse_llm_payload_dict_note_suggestion_extracts_content_and_attrs():
+    from dna.qc.qc_runner import _parse_llm_payload
+
+    raw = json.dumps(
+        {
+            "passed": False,
+            "issue": "needs fix",
+            "noteSuggestion": {
+                "content": "Fixed body only",
+                "subject": "Sub",
+                "to": '[{"type":"User","id":17,"name":"Artist 3"}]',
+                "cc": "",
+                "version_status": "ip",
+                "links": [
+                    {
+                        "entity_type": "Version",
+                        "entity_id": 7010,
+                        "entity_name": "mk020_0210",
+                    }
+                ],
+            },
+        }
+    )
+    passed, issue, evidence, note_sugg, attr = _parse_llm_payload(raw)
+    assert passed is False
+    assert note_sugg == "Fixed body only"
+    assert attr is not None
+    assert attr["subject"] == "Sub"
+    assert attr["to"] == '[{"type":"User","id":17,"name":"Artist 3"}]'
+    assert attr["version_status"] == "ip"
+    assert len(attr["links"]) == 1
+
+
+def test_parse_llm_payload_string_note_suggestion_unchanged():
+    from dna.qc.qc_runner import _parse_llm_payload
+
+    raw = '{"passed": false, "issue": "x", "noteSuggestion": "plain body"}'
+    passed, issue, evidence, note_sugg, attr = _parse_llm_payload(raw)
+    assert passed is False
+    assert note_sugg == "plain body"
+    assert attr is None
+
+
+def test_parse_llm_payload_attribute_suggestion_overrides_note_object_fields():
+    from dna.qc.qc_runner import _parse_llm_payload
+
+    raw = json.dumps(
+        {
+            "passed": False,
+            "issue": "i",
+            "noteSuggestion": {"content": "body", "subject": "from_note"},
+            "attributeSuggestion": {"subject": "from_attr"},
+        }
+    )
+    _, _, _, note_sugg, attr = _parse_llm_payload(raw)
+    assert note_sugg == "body"
+    assert attr is not None
+    assert attr["subject"] == "from_attr"
+
+
+def test_extract_json_object_strips_leading_json_fence_without_closing_fence():
+    from dna.qc.qc_runner import _extract_json_object
+
+    raw = '```json { "passed": true, "issue": "", "evidence": "ok" }'
+    data = _extract_json_object(raw)
+    assert data["passed"] is True
+    assert data["evidence"] == "ok"
+
+
+def test_extract_json_object_full_markdown_fence():
+    from dna.qc.qc_runner import _extract_json_object
+
+    raw = '```json\n{"passed": false, "issue": "bad"}\n```\n'
+    data = _extract_json_object(raw)
+    assert data["passed"] is False
+
+
+def test_extract_json_object_prefix_before_brace_and_trailing_text():
+    from dna.qc.qc_runner import _extract_json_object
+
+    raw = 'Analysis:\n{"passed": true}\nThanks.'
+    data = _extract_json_object(raw)
+    assert data["passed"] is True
 
 
 @pytest.mark.asyncio

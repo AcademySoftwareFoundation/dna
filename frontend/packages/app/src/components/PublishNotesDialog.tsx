@@ -251,6 +251,17 @@ function PublishNoteRow({
     })();
   };
 
+  const handleNoteContentBlur = useCallback(() => {
+    void (async () => {
+      try {
+        await flushDebouncedSave();
+        await onQcRefreshDraft();
+      } catch {
+        /* best-effort */
+      }
+    })();
+  }, [flushDebouncedSave, onQcRefreshDraft]);
+
   return (
     <NoteRowBlock>
       <NoteQCDiffModal
@@ -312,6 +323,7 @@ function PublishNoteRow({
         updateDraftNote={updateDraftNote}
         saveAttachmentIds={saveAttachmentIds}
         variant="embedded"
+        onNoteContentBlur={handleNoteContentBlur}
       />
     </NoteRowBlock>
   );

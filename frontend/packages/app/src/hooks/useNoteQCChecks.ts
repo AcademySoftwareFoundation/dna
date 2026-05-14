@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DraftNote, NoteQCResult } from '@dna/core';
 import { apiHandler } from '../api';
 
@@ -12,9 +12,12 @@ function ignoreKey(draftKey: string, checkId: string): string {
 
 /** Stable identity per draft so content edits do not re-run QC for every note. */
 function draftsIdentityFingerprint(drafts: DraftNote[]): string {
-  return drafts
-    .map((d) => `${draftKey(d)}\0${d.user_email}\0${d.version_id}`)
-    .sort()
+  return [...drafts]
+    .map(
+      (d) =>
+        `${String(d._id)}\0${String(d.user_email).toLowerCase()}\0${Number(d.version_id)}`
+    )
+    .sort((a, b) => a.localeCompare(b))
     .join('|');
 }
 
@@ -32,18 +35,27 @@ export function useNoteQCChecks({ open, playlistId, drafts }: UseNoteQCChecksOpt
 
   const fingerprint = useMemo(() => draftsIdentityFingerprint(drafts), [drafts]);
 
+  const lastCompletedBulkKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) {
       setIgnored(new Set());
+      lastCompletedBulkKeyRef.current = null;
       return;
     }
     if (drafts.length === 0) {
       setResults({});
+      lastCompletedBulkKeyRef.current = null;
+      return;
+    }
+
+    const bulkKey = `${playlistId}\0${fingerprint}`;
+    if (bulkKey === lastCompletedBulkKeyRef.current) {
       return;
     }
 
     let cancelled = false;
-    (async () => {
+    void (async () => {
       setLoading(true);
       try {
         const entries = await Promise.all(
@@ -62,6 +74,7 @@ export function useNoteQCChecks({ open, playlistId, drafts }: UseNoteQCChecksOpt
           next[k] = v;
         }
         setResults(next);
+        lastCompletedBulkKeyRef.current = bulkKey;
       } finally {
         if (!cancelled) {
           setLoading(false);
