@@ -490,11 +490,11 @@ export interface NoteQCCheckUpdate {
 }
 
 export interface NoteQCAttributeSuggestion {
-  to?: string;
-  cc?: string;
-  subject?: string;
-  version_status?: string;
-  links?: DraftNoteLink[];
+  to?: string | null;
+  cc?: string | null;
+  subject?: string | null;
+  version_status?: string | null;
+  links?: DraftNoteLink[] | null;
 }
 
 export interface NoteQCResult {

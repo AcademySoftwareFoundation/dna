@@ -7,6 +7,7 @@ import type { LocalDraftNote } from '../hooks/useDraftNote';
 import {
   fixAllDisabledReason,
   mergeQCResultPatches,
+  normalizeQCResult,
 } from '../qc/noteQcPatch';
 
 type PillTone = 'ok' | 'warn' | 'err' | 'loading' | 'ignored';
@@ -132,8 +133,8 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
   );
 
   const fixAllBlockReason = useMemo(
-    () => fixAllDisabledReason(activeFailures),
-    [activeFailures]
+    () => fixAllDisabledReason(localDraft, activeFailures),
+    [localDraft, activeFailures]
   );
 
   const fixAllEnabled = activeFailures.length >= 2 && fixAllBlockReason === null;
@@ -229,6 +230,7 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
           ) : (
             failedResults.map((r) => {
               const isIgnored = ignored.has(ignoreKey(draftKey, r.check_id));
+              const qcNormalized = normalizeQCResult(r);
               return (
                 <Flex key={r.check_id} direction="column" gap="1">
                   <Flex align="center" gap="2" wrap="wrap">
@@ -256,10 +258,11 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
                         {r.evidence}
                       </Text>
                     ) : null}
-                    {r.note_suggestion ? (
+                    {qcNormalized.note_suggestion ? (
                       <Text as="p" size="1" style={{ marginTop: 6, lineHeight: 1.4 }}>
-                        <strong>Suggested note:</strong> {r.note_suggestion.slice(0, 400)}
-                        {r.note_suggestion.length > 400 ? '…' : ''}
+                        <strong>Suggested note:</strong>{' '}
+                        {qcNormalized.note_suggestion.slice(0, 400)}
+                        {qcNormalized.note_suggestion.length > 400 ? '…' : ''}
                       </Text>
                     ) : null}
                   </Details>
