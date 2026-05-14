@@ -1,6 +1,5 @@
 """Tests for note QC checks API and QC runner."""
 
-import json
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -15,7 +14,7 @@ from main import (
 
 from dna.models.draft_note import DraftNote
 from dna.models.entity import Version
-from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCResult
+from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCLLMOutput
 
 
 def _sample_check(check_id: str = "507f1f77bcf86cd799439011", **kwargs) -> NoteQCCheck:
@@ -77,8 +76,8 @@ class TestQCCheckEndpoints:
     @pytest.fixture
     def mock_llm(self):
         llm = mock.AsyncMock()
-        llm.generate_with_tools = mock.AsyncMock(
-            return_value='{"passed": true, "issue": "", "evidence": ""}'
+        llm.generate_structured_with_tools = mock.AsyncMock(
+            return_value=NoteQCLLMOutput(passed=True)
         )
         return llm
 
@@ -164,7 +163,7 @@ class TestQCCheckEndpoints:
             )
             assert r.status_code == 200
             assert r.json() == {"results": []}
-            mock_llm.generate_with_tools.assert_not_called()
+            mock_llm.generate_structured_with_tools.assert_not_called()
         finally:
             app.dependency_overrides.clear()
 
@@ -187,7 +186,7 @@ class TestQCCheckEndpoints:
             assert "results" in body
             assert len(body["results"]) == 1
             assert body["results"][0]["passed"] is True
-            mock_llm.generate_with_tools.assert_called_once()
+            mock_llm.generate_structured_with_tools.assert_called_once()
         finally:
             app.dependency_overrides.clear()
 
@@ -207,93 +206,8 @@ class TestQCCheckEndpoints:
             app.dependency_overrides.clear()
 
 
-def test_parse_llm_payload_dict_note_suggestion_extracts_content_and_attrs():
-    from dna.qc.qc_runner import _parse_llm_payload
-
-    raw = json.dumps(
-        {
-            "passed": False,
-            "issue": "needs fix",
-            "noteSuggestion": {
-                "content": "Fixed body only",
-                "subject": "Sub",
-                "to": '[{"type":"User","id":17,"name":"Artist 3"}]',
-                "cc": "",
-                "version_status": "ip",
-                "links": [
-                    {
-                        "entity_type": "Version",
-                        "entity_id": 7010,
-                        "entity_name": "mk020_0210",
-                    }
-                ],
-            },
-        }
-    )
-    passed, issue, evidence, note_sugg, attr = _parse_llm_payload(raw)
-    assert passed is False
-    assert note_sugg == "Fixed body only"
-    assert attr is not None
-    assert attr["subject"] == "Sub"
-    assert attr["to"] == '[{"type":"User","id":17,"name":"Artist 3"}]'
-    assert attr["version_status"] == "ip"
-    assert len(attr["links"]) == 1
-
-
-def test_parse_llm_payload_string_note_suggestion_unchanged():
-    from dna.qc.qc_runner import _parse_llm_payload
-
-    raw = '{"passed": false, "issue": "x", "noteSuggestion": "plain body"}'
-    passed, issue, evidence, note_sugg, attr = _parse_llm_payload(raw)
-    assert passed is False
-    assert note_sugg == "plain body"
-    assert attr is None
-
-
-def test_parse_llm_payload_attribute_suggestion_overrides_note_object_fields():
-    from dna.qc.qc_runner import _parse_llm_payload
-
-    raw = json.dumps(
-        {
-            "passed": False,
-            "issue": "i",
-            "noteSuggestion": {"content": "body", "subject": "from_note"},
-            "attributeSuggestion": {"subject": "from_attr"},
-        }
-    )
-    _, _, _, note_sugg, attr = _parse_llm_payload(raw)
-    assert note_sugg == "body"
-    assert attr is not None
-    assert attr["subject"] == "from_attr"
-
-
-def test_extract_json_object_strips_leading_json_fence_without_closing_fence():
-    from dna.qc.qc_runner import _extract_json_object
-
-    raw = '```json { "passed": true, "issue": "", "evidence": "ok" }'
-    data = _extract_json_object(raw)
-    assert data["passed"] is True
-    assert data["evidence"] == "ok"
-
-
-def test_extract_json_object_full_markdown_fence():
-    from dna.qc.qc_runner import _extract_json_object
-
-    raw = '```json\n{"passed": false, "issue": "bad"}\n```\n'
-    data = _extract_json_object(raw)
-    assert data["passed"] is False
-
-
-def test_extract_json_object_prefix_before_brace_and_trailing_text():
-    from dna.qc.qc_runner import _extract_json_object
-
-    raw = 'Analysis:\n{"passed": true}\nThanks.'
-    data = _extract_json_object(raw)
-    assert data["passed"] is True
-
-
 @pytest.mark.asyncio
-async def test_run_qc_checks_for_draft_parse_failure_returns_failed_result():
+async def test_run_qc_checks_for_draft_llm_failure_returns_failed_result():
     from dna.qc.qc_runner import run_qc_checks_for_draft
 
     check = _sample_check()
@@ -303,7 +217,9 @@ async def test_run_qc_checks_for_draft_parse_failure_returns_failed_result():
     prod.search.return_value = []
     prod.get_entity.return_value = version
     llm = mock.AsyncMock()
-    llm.generate_with_tools = mock.AsyncMock(return_value="not json")
+    llm.generate_structured_with_tools = mock.AsyncMock(
+        side_effect=RuntimeError("provider down")
+    )
 
     results = await run_qc_checks_for_draft(
         checks=[check],
@@ -315,7 +231,8 @@ async def test_run_qc_checks_for_draft_parse_failure_returns_failed_result():
     )
     assert len(results) == 1
     assert results[0].passed is False
-    assert results[0].issue == "Could not parse QC response."
+    assert results[0].issue == "QC check failed to run."
+    assert "provider down" in (results[0].evidence or "")
 
 
 @pytest.mark.asyncio
@@ -336,4 +253,4 @@ async def test_run_qc_checks_skips_disabled():
         llm_provider=llm,
     )
     assert results == []
-    llm.generate_with_tools.assert_not_called()
+    llm.generate_structured_with_tools.assert_not_called()

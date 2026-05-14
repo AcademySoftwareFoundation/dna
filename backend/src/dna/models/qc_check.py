@@ -56,6 +56,19 @@ class NoteQCAttributeSuggestion(BaseModel):
     links: Optional[list[DraftNoteLink]] = None
 
 
+class NoteQCLLMOutput(BaseModel):
+    """Structured QC verdict returned by the LLM (instructor-validated)."""
+
+    passed: bool
+    issue: Optional[str] = None
+    evidence: Optional[str] = None
+    note_suggestion: Optional[str] = Field(
+        default=None,
+        description="Full suggested note body when the check fails.",
+    )
+    attribute_suggestion: Optional[NoteQCAttributeSuggestion] = None
+
+
 class NoteQCResult(BaseModel):
     """Outcome of running one check against a draft."""
 
