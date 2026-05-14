@@ -20,7 +20,7 @@ import {
 } from '@radix-ui/themes';
 import { Loader2, Info, MoreVertical } from 'lucide-react';
 import { usePublishNotes } from '../hooks/usePublishNotes';
-import { useDraftNote, type LocalDraftNote } from '../hooks/useDraftNote';
+import { useDraftNote, backendToLocal, type LocalDraftNote } from '../hooks/useDraftNote';
 import { useNoteQCChecks } from '../hooks/useNoteQCChecks';
 import {
   DraftNote,
@@ -131,26 +131,6 @@ function draftRowKey(d: DraftNote): string {
   return d._id;
 }
 
-function rowDraftToLocalPreview(row: DraftNote): LocalDraftNote {
-  const links = (row.links || []).map((l) => ({
-    type: l.entity_type,
-    id: l.entity_id,
-    name: l.entity_name || '',
-  }));
-  return {
-    content: row.content ?? '',
-    subject: row.subject ?? '',
-    to: [],
-    cc: [],
-    links,
-    versionStatus: row.version_status ?? '',
-    published: row.published,
-    edited: row.edited,
-    publishedNoteId: row.published_note_id ?? null,
-    attachmentIds: row.attachment_ids ?? [],
-  };
-}
-
 function displayNameFromEmail(email: string): string {
   const local = email.split('@')[0] || email;
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -237,7 +217,7 @@ function PublishNoteRow({
   const versionDisplayName = version.name || `Version ${version.id}`;
   const title = `${displayNameFromEmail(draftOwnerEmail)}'s note on ${versionDisplayName}`;
 
-  const draftForModal = draftNote ?? rowDraftToLocalPreview(rowDraft);
+  const draftForModal = draftNote ?? backendToLocal(rowDraft);
 
   const handleQcApply = async (patch: Partial<LocalDraftNote>) => {
     updateDraftNote(patch);

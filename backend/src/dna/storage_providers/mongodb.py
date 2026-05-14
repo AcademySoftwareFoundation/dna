@@ -365,9 +365,31 @@ class MongoDBStorageProvider(StorageProviderBase):
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
             results.append(NoteQCCheck(**doc))
-        if not results:
-            created = await self.create_qc_check(user_email, DEFAULT_ACTION_ITEM_CHECK)
-            return [created]
+        if results:
+            return sorted(results, key=lambda c: (c.name.lower(), c.id))
+        now = datetime.now(timezone.utc)
+        default = DEFAULT_ACTION_ITEM_CHECK
+        await self.qc_checks_collection.find_one_and_update(
+            {"user_email": user_email, "name": default.name},
+            {
+                "$setOnInsert": {
+                    "user_email": user_email,
+                    "name": default.name,
+                    "prompt": default.prompt,
+                    "severity": default.severity,
+                    "enabled": default.enabled,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        cursor = self.qc_checks_collection.find(query)
+        results = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(NoteQCCheck(**doc))
         return sorted(results, key=lambda c: (c.name.lower(), c.id))
 
     async def create_qc_check(

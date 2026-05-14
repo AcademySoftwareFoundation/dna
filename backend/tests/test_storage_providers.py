@@ -805,3 +805,100 @@ class TestMongoDBStorageProvider:
         assert result[0].text == "Hello"
         assert result[1].text == "World"
         mock_cursor.sort.assert_called_once_with("absolute_start_time", 1)
+
+    @pytest.mark.asyncio
+    async def test_get_qc_checks_seeds_default_with_atomic_upsert(self, provider):
+        """Empty QC list seeds one default via upsert (safe under concurrent get_qc_checks)."""
+        from bson import ObjectId
+
+        from dna.models.qc_check import DEFAULT_ACTION_ITEM_CHECK
+
+        mock_qc = mock.MagicMock()
+        now = datetime.now(timezone.utc)
+        oid = ObjectId()
+        seeded_doc = {
+            "_id": oid,
+            "user_email": "seed@test.com",
+            "name": DEFAULT_ACTION_ITEM_CHECK.name,
+            "prompt": DEFAULT_ACTION_ITEM_CHECK.prompt,
+            "severity": DEFAULT_ACTION_ITEM_CHECK.severity,
+            "enabled": DEFAULT_ACTION_ITEM_CHECK.enabled,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        find_phase = {"n": 0}
+
+        async def docs_iter(docs):
+            for d in docs:
+                yield d
+
+        def find_side_effect(_q):
+            find_phase["n"] += 1
+            mock_cursor = mock.MagicMock()
+            batch = [] if find_phase["n"] == 1 else [seeded_doc]
+            mock_cursor.__aiter__ = lambda *args, **kwargs: docs_iter(batch)
+            return mock_cursor
+
+        mock_qc.find.side_effect = find_side_effect
+        mock_qc.find_one_and_update = mock.AsyncMock(return_value=seeded_doc)
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.qc_checks = mock_qc
+        provider._client = mock_client
+
+        result = await provider.get_qc_checks("seed@test.com")
+
+        assert len(result) == 1
+        assert result[0].name == DEFAULT_ACTION_ITEM_CHECK.name
+        assert mock_qc.find.call_count == 2
+        mock_qc.find_one_and_update.assert_called_once()
+        flt, update = mock_qc.find_one_and_update.call_args[0]
+        assert flt == {
+            "user_email": "seed@test.com",
+            "name": DEFAULT_ACTION_ITEM_CHECK.name,
+        }
+        assert "$setOnInsert" in update
+        assert mock_qc.find_one_and_update.call_args[1].get("upsert") is True
+
+    @pytest.mark.asyncio
+    async def test_get_qc_checks_existing_skips_upsert(self, provider):
+        from bson import ObjectId
+
+        from dna.models.qc_check import NoteQCCheck
+
+        now = datetime.now(timezone.utc)
+        oid = ObjectId()
+        existing = {
+            "_id": oid,
+            "user_email": "u@test.com",
+            "name": "Custom",
+            "prompt": "p",
+            "severity": "warning",
+            "enabled": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        async def one_doc():
+            yield existing
+
+        mock_qc = mock.MagicMock()
+        mock_cursor = mock.MagicMock()
+        mock_cursor.__aiter__ = lambda *a, **k: one_doc()
+        mock_qc.find.return_value = mock_cursor
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.qc_checks = mock_qc
+        provider._client = mock_client
+
+        result = await provider.get_qc_checks("u@test.com")
+
+        assert len(result) == 1
+        assert isinstance(result[0], NoteQCCheck)
+        assert result[0].name == "Custom"
+        mock_qc.find_one_and_update.assert_not_called()
