@@ -70,14 +70,48 @@ export function AssistantPanel({
   userEmail,
   onInsertNote,
 }: AssistantPanelProps) {
+<<<<<<< HEAD
   const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
 
-  const { suggestion, prompt, context, isLoading, error, regenerate } =
-    useAISuggestion({
-      playlistId: playlistId ?? null,
-      versionId: versionId ?? null,
-      userEmail: userEmail ?? null,
-    });
+  const {
+    suggestion,
+    prompt,
+    context,
+    isLoading,
+    error,
+    regenerate,
+    historyCount,
+    activeOrdinal,
+    canGoPrevious,
+    canGoNext,
+    goPreviousVersion,
+    goNextVersion,
+  } = useAISuggestion({
+    playlistId: playlistId ?? null,
+    versionId: versionId ?? null,
+    userEmail: userEmail ?? null,
+    enabled: aiEnabled,
+  });
+=======
+  const {
+    suggestion,
+    prompt,
+    context,
+    isLoading,
+    error,
+    regenerate,
+    historyCount,
+    activeOrdinal,
+    canGoPrevious,
+    canGoNext,
+    goPreviousVersion,
+    goNextVersion,
+  } = useAISuggestion({
+    playlistId: playlistId ?? null,
+    versionId: versionId ?? null,
+    userEmail: userEmail ?? null,
+  });
+>>>>>>> 5c98711 (feat(frontend): AI suggestion history in app state)
 
   const handleAiInsert = useCallback(() => {
     if (suggestion) {
@@ -120,6 +154,7 @@ export function AssistantPanel({
           )}
         </StyledTabsList>
 
+<<<<<<< HEAD
         {aiEnabled && (
           <StyledTabsContent value="assistant">
             <AssistantNote
@@ -128,9 +163,32 @@ export function AssistantPanel({
               error={error}
               onRegenerate={regenerate}
               onInsertNote={onInsertNote}
+              historyCount={historyCount}
+              activeOrdinal={activeOrdinal}
+              canGoPrevious={canGoPrevious}
+              canGoNext={canGoNext}
+              onPreviousVersion={goPreviousVersion}
+              onNextVersion={goNextVersion}
             />
           </StyledTabsContent>
         )}
+=======
+        <StyledTabsContent value="assistant">
+          <AssistantNote
+            suggestion={suggestion}
+            isLoading={isLoading}
+            error={error}
+            onRegenerate={regenerate}
+            onInsertNote={onInsertNote}
+            historyCount={historyCount}
+            activeOrdinal={activeOrdinal}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            onPreviousVersion={goPreviousVersion}
+            onNextVersion={goNextVersion}
+          />
+        </StyledTabsContent>
+>>>>>>> 5c98711 (feat(frontend): AI suggestion history in app state)
 
         {transcriptionEnabled && (
           <StyledTabsContent value="transcript">

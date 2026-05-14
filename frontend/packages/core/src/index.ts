@@ -11,5 +11,4 @@ export * from './utils';
 export { ApiHandler, createApiHandler } from './apiHandler';
 export type { ApiHandlerConfig } from './apiHandler';
 export * from './eventClient';
-export * from './aiSuggestionManager';
 export * from './extension';
