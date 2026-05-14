@@ -26,12 +26,6 @@ export interface UseAISuggestionResult {
   goNextVersion: () => void;
 }
 
-type NoteSnapshot = {
-  suggestion: string;
-  prompt: string | null;
-  context: string | null;
-};
-
 const MAX_NOTES_PER_VERSION = 100;
 
 export function useAISuggestion({
@@ -43,13 +37,18 @@ export function useAISuggestion({
   const isEnabled =
     enabled && playlistId != null && versionId != null && userEmail != null;
 
-  const [snapshotsByVersionId, setSnapshotsByVersionId] = useState<
-    Record<number, NoteSnapshot[]>
+  const [notesByVersionId, setNotesByVersionId] = useState<
+    Record<number, string[]>
   >({});
   const [indexByVersionId, setIndexByVersionId] = useState<
     Record<number, number>
   >({});
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [lastPrompt, setLastPrompt] = useState<string | null>(null);
+  const [lastContext, setLastContext] = useState<string | null>(null);
 
+  const generateInFlightRef = useRef(false);
   const prevWasLoadingRef = useRef(false);
 
   const { data: userSettings } = useQuery<UserSettings>({
@@ -74,110 +73,81 @@ export function useAISuggestion({
 
     const full = aiSuggestionManager.getFullState(playlistId, versionId);
     prevWasLoadingRef.current = full.isLoading;
+    setIsGenerating(full.isLoading);
+    setError(full.error);
 
-    setSnapshotsByVersionId((prev) => {
-      if (prev[versionId]?.length) return prev;
-      if (!full.suggestion) return prev;
-      return {
-        ...prev,
-        [versionId]: [
-          {
-            suggestion: full.suggestion,
-            prompt: full.prompt,
-            context: full.context,
-          },
-        ],
-      };
-    });
-
-    const unsubscribe = aiSuggestionManager.onStateChange((pId, vId, newState) => {
+    const unsubscribe = aiSuggestionManager.onStateChange((pId, vId, st) => {
       if (pId !== playlistId || vId !== versionId) return;
 
       const wasLoading = prevWasLoadingRef.current;
-      prevWasLoadingRef.current = newState.isLoading;
+      prevWasLoadingRef.current = st.isLoading;
 
-      const completesGeneration =
+      setIsGenerating(st.isLoading);
+      setError(st.error);
+
+      if (
         wasLoading &&
-        !newState.isLoading &&
-        newState.suggestion != null &&
-        newState.error == null;
-
-      if (completesGeneration) {
-        setSnapshotsByVersionId((prevSnap) => {
-          const existing = [...(prevSnap[versionId] ?? [])];
-          const sug = newState.suggestion as string;
-          const pr = newState.prompt;
-          const cx = newState.context;
-          const tail =
-            existing.length > 0 ? existing[existing.length - 1] : undefined;
-          if (
-            tail?.suggestion === sug &&
-            tail?.prompt === pr &&
-            tail?.context === cx
-          ) {
-            return prevSnap;
+        !st.isLoading &&
+        st.suggestion != null &&
+        st.error == null
+      ) {
+        const text = st.suggestion;
+        setNotesByVersionId((prev) => {
+          let nextNotes = [...(prev[versionId] ?? []), text];
+          if (nextNotes.length > MAX_NOTES_PER_VERSION) {
+            nextNotes = nextNotes.slice(-MAX_NOTES_PER_VERSION);
           }
-
-          existing.push({
-            suggestion: sug,
-            prompt: pr,
-            context: cx,
-          });
-
-          let trimmed = existing;
-          if (trimmed.length > MAX_NOTES_PER_VERSION) {
-            trimmed = trimmed.slice(-MAX_NOTES_PER_VERSION);
-          }
-          const newIx = trimmed.length - 1;
+          const newIx = nextNotes.length - 1;
           setIndexByVersionId((ipi) => ({ ...ipi, [versionId]: newIx }));
-
-          return { ...prevSnap, [versionId]: trimmed };
+          return { ...prev, [versionId]: nextNotes };
         });
+        setLastPrompt(st.prompt);
+        setLastContext(st.context);
       }
     });
 
     return unsubscribe;
   }, [playlistId, versionId, isEnabled]);
 
+  const runGenerate = useCallback(
+    async (additionalInstructions?: string) => {
+      if (!playlistId || !versionId || !userEmail) return;
+      if (generateInFlightRef.current) return;
+
+      generateInFlightRef.current = true;
+
+      try {
+        await aiSuggestionManager.generateSuggestion(
+          playlistId,
+          versionId,
+          userEmail,
+          additionalInstructions
+        );
+      } catch {
+      } finally {
+        generateInFlightRef.current = false;
+      }
+    },
+    [playlistId, versionId, userEmail]
+  );
+
   useEffect(() => {
     setIndexByVersionId((prev) => {
       if (!isEnabled || versionId == null) return prev;
-      const list = snapshotsByVersionId[versionId];
+      const list = notesByVersionId[versionId];
       if (!list?.length) return prev;
       const i = prev[versionId];
       if (i === undefined) return { ...prev, [versionId]: list.length - 1 };
       return { ...prev, [versionId]: Math.min(i, list.length - 1) };
     });
-  }, [isEnabled, versionId, snapshotsByVersionId]);
+  }, [isEnabled, versionId, notesByVersionId]);
 
   const regenerate = useCallback(
     (additionalInstructions?: string) => {
-      if (
-        !isEnabled ||
-        settingsUpsertInflight ||
-        playlistId == null ||
-        versionId == null ||
-        userEmail == null
-      ) {
-        return;
-      }
-
-      aiSuggestionManager
-        .generateSuggestion(
-          playlistId,
-          versionId,
-          userEmail,
-          additionalInstructions
-        )
-        .catch(() => {});
+      if (!isEnabled || settingsUpsertInflight) return;
+      runGenerate(additionalInstructions).catch(() => {});
     },
-    [
-      isEnabled,
-      settingsUpsertInflight,
-      playlistId,
-      versionId,
-      userEmail,
-    ]
+    [isEnabled, settingsUpsertInflight, runGenerate]
   );
 
   useEffect(() => {
@@ -187,15 +157,10 @@ export function useAISuggestion({
     }
 
     if (
-      playlistId != null &&
-      versionId != null &&
-      userEmail != null &&
       prevVersionRef.current !== null &&
       prevVersionRef.current !== versionId
     ) {
-      aiSuggestionManager
-        .generateSuggestion(playlistId, versionId, userEmail)
-        .catch(() => {});
+      runGenerate().catch(() => {});
     }
 
     prevVersionRef.current = versionId;
@@ -205,6 +170,7 @@ export function useAISuggestion({
     userEmail,
     userSettings,
     isEnabled,
+    runGenerate,
   ]);
 
   const handleTranscriptEvent = useCallback(
@@ -238,14 +204,14 @@ export function useAISuggestion({
   const navigateVersion = useCallback(
     (delta: -1 | 1) => {
       if (!isEnabled || versionId == null) return;
-      const list = snapshotsByVersionId[versionId] ?? [];
+      const list = notesByVersionId[versionId] ?? [];
       if (!list.length) return;
       const cur = indexByVersionId[versionId] ?? list.length - 1;
       const next = cur + delta;
       if (next < 0 || next >= list.length) return;
       setIndexByVersionId((prev) => ({ ...prev, [versionId]: next }));
     },
-    [isEnabled, versionId, snapshotsByVersionId, indexByVersionId]
+    [isEnabled, versionId, notesByVersionId, indexByVersionId]
   );
 
   const goPreviousVersion = useCallback(
@@ -257,16 +223,10 @@ export function useAISuggestion({
     [navigateVersion]
   );
 
-  const mgrState =
-    isEnabled && playlistId != null && versionId != null
-      ? aiSuggestionManager.getFullState(playlistId, versionId)
-      : null;
-
   const list =
     isEnabled && versionId != null
-      ? (snapshotsByVersionId[versionId] ?? [])
+      ? (notesByVersionId[versionId] ?? [])
       : [];
-
   const activeIndex =
     !isEnabled || versionId == null || !list.length
       ? -1
@@ -277,21 +237,17 @@ export function useAISuggestion({
   const canGoPrevious = historyCount > 0 && activeIndex > 0;
   const canGoNext =
     historyCount > 0 && activeIndex >= 0 && activeIndex < historyCount - 1;
-  const activeSnapshot =
+  const suggestion =
     isEnabled && activeIndex >= 0 && list[activeIndex] != null
       ? list[activeIndex]!
       : null;
 
-  const suggestion = activeSnapshot?.suggestion ?? null;
   const viewingLatest =
     historyCount > 0 && activeIndex === historyCount - 1 && activeIndex >= 0;
-  const prompt = viewingLatest ? (activeSnapshot?.prompt ?? null) : null;
-  const context = viewingLatest ? (activeSnapshot?.context ?? null) : null;
+  const prompt = viewingLatest ? lastPrompt : null;
+  const context = viewingLatest ? lastContext : null;
 
-  const isLoading =
-    (mgrState?.isLoading ?? false) ||
-    settingsUpsertInflight;
-  const error = mgrState?.error ?? null;
+  const isLoading = isGenerating || settingsUpsertInflight;
 
   return useMemo(
     () => ({
