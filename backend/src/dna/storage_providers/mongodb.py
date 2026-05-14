@@ -174,7 +174,6 @@ class MongoDBStorageProvider(StorageProviderBase):
             "version_id": version_id,
         }
 
-        # Check if we should skip update to protect local edits
         existing = await self.draft_notes.find_one(query)
         if existing:
             # If existing note has unpublished changes (published=False or edited=True),

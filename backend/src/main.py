@@ -68,7 +68,11 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
-from dna.qc.qc_runner import run_qc_checks_for_draft
+from dna.qc.qc_runner import (
+    _build_transcript_text,
+    _build_version_context,
+    run_qc_checks_for_draft,
+)
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -911,7 +915,6 @@ async def publish_notes(
                 skipped_count += 1
                 continue
 
-            # Check if note is already published (re-publish/update)
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
                     # Still apply any pending version status change
@@ -1069,9 +1072,6 @@ async def _sync_published_notes(
         from datetime import datetime, timezone
 
         for (vid, email), note in latest_notes.items():
-            # Check if we already have this specific published note to avoid writes
-            # Optimization: could query storage for all draft notes first.
-            # For now, just upsert.
             update_data = DraftNoteUpdate(
                 content=note.content or "",
                 subject=note.subject or "",
@@ -1622,37 +1622,6 @@ async def get_segments_for_version(
 # -----------------------------------------------------------------------------
 # LLM endpoints
 # -----------------------------------------------------------------------------
-
-
-def _build_version_context(version: Version) -> str:
-    """Build a context string from version metadata."""
-    parts = []
-    if version.name:
-        parts.append(f"Version: {version.name}")
-    if version.entity:
-        entity_type = version.entity.__class__.__name__
-        parts.append(f"{entity_type}: {version.entity.name}")
-    if version.task:
-        if version.task.name:
-            parts.append(f"Task: {version.task.name}")
-        if version.task.pipeline_step and version.task.pipeline_step.get("name"):
-            parts.append(f"Department: {version.task.pipeline_step['name']}")
-    if version.status:
-        parts.append(f"Status: {version.status}")
-    if version.description:
-        parts.append(f"Description: {version.description}")
-    return "\n".join(parts) if parts else "No version context available."
-
-
-def _build_transcript_text(segments: list[StoredSegment]) -> str:
-    """Build a transcript string from segments."""
-    if not segments:
-        return "No transcript available."
-    lines = []
-    for segment in segments:
-        speaker = segment.speaker or "Unknown"
-        lines.append(f"{speaker}: {segment.text}")
-    return "\n".join(lines)
 
 
 def _build_full_prompt(
