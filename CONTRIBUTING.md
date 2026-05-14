@@ -20,7 +20,9 @@ Communications
 Contributor License Agreement (CLA) and Intellectual Property
 -------------------------------------------------------------
 
-We don't yet have a CLA in place. TBD.
+### CLA
+
+All contributors must sign the ASWF Contributor License Agreement (CLA). This can be found on your first pull request to the repository.
 
 ### DCO contribution sign off
 
