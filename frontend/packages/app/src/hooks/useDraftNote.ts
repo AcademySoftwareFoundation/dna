@@ -65,7 +65,7 @@ function parseEntitiesFromString(str: string): SearchResult[] {
   return [];
 }
 
-function backendToLocal(note: DraftNote): LocalDraftNote {
+export function backendToLocal(note: DraftNote): LocalDraftNote {
   // Convert links from DraftNoteLink[] to SearchResult[]
   const links: SearchResult[] = (note.links || []).map((link) => ({
     type: link.entity_type,
@@ -74,12 +74,12 @@ function backendToLocal(note: DraftNote): LocalDraftNote {
   }));
 
   return {
-    content: note.content,
-    subject: note.subject,
-    to: parseEntitiesFromString(note.to),
-    cc: parseEntitiesFromString(note.cc),
+    content: note.content ?? '',
+    subject: note.subject ?? '',
+    to: parseEntitiesFromString(note.to ?? ''),
+    cc: parseEntitiesFromString(note.cc ?? ''),
     links,
-    versionStatus: note.version_status,
+    versionStatus: note.version_status ?? '',
     published: note.published,
     edited: note.edited,
     publishedNoteId: note.published_note_id ?? null,

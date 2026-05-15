@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
-import { useDraftNote } from './useDraftNote';
+import { useDraftNote, backendToLocal } from './useDraftNote';
 import { apiHandler } from '../api';
 import type { DraftNote } from '@dna/core';
 
@@ -56,7 +56,45 @@ const mockDraftNote: DraftNote = {
   published_note_id: null,
   updated_at: '2025-01-15T00:00:00Z',
   created_at: '2025-01-15T00:00:00Z',
+  attachment_ids: [],
 };
+
+describe('backendToLocal', () => {
+  it('parses to and cc JSON like the editor stores them', () => {
+    const to = JSON.stringify([{ type: 'User', id: 1, name: 'A' }]);
+    const cc = JSON.stringify([{ type: 'User', id: 2, name: 'B' }]);
+    const note: DraftNote = {
+      _id: 'x',
+      user_email: 'u@test.com',
+      playlist_id: 1,
+      version_id: 2,
+      content: 'c',
+      subject: 's',
+      to,
+      cc,
+      links: [{ entity_type: 'Version', entity_id: 9, entity_name: 'v' }],
+      version_status: 'ip',
+      published: false,
+      edited: false,
+      published_note_id: null,
+      updated_at: '2025-01-15T00:00:00Z',
+      created_at: '2025-01-15T00:00:00Z',
+      attachment_ids: [],
+    };
+    expect(backendToLocal(note)).toEqual({
+      content: 'c',
+      subject: 's',
+      to: [{ type: 'User', id: 1, name: 'A' }],
+      cc: [{ type: 'User', id: 2, name: 'B' }],
+      links: [{ type: 'Version', id: 9, name: 'v' }],
+      versionStatus: 'ip',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
+      attachmentIds: [],
+    });
+  });
+});
 
 describe('useDraftNote', () => {
   beforeEach(() => {
