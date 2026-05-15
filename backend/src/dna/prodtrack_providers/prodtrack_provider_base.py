@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +16,26 @@ class UserNotFoundError(Exception):
 class ProdtrackProviderBase:
     def __init__(self):
         pass
+
+    @staticmethod
+    def build_version_context(version: Version) -> str:
+        """Format a Version entity as plain text for LLM prompts."""
+        parts: list[str] = []
+        if version.name:
+            parts.append(f"Version: {version.name}")
+        if version.entity:
+            entity_type = version.entity.__class__.__name__
+            parts.append(f"{entity_type}: {version.entity.name}")
+        if version.task:
+            if version.task.name:
+                parts.append(f"Task: {version.task.name}")
+            if version.task.pipeline_step and version.task.pipeline_step.get("name"):
+                parts.append(f"Department: {version.task.pipeline_step['name']}")
+        if version.status:
+            parts.append(f"Status: {version.status}")
+        if version.description:
+            parts.append(f"Description: {version.description}")
+        return "\n".join(parts) if parts else "No version context available."
 
     def _get_object_type(self, object_type: str) -> type["EntityBase"]:
         """Get the model class from the entity type string."""

@@ -37,6 +37,9 @@ from dna.models import (
     GenerateNoteRequest,
     GenerateNoteResponse,
     Note,
+    NoteQCCheck,
+    NoteQCCheckCreate,
+    NoteQCCheckUpdate,
     Platform,
     Playlist,
     PlaylistMetadata,
@@ -44,6 +47,8 @@ from dna.models import (
     Project,
     PublishNotesRequest,
     PublishNotesResponse,
+    RunQCChecksRequest,
+    RunQCChecksResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -63,6 +68,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
+from dna.qc.qc_runner import run_qc_checks_for_draft
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -155,6 +161,10 @@ tags_metadata = [
     {
         "name": "User Settings",
         "description": "Operations for managing user settings and preferences",
+    },
+    {
+        "name": "Note QC",
+        "description": "User-defined LLM quality checks for draft notes at publish time",
     },
 ]
 
@@ -901,7 +911,6 @@ async def publish_notes(
                 skipped_count += 1
                 continue
 
-            # Check if note is already published (re-publish/update)
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
                     # Still apply any pending version status change
@@ -1059,9 +1068,6 @@ async def _sync_published_notes(
         from datetime import datetime, timezone
 
         for (vid, email), note in latest_notes.items():
-            # Check if we already have this specific published note to avoid writes
-            # Optimization: could query storage for all draft notes first.
-            # For now, just upsert.
             update_data = DraftNoteUpdate(
                 content=note.content or "",
                 subject=note.subject or "",
@@ -1340,6 +1346,120 @@ async def delete_user_settings(
     return True
 
 
+@app.get(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="List note QC checks",
+    response_model=list[NoteQCCheck],
+)
+async def list_qc_checks(
+    user_email: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> list[NoteQCCheck]:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.get_qc_checks(user_email)
+
+
+@app.post(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="Create a note QC check",
+    response_model=NoteQCCheck,
+    status_code=201,
+)
+async def create_qc_check(
+    user_email: str,
+    data: NoteQCCheckCreate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.create_qc_check(user_email, data)
+
+
+@app.put(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Update a note QC check",
+    response_model=NoteQCCheck,
+)
+async def update_qc_check(
+    user_email: str,
+    check_id: str,
+    data: NoteQCCheckUpdate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    updated = await storage_provider.update_qc_check(user_email, check_id, data)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="QC check not found")
+    return updated
+
+
+@app.delete(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Delete a note QC check",
+    status_code=204,
+)
+async def delete_qc_check(
+    user_email: str,
+    check_id: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> None:
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    deleted = await storage_provider.delete_qc_check(user_email, check_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="QC check not found")
+
+
+@app.post(
+    "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks",
+    tags=["Note QC"],
+    summary="Run note QC checks for a draft",
+    response_model=RunQCChecksResponse,
+)
+async def run_qc_checks(
+    playlist_id: int,
+    version_id: int,
+    body: RunQCChecksRequest,
+    storage_provider: StorageProviderDep,
+    prodtrack_provider: ProdtrackProviderDep,
+    llm_provider: LLMProviderDep,
+    current_user: CurrentUserDep,
+) -> RunQCChecksResponse:
+    if body.user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    draft = await storage_provider.get_draft_note(
+        body.user_email, playlist_id, version_id
+    )
+    if draft is None:
+        return RunQCChecksResponse(results=[])
+    checks = await storage_provider.get_qc_checks(body.user_email)
+    segments = await storage_provider.get_segments_for_version(playlist_id, version_id)
+    transcript = TranscriptionProviderBase.build_transcript_text(segments)
+    version = cast(
+        Version,
+        prodtrack_provider.get_entity("version", version_id, resolve_links=False),
+    )
+    results = await run_qc_checks_for_draft(
+        checks=checks,
+        draft=draft,
+        transcript_text=transcript,
+        version=version,
+        prodtrack_provider=prodtrack_provider,
+        llm_provider=llm_provider,
+    )
+    return RunQCChecksResponse(results=results)
+
+
 # -----------------------------------------------------------------------------
 # Transcription endpoints
 # -----------------------------------------------------------------------------
@@ -1500,37 +1620,6 @@ async def get_segments_for_version(
 # -----------------------------------------------------------------------------
 
 
-def _build_version_context(version: Version) -> str:
-    """Build a context string from version metadata."""
-    parts = []
-    if version.name:
-        parts.append(f"Version: {version.name}")
-    if version.entity:
-        entity_type = version.entity.__class__.__name__
-        parts.append(f"{entity_type}: {version.entity.name}")
-    if version.task:
-        if version.task.name:
-            parts.append(f"Task: {version.task.name}")
-        if version.task.pipeline_step and version.task.pipeline_step.get("name"):
-            parts.append(f"Department: {version.task.pipeline_step['name']}")
-    if version.status:
-        parts.append(f"Status: {version.status}")
-    if version.description:
-        parts.append(f"Description: {version.description}")
-    return "\n".join(parts) if parts else "No version context available."
-
-
-def _build_transcript_text(segments: list[StoredSegment]) -> str:
-    """Build a transcript string from segments."""
-    if not segments:
-        return "No transcript available."
-    lines = []
-    for segment in segments:
-        speaker = segment.speaker or "Unknown"
-        lines.append(f"{speaker}: {segment.text}")
-    return "\n".join(lines)
-
-
 def _build_full_prompt(
     prompt: str,
     transcript: str,
@@ -1577,7 +1666,7 @@ async def generate_note(
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
         )
-        transcript = _build_transcript_text(segments)
+        transcript = TranscriptionProviderBase.build_transcript_text(segments)
 
         version = cast(
             Version,
@@ -1585,7 +1674,7 @@ async def generate_note(
                 "version", request.version_id, resolve_links=False
             ),
         )
-        context = _build_version_context(version)
+        context = ProdtrackProviderBase.build_version_context(version)
 
         draft_note = await storage_provider.get_draft_note(
             request.user_email, request.playlist_id, request.version_id

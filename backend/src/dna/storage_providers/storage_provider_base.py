@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+    from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCCheckUpdate
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
     from dna.models.user_settings import UserSettings, UserSettingsUpdate
 
@@ -108,6 +109,26 @@ class StorageProviderBase:
 
     async def delete_user_settings(self, user_email: str) -> bool:
         """Delete user settings. Returns True if deleted."""
+        raise NotImplementedError()
+
+    async def get_qc_checks(self, user_email: str) -> list["NoteQCCheck"]:
+        """List QC checks for a user; seeds default checks when none exist."""
+        raise NotImplementedError()
+
+    async def create_qc_check(
+        self, user_email: str, data: "NoteQCCheckCreate"
+    ) -> "NoteQCCheck":
+        """Create a QC check."""
+        raise NotImplementedError()
+
+    async def update_qc_check(
+        self, user_email: str, check_id: str, data: "NoteQCCheckUpdate"
+    ) -> Optional["NoteQCCheck"]:
+        """Update a QC check owned by the user. Returns None if not found."""
+        raise NotImplementedError()
+
+    async def delete_qc_check(self, user_email: str, check_id: str) -> bool:
+        """Delete a QC check. Returns True if deleted."""
         raise NotImplementedError()
 
 

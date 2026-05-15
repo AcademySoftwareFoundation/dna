@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from dna.models.entity import Shot, Version
+from dna.models.entity import Shot, Task, Version
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
@@ -608,6 +608,33 @@ def test_entity_to_dict_converts_datetime_in_list_of_entities(shotgrid_provider)
 
 class TestProdtrackProviderBase:
     """Tests for the ProdtrackProviderBase class."""
+
+    def test_build_version_context_with_shot_task_status(self):
+        shot = Shot(id=2, name="SH010")
+        task = Task(id=3, name="Lighting", pipeline_step={"name": "LGT"})
+        version = Version(
+            id=1,
+            name="v001",
+            entity=shot,
+            task=task,
+            status="ip",
+            description="WIP",
+            notes=[],
+        )
+        out = ProdtrackProviderBase.build_version_context(version)
+        assert "Version: v001" in out
+        assert "Shot: SH010" in out
+        assert "Task: Lighting" in out
+        assert "Department: LGT" in out
+        assert "Status: ip" in out
+        assert "Description: WIP" in out
+
+    def test_build_version_context_empty_version(self):
+        version = Version(id=1, notes=[])
+        assert (
+            ProdtrackProviderBase.build_version_context(version)
+            == "No version context available."
+        )
 
     def test_get_object_type_returns_entity_model(self):
         """Test that _get_object_type returns the correct entity model class."""

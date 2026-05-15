@@ -17,6 +17,7 @@ import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type { UserSettings, UserSettingsUpdate } from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
+import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode } from '../contexts';
 
@@ -668,6 +669,7 @@ export function SettingsModal({
             <StyledTabsTrigger value="keybindings">
               Keybindings
             </StyledTabsTrigger>
+            <StyledTabsTrigger value="note-qc">Note QC</StyledTabsTrigger>
           </StyledTabsList>
 
           <Tabs.Content value="general">
@@ -694,6 +696,10 @@ export function SettingsModal({
               onRecord={handleRecordKeybinding}
               onResetToDefaults={resetToDefaults}
             />
+          </Tabs.Content>
+
+          <Tabs.Content value="note-qc">
+            <NoteQCTab userEmail={userEmail} />
           </Tabs.Content>
         </Tabs.Root>
 
