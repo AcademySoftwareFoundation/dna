@@ -1,0 +1,449 @@
+Description,notes,transcript,context,"[ollama:chat:phi4] prompts/notes_v1.txt: Purpose and Goals:
+
+* Embody the role of a seasoned CG/VFX coordinator with extensive experience in high-end feature film VFX production.
+
+* Demonstrate a deep understanding of visual effects pipelines and the interdependencies of various departments.
+
+* Accurately interpret and translate notes and feedback from other supervisors into actionable instructions for relevant teams.
+
+* Provide insightful knowledge about industry-standard software and tools used in each VFX department.
+
+* Create notes in shotgrid, our production tracking system, that are clear, concise, and actionable using the provided tools.
+
+
+Behaviors and Rules:
+
+
+1) Understanding the Role:
+
+a) Embody the role of a CG/VFX coordinator with a long track record of working on numerous feature film projects.
+
+b) Emphasize your comprehensive understanding of the entire VFX process, from initial concept to final delivery.
+
+c) Highlight your ability to bridge communication gaps between different VFX teams and disciplines.
+
+
+2) Interpreting and Relaying Information:
+
+a) When presented with notes or feedback, demonstrate the ability to analyze and synthesize the information effectively.
+
+b) Explain your thought process in breaking down complex instructions into clear and concise tasks for specific departments.
+
+c) Provide context and rationale behind the notes to ensure teams understand the creative or technical intent.
+
+
+3) Knowledge of Tools and Pipelines:
+
+a) When discussing specific tasks or challenges, use this guide as reference for the individual departments:
+
+DMS (Digital Model Shop): This department is responsible for creating detailed 3D models of assets, including characters, vehicles, and environments. They work closely with art directors to ensure models meet the required aesthetic and technical specifications. Tools: Maya, ZBrush, Substance Painter.
+
+CrDev (Creature Development): This group focuses on creating the rigs that drive the digital models, particularly for creatures. These rigs allow animators to pose and animate the models in a realistic and believable way. Tools: Maya, Python (for scripting), proprietary rigging tools
+
+Lookdev: The Look Development department sets up materials, lighting, and shaders to define the visual appearance of assets. This involves creating the textures, colors, and surface properties that determine how an object looks under different lighting conditions. Tools: Katana, Renderman
+
+Viewpaint (Texture): These artists are responsible for creating and applying textures to the models. Tools: Mari, Substance Painter, Photoshop.
+
+Layout: This department handles match-move, motion capture (mocap), tracking, camera work, and scene layout. They are responsible for recreating real-world camera movements in the digital environment and arranging the scene's elements. Tools: Zeno.
+
+Animation: Animators bring the characters and creatures to life by creating their movements and performances. Tools: Maya, motion capture tools, proprietary animation tools.
+
+Creature Simulation: This department deals with simulating the movement and behavior of hair, crowds, flesh, muscles, cloth, and other elements, particularly for creatures. Tools: Houdini, Maya, proprietary simulation tools. Typically we would refer to this if the animation is ready to pass over.
+
+FX Simulations: This group is responsible for creating and simulating visual effects, such as explosions, fire, water, and other dynamic phenomena. Tools: Houdini, proprietary simulation tools.
+
+Generalists / Environments: These artists work on a variety of tasks, often related to creating and integrating environments into the scenes. Tools: Maya, Houdini, Zeno, SpeedTree, terrain generation tools.
+
+Lighting (TD): This department is responsible for lighting the scenes and rendering the final images. They work to create the desired mood and atmosphere. Tools: Katana, renderman, nuke
+
+Roto/Paint: Roto artists create mattes to isolate elements in a scene, while paint artists remove unwanted elements or blemishes from the footage. Tools: Silhouette FX, Mocha Pro, Nuke.
+
+Compositing: The compositing department combines all the different elements of a shot, such as live-action footage, CG elements, and visual effects, into a final image. Tools: Nuke
+
+R&D (Research and Development): This department develops software. Tools: C++, Python, SDKs, various software development tools.
+
+Core Pipeline: This department supports the integration and workflow of tools. Tools: Scripting languages (Python), database management systems, software deployment tools.
+
+b) Explain how different software packages integrate within the broader VFX pipeline.
+
+c) Demonstrate an understanding of data management and review processes using tools like Shotgrid and RV.
+
+
+4) Communication Style:
+
+a) Maintain a professional and knowledgeable tone, reflecting the expertise of a senior VFX professional.
+
+b) Use clear and precise language, avoiding jargon where possible or explaining it when necessary.
+
+c) Be solution-oriented and provide constructive guidance.
+
+d) Be incredibly concise with your responses.
+
+e) Do not use any emojis and do not add any analysis to the note. For example, do not say ""This appears to be a note"", ""I think this is a good note"" or ""I think this is a bad note"". Just output the note.
+
+Overall Tone:
+
+* Experienced and authoritative.
+
+* Detail-oriented and analytical.
+
+* Collaborative and communicative.
+
+5) Common terminology and phrases:
+
+- Version/Take: Refers to a specific iteration of a task. That is what we are reviewing.
+- Shot: A single continuous piece of film or video footage. It is a specific segment of a scene.
+- Asset: A digital object or element used in the production, such as a character model, environment, or prop.
+- Task: A specific job or assignment within the production pipeline, often assigned to a particular department or artist.
+- Feedback: Comments or suggestions provided by supervisors or peers regarding a specific task or version.
+- Review: The process of evaluating a version or task to provide feedback and determine if it meets the required standards.
+- Pipeline_step: A specific stage in the production process where tasks are completed and reviewed. Also sometimes referred to as a department.
+- Shotgrid: Our production tracking system.
+- RV: A review tool used for viewing and annotating video footage.
+
+6) Additional Rules:
+- You are not allowed to make up any information. You must only use the information provided to you.
+- You are not allowed to use any information that is not provided to you.
+- If you are not provided with a transcript, you are not allowed to create a note. Return an empty string.
+- If you are not provided with a version, you are not allowed to create a note. Return an empty string.
+- Never output any other text then the notes. For example do not output your thought process or analysis of the note. Just output the note.
+- Do not include department names, job titles, or artist names in the note content. Just write the actionable feedback as plain bullets.
+- Never introduce yourself in the note. Just get straight to the point and generate the note.
+- Do not add soft requests to the note. for example, ""Keep me up to date on...."" or ""Let me know if..."". Only add hard requests such as specific actions that need to be taken on the version.
+- Prioritizes actionable feedback over general comments on work quality.
+- Do not add any analysis to the note. Just output the note.
+- Do not embellish any notes that have been taken.
+
+7) Formatting:
+- Format the note as a bullet point list. Each action item is its own bullet.
+- Use ""- "" to denote each bullet point.
+
+Example Note:
+- The layout needs more environmental detail in the background.
+- Adjust the camera angle to avoid clipping on the left edge.
+
+8) Acceptance Criteria:
+- The note must be a bullet point list.
+- The note must be accurate and relevant to the transcript and version data.
+- The note must be clear and concise.
+- The note must be complete and not missing any information.
+- The note must be free of any errors.
+- The note must be free of any emojis.
+- The note must be free of any analysis. Just output the bullets.
+- The note should follow the guidelines for formatting.
+- The note highlights things that are working well and action items that need to be addressed.
+- Use the transcript to help you understand the notes already taken. Try to find any inconsistencies or missing information between the transcript and the notes already taken.
+- If the transcript is not provided, you are not allowed to create a note. Return an empty string.
+- If no note or version data is provided, generate a note based on the transcript only.
+
+
+Now, here is the transcript and the version data:
+
+
+Transcript:
+{{ transcript }}
+
+Version Data:
+{{ context }}
+
+Notes taken on this version already:
+{{ notes }}",Status,Score,Named Scores,Grader Reason,Comment,"[ollama:chat:phi4] prompts/notes_v2.txt: Generate production notes from the transcript below. Follow these rules strictly:
+
+FORMAT — Output notes as a bullet point list. Each action item is its own bullet using ""- "".
+
+RULES:
+- Only include feedback that requires action. Skip general praise.
+- Do not fabricate any information not present in the transcript or version data.
+- Do not include department names, job titles, or artist names in the bullets.
+- Do not include soft requests (""let me know"", ""keep me updated""). Only hard action items.
+- Do not include analysis, commentary, or self-reference. Output notes only.
+- Do not use emojis.
+- If no transcript is provided, return an empty string.
+
+Version Data:
+{{ context }}
+
+Transcript:
+{{ transcript }}
+
+Existing Notes:
+{{ notes }}",Status,Score,Named Scores,Grader Reason,Comment,"[ollama:chat:phi4] prompts/notes_v3.txt: You are a helpful assistant that reviews transcripts of artist review meetings and generates concise, readable summaries of the discussions.
+
+The meetings are focused on reviewing creative work submissions (""shots"") for a movie. Each meeting involves artists and reviewers (supervisors, leads, etc.) discussing feedback, decisions, and next steps for each shot.
+
+Your goal is to recreate short, clear, and accurate abbreviated conversations that capture:
+- Key feedback points
+- Decisions made (e.g., approved/finalled shots)
+- Any actionable tasks for the artist
+- Never use phrases like ""Let me know"", ""Feel free to"", or ""Keep me posted"".
+
+Write in a concise, natural tone that's easy for artists to quickly scan and understand what was said and what they need to do next.
+
+It's important that you use bullet points for every note. No notes should exist without a bullet point e.g ""- hello this is a note"".
+
+Transcript:
+{{ transcript }}
+
+Version Data:
+{{ context }}
+
+Existing Notes:
+{{ notes }}",Status,Score,Named Scores,Grader Reason,Comment,"[ollama:chat:phi4] prompts/notes_v4.txt: You are a VFX production coordinator writing shot notes from a review meeting transcript.
+
+Output bullet points only using ""- "". No intro, no headers, no sign-off.
+
+- Include action items AND approvals. Skip general praise.
+- Use the exact words from the transcript for asset and technical terms.
+- One idea per bullet. Keep each bullet short.
+- No names, titles, or departments.
+- No soft requests. No emojis. No fabrication.
+- If no transcript, return empty string.
+
+Version Data:
+{{ context }}
+
+Transcript:
+{{ transcript }}
+
+Existing Notes:
+{{ notes }}",Status,Score,Named Scores,Grader Reason,Comment
+"TST_010_0010 — Comp, blown-out sky and desert dust",,file://../dataset/transcripts/TST_010_0010.txt,"Version: TST_010_0010_TD
+Shot: TST_010_0010
+Task: Compositing
+Department: Comp
+Status: rev
+Description: Wide shot of desert sailing vessel with sky and mountain background
+","- Knock down the sky by a few stops to reduce brightness and add detail.
+- Remove the flare to keep focus on the sails.
+- Increase sand dust movement around screen right for more dynamic air effect.  
+
+**RV Link:** [TST_010_0010_TD](#)  
+**Shotgrid Link:** [TST_010_0010](#)  
+**Version/Take:** TST_010_0010_TD
+
+",PASS,1.00,,All assertions passed,,"- Knock down the sky a few stops and bring in more detail.
+- Remove the flare effect from the shot.
+- Add sand dust kicking up around screen right to show movement.",PASS,1.00,,All assertions passed,,"- **Shot Review: TST_010_0010 (Wide Shot of Desert Sailing Vessel)**
+  - Feedback on Exposure: 
+    - Sky appears too bright; recommend reducing exposure by a few stops.
+    - Add more detail to the sky for better balance with other elements.
+  - Flare Discussion:
+    - Dennis suggests removing flare as it diverts attention from sails.
+    - Consensus is not committed to keeping the flare; agreed to remove it.
+  - Scenery Feedback: 
+    - Sails are well-developed, simulation looks good.
+    - Mountains and scenery approved by Dennis.
+  - Additional Action:
+    - Increase sand dust effect on screen right to add movement in the desert area.
+    - Enhance sense of wind with visible movement for visual interest.
+
+- **Artist Actions:**
+  - Adjust sky exposure down for better detail.
+  - Remove flare from shot to focus attention on sails.
+  - Add more sand dust and subtle movement in the desert to imply wind. 
+
+- **Next Steps:**
+  - Review adjustments as per feedback before finalizing the shot.",PASS,1.00,,All assertions passed,,"- Knock the sky down a few stops and bring in more detail.
+- Lose the flare as it is drawing the eye away from the sails.
+- Add more sand dust kicking up around screen right for increased movement.",PASS,1.00,,All assertions passed,
+"TST_010_0020 — Anim/Lookdev, digi-doubles movement and throne highlights",,file://../dataset/transcripts/TST_010_0020.txt,"Version: TST_010_0020_TD
+Shot: TST_010_0020
+Task: Animation
+Department: Animation
+Status: rev
+Description: Interior throne room shot with digi-double characters
+","- Add subtle movement to the two digi's as they walk into their current positions.
+- Adjust highlights on the top of the throne to create an alien material effect, ensuring all light appears lost.",PASS,1.00,,All assertions passed,,"- Add movement to the digi-doubles so they walk into their current position.
+- Remove highlights from the top of the throne to make it appear as if made of an alien material that absorbs all light.",PASS,1.00,,All assertions passed,,"- **Feedback Points:**
+  - Shot is a work in progress but has progressed beyond the initial draft.
+  - Visibility of surroundings should convey an ""infinity feeling"" without showing room edges.
+  - Two digi-double characters appear static; suggested to introduce movement by having them walk into position.
+
+- **Decisions Made:**
+  - Shot not fully approved; requires additional adjustments before final approval.
+  
+- **Actionable Tasks for Artist (Ken):**
+  - Add subtle movements to the two digi-doubles, making them walk into their positions.
+  - Modify throne material to absorb light completely, creating an ""alien"" appearance by removing highlights. 
+
+- **Version Data:**
+  - Version: TST_010_0020_TD
+  - Shot: TST_010_0020
+  - Task: Animation
+  - Department: Animation
+  - Status: revision needed
+
+- **Summary of Meeting:**
+  - Artists are encouraged to enhance shot dynamics and materials for better alignment with creative vision, focusing on movement and light absorption.",PASS,1.00,,All assertions passed,,"- Get a little bit of movement for the two digi's to walk into their current position.
+- Lose the highlights on the top of the throne. Should look like an alien material where all light gets lost.
+- Animation task approved by Dennis and Ken after adjustments discussed.",PASS,1.00,,All assertions passed,
+"TST_010_0030 — Comp/FX, foreground tree removal and fire bloom",,file://../dataset/transcripts/TST_010_0030.txt,"Version: TST_010_0030_TD
+Shot: TST_010_0030
+Task: Compositing
+Department: Comp
+Status: rev
+Description: Exterior shot with prisoners, foreground trees, and fire/smoke FX
+","- Remove the middle tree that is obstructing visibility of the prisoners.
+- Reduce the intensity or presence of smoke to maintain brightness without excessive bloom.
+- Confirm removal adjustments do not affect background elements; they are satisfactory.
+- Ensure changes in foreground do not obscure important details on the ground. 
+
+**Action Required:**
+- Update composition to address feedback and resubmit for review.",PASS,1.00,,All assertions passed,,"- Remove the middle tree in the foreground to prevent it from obscuring visibility of George and the prisoners.
+- Reduce the smoke effect to decrease its brightness and bloom, maintaining focus on the fire's brightness without overpowering other elements.
+- Ensure no changes are made to the trees in the background as they currently meet expectations.",FAIL,0.89,,"The submitted answer and the expert answer have several discrepancies that affect their factual consistency. The expert answer includes a bullet point 'Want to read prisoners,' which is not explicitly stated in the submitted answer, though it implies similar intent with specific mention of improving visibility for George and the prisoners. However, the submitted answer does not directly match this action item's phrasing or focus. Additionally, while both answers discuss reducing smoke and maintaining background trees, the expert answer also includes a point about the guard's helmet looking good, which is missing from the submitted answer. Thus, there are notable differences in content that result in a factual disagreement between the two.",,"- Middle tree causing obstruction in the foreground needs to be removed for better visibility of the prisoners.  
+  - **Action:** Artist to remove middle tree from the scene.
+
+- Brightness of the fire is acceptable; however, smoke bloom effect should be reduced.
+  - **Action:** Reduce smoke bloom effect.
+
+- Background elements and trees are fine; focus on foreground adjustments.  
+  - **Note:** Ensure readability of ground details in the foreground.
+
+- Guard's helmet in the left corner at the end looks good after recent changes.
+  - **Note:** No further action required for the guard's helmet.
+
+- Overall shot status is approved following these modifications.
+  - **Status:** Ready for next review cycle.",PASS,1.00,,All assertions passed,,"- Kill middle tree bumping with George.
+- Lose some smoke to reduce bloom effect.
+- Ensure readability of prisoners on the ground.
+- Guard helmet on the left looks good after another pass.  
+- All elements are approved as reviewed.  
+
+--- 
+
+*Notes from existing notes are not included since they were empty.*",PASS,1.00,,All assertions passed,
+"TST_010_0040 — Camera, rack focus to Ornithopter over Harvester",,file://../dataset/transcripts/TST_010_0040.txt,"Version: TST_010_0040_TD
+Shot: TST_010_0040
+Task: Camera
+Department: Camera
+Status: rev
+Description: Wide shot of Harvester with Ornithopter entering frame
+","- Rack focus to Ornothopter as it crosses in front of the Harvester.
+- Ensure a smooth transition by leaving room for Ornothopter's entry before switching focus.
+- Maintain blade trajectory and movement quality, ensuring alignment with feedback on improvements.
+- Execute rack focus within 10 frames to meet required quickness without compromising shot pacing.",FAIL,0.89,,"Expected output to contain all of [rack focus, blades]. Missing: [blades]",,"- Rack focus from Harvester to Ornithopter as the Ornithopter crosses in front of the Harvester.  
+- Leave room for Ornithopter to enter frame before switching focus.  
+- Ensure the rack focus is completed within 10 frames, aiming for a quick transition.",FAIL,0.89,,"Expected output to contain all of [rack focus, blades]. Missing: [blades]",,"- **Shot:** TST_010_0040  
+  - **Title:** Wide shot of Harvester with Ornithopter entering frame  
+  - **Department:** Camera  
+  - **Status:** Rev  
+
+- **Feedback & Decisions:**
+  - Feedback on harvester shadow is satisfactory.
+  - Decision to implement a rack focus to the Ornithopter as it crosses in front of the harvester, ensuring room for focus transition in the frame.
+  - The movement and trajectory of blades are improved; overall shot can be finalized post-rack adjustment.
+
+- **Rack Focus Specifics:**
+  - Rack focus should occur quickly as the Ornithopter enters, within approximately 10 frames to ensure it outpaces the scene but aligns with desired quickness.
+  
+- **Actionable Tasks for Artist (Ken):**
+  - Adjust camera work to incorporate rack focus at specified timing and frame count. 
+
+- **General Comments:**
+  - Positive feedback on the creative execution of shot elements like blade movement. 
+  - Acknowledgment that adjustments align with creative vision, ensuring readiness for finalization.",PASS,1.00,,All assertions passed,,"- Update version to TST_010_0040_TD with rack focus to Ornithopter as requested.
+- Ensure Harvester shadow is visible before switching focus.
+- Leave room for Ornithopter to come into frame, switch focus as it crosses in front of Harvester.
+- Confirm blade movement looks good and matches desired trajectory.
+- Rack focus to be completed within 10 frames to maintain quick pace with shot.",FAIL,0.78,,"The submitted answer includes additional information that is not present in the expert answer, and it rephrases some of the points instead of using the exact words from the transcript as required by the task instructions. Specifically:
+
+1. The expert answer states 'Harvester shadow is looking good,' while the submitted answer mentions to 'Ensure Harvester shadow is visible before switching focus.' This adds a condition not present in the expert answer.
+2. The phrase 'Want to add a rack focus to the Ornothopter as it passes in front of Harvester' from the expert answer is expanded in the submitted answer to include details about leaving room for the Ornithopter and switching focus, which introduces new elements not explicitly stated in the expert summary.
+3. The confirmation of blade movement and trajectory being 'good' in the expert answer is changed to 'Confirm blade movement looks good and matches desired trajectory,' again adding unnecessary detail and altering the simplicity intended by the original notes.
+4. The condition for a quick rack focus 'within 10 frames' from the expert answer remains consistent, but the context added ('to maintain quick pace with shot') introduces an interpretation not explicitly stated in the expert summary.
+The discrepancies between rephrasing instructions and adding details that were not part of the expert's concise points indicate factual disagreements.",
+"TST_020_0010 — Lighting, bulb glow approved for tech check",,file://../dataset/transcripts/TST_020_0010.txt,"Version: TST_020_0010_TD
+Shot: TST_020_0010
+Task: Lighting
+Department: Light
+Status: rev
+Description: Close shot with practical bulb glow lighting element
+","- Ensure the technical review (tech check) confirms the consistency of the bulb's glow effect under varying camera angles.
+- Verify that the intensity and color temperature of the practical bulb are consistent across different shots to maintain continuity.  
+- Confirm with the Lookdev department that the materials reflect the desired aesthetic for the bulb, especially in terms of its interaction with other light sources in the scene.  
+- Check if there is any flickering or unnatural transitions in the glow effect during motion, and address with the Lighting team if needed.  
+- Review lighting setup to ensure it integrates smoothly with the surrounding environment and doesn't cause unwanted reflections on nearby surfaces.  
+
+These actions will help maintain the visual consistency of this close shot as it progresses through production stages.",FAIL,0.89,,"The expert answer provides a single, concise bullet point: '- Final pending tech check.' This indicates that the primary action for this version is awaiting technical review. The submitted answer, however, includes multiple detailed actions regarding specific aspects of lighting and visual effects, such as verifying intensity and color temperature consistency, checking material aesthetics with Lookdev, addressing any flickering or unnatural transitions, and reviewing integration with the environment. These additional points introduce elements not mentioned in the expert answer, which focuses solely on the pending tech check. Consequently, there is a factual disagreement because the submitted answer expands significantly beyond the scope of what the expert answer specifies.",,- Push lighting task TST_020_0010_TD through to tech check.,PASS,1.00,,All assertions passed,,"- **Shot**: TST_020_0010  
+  - **Feedback**:
+    - Bulb glow improved significantly.
+    - Movement in the scene is satisfactory.
+  - **Decision**:
+    - Shot approved for tech check by Dennis and Ken.
+  - **Actionable Tasks**:
+    - Proceed to push the shot through to tech check. 
+
+- **Version Data**:
+  - **Version**: TST_020_0010_TD
+  - **Department**: Light
+  - **Status**: rev (review)
+  - **Task**: Lighting
+
+- **Description**:
+  - Close shot featuring practical bulb glow lighting element.",PASS,1.00,,All assertions passed,,"- Push lighting version TST_020_0010_TD for technical check.
+- Approve practical bulb glow movement in shot TST_020_0010.
+- Call lighting task good to go based on meeting approval.",FAIL,0.89,,Expected output to contain all of [tech check]. Missing: [tech check],
+"TST_020_0020 — Comp, desert contrast and haze adjustment",,file://../dataset/transcripts/TST_020_0020.txt,"Version: TST_020_0020_TD
+Shot: TST_020_0020
+Task: Compositing
+Department: Comp
+Status: rev
+Description: Desert sunset shot with dunes and atmospheric haze
+","- Increase contrast to enhance the sense of depth in the desert scene.
+- Add more detail to read the dunes better, creating a three-dimensional look.
+- Reduce atmospheric haze for visual consistency with surrounding shots.",PASS,1.00,,All assertions passed,,"- Increase detail on the desert dunes for better contrast and depth perception.
+- Adjust atmospheric haze to reduce intensity for better integration with surrounding shots.",PASS,1.00,,All assertions passed,,"- **Feedback on Shot TST_020_0020 (Desert Sunset)**
+  - Need more detail in the desert scene to enhance depth perception.
+  - Increase contrast for better visibility of dunes; current look is one-dimensional.
+  
+- **Sun and Colors**
+  - Sun set effect appreciated, colors are satisfactory.
+  - Reduce haze intensity to improve integration with surrounding shots.
+  - Aim for a less apocalyptic, more visually appealing atmosphere.
+
+- **Decisions Made**
+  - Shot not approved in its current state; requires revisions.
+  
+- **Actionable Tasks**
+  - Enhance desert details and dune contrast.
+  - Adjust haze levels to create a more harmonious transition with other scenes.",PASS,1.00,,All assertions passed,,"- Need more detail on the desert and contrast for better visibility of dunes.
+- Improve sense of depth in shot; it looks one dimensional.
+- Dial back haze to make it less apocalyptic and blend better with surrounding shots.",PASS,1.00,,All assertions passed,
+"TST_020_0030 — FX/Comp, smoke plumes approved and cruiser reposition",,file://../dataset/transcripts/TST_020_0030.txt,"Version: TST_020_0030_TD
+Shot: TST_020_0030
+Task: FX
+Department: FX
+Status: rev
+Description: Wide fleet shot with smoke plumes and cruiser among smaller ships
+","- Nudge the cruiser on the right to align with the smaller ships for better visibility of its entire form.
+- Brighten the left side to ensure full visibility of the cruiser.  
+
+Action items must be completed by FX team on TST_020_0030_TD.  
+Ensure updates are reflected in Shotgrid and reviewed using RV.",FAIL,0.78,,"The expert answer focuses on two main points: 'Smoke plumes are good' and 'Nudge SR cruiser and smaller ships over to the left so whole cruiser is visible.' The submitted answer, however, includes additional directives not present in the expert's version. It specifies 'Nudge the cruiser on the right to align with the smaller ships for better visibility of its entire form,' which adds specificity but also implies a different direction (right vs. left). Additionally, it introduces an action item about brightening the left side, which is not mentioned in the expert answer, and adds procedural notes regarding updating Shotgrid and reviewing using RV. These additional elements indicate discrepancies that affect factuality.",,"- Nudge the cruiser on the right over with the smaller ships for better visibility of the entire cruiser.  
+- Increase brightness on the left side to ensure the whole cruiser is visible.",FAIL,0.78,,"The expert answer lists two specific action items: 1) Nudge SR cruiser and smaller ships over to the left so whole cruiser is visible, and 2) Smoke plumes are good (indicating no further action required). The submitted answer includes an additional detail about increasing brightness on the left side for visibility, which is not present in the expert answer. Additionally, while both versions mention nudging the cruiser for better visibility, the language used differs slightly ('nudge the cruiser on the right over with the smaller ships' vs 'nudge SR cruiser and smaller ships over to the left'). The extra detail about brightness in the submitted answer represents a factual disagreement with the expert's concise action items.",,"**Shot Review Summary for TST_020_0030**
+
+- **Feedback on Smoke Plumes**: 
+  - Positive feedback received; supervisors appreciate the current level of smoke.
+  - Initial concern about excessive smoke was clarified as favorable.
+
+- **Cruiser Placement Adjustment**: 
+  - Requested to move cruiser slightly right to align with smaller ships.
+  - Aim to brighten the left side for better visibility of the entire cruiser.
+
+- **Actionable Task**:
+  - Adjust cruiser positioning and enhance lighting on the left.
+
+- **Decision Made**:
+  - Shot is progressing well towards approval, adjustments noted as minor.
+
+- **Next Steps**:
+  - Implement adjustments discussed.
+  - Await further review upon changes. 
+
+**Status**: Revision in progress (rev) for final approval.",PASS,1.00,,All assertions passed,,"- Nudge the cruiser on the right over with the smaller ships to brighten the left side for visibility of the whole cruiser.  
+- Take a pass at nudging the cruiser and brightening the left side.  
+- Confirm approval from stakeholders on the smoke plumes, as they love it despite initial concerns about it being too much.  
+
+Existing Notes:  
+",PASS,1.00,,All assertions passed,
