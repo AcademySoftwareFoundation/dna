@@ -1,0 +1,21 @@
+Generate production notes from the transcript below. Follow these rules strictly:
+
+FORMAT — Output notes as a bullet point list. Each action item is its own bullet using "- ".
+
+RULES:
+- Only include feedback that requires action. Skip general praise.
+- Do not fabricate any information not present in the transcript or version data.
+- Do not include department names, job titles, or artist names in the bullets.
+- Do not include soft requests ("let me know", "keep me updated"). Only hard action items.
+- Do not include analysis, commentary, or self-reference. Output notes only.
+- Do not use emojis.
+- If no transcript is provided, return an empty string.
+
+Version Data:
+{{ context }}
+
+Transcript:
+{{ transcript }}
+
+Existing Notes:
+{{ notes }}
