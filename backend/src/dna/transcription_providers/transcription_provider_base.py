@@ -6,6 +6,8 @@ Abstract base class for transcription providers and factory function.
 import os
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional
 
+from dna.models.stored_segment import StoredSegment
+
 if TYPE_CHECKING:
     from dna.models.transcription import (
         BotSession,
@@ -19,6 +21,17 @@ EventCallback = Callable[[str, dict[str, Any]], Coroutine[Any, Any, None]]
 
 class TranscriptionProviderBase:
     """Abstract base class for transcription providers."""
+
+    @staticmethod
+    def build_transcript_text(segments: list[StoredSegment]) -> str:
+        """Format stored segments as newline-separated ``Speaker: text`` lines."""
+        if not segments:
+            return "No transcript available."
+        lines: list[str] = []
+        for segment in segments:
+            speaker = segment.speaker or "Unknown"
+            lines.append(f"{speaker}: {segment.text}")
+        return "\n".join(lines)
 
     async def dispatch_bot(
         self,

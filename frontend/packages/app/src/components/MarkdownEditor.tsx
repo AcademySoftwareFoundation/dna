@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type FocusEvent } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -30,6 +30,8 @@ import { MentionList, type MentionListHandle } from './MentionList';
 interface MarkdownEditorProps {
   value?: string;
   onChange?: (value: string) => void;
+  /** Fires when focus leaves the editor surface and toolbar (e.g. user clicked elsewhere). */
+  onContentBlur?: () => void;
   onAttach?: (file: File) => void;
   attachmentCount?: number;
   attachmentFlashKey?: number;
@@ -380,6 +382,7 @@ interface MentionSuggestionState {
 export function MarkdownEditor({
   value,
   onChange,
+  onContentBlur,
   onAttach,
   attachmentCount = 0,
   attachmentFlashKey = 0,
@@ -439,6 +442,27 @@ export function MarkdownEditor({
     command: null,
     isLoading: false,
   });
+
+  const mentionActiveRef = useRef(false);
+  mentionActiveRef.current = mention.active;
+
+  const handleEditorSubtreeBlur = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      if (!onContentBlur) return;
+      if (mentionActiveRef.current) {
+        return;
+      }
+      const related = e.relatedTarget;
+      if (related instanceof Element && related.closest('[data-mention-dropdown]')) {
+        return;
+      }
+      if (related instanceof Node && e.currentTarget.contains(related)) {
+        return;
+      }
+      onContentBlur();
+    },
+    [onContentBlur]
+  );
 
   function mentionListLoading(
     query: string,
@@ -607,7 +631,10 @@ export function MarkdownEditor({
   }
 
   return (
-    <EditorWrapper $minHeight={minHeight}>
+    <EditorWrapper
+      $minHeight={minHeight}
+      onBlur={onContentBlur ? handleEditorSubtreeBlur : undefined}
+    >
       <EditorContent_ editor={editor} />
       <Toolbar>
         <ToolbarButton
@@ -713,6 +740,7 @@ export function MarkdownEditor({
         mention.command &&
         createPortal(
           <MentionDropdownWrapper
+            data-mention-dropdown=""
             style={{
               top: mention.rect.bottom + 4,
               left: mention.rect.left,

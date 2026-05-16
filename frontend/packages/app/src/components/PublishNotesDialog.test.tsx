@@ -22,6 +22,18 @@ vi.mock('../hooks/usePublishNotes', () => ({
 
 vi.mock('../hooks/useDraftNote');
 
+vi.mock('../hooks/useNoteQCChecks', () => ({
+  useNoteQCChecks: () => ({
+    results: {},
+    loading: false,
+    ignored: new Set<string>(),
+    toggleIgnore: vi.fn(),
+    refreshDraft: vi.fn().mockResolvedValue(undefined),
+    hasBlockingErrors: vi.fn(() => false),
+    refreshingDraftKey: null,
+  }),
+}));
+
 vi.mock('./NoteEditor', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./NoteEditor')>();
   return {

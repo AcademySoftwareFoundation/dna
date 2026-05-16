@@ -675,4 +675,59 @@ describe('ApiHandler', () => {
       ).rejects.toThrow('Server error');
     });
   });
+
+  describe('note QC endpoints', () => {
+    it('getQCChecks maps id to _id', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: [
+          {
+            id: 'oid1',
+            user_email: 'u@x.com',
+            name: 'N',
+            prompt: 'P',
+            severity: 'warning',
+            enabled: true,
+            updated_at: '2025-01-01T00:00:00Z',
+            created_at: '2025-01-01T00:00:00Z',
+          },
+        ],
+      });
+
+      const rows = await api.getQCChecks({ userEmail: 'u@x.com' });
+      expect(rows[0]._id).toBe('oid1');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/users/u%40x.com/qc-checks',
+        undefined
+      );
+    });
+
+    it('runQCChecks posts user_email and returns results', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.post.mockResolvedValue({
+        data: {
+          results: [
+            {
+              check_id: 'c1',
+              check_name: 'A',
+              severity: 'warning',
+              passed: true,
+            },
+          ],
+        },
+      });
+
+      const results = await api.runQCChecks({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'u@x.com',
+      });
+      expect(results).toHaveLength(1);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/run-qc-checks',
+        { user_email: 'u@x.com' },
+        undefined
+      );
+    });
+  });
 });
