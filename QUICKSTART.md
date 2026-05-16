@@ -1,42 +1,72 @@
 # DNA Quickstart Guide
 
-This guide will help you run the DNA application stack locally for development.
+This guide covers two ways to get the DNA application stack running locally: the automated bootstrap script (recommended) and step-by-step manual setup.
 
-## Prerequisites
+---
 
-- **Docker** and **Docker Compose** installed
+## Automated Bootstrap (Recommended)
+
+The `bootstrap.sh` script handles all setup steps for you. Run it from the repo root:
+
+```bash
+./bootstrap.sh
+```
+
+It will:
+
+1. Check that Docker and Node.js v18+ are installed and that the Docker daemon is running
+2. Copy example config files into their working locations
+3. Prompt you to choose an LLM provider (OpenAI or Gemini) and enter your API key
+4. Prompt you to configure the transcription service (remote via vexa.ai, self-hosted, or skip)
+5. Install frontend npm dependencies
+6. Start the Vexa services, create a local dev user, and generate a Vexa API key automatically
+7. Start the full DNA stack with Docker Compose
+
+After the script finishes, start the frontend in a new terminal:
+
+```bash
+cd frontend && npm run dev
+```
+
+The app will be available at `http://localhost:5173`.
+
+---
+
+## Manual Setup
+
+Follow these steps if you prefer to set up each component yourself, or if you need to understand what the bootstrap script does under the hood.
+
+### Prerequisites
+
+- **Docker** and **Docker Compose** installed and the Docker daemon running
 - **Node.js** (v18+) and **npm** for the frontend
 - **Python 3.11+** (optional, for running tests outside Docker)
 
-## Quick Start
-
-### 1. Clone and Setup
+### 1. Clone the Repository
 
 ```bash
 git clone <repository-url>
 cd dna
 ```
 
-### 2. Configure Environment Variables
+### 2. Copy Example Config Files
 
-Copy the example docker-compose.local.yml file:
+Copy all three example config files into their working locations. The bootstrap script backs up any existing files before overwriting; do the same if you are re-running setup.
 
 ```bash
 cd backend
 cp example.docker-compose.local.yml docker-compose.local.yml
 cp example.docker-compose.local.vexa.yml docker-compose.local.vexa.yml
+
+cd ../frontend
+cp packages/app/.env.example packages/app/.env
 ```
 
-Edit `docker-compose.local.yml` with your credentials.
+### 3. Configure the LLM Provider
 
-**Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`. See [Mock setup](#mock-production-tracking-setup) below for how to refresh or customize the mock data.
+Edit `backend/docker-compose.local.yml` and set your LLM credentials. The bootstrap script writes these values for you when you provide a key interactively.
 
-**LLM provider:** Set `LLM_PROVIDER` to choose which backend LLM integration to use.
-
-- `openai` (default): requires `OPENAI_API_KEY`; optional `OPENAI_MODEL` and `OPENAI_TIMEOUT`
-- `gemini`: requires `GEMINI_API_KEY`; optional `GEMINI_MODEL`, `GEMINI_TIMEOUT`, and `GEMINI_URL`
-
-Examples:
+**OpenAI (default):** requires `OPENAI_API_KEY`; optional `OPENAI_MODEL` and `OPENAI_TIMEOUT`
 
 ```yaml
 services:
@@ -46,6 +76,8 @@ services:
       - OPENAI_API_KEY=your-openai-api-key
       - OPENAI_MODEL=gpt-4o-mini
 ```
+
+**Gemini:** requires `GEMINI_API_KEY`; also set `LLM_PROVIDER=gemini`
 
 ```yaml
 services:
@@ -57,71 +89,153 @@ services:
       - GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 ```
 
-**Transcription (Vexa):** To get the transcription service running, you can get a free key from: https://staging.vexa.ai/dashboard/transcription
+### 4. Configure the Transcription Service
 
-When setting up, skip the Vexa API key for now. Once the stack is running you can get your Vexa API key from the Vexa Dashboard.
+Vexa requires an OpenAI Whisper-compatible transcription backend. Edit `backend/docker-compose.local.vexa.yml` for whichever option you choose.
+
+**Option 1 — Remote via vexa.ai (recommended, free tier available):**
+
+Get a free key at https://staging.vexa.ai/dashboard/transcription, then set:
 
 ```yaml
 services:
-  api:
-    environment:
-      - PYTHONUNBUFFERED=1
-      - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
-      - SHOTGRID_API_KEY=************
-      - SHOTGRID_SCRIPT_NAME=DNA_local_testing
-      - LLM_PROVIDER=openai
-      - VEXA_API_KEY=**********
-      - VEXA_API_URL=http://vexa:8056
-      - OPENAI_API_KEY=your-openai-api-key
-  
   vexa:
     environment:
-      # From https://staging.vexa.ai/dashboard/transcription
-      # More details: https://github.com/Vexa-ai/vexa/blob/main/docs/vexa-lite-deployment.md
-      - TRANSCRIBER_API_KEY=**********************
+      - TRANSCRIBER_API_KEY=your-transcription-api-key
       - TRANSCRIBER_URL=https://transcription.vexa.ai/v1/audio/transcriptions
 ```
 
-### 3. Start the Backend Stack
+**Option 2 — Self-hosted transcription service:**
 
 ```bash
-cd backend
-make start-local
+git clone https://github.com/Vexa-ai/vexa.git
+cd vexa/services/transcription-service
+cp .env.example .env
+# Edit .env: set API_TOKEN and optionally DEVICE=cpu for no GPU
+docker compose up -d
+# Wait for "Model loaded successfully" in: docker logs <container>
 ```
 
-This starts:
-- **MongoDB** - Database (port 27017)
-- **DNA API** - FastAPI backend (port 8000)
-- **Vexa** - Transcription service (port 8056) 
-- **Vexa Dashboard** - Admin UI (port 3001)
+Then in `backend/docker-compose.local.vexa.yml`:
 
+```yaml
+services:
+  vexa:
+    environment:
+      - TRANSCRIBER_URL=http://localhost:8083/v1/audio/transcriptions
+      - TRANSCRIBER_API_KEY=your-api-token-value
+```
 
-### 4. Get your Vexa API key
+**Option 3 — Skip transcription for now:**
 
-Once the stack is running you can get your Vexa API key from the Vexa Dashboard. http://localhost:3001/
+Add `SKIP_TRANSCRIPTION_CHECK=true` to `backend/docker-compose.local.vexa.yml` so Vexa starts without a working transcription backend:
 
-### 5. Start the Frontend
+```yaml
+services:
+  vexa:
+    environment:
+      - SKIP_TRANSCRIPTION_CHECK=true
+```
 
-In a new terminal:
+You can enable transcription later by removing that line and adding your `TRANSCRIBER_API_KEY`, then restarting with `cd backend && make restart-local`.
+
+### 5. Install Frontend Dependencies
 
 ```bash
 cd frontend
 npm install
 ```
 
-Copy the example env file:
+### 6. Generate a Vexa API Key
+
+The bootstrap script automates this via the Vexa admin API. To do it manually:
+
+**a. Start only the Vexa services:**
 
 ```bash
-cp packages/app/.env.example packages/app/.env
+cd backend
+docker compose -f docker-compose.vexa.yml -f docker-compose.local.vexa.yml up -d vexa vexa-db
 ```
 
+**b. Wait for the Vexa admin API to become ready** (may take ~30 s on first pull):
+
 ```bash
+until curl -sf -H "X-Admin-API-Key: your-admin-token" \
+    http://localhost:8056/admin/users -o /dev/null; do
+  echo "Waiting for Vexa..."; sleep 3
+done
+```
+
+**c. Create a local dev user:**
+
+```bash
+curl -s -X POST \
+  -H "X-Admin-API-Key: your-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dna-local@example.com","name":"DNA Local Dev"}' \
+  http://localhost:8056/admin/users
+```
+
+Note the `id` field from the response.
+
+**d. Generate an API token for that user:**
+
+```bash
+curl -s -X POST \
+  -H "X-Admin-API-Key: your-admin-token" \
+  http://localhost:8056/admin/users/<user-id>/tokens
+```
+
+Note the `token` field from the response.
+
+**e. Write the token into your local compose file:**
+
+In `backend/docker-compose.local.yml`, set:
+
+```yaml
+- VEXA_API_KEY=<token-from-previous-step>
+```
+
+Alternatively, you can retrieve a key from the Vexa Dashboard UI at http://localhost:3001 once the stack is running.
+
+### 7. Start the Full Stack
+
+```bash
+cd backend
+make start-local
+```
+
+This runs:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.vexa.yml \
+  -f docker-compose.debug.yml \
+  -f docker-compose.local.yml \
+  -f docker-compose.local.vexa.yml \
+  up --build -d
+```
+
+Services started:
+
+- **MongoDB** — database (port 27017)
+- **DNA API** — FastAPI backend (port 8000)
+- **Vexa** — transcription service (port 8056)
+- **Vexa Dashboard** — admin UI (port 3001)
+
+### 8. Start the Frontend
+
+In a new terminal:
+
+```bash
+cd frontend
 npm run dev
 ```
 
 The React app will be available at `http://localhost:5173`.
 
-### 6. Verify Everything is Running
+### 9. Verify Everything is Running
 
 | Service | URL | Description |
 |---------|-----|-------------|
@@ -129,6 +243,8 @@ The React app will be available at `http://localhost:5173`.
 | API Docs | http://localhost:8000/docs | Swagger UI |
 | Vexa Dashboard | http://localhost:3001 | Transcription admin |
 | Frontend | http://localhost:5173 | React application |
+
+---
 
 ## Environment Variables Reference
 
@@ -162,6 +278,9 @@ The React app will be available at `http://localhost:5173`.
 | `ADMIN_API_TOKEN` | No | `your-admin-token` | Admin token for Vexa management |
 | `TRANSCRIBER_URL` | No | (vexa.ai) | Transcription API endpoint |
 | `TRANSCRIBER_API_KEY` | Yes | - | API key for transcription service |
+| `SKIP_TRANSCRIPTION_CHECK` | No | - | Set to `true` to start Vexa without a working transcription backend |
+
+---
 
 ## Common Commands
 
@@ -225,6 +344,8 @@ npm run format
 npm run typecheck
 ```
 
+---
+
 ## Architecture Overview
 
 ```
@@ -255,9 +376,13 @@ The DNA API serves as the central hub:
 - Manages Vexa subscriptions for transcription events
 - Broadcasts segment and bot status events to connected frontend clients
 
+---
+
 ## Mock Production Tracking Setup
 
 When you set **`PRODTRACK_PROVIDER=mock`**, the backend uses a read-only mock provider backed by SQLite (`backend/src/dna/prodtrack_providers/mock_data/mock.db`). The app runs normally with this data so you can develop and test the UI without a ShotGrid seat.
+
+**Production tracking (ShotGrid):** To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`** in `docker-compose.local.yml`. The mock provider uses read-only SQLite with pre-seeded data. To use real ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave it unset) and add `SHOTGRID_URL`, `SHOTGRID_SCRIPT_NAME`, and `SHOTGRID_API_KEY`.
 
 ### Using the mock provider
 
@@ -275,7 +400,7 @@ cd backend
 SHOTGRID_API_KEY='your-api-key' make seed-mock-db
 
 # Or run the seed script directly in the API container with custom project
-docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api \
+docker compose -f docker-compose.yml -f docker-compose.local.yml run --rm api \
   python -m dna.prodtrack_providers.mock_data.seed_db \
   --project-id YOUR_PROJECT_ID \
   --url https://yoursite.shotgrid.autodesk.com \
@@ -289,6 +414,8 @@ docker-compose -f docker-compose.yml -f docker-compose.local.yml run --rm api \
 
 The mock provider is **read-only**: it does not write to ShotGrid or to the SQLite file at runtime. Writes such as publishing notes will raise an error when using the mock provider.
 
+---
+
 ## Docker Compose Files
 
 The backend uses multiple compose files that are layered together:
@@ -296,19 +423,23 @@ The backend uses multiple compose files that are layered together:
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Base configuration with all services |
-| `docker-compose.local.yml` | **Your local overrides** (API keys, credentials) |
 | `docker-compose.vexa.yml` | Vexa transcription service |
-| `docker-compose.debug.yml` | Additional debug services (optional) |
+| `docker-compose.debug.yml` | Additional debug services |
+| `docker-compose.local.yml` | **Your local overrides** (API keys, LLM credentials) |
+| `docker-compose.local.vexa.yml` | **Your local Vexa overrides** (transcription API key) |
 
 The `make start-local` command combines these:
 
 ```bash
-docker-compose -f docker-compose.yml \
-               -f docker-compose.local.yml \
+docker compose -f docker-compose.yml \
                -f docker-compose.vexa.yml \
                -f docker-compose.debug.yml \
-               up --build
+               -f docker-compose.local.yml \
+               -f docker-compose.local.vexa.yml \
+               up --build -d
 ```
+
+---
 
 ## Accessing Services
 
@@ -330,6 +461,8 @@ Interactive API documentation is available at:
 - **Swagger UI:** http://localhost:8000/docs
 - **ReDoc:** http://localhost:8000/redoc
 
+---
+
 ## Development Workflow
 
 ### Hot Reload
@@ -348,7 +481,7 @@ cd backend
 make test
 
 # Run specific test file
-docker-compose -f docker-compose.yml -f docker-compose.local.yml \
+docker compose -f docker-compose.yml -f docker-compose.local.yml \
   run --rm api python -m pytest tests/test_transcription_service.py -v
 ```
 
@@ -366,6 +499,8 @@ npm run test:run
 # Run tests with coverage
 npm run test:coverage
 ```
+
+---
 
 ## Troubleshooting
 
@@ -404,6 +539,8 @@ make start-local
 2. Ensure the API is running and healthy
 3. The frontend connects to `ws://localhost:8000/ws` by default
 
+---
+
 ## Stopping Everything
 
 ```bash
@@ -412,5 +549,5 @@ cd backend
 make stop-local
 
 # Remove volumes (clean slate)
-docker-compose -f docker-compose.yml -f docker-compose.local.yml down -v
+docker compose -f docker-compose.yml -f docker-compose.local.yml down -v
 ```
