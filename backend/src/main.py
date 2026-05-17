@@ -8,6 +8,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Optional, cast
 
+import asyncio
+
+from pydantic import BaseModel
+
 from fastapi import (
     Depends,
     FastAPI,
@@ -208,15 +212,31 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+
+class LoginRequest(BaseModel):
+    """Credentials for standalone ShotGrid login (fallback path).
+
+    Cloud ShotGrid: username = SG username, password = Legacy Login password.
+    Both username AND a Personal Access Token (PAT) bound to the account
+    are required on cloud sites. PATs cannot be admin-provisioned; each user
+    must generate one at profile.autodesk.com.
+
+    On-prem Docker (SG_SITE_TYPE=onprem): PAT not required.
+    Use actual ShotGrid or LDAP/AD password.
+    """
+    username: str
+    password: str
+
+
 # -----------------------------------------------------------------------------
 # Dependencies
 # -----------------------------------------------------------------------------
 
 
-@lru_cache
-def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
-    """Get or create the production tracking provider singleton."""
-    return get_prodtrack_provider()
+# @lru_cache
+# def get_prodtrack_provider_cached() -> ProdtrackProviderBase:
+#     """Get or create the production tracking provider singleton."""
+#     return get_prodtrack_provider()
 
 
 @lru_cache
@@ -237,9 +257,9 @@ def get_llm_provider_cached() -> LLMProviderBase:
     return get_llm_provider()
 
 
-ProdtrackProviderDep = Annotated[
-    ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
-]
+# ProdtrackProviderDep = Annotated[
+#     ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
+# ]
 
 StorageProviderDep = Annotated[
     StorageProviderBase, Depends(get_storage_provider_cached)
@@ -329,6 +349,61 @@ CurrentUserDep = Annotated[str, Depends(get_current_user)]
 
 
 # -----------------------------------------------------------------------------
+# Production Tracking — per-request, user-scoped provider
+# Must be defined AFTER CurrentUserDep
+# -----------------------------------------------------------------------------
+
+
+async def get_user_scoped_prodtrack_provider(
+    _current_user: CurrentUserDep,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(security)
+    ] = None,
+    auth_provider: AuthProviderDep = None,
+) -> ProdtrackProviderBase:
+    """Return ShotgridProvider scoped to the authenticated user's SG token."""
+    sg_token: Optional[str] = None
+    session_id: Optional[str] = None
+
+    if credentials is not None and auth_provider is not None:
+        try:
+            from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+            if isinstance(auth_provider, ShotGridSSOProvider):
+                session = auth_provider.get_session_for_request(credentials.credentials)
+                session_id = session.session_id
+                if session.sg_token:
+                    sg_token = session.sg_token
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=401, detail=str(exc),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    try:
+        return get_prodtrack_provider(user_token=sg_token, session_id=session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+async def _periodic_pool_cleanup() -> None:
+    """Evict idle SG connections from the pool every 5 minutes."""
+    while True:
+        await asyncio.sleep(300)
+        try:
+            from dna.auth.connection_pool import get_connection_pool
+            evicted = get_connection_pool().cleanup_idle()
+            if evicted:
+                print(f"[pool] Evicted {evicted} idle SG connection(s).")
+        except Exception as exc:
+            print(f"[pool] Cleanup error: {exc}")
+
+
+ProdtrackProviderDep = Annotated[
+    ProdtrackProviderBase, Depends(get_user_scoped_prodtrack_provider)
+]
+
+
+# -----------------------------------------------------------------------------
 # Lifecycle events
 # -----------------------------------------------------------------------------
 
@@ -343,6 +418,7 @@ async def startup_event():
     if callable(ensure_indexes):
         await ensure_indexes()
     await service.resubscribe_to_active_meetings()
+    asyncio.create_task(_periodic_pool_cleanup()) 
 
 
 @app.on_event("shutdown")
@@ -398,6 +474,113 @@ async def test_broadcast_transcript(payload: dict) -> dict:
     publisher = get_event_publisher()
     await publisher.ws_manager.broadcast(payload)
     return {"broadcasted": True, "clients": publisher.ws_manager.connection_count}
+# -----------------------------------------------------------------------------
+# Auth endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.get("/auth/login", tags=["Auth"], summary="Get login mode — pat or sso")
+async def auth_get_login_info(auth_provider: AuthProviderDep = None):
+    """Return the configured auth mode so the frontend can render the correct login UI.
+
+    Returns:
+        {"mode": "pat"} for username+password login, or
+        {"mode": "sso", "redirect_url": "..."} for ShotGrid login page redirect.
+        {"mode": "none"} when AUTH_PROVIDER=none (development).
+    """
+    if auth_provider is None:
+        return {"mode": "none"}
+    try:
+        from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+        if isinstance(auth_provider, ShotGridSSOProvider):
+            return auth_provider.get_login_info()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"mode": "none"}
+
+
+
+@app.post("/auth/login", tags=["Auth"], summary="Standalone login — ShotGrid username + Legacy Password")
+async def auth_login(body: LoginRequest, auth_provider: AuthProviderDep):
+    """Login with ShotGrid username + legacy password."""
+    if auth_provider is None:
+        return {"message": "Authentication disabled (AUTH_PROVIDER=none)"}
+    try:
+        from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+        if not isinstance(auth_provider, ShotGridSSOProvider):
+            return {"message": f"Provider '{os.getenv('AUTH_PROVIDER', 'none')}': supply Bearer token directly."}
+        return auth_provider.login(username=body.username, password=body.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+
+@app.post("/auth/refresh", tags=["Auth"], summary="Refresh access token")
+async def auth_refresh(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    auth_provider: AuthProviderDep = None,
+):
+    """Refresh the DNA JWT using the stored ShotGrid refresh_token."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Missing Authorization header.", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+    except ImportError:
+        raise HTTPException(status_code=500, detail="ShotGrid SSO provider unavailable.")
+    if not isinstance(auth_provider, ShotGridSSOProvider):
+        raise HTTPException(status_code=400, detail="Token refresh requires AUTH_PROVIDER=shotgrid.")
+    try:
+        return auth_provider.refresh_access_token(credentials.credentials)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+@app.post("/auth/logout", tags=["Auth"], summary="Logout — revoke token and delete session")
+async def auth_logout(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    auth_provider: AuthProviderDep = None,
+    _: CurrentUserDep = None,
+):
+    """Revoke JWT and destroy server-side session."""
+    if credentials and auth_provider:
+        try:
+            from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+            if isinstance(auth_provider, ShotGridSSOProvider):
+                auth_provider.revoke_token(credentials.credentials)
+        except Exception as exc:
+            # Log but do not surface to the caller — logout must always succeed
+            # from the client's perspective so the browser clears its token.
+            import warnings
+            warnings.warn(f"[auth_logout] Token revocation error (non-fatal): {exc}", stacklevel=2)
+    return {"message": "Logged out successfully.", "action": "delete_token"}
+
+
+@app.get("/auth/me", tags=["Auth"], summary="Get current user info")
+async def auth_me(
+    current_user: CurrentUserDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    auth_provider: AuthProviderDep = None,
+):
+    """Return information about the currently authenticated user."""
+    response: dict = {"email": current_user}
+    if credentials and auth_provider:
+        try:
+            from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+            if isinstance(auth_provider, ShotGridSSOProvider):
+                session = auth_provider.get_session_for_request(credentials.credentials)
+                response["name"] = session.name
+                response["shotgrid_user_id"] = session.sg_user_id
+        except ValueError as exc:
+            # Session is missing from MongoDB (e.g. after backend restart).
+            # Raise 401 so the frontend clears the stale token and shows
+            # the login page — instead of letting the user reach the app
+            # with a dead session and seeing 401 on every API call.
+            raise HTTPException(
+                status_code=401,
+                detail=str(exc),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return response
 
 
 MOCK_THUMBNAILS_DIR = (

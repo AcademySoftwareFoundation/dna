@@ -24,7 +24,8 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
-      "@dna/core": ["../core/src"]
+      "@dna/core": ["../core/src"],
+      "@dna/core/*": ["../core/src/*"]
     }
   },
   "include": ["src"]
