@@ -21,6 +21,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,css,md}\""
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
     "prettier": "^3.4.2",
     "typescript": "^5.9.3"
   },
@@ -30,9 +31,9 @@
     "@tiptap/suggestion": "^3.20.1"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-musl": "4.57.1",
     "@rollup/rollup-linux-arm64-musl": "4.57.1",
-    "@swc/core-linux-x64-musl": "1.15.11",
-    "@swc/core-linux-arm64-musl": "1.15.11"
+    "@rollup/rollup-linux-x64-musl": "4.57.1",
+    "@swc/core-linux-arm64-musl": "1.15.11",
+    "@swc/core-linux-x64-musl": "1.15.11"
   }
 }
