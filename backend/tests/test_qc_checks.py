@@ -190,9 +190,14 @@ class TestQCCheckEndpoints:
         finally:
             app.dependency_overrides.clear()
 
-    def test_run_qc_checks_forbidden_user_mismatch(
+    def test_run_qc_checks_allows_other_users_draft(
         self, mock_storage, mock_prodtrack, mock_llm, auth_client: TestClient
     ):
+        other_draft = _sample_draft()
+        other_draft.user_email = "other@example.com"
+        mock_storage.get_draft_note.return_value = other_draft
+        mock_storage.get_qc_checks.return_value = [_sample_check()]
+        mock_storage.get_segments_for_version.return_value = []
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
         app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm
@@ -201,7 +206,19 @@ class TestQCCheckEndpoints:
                 "/playlists/1/versions/10/run-qc-checks",
                 json={"user_email": "other@example.com"},
             )
-            assert r.status_code == 403
+            assert r.status_code == 200
+            mock_storage.get_qc_checks.assert_called_once_with("other@example.com")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_list_qc_checks_case_insensitive_email(
+        self, mock_storage, auth_client: TestClient
+    ):
+        mock_storage.get_qc_checks.return_value = [_sample_check()]
+        app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
+        try:
+            r = auth_client.get("/users/Test%40Example.com/qc-checks")
+            assert r.status_code == 200
         finally:
             app.dependency_overrides.clear()
 

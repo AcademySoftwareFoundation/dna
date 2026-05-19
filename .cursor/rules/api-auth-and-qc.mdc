@@ -1,0 +1,39 @@
+---
+description: Auth provider pairing and user-scoped vs playlist-scoped API authorization.
+globs: backend/src/**/*.py,frontend/packages/**/*
+alwaysApply: false
+---
+
+# API auth and Note QC
+
+## Match frontend and backend auth in every environment
+
+Local dev uses noop auth; GCP production uses Google OAuth. Both sides must agree or you will see 401/403 on protected routes.
+
+| Environment | Backend `AUTH_PROVIDER` | Frontend `VITE_AUTH_PROVIDER` |
+|---------------|-------------------------|-------------------------------|
+| Local (default) | `none` | `none` |
+| GCP / production | `google` | `google` (baked at Docker build; see `frontend/Dockerfile`) |
+
+Also set `GOOGLE_CLIENT_ID` (backend) and `VITE_GOOGLE_CLIENT_ID` (frontend build) to the **same** OAuth client. The GCP deploy workflow passes the secret into the frontend image build.
+
+## Two authorization patterns
+
+**User-scoped** (`/users/{user_email}/…`): settings, QC check definitions. The path `user_email` must match the authenticated user. Use `emails_match()` from `dna.auth.email` (case-insensitive); do not use raw `!=`.
+
+**Playlist / draft-scoped** (`/playlists/…`, `publish-notes`, `run-qc-checks`): any authenticated user may act on drafts in the playlist. Do **not** require `body.user_email == current_user` on `run-qc-checks`.
+
+## Note QC: `user_email` means draft owner
+
+- **CRUD** `/users/{user_email}/qc-checks`: `user_email` is the signed-in user configuring their checks.
+- **Run** `POST …/run-qc-checks` with `{ "user_email": "…" }`: identifies which **draft note** to check (owner), same as draft-note paths. The publish dialog runs QC for every selected draft; the caller’s token email may differ.
+
+Frontend: `useNoteQCChecks` correctly passes `d.user_email` from each `DraftNote`. Settings / `NoteQCTab` use the auth user’s email.
+
+## Debugging 403 Forbidden on QC
+
+1. **Settings tab** (`GET /users/…/qc-checks`): path email ≠ token email (check case; use `emails_match` on the backend).
+2. **Publish dialog** (`run-qc-checks`): caller was wrongly required to own the draft — fixed by playlist-scoped auth above.
+3. **401** (not 403): missing Bearer token, wrong `AUTH_PROVIDER`, or invalid Google token / client ID mismatch.
+
+When adding endpoints, copy the pattern from `publish_notes` (auth only) or user settings (auth + `emails_match`), never invent a third rule without documenting it here.
