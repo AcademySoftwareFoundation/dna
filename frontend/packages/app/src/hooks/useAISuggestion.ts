@@ -49,7 +49,6 @@ export function useAISuggestion({
   const [lastContext, setLastContext] = useState<string | null>(null);
 
   const generateInFlightRef = useRef(false);
-  const prevWasLoadingRef = useRef(false);
 
   const { data: userSettings } = useQuery<UserSettings>({
     queryKey: ['userSettings', userEmail],
@@ -67,46 +66,69 @@ export function useAISuggestion({
 
   useEffect(() => {
     if (!isEnabled || playlistId == null || versionId == null) {
-      prevWasLoadingRef.current = false;
       return;
     }
 
-    const full = aiSuggestionManager.getFullState(playlistId, versionId);
-    prevWasLoadingRef.current = full.isLoading;
-    setIsGenerating(full.isLoading);
-    setError(full.error);
+    const initialGenerationSnapshot =
+      aiSuggestionManager.getGenerationState(playlistId, versionId);
+    setIsGenerating(initialGenerationSnapshot.isLoading);
+    setError(initialGenerationSnapshot.error);
 
-    const unsubscribe = aiSuggestionManager.onStateChange((pId, vId, st) => {
-      if (pId !== playlistId || vId !== versionId) return;
-
-      const wasLoading = prevWasLoadingRef.current;
-      prevWasLoadingRef.current = st.isLoading;
-
-      setIsGenerating(st.isLoading);
-      setError(st.error);
-
-      if (
-        wasLoading &&
-        !st.isLoading &&
-        st.suggestion != null &&
-        st.error == null
-      ) {
-        const text = st.suggestion;
-        setNotesByVersionId((prev) => {
-          let nextNotes = [...(prev[versionId] ?? []), text];
-          if (nextNotes.length > MAX_NOTES_PER_VERSION) {
-            nextNotes = nextNotes.slice(-MAX_NOTES_PER_VERSION);
+    const unsubscribeFromGenerationState =
+      aiSuggestionManager.onGenerationStateChange(
+        (changedPlaylistId, changedVersionId, generationState) => {
+          if (
+            changedPlaylistId !== playlistId ||
+            changedVersionId !== versionId
+          ) {
+            return;
           }
-          const newIx = nextNotes.length - 1;
-          setIndexByVersionId((ipi) => ({ ...ipi, [versionId]: newIx }));
-          return { ...prev, [versionId]: nextNotes };
-        });
-        setLastPrompt(st.prompt);
-        setLastContext(st.context);
-      }
-    });
+          setIsGenerating(generationState.isLoading);
+          setError(generationState.error);
+        }
+      );
 
-    return unsubscribe;
+    const unsubscribeFromGenerationSuccess =
+      aiSuggestionManager.onGenerationSuccess(
+        (changedPlaylistId, changedVersionId, generatedNote) => {
+          if (
+            changedPlaylistId !== playlistId ||
+            changedVersionId !== versionId
+          ) {
+            return;
+          }
+          setNotesByVersionId((previousNotesByVersionId) => {
+            const existing = previousNotesByVersionId[versionId] ?? [];
+            const tail = existing.length > 0 ? existing[existing.length - 1] : undefined;
+            if (tail === generatedNote.suggestion) {
+              return previousNotesByVersionId;
+            }
+
+            let nextNotesForVersion = [...existing, generatedNote.suggestion];
+            if (nextNotesForVersion.length > MAX_NOTES_PER_VERSION) {
+              nextNotesForVersion = nextNotesForVersion.slice(
+                -MAX_NOTES_PER_VERSION
+              );
+            }
+            const newestNoteIndexInVersion = nextNotesForVersion.length - 1;
+            setIndexByVersionId((previousIndexesByVersionId) => ({
+              ...previousIndexesByVersionId,
+              [versionId]: newestNoteIndexInVersion,
+            }));
+            return {
+              ...previousNotesByVersionId,
+              [versionId]: nextNotesForVersion,
+            };
+          });
+          setLastPrompt(generatedNote.prompt);
+          setLastContext(generatedNote.context);
+        }
+      );
+
+    return () => {
+      unsubscribeFromGenerationState();
+      unsubscribeFromGenerationSuccess();
+    };
   }, [playlistId, versionId, isEnabled]);
 
   const runGenerate = useCallback(

@@ -1,41 +1,38 @@
 /**
- * AI Suggestion Manager
- *
- * Framework-agnostic class for managing AI note suggestion state.
+ * Orchestrates generate-note HTTP calls (and debounced transcript-driven refetch).
+ * Does not persist suggestion text; callers (e.g. React state) own that.
  */
 
 import type { ApiHandler } from './apiHandler';
 import type {
-  AISuggestionState,
-  AISuggestionStateChangeCallback,
+  AISuggestionGenerationState,
+  AISuggestionGenerationStateChangeCallback,
+  AISuggestionGenerationSuccessCallback,
+  GenerateNoteResponse,
 } from './interfaces';
 
 export interface AISuggestionManagerOptions {
   debounceMs?: number;
 }
 
-type StateMap = Map<string, AISuggestionState>;
+type GenerationMap = Map<string, AISuggestionGenerationState>;
 
 function buildKey(playlistId: number, versionId: number): string {
   return `${playlistId}-${versionId}`;
 }
 
-function createInitialState(): AISuggestionState {
-  return {
-    suggestion: null,
-    prompt: null,
-    context: null,
-    isLoading: false,
-    error: null,
-  };
+function idleGenerationState(): AISuggestionGenerationState {
+  return { isLoading: false, error: null };
 }
 
 export class AISuggestionManager {
   private apiHandler: ApiHandler;
-  private states: StateMap = new Map();
-  private listeners: Set<AISuggestionStateChangeCallback> = new Set();
-  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> =
-    new Map();
+  private generationByKey: GenerationMap = new Map();
+  private generationListeners = new Set<
+    AISuggestionGenerationStateChangeCallback
+  >();
+  private successListeners = new Set<AISuggestionGenerationSuccessCallback>();
+  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private debounceMs: number;
 
   constructor(
@@ -46,55 +43,78 @@ export class AISuggestionManager {
     this.debounceMs = options.debounceMs ?? 1000;
   }
 
-  private getState(playlistId: number, versionId: number): AISuggestionState {
+  private getGeneration(playlistId: number, versionId: number) {
     const key = buildKey(playlistId, versionId);
-    let state = this.states.get(key);
+    let state = this.generationByKey.get(key);
     if (!state) {
-      state = createInitialState();
-      this.states.set(key, state);
+      state = idleGenerationState();
+      this.generationByKey.set(key, state);
     }
     return state;
   }
 
-  private setState(
+  private setGeneration(
     playlistId: number,
     versionId: number,
-    updates: Partial<AISuggestionState>
+    updates: Partial<AISuggestionGenerationState>
   ): void {
     const key = buildKey(playlistId, versionId);
-    const current = this.getState(playlistId, versionId);
-    const newState: AISuggestionState = { ...current, ...updates };
-    this.states.set(key, newState);
-    this.notifyListeners(playlistId, versionId, newState);
+    const current = this.getGeneration(playlistId, versionId);
+    const next: AISuggestionGenerationState = { ...current, ...updates };
+    this.generationByKey.set(key, next);
+    this.notifyGeneration(playlistId, versionId, next);
   }
 
-  private notifyListeners(
+  private notifyGeneration(
     playlistId: number,
     versionId: number,
-    state: AISuggestionState
+    state: AISuggestionGenerationState
   ): void {
-    for (const callback of this.listeners) {
+    for (const callback of this.generationListeners) {
       try {
         callback(playlistId, versionId, state);
       } catch {
-        // Ignore listener errors
       }
     }
   }
 
-  getSuggestion(playlistId: number, versionId: number): string | null {
-    return this.getState(playlistId, versionId).suggestion;
+  private notifySuccess(
+    playlistId: number,
+    versionId: number,
+    response: GenerateNoteResponse
+  ): void {
+    for (const callback of this.successListeners) {
+      try {
+        callback(playlistId, versionId, response);
+      } catch {
+      }
+    }
   }
 
-  getFullState(playlistId: number, versionId: number): AISuggestionState {
-    return this.getState(playlistId, versionId);
+  getGenerationState(
+    playlistId: number,
+    versionId: number
+  ): AISuggestionGenerationState {
+    const snapshot = this.getGeneration(playlistId, versionId);
+    return { ...snapshot };
   }
 
-  clearSuggestion(playlistId: number, versionId: number): void {
-    this.setState(playlistId, versionId, {
-      suggestion: null,
-      error: null,
-    });
+  onGenerationStateChange(
+    callback: AISuggestionGenerationStateChangeCallback
+  ): () => void {
+    this.generationListeners.add(callback);
+    return () => {
+      this.generationListeners.delete(callback);
+    };
+  }
+
+  onGenerationSuccess(
+    callback: AISuggestionGenerationSuccessCallback
+  ): () => void {
+    this.successListeners.add(callback);
+    return () => {
+      this.successListeners.delete(callback);
+    };
   }
 
   async generateSuggestion(
@@ -102,7 +122,7 @@ export class AISuggestionManager {
     versionId: number,
     userEmail: string,
     additionalInstructions?: string
-  ): Promise<string> {
+  ): Promise<GenerateNoteResponse> {
     const key = buildKey(playlistId, versionId);
 
     const existingTimer = this.debounceTimers.get(key);
@@ -111,7 +131,7 @@ export class AISuggestionManager {
       this.debounceTimers.delete(key);
     }
 
-    this.setState(playlistId, versionId, {
+    this.setGeneration(playlistId, versionId, {
       isLoading: true,
       error: null,
     });
@@ -124,18 +144,13 @@ export class AISuggestionManager {
         additionalInstructions,
       });
 
-      this.setState(playlistId, versionId, {
-        suggestion: response.suggestion,
-        prompt: response.prompt,
-        context: response.context,
-        isLoading: false,
-        error: null,
-      });
+      this.setGeneration(playlistId, versionId, idleGenerationState());
+      this.notifySuccess(playlistId, versionId, response);
 
-      return response.suggestion;
+      return response;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      this.setState(playlistId, versionId, {
+      this.setGeneration(playlistId, versionId, {
         isLoading: false,
         error,
       });
@@ -163,23 +178,10 @@ export class AISuggestionManager {
         versionId,
         userEmail,
         additionalInstructions
-      ).catch(() => {
-        // Error is already captured in state
-      });
+      ).catch(() => {});
     }, this.debounceMs);
 
     this.debounceTimers.set(key, timer);
-  }
-
-  onStateChange(callback: AISuggestionStateChangeCallback): () => void {
-    this.listeners.add(callback);
-    return () => {
-      this.listeners.delete(callback);
-    };
-  }
-
-  getSnapshot(playlistId: number, versionId: number): AISuggestionState {
-    return this.getState(playlistId, versionId);
   }
 
   destroy(): void {
@@ -187,7 +189,8 @@ export class AISuggestionManager {
       clearTimeout(timer);
     }
     this.debounceTimers.clear();
-    this.listeners.clear();
-    this.states.clear();
+    this.generationListeners.clear();
+    this.successListeners.clear();
+    this.generationByKey.clear();
   }
 }
