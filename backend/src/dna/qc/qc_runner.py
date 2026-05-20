@@ -14,6 +14,7 @@ from dna.models.qc_check import (
     NoteQCResult,
 )
 from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBase
+from dna.qc.qc_prompt import QC_EXTRACTION_USER_MESSAGE, build_qc_system_prompt
 
 QC_TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
@@ -134,18 +135,7 @@ async def _run_one_check(
         if isinstance(pid, int):
             project_id = pid
 
-    system_prompt = (
-        "You are a quality-check assistant for VFX dailies notes. "
-        "Use the provided version context, transcript, and draft note. "
-        "Follow the user's check instructions in the user message. "
-        "You may call tools to look up production tracker entities when needed.\n\n"
-        "--- Version context ---\n"
-        f"{version_context}\n\n"
-        "--- Transcript ---\n"
-        f"{transcript_text}\n\n"
-        "--- Current draft note (JSON) ---\n"
-        f"{draft_json}\n"
-    )
+    system_prompt = build_qc_system_prompt(version_context, transcript_text, draft_json)
     user_message = f"Check name: {check.name}\n\nCheck instructions:\n{check.prompt}"
 
     tool_executor = _make_tool_executor(prodtrack_provider, project_id)
@@ -158,6 +148,7 @@ async def _run_one_check(
             response_model=NoteQCLLMOutput,
             max_iterations=5,
             temperature=0.2,
+            extraction_user_message=QC_EXTRACTION_USER_MESSAGE,
         )
     except Exception as exc:  # pragma: no cover - network/provider errors
         return _failed_run_result(

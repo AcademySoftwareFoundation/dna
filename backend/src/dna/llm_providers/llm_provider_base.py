@@ -251,6 +251,7 @@ class LLMProviderBase:
         max_iterations: int = 5,
         temperature: float = 0.2,
         max_tool_result_chars: int = DEFAULT_MAX_TOOL_RESULT_CHARS,
+        extraction_user_message: str | None = None,
     ) -> T:
         """Tool-use phase then instructor-validated structured extraction."""
         messages: list[dict[str, Any]] = [
@@ -311,7 +312,8 @@ class LLMProviderBase:
         extraction_messages.append(
             {
                 "role": "user",
-                "content": (
+                "content": extraction_user_message
+                or (
                     "Provide your final quality-check result for this draft and check. "
                     "Fill every required field in the structured response schema."
                 ),

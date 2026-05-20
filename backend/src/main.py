@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
@@ -1297,7 +1298,7 @@ async def get_user_settings(
     current_user: CurrentUserDep,
 ) -> UserSettingsResponse:
     """Get user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     stored = await provider.get_user_settings(user_email)
     if stored is None:
@@ -1319,7 +1320,7 @@ async def upsert_user_settings(
     current_user: CurrentUserDep,
 ) -> UserSettingsResponse:
     """Create or update user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     updated = await provider.upsert_user_settings(user_email, data)
     return _user_settings_to_response(updated)
@@ -1338,7 +1339,7 @@ async def delete_user_settings(
     current_user: CurrentUserDep,
 ) -> bool:
     """Delete user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
@@ -1357,7 +1358,7 @@ async def list_qc_checks(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> list[NoteQCCheck]:
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.get_qc_checks(user_email)
 
@@ -1375,7 +1376,7 @@ async def create_qc_check(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> NoteQCCheck:
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.create_qc_check(user_email, data)
 
@@ -1393,7 +1394,7 @@ async def update_qc_check(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> NoteQCCheck:
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     updated = await storage_provider.update_qc_check(user_email, check_id, data)
     if updated is None:
@@ -1413,7 +1414,7 @@ async def delete_qc_check(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> None:
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await storage_provider.delete_qc_check(user_email, check_id)
     if not deleted:
@@ -1435,8 +1436,8 @@ async def run_qc_checks(
     llm_provider: LLMProviderDep,
     current_user: CurrentUserDep,
 ) -> RunQCChecksResponse:
-    if body.user_email != current_user:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    # Authenticated callers may QC any draft in the playlist (same as publish-notes).
+    # body.user_email identifies the draft owner, not the caller.
     draft = await storage_provider.get_draft_note(
         body.user_email, playlist_id, version_id
     )
