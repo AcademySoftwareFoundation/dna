@@ -21,6 +21,7 @@ It will:
 5. Install frontend npm dependencies
 6. Start the Vexa services, create a local dev user, and generate a Vexa API key automatically
 7. Start the full DNA stack with Docker Compose
+8. Poll the DNA API until it is ready and confirm all services are up
 
 After the script finishes, start the frontend in a new terminal:
 
@@ -29,6 +30,12 @@ cd frontend && npm run dev
 ```
 
 The app will be available at `http://localhost:5173`.
+
+**Day-to-day use:** once you have run the bootstrap once, use `--start` to bring the stack up without repeating the interactive setup:
+
+```bash
+./bootstrap.sh --start
+```
 
 ---
 

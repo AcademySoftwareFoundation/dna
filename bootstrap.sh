@@ -7,7 +7,8 @@
 # generates a local Vexa API key, and starts the full DNA stack.
 #
 # Usage:
-#   ./bootstrap.sh
+#   ./bootstrap.sh           # first-time setup
+#   ./bootstrap.sh --start   # day-to-day: start services without re-running setup
 #
 # Supported platforms: macOS, Linux
 
@@ -47,6 +48,7 @@ get_compose_cmd() {
 safe_copy() {
     local src="$1" dst="$2"
     if [[ -f "$dst" ]]; then
+        rm -f "${dst}".bak.*
         local bak="${dst}.bak.$(date +%Y%m%d%H%M%S)"
         warn "$(basename "$dst") already exists — backed up to $(basename "$bak")"
         cp "$dst" "$bak"
@@ -68,9 +70,21 @@ set_env_var() {
 check_prerequisites() {
     info "Checking prerequisites..."
 
+    command -v node &>/dev/null \
+        || die "Node.js not found. Install Node.js v18+: https://nodejs.org/en/download"
+    local node_major
+    node_major="$(node --version | sed 's/v//' | cut -d. -f1)"
+    [[ "$node_major" -ge 18 ]] \
+        || die "Node.js v18+ required (found $(node --version)). Upgrade: https://nodejs.org/en/download"
+    ok "Node.js $(node --version)"
+
     command -v npm &>/dev/null \
         || die "npm not found. Install Node.js v18+: https://nodejs.org/en/download"
     ok "npm $(npm --version)"
+
+    command -v python3 &>/dev/null \
+        || die "python3 not found. Install Python 3: https://www.python.org/downloads/"
+    ok "python3 $(python3 --version | awk '{print $2}')"
 
     command -v docker &>/dev/null \
         || die "Docker not found. Install Docker: https://docs.docker.com/get-docker/"
@@ -266,7 +280,7 @@ bootstrap_vexa() {
         $compose_cmd \
             -f docker-compose.vexa.yml \
             -f docker-compose.local.vexa.yml \
-            up -d vexa vexa-db
+            up -d --force-recreate --remove-orphans vexa vexa-db
     )
 
     info "Waiting for Vexa admin API on :8057 (may take ~30 s on first pull)..."
@@ -276,8 +290,12 @@ bootstrap_vexa() {
             "${VEXA_ADMIN_URL}/admin/users" \
             -o /dev/null 2>/dev/null; do
         retries=$((retries - 1))
-        [[ $retries -le 0 ]] \
-            && die "Vexa admin API did not become ready in time. Run: docker logs vexa"
+        if [[ $retries -le 0 ]]; then
+            if docker logs vexa 2>&1 | grep -q 'Transcription service returned HTTP'; then
+                die "Vexa failed to start — transcription API key was rejected.\n       Add SKIP_TRANSCRIPTION_CHECK=true to backend/docker-compose.local.vexa.yml and re-run."
+            fi
+            die "Vexa admin API did not become ready in time. Run: docker logs vexa"
+        fi
         sleep 3
     done
     ok "Vexa admin API is ready"
@@ -352,35 +370,33 @@ start_full_stack() {
             -f docker-compose.debug.yml \
             -f docker-compose.local.yml \
             -f docker-compose.local.vexa.yml \
-            up --build -d
+            up --build -d --force-recreate --remove-orphans
     )
     ok "All services started"
 }
 
-# ── main ───────────────────────────────────────────────────────────────────────
+# ── step 8: wait for DNA API ───────────────────────────────────────────────────
 
-main() {
-    echo ""
-    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BOLD}${BLUE}  DNA — Bootstrap${NC}"
-    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
+wait_for_dna() {
+    info "Waiting for DNA API on :8000 (may take a moment while containers start)..."
+    local retries=40
+    until curl -sf "http://localhost:8000/docs" -o /dev/null 2>/dev/null; do
+        retries=$((retries - 1))
+        if [[ $retries -le 0 ]]; then
+            die "DNA API did not become ready in time. Check logs: cd backend && make logs-local"
+        fi
+        sleep 3
+    done
+    ok "DNA API is ready"
+}
 
-    check_prerequisites
-    echo ""
-    copy_config_files
-    echo ""
-    configure_llm
-    configure_transcription
-    install_frontend
-    echo ""
-    bootstrap_vexa
-    echo ""
-    start_full_stack
+# ── print summary ──────────────────────────────────────────────────────────────
 
+print_summary() {
+    local label="$1"
     echo ""
     echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BOLD}${GREEN}  Bootstrap complete!${NC}"
+    echo -e "${BOLD}${GREEN}  ${label}${NC}"
     echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo "  Running services:"
@@ -412,8 +428,53 @@ main() {
         echo ""
     fi
     if [[ "$needs_attention" == "true" ]]; then
-        echo "  After updating, restart with:  cd backend && make restart-local"
+        echo "  After updating, restart with:  ./bootstrap.sh --start"
         echo ""
+    fi
+}
+
+# ── main ───────────────────────────────────────────────────────────────────────
+
+main() {
+    local start_only=false
+    for arg in "$@"; do
+        case "$arg" in
+            --start) start_only=true ;;
+            *) die "Unknown argument: $arg. Usage: ./bootstrap.sh [--start]" ;;
+        esac
+    done
+
+    echo ""
+    if [[ "$start_only" == "true" ]]; then
+        echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BOLD}${BLUE}  DNA — Start${NC}"
+        echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        check_prerequisites
+        echo ""
+        start_full_stack
+        echo ""
+        wait_for_dna
+        print_summary "DNA is running!"
+    else
+        echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BOLD}${BLUE}  DNA — Bootstrap${NC}"
+        echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        check_prerequisites
+        echo ""
+        copy_config_files
+        echo ""
+        configure_llm
+        configure_transcription
+        install_frontend
+        echo ""
+        bootstrap_vexa
+        echo ""
+        start_full_stack
+        echo ""
+        wait_for_dna
+        print_summary "Bootstrap complete!"
     fi
 }
 
