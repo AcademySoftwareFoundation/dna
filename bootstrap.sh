@@ -260,7 +260,46 @@ configure_transcription() {
     esac
 }
 
-# ── step 5: frontend dependencies ─────────────────────────────────────────────
+# ── step 5: production tracking provider ──────────────────────────────────────
+
+configure_prodtrack() {
+    echo ""
+    echo -e "${BOLD}Production tracking provider${NC}"
+    echo "  (Press Enter to skip and fill in manually later)"
+    echo ""
+    echo "  1) Mock  ${BOLD}(default — no ShotGrid seat required)${NC}"
+    echo "     Read-only SQLite database with pre-seeded data"
+    echo ""
+    echo "  2) ShotGrid"
+    echo "     Requires a ShotGrid URL, script name, and API key"
+    echo ""
+    read -r -p "  Choice [1]: " pt_choice
+    pt_choice="${pt_choice:-1}"
+    echo ""
+
+    case "$pt_choice" in
+        2|[sS]hot*)
+            read -r -p "  ShotGrid URL (e.g. https://yoursite.shotgrid.autodesk.com): " sg_url
+            read -r -p "  ShotGrid script name: " sg_script
+            read -r -p "  ShotGrid API key: " sg_key
+            if [[ -n "$sg_url" && -n "$sg_script" && -n "$sg_key" ]]; then
+                set_env_var "PRODTRACK_PROVIDER" "shotgrid" "$BACKEND_DIR/docker-compose.local.yml"
+                set_env_var "SHOTGRID_URL" "$sg_url" "$BACKEND_DIR/docker-compose.local.yml"
+                set_env_var "SHOTGRID_SCRIPT_NAME" "$sg_script" "$BACKEND_DIR/docker-compose.local.yml"
+                set_env_var "SHOTGRID_API_KEY" "$sg_key" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "ShotGrid configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY in backend/docker-compose.local.yml"
+            fi
+            ;;
+        *)
+            set_env_var "PRODTRACK_PROVIDER" "mock" "$BACKEND_DIR/docker-compose.local.yml"
+            ok "Mock production tracking provider configured"
+            ;;
+    esac
+}
+
+# ── step 6: frontend dependencies ─────────────────────────────────────────────
 
 install_frontend() {
     info "Installing frontend dependencies..."
@@ -467,6 +506,7 @@ main() {
         echo ""
         configure_llm
         configure_transcription
+        configure_prodtrack
         install_frontend
         echo ""
         bootstrap_vexa
