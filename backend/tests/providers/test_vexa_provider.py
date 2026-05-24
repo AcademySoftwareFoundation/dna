@@ -500,37 +500,73 @@ class TestWebSocketHandlers:
         await vexa_provider._handle_ws_message({"type": "pong"})
 
     @pytest.mark.asyncio
-    async def test_handle_ws_message_transcript_mutable(self, vexa_provider):
-        """Test handling transcript.mutable message."""
+    async def test_handle_ws_message_transcript(self, vexa_provider):
+        """Test handling the new flat `transcript` frame from Vexa WS."""
         callback_called = False
+        callback_event = None
         callback_data = {}
 
         async def callback(event_type, data):
-            nonlocal callback_called, callback_data
+            nonlocal callback_called, callback_event, callback_data
             callback_called = True
+            callback_event = event_type
             callback_data = data
 
         vexa_provider._meeting_id_to_key[100] = "google_meet:abc-123"
         vexa_provider._subscribed_meetings["google_meet:abc-123"] = callback
 
+        confirmed = [{"segment_id": "s1", "text": "Hello"}]
+        pending = [{"segment_id": "s2", "text": "world"}]
         await vexa_provider._handle_ws_message(
             {
-                "type": "transcript.mutable",
+                "type": "transcript",
                 "meeting": {"id": 100},
-                "payload": {"segments": [{"text": "Hello"}]},
+                "speaker": "Alice",
+                "confirmed": confirmed,
+                "pending": pending,
+                "ts": "2026-04-20T19:00:00.000Z",
             }
         )
 
         assert callback_called
+        assert callback_event == "transcript.updated"
         assert callback_data["platform"] == "google_meet"
         assert callback_data["meeting_id"] == "abc-123"
-        assert callback_data["segments"] == [{"text": "Hello"}]
+        assert callback_data["speaker"] == "Alice"
+        assert callback_data["confirmed"] == confirmed
+        assert callback_data["pending"] == pending
+        assert callback_data["ts"] == "2026-04-20T19:00:00.000Z"
+
+    @pytest.mark.asyncio
+    async def test_handle_ws_message_transcript_defaults_empty_lists(
+        self, vexa_provider
+    ):
+        """Missing `confirmed`/`pending` keys default to empty lists."""
+        callback_data = {}
+
+        async def callback(event_type, data):
+            callback_data.update(data)
+
+        vexa_provider._meeting_id_to_key[100] = "google_meet:abc-123"
+        vexa_provider._subscribed_meetings["google_meet:abc-123"] = callback
+
+        await vexa_provider._handle_ws_message(
+            {"type": "transcript", "meeting": {"id": 100}}
+        )
+
+        assert callback_data["confirmed"] == []
+        assert callback_data["pending"] == []
 
     @pytest.mark.asyncio
     async def test_handle_ws_message_transcript_unknown_meeting(self, vexa_provider):
         """Test handling transcript for unknown meeting."""
         await vexa_provider._handle_ws_message(
-            {"type": "transcript.mutable", "meeting": {"id": 999}, "payload": {}}
+            {
+                "type": "transcript",
+                "meeting": {"id": 999},
+                "confirmed": [],
+                "pending": [],
+            }
         )
 
     @pytest.mark.asyncio
@@ -539,7 +575,12 @@ class TestWebSocketHandlers:
         vexa_provider._meeting_id_to_key[100] = "google_meet:abc-123"
 
         await vexa_provider._handle_ws_message(
-            {"type": "transcript.mutable", "meeting": {"id": 100}, "payload": {}}
+            {
+                "type": "transcript",
+                "meeting": {"id": 100},
+                "confirmed": [],
+                "pending": [],
+            }
         )
 
     @pytest.mark.asyncio

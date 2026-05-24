@@ -1,11 +1,13 @@
 .venv
 __pycache__/
 node_modules/
+node_modules
 dist/
 .DS_Store
 .vscode/
 .claude/
 .env
+.env.bak.*
 .env.local
 *.mp3
 *.mp4
@@ -23,7 +25,7 @@ experimental/cameron/frontend_v3/venv
 KEYBINDINGS/
 backend/docker-compose.debug.yml
 backend/docker-compose.vexa.yml
-
+backend/docker-compose.override.yml
 
 # Cursor files
 *.issue-body-temp.md*

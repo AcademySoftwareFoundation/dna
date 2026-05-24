@@ -3,7 +3,7 @@
 import contextlib
 import os
 from datetime import date
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from shotgun_api3 import Shotgun
 
@@ -306,9 +306,15 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not sg_entity:
             raise ValueError(f"Entity not found: {entity_type} {entity_id}")
 
-        return self._convert_sg_entity_to_dna_entity(
+        entity = self._convert_sg_entity_to_dna_entity(
             sg_entity, entity_mapping, entity_type, resolve_links=resolve_links
         )
+        if entity_type == "version":
+            version = cast(Version, entity)
+            base = (self.url or "").rstrip("/")
+            if base:
+                version.prodtrack_detail_url = f"{base}/detail/Version/{version.id}"
+        return entity
 
     def _resolve_linked_field(self, data):
         """Resolve linked entity data by fetching the full entity."""
@@ -496,8 +502,11 @@ class ShotgridProvider(ProdtrackProviderBase):
                 if "project" in fields_mapping:
                     sg_fields.append("project")
 
-            # Build ShotGrid filters
-            sg_filters = [[name_sg_field, "contains", query]]
+            # Build ShotGrid filters (empty query = prefetch up to limit, no name filter)
+            q = (query or "").strip()
+            sg_filters: list[list[Any]] = []
+            if q:
+                sg_filters.append([name_sg_field, "contains", q])
 
             # Add project filter for non-user entities
             if entity_type != "user" and project_id is not None:
@@ -772,6 +781,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             # Attach notes
             if version.id in notes_by_version_id:
                 version.notes = notes_by_version_id[version.id]
+
+            base = (self.url or "").rstrip("/")
+            if base:
+                version.prodtrack_detail_url = f"{base}/detail/Version/{version.id}"
 
             versions.append(version)
 

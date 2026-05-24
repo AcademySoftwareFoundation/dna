@@ -159,6 +159,9 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             entity=entity,
             task=task,
             notes=notes or [],
+            prodtrack_detail_url=(
+                f"https://mock-shotgrid.example.com/detail/Version/{row['id']}"
+            ),
         )
 
     def _playlist_from_row(

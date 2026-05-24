@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from dna.models.entity import Shot, Version
+from dna.models.entity import Shot, Task, Version
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
@@ -609,6 +609,33 @@ def test_entity_to_dict_converts_datetime_in_list_of_entities(shotgrid_provider)
 class TestProdtrackProviderBase:
     """Tests for the ProdtrackProviderBase class."""
 
+    def test_build_version_context_with_shot_task_status(self):
+        shot = Shot(id=2, name="SH010")
+        task = Task(id=3, name="Lighting", pipeline_step={"name": "LGT"})
+        version = Version(
+            id=1,
+            name="v001",
+            entity=shot,
+            task=task,
+            status="ip",
+            description="WIP",
+            notes=[],
+        )
+        out = ProdtrackProviderBase.build_version_context(version)
+        assert "Version: v001" in out
+        assert "Shot: SH010" in out
+        assert "Task: Lighting" in out
+        assert "Department: LGT" in out
+        assert "Status: ip" in out
+        assert "Description: WIP" in out
+
+    def test_build_version_context_empty_version(self):
+        version = Version(id=1, notes=[])
+        assert (
+            ProdtrackProviderBase.build_version_context(version)
+            == "No version context available."
+        )
+
     def test_get_object_type_returns_entity_model(self):
         """Test that _get_object_type returns the correct entity model class."""
         provider = ProdtrackProviderBase()
@@ -855,6 +882,67 @@ class TestGetDnaEntityType:
     def test_get_dna_entity_type_for_project(self):
         """Test _get_dna_entity_type returns correct type for Project."""
         assert _get_dna_entity_type("Project") == "project"
+
+
+# ============================================================================
+# ShotGrid search method tests
+# ============================================================================
+
+
+class TestShotgridProviderSearch:
+    """Tests for ShotgridProvider.search (mentions / prefetch)."""
+
+    @pytest.fixture
+    def shotgrid_provider(self):
+        sg_provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        mock_sg = mock.MagicMock()
+        sg_provider.sg = mock_sg
+        return sg_provider
+
+    def test_search_empty_query_uses_project_only_for_shot(self, shotgrid_provider):
+        """Prefetch: no name 'contains' filter when query is empty."""
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.search(
+            "",
+            ["shot"],
+            project_id=42,
+            limit=100,
+        )
+
+        shotgrid_provider.sg.find.assert_called()
+        call_kwargs = shotgrid_provider.sg.find.call_args
+        filters = call_kwargs[1]["filters"]
+        assert ["project", "is", {"type": "Project", "id": 42}] in filters
+        assert not any(
+            len(f) >= 2 and f[1] == "contains" for f in filters if isinstance(f, list)
+        )
+
+    def test_search_whitespace_only_query_omits_contains_filter(
+        self, shotgrid_provider
+    ):
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.search("   ", ["user"], project_id=None, limit=5)
+
+        shotgrid_provider.sg.find.assert_called()
+        filters = shotgrid_provider.sg.find.call_args[1]["filters"]
+        assert filters == []
+
+    def test_search_non_empty_query_includes_contains_filter(self, shotgrid_provider):
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.search("hero", ["shot"], project_id=1, limit=10)
+
+        filters = shotgrid_provider.sg.find.call_args[1]["filters"]
+        assert any(
+            len(f) >= 3 and f[1] == "contains" and f[2] == "hero" for f in filters
+        )
 
 
 # ============================================================================

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { Button } from '@radix-ui/themes';
 import { Loader2, MessageSquare, AlertCircle, Upload } from 'lucide-react';
 import { useSegments } from '../hooks';
@@ -24,20 +24,19 @@ const SegmentList = styled.div`
   padding: 8px 0;
 `;
 
-const SegmentItem = styled.div`
-  padding: 12px 16px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
-
-  &:last-child {
-    border-bottom: none;
-  }
+// Speaker-runs are visually grouped: top padding on the first segment of a run
+// (showSpeakerHeader=true) is a bit larger; continuation segments have almost
+// no vertical padding so they read as one block.
+const SegmentItem = styled.div<{ $showSpeakerHeader: boolean }>`
+  padding: ${({ $showSpeakerHeader }) =>
+    $showSpeakerHeader ? '10px 16px 2px' : '0 16px 2px'};
 `;
 
 const SegmentHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 `;
 
 const SpeakerName = styled.span`
@@ -51,11 +50,18 @@ const Timestamp = styled.span`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
-const SegmentText = styled.p`
+const pendingStyle = css`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-style: italic;
+  opacity: 0.75;
+`;
+
+const SegmentText = styled.p<{ $pending: boolean }>`
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
   color: ${({ theme }) => theme.colors.text.secondary};
+  ${({ $pending }) => $pending && pendingStyle}
 `;
 
 const StateContainer = styled.div`
@@ -197,15 +203,30 @@ export function TranscriptPanel({
         </PublishBar>
       )}
       <SegmentList ref={scrollRef}>
-        {segments.map((segment) => (
-          <SegmentItem key={segment.segment_id}>
-            <SegmentHeader>
-              <SpeakerName>{segment.speaker || 'Unknown'}</SpeakerName>
-              <Timestamp>{formatTime(segment.absolute_start_time)}</Timestamp>
-            </SegmentHeader>
-            <SegmentText>{segment.text}</SegmentText>
-          </SegmentItem>
-        ))}
+        {segments.map((segment, idx) => {
+          // Deduplicate speaker labels: only show the speaker header on the
+          // first segment of a contiguous same-speaker run. Matches Vexa
+          // dashboard's `showSpeakerHeader` behaviour.
+          const prev = idx > 0 ? segments[idx - 1] : null;
+          const showSpeakerHeader = !prev || prev.speaker !== segment.speaker;
+          const isPending = segment.completed === false;
+          return (
+            <SegmentItem
+              key={segment.segment_id}
+              $showSpeakerHeader={showSpeakerHeader}
+            >
+              {showSpeakerHeader && (
+                <SegmentHeader>
+                  <SpeakerName>{segment.speaker || 'Unknown'}</SpeakerName>
+                  <Timestamp>
+                    {formatTime(segment.absolute_start_time)}
+                  </Timestamp>
+                </SegmentHeader>
+              )}
+              <SegmentText $pending={isPending}>{segment.text}</SegmentText>
+            </SegmentItem>
+          );
+        })}
       </SegmentList>
       {showPublish && playlistId !== null && versionId !== null && (
         <PublishTranscriptDialog

@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from bson import ObjectId
 from pymongo import AsyncMongoClient, ReturnDocument
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
@@ -14,6 +15,12 @@ from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdat
 from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
+)
+from dna.models.qc_check import (
+    DEFAULT_ACTION_ITEM_CHECK,
+    NoteQCCheck,
+    NoteQCCheckCreate,
+    NoteQCCheckUpdate,
 )
 from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
 from dna.models.user_settings import UserSettings, UserSettingsUpdate
@@ -25,6 +32,32 @@ class MongoDBStorageProvider(StorageProviderBase):
 
     def __init__(self) -> None:
         self._client: Optional[AsyncMongoClient[Any]] = None
+        self._indexes_ensured = False
+
+    async def ensure_indexes(self) -> None:
+        """Create collection indexes. Idempotent; safe to call on every startup.
+
+        The compound unique index on the `segments` upsert key makes
+        `upsert_segment` O(log n) instead of a full-collection scan — at
+        Vexa's refine-heavy write rate, scans become user-visible at ~100k
+        segments and timeouts at ~1M.
+        """
+        if self._indexes_ensured:
+            return
+        await self.segments_collection.create_index(
+            [("segment_id", 1), ("playlist_id", 1), ("version_id", 1)],
+            unique=True,
+            name="segments_upsert_key",
+        )
+        await self.segments_collection.create_index(
+            [("playlist_id", 1), ("version_id", 1), ("absolute_start_time", 1)],
+            name="segments_list_by_version",
+        )
+        await self.qc_checks_collection.create_index(
+            [("user_email", 1)],
+            name="qc_checks_by_user",
+        )
+        self._indexes_ensured = True
 
     @property
     def client(self) -> AsyncMongoClient[Any]:
@@ -56,6 +89,10 @@ class MongoDBStorageProvider(StorageProviderBase):
     @property
     def published_transcripts_collection(self) -> Any:
         return self.db.published_transcripts
+
+    @property
+    def qc_checks_collection(self) -> Any:
+        return self.db.qc_checks
 
     def _build_query(
         self, user_email: str, playlist_id: int, version_id: int
@@ -145,7 +182,6 @@ class MongoDBStorageProvider(StorageProviderBase):
             "version_id": version_id,
         }
 
-        # Check if we should skip update to protect local edits
         existing = await self.draft_notes.find_one(query)
         if existing:
             # If existing note has unpublished changes (published=False or edited=True),
@@ -247,6 +283,10 @@ class MongoDBStorageProvider(StorageProviderBase):
         existing = await self.segments_collection.find_one(query)
         is_new = existing is None
 
+        # `segment_id` is already in `data.model_dump()` — MongoDB rejects an
+        # update that lists the same field in both `$set` and `$setOnInsert`.
+        # `playlist_id`/`version_id` stay in `$setOnInsert` because they aren't
+        # part of `StoredSegmentCreate` (they come from the enclosing context).
         update: dict[str, Any] = {
             "$set": {
                 **data.model_dump(),
@@ -254,7 +294,6 @@ class MongoDBStorageProvider(StorageProviderBase):
             },
             "$setOnInsert": {
                 "created_at": now,
-                "segment_id": segment_id,
                 "playlist_id": playlist_id,
                 "version_id": version_id,
             },
@@ -293,11 +332,16 @@ class MongoDBStorageProvider(StorageProviderBase):
         """Create or update user settings."""
         now = datetime.now(timezone.utc)
         query = {"user_email": user_email}
-        update_fields = {k: v for k, v in data.model_dump().items() if v is not None}
+        update_fields = {
+            k: v
+            for k, v in data.model_dump(exclude_unset=True).items()
+            if v is not None
+        }
         defaults = {
             "note_prompt": "",
             "regenerate_on_version_change": False,
             "regenerate_on_transcript_update": False,
+            "sync_prodtrack_tab_on_version_change": True,
         }
         set_on_insert = {
             "created_at": now,
@@ -365,3 +409,94 @@ class MongoDBStorageProvider(StorageProviderBase):
         )
         result["_id"] = str(result["_id"])
         return PublishedTranscript(**result)
+
+    async def get_qc_checks(self, user_email: str) -> list[NoteQCCheck]:
+        query = {"user_email": user_email}
+        cursor = self.qc_checks_collection.find(query)
+        results: list[NoteQCCheck] = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(NoteQCCheck(**doc))
+        if results:
+            return sorted(results, key=lambda c: (c.name.lower(), c.id))
+        now = datetime.now(timezone.utc)
+        default = DEFAULT_ACTION_ITEM_CHECK
+        await self.qc_checks_collection.find_one_and_update(
+            {"user_email": user_email, "name": default.name},
+            {
+                "$setOnInsert": {
+                    "user_email": user_email,
+                    "name": default.name,
+                    "prompt": default.prompt,
+                    "severity": default.severity,
+                    "enabled": default.enabled,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        cursor = self.qc_checks_collection.find(query)
+        results = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(NoteQCCheck(**doc))
+        return sorted(results, key=lambda c: (c.name.lower(), c.id))
+
+    async def create_qc_check(
+        self, user_email: str, data: NoteQCCheckCreate
+    ) -> NoteQCCheck:
+        now = datetime.now(timezone.utc)
+        doc: dict[str, Any] = {
+            "user_email": user_email,
+            "name": data.name,
+            "prompt": data.prompt,
+            "severity": data.severity,
+            "enabled": data.enabled,
+            "created_at": now,
+            "updated_at": now,
+        }
+        insert = await self.qc_checks_collection.insert_one(doc)
+        stored = await self.qc_checks_collection.find_one({"_id": insert.inserted_id})
+        assert stored is not None
+        stored["_id"] = str(stored["_id"])
+        return NoteQCCheck(**stored)
+
+    async def update_qc_check(
+        self, user_email: str, check_id: str, data: NoteQCCheckUpdate
+    ) -> Optional[NoteQCCheck]:
+        try:
+            oid = ObjectId(check_id)
+        except Exception:
+            return None
+        update_fields = {
+            k: v
+            for k, v in data.model_dump(exclude_unset=True).items()
+            if v is not None
+        }
+        if not update_fields:
+            doc = await self.qc_checks_collection.find_one(
+                {"_id": oid, "user_email": user_email}
+            )
+        else:
+            update_fields["updated_at"] = datetime.now(timezone.utc)
+            doc = await self.qc_checks_collection.find_one_and_update(
+                {"_id": oid, "user_email": user_email},
+                {"$set": update_fields},
+                return_document=ReturnDocument.AFTER,
+            )
+        if not doc:
+            return None
+        doc["_id"] = str(doc["_id"])
+        return NoteQCCheck(**doc)
+
+    async def delete_qc_check(self, user_email: str, check_id: str) -> bool:
+        try:
+            oid = ObjectId(check_id)
+        except Exception:
+            return False
+        result = await self.qc_checks_collection.delete_one(
+            {"_id": oid, "user_email": user_email}
+        )
+        return result.deleted_count > 0

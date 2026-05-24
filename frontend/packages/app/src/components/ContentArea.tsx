@@ -1,11 +1,14 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import type { Version, SearchResult } from '@dna/core';
+import { useQuery } from '@tanstack/react-query';
+import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
 import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
+import { apiHandler } from '../api';
+import { openProdtrackVersionViaExtensionOrNewTab } from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -152,6 +155,70 @@ export function ContentArea({
     enabled: !!version && !!playlistId,
   });
 
+  const extensionId =
+    import.meta.env.VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?.trim() ?? '';
+
+  const [prodtrackControlledTabId, setProdtrackControlledTabId] = useState<
+    number | null
+  >(null);
+  const prodtrackTabIdRef = useRef<number | null>(null);
+  prodtrackTabIdRef.current = prodtrackControlledTabId;
+
+  const { data: userSettings, isSuccess: userSettingsQuerySuccess } =
+    useQuery<UserSettings | null>({
+      queryKey: ['userSettings', userEmail],
+      queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
+      enabled: !!userEmail,
+    });
+
+
+  const shouldAutoSyncProdtrackTab =
+    userSettingsQuerySuccess &&
+    (userSettings === null ||
+      (userSettings.sync_prodtrack_tab_on_version_change ?? true) === true);
+
+  const handleSyncProdtrackTab = useCallback(() => {
+    const url = version?.prodtrack_detail_url;
+    if (!url || !extensionId) return;
+    void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
+      tabId: prodtrackControlledTabId ?? undefined,
+    }).then((result) => {
+      if (result.ok && typeof result.tabId === 'number') {
+        setProdtrackControlledTabId(result.tabId);
+      }
+    });
+  }, [version?.prodtrack_detail_url, extensionId, prodtrackControlledTabId]);
+
+  useEffect(() => {
+    if (!version?.prodtrack_detail_url) return;
+    if (!shouldAutoSyncProdtrackTab) return;
+    if (!extensionId) return;
+    const url = version.prodtrack_detail_url;
+    const timer = window.setTimeout(() => {
+      void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
+        tabId: prodtrackTabIdRef.current ?? undefined,
+      }).then((result) => {
+        if (result.ok && typeof result.tabId === 'number') {
+          setProdtrackControlledTabId(result.tabId);
+        }
+      });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [
+    version?.id,
+    version?.prodtrack_detail_url,
+    shouldAutoSyncProdtrackTab,
+    extensionId,
+  ]);
+
+  const syncProdtrackTitle = !version?.prodtrack_detail_url
+    ? 'Production tracking URL is not available for this version.'
+    : extensionId
+      ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
+      : 'Open production tracking in a new browser tab.';
+
+  const syncProdtrackDisabled = !version?.prodtrack_detail_url;
+
   if (!version) {
     return (
       <ContentWrapper>
@@ -179,7 +246,8 @@ export function ContentArea({
   }
 
   return (
-    <ContentWrapper>
+    <>
+      <ContentWrapper>
       <VersionHeader
         shotCode={entityName}
         versionNumber={versionNumber}
@@ -194,6 +262,11 @@ export function ContentArea({
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
         onVersionStatusChange={handleVersionStatusChange}
+        prodtrackDetailUrl={version.prodtrack_detail_url}
+        prodtrackTabUsesExtension={!!extensionId}
+        onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
+        syncProdtrackDisabled={syncProdtrackDisabled}
+        syncProdtrackTitle={syncProdtrackTitle}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         hasInReview={hasInReview}
@@ -215,6 +288,7 @@ export function ContentArea({
         userEmail={userEmail}
         onInsertNote={handleInsertNote}
       />
-    </ContentWrapper>
+      </ContentWrapper>
+    </>
   );
 }

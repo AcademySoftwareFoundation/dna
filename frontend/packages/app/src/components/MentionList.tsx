@@ -1,5 +1,12 @@
-import { useState, useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  forwardRef,
+} from 'react';
 import styled from 'styled-components';
+import { Loader2 } from 'lucide-react';
 import { SearchResult } from '@dna/core';
 
 const ENTITY_ICONS: Record<string, string> = {
@@ -67,9 +74,22 @@ const Empty = styled.div`
   font-family: ${({ theme }) => theme.fonts.sans};
 `;
 
+const LoadingRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-family: ${({ theme }) => theme.fonts.sans};
+`;
+
 export interface MentionListProps {
   items: SearchResult[];
   command: (attrs: { id: string; label: string }) => void;
+  /** True while mention results are still loading (avoid showing false “No results”). */
+  loading?: boolean;
 }
 
 export interface MentionListHandle {
@@ -77,7 +97,7 @@ export interface MentionListHandle {
 }
 
 export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
-  function MentionList({ items, command }, ref) {
+  function MentionList({ items, command, loading = false }, ref) {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const activeItemRef = useRef<HTMLDivElement | null>(null);
     const isKeyboardNavRef = useRef(false);
@@ -92,7 +112,9 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
       onKeyDown: ({ event }) => {
         if (event.key === 'ArrowUp') {
           isKeyboardNavRef.current = true;
-          setSelectedIndex((i) => (i > 0 ? i - 1 : Math.max(0, items.length - 1)));
+          setSelectedIndex((i) =>
+            i > 0 ? i - 1 : Math.max(0, items.length - 1)
+          );
           return true;
         }
         if (event.key === 'ArrowDown') {
@@ -116,9 +138,28 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
       });
     }
 
+    if (loading) {
+      return (
+        <List
+          onMouseMove={() => {
+            isKeyboardNavRef.current = false;
+          }}
+        >
+          <LoadingRow>
+            <Loader2 size={14} className="animate-spin" aria-hidden />
+            Loading…
+          </LoadingRow>
+        </List>
+      );
+    }
+
     if (!items.length) {
       return (
-        <List onMouseMove={() => { isKeyboardNavRef.current = false; }}>
+        <List
+          onMouseMove={() => {
+            isKeyboardNavRef.current = false;
+          }}
+        >
           <Empty>No results</Empty>
         </List>
       );
@@ -149,7 +190,10 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                     e.preventDefault();
                     selectItem(item);
                   }}
-                  onMouseEnter={() => { if (!isKeyboardNavRef.current) setSelectedIndex(currentIndex); }}
+                  onMouseEnter={() => {
+                    if (!isKeyboardNavRef.current)
+                      setSelectedIndex(currentIndex);
+                  }}
                 >
                   <EntityIcon>{ENTITY_ICONS[type] ?? '•'}</EntityIcon>
                   <span>{item.name}</span>

@@ -299,7 +299,13 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
         if msg_type == "pong":
             return
 
-        if msg_type == "transcript.mutable":
+        if msg_type == "transcript":
+            # New Vexa WS contract (>= 2026-04):
+            #   {type: "transcript", speaker, confirmed: [...], pending: [...],
+            #    meeting: {id}, ts}
+            # Forward the raw confirmed/pending arrays to the service. The
+            # service persists confirmed segments to MongoDB and broadcasts
+            # the whole shape (plus playlist_id/version_id) to DNA clients.
             internal_id = meeting_info.get("id")
             meeting_key = self._meeting_id_to_key.get(internal_id)
             if not meeting_key:
@@ -319,8 +325,10 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
                 {
                     "platform": platform,
                     "meeting_id": native_id,
-                    "segments": data.get("payload", {}).get("segments", []),
-                    "payload": data.get("payload", {}),
+                    "speaker": data.get("speaker"),
+                    "confirmed": data.get("confirmed", []) or [],
+                    "pending": data.get("pending", []) or [],
+                    "ts": data.get("ts"),
                 },
             )
             return

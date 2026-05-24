@@ -28,9 +28,9 @@ export {
   useEventSubscription,
   useMultipleEventSubscriptions,
   useConnectionStatus,
-  useSegmentEvents,
+  useTranscriptEvents,
 } from './useDNAEvents';
-export type { SegmentEvent } from './useDNAEvents';
+export type { TranscriptEventPayload } from './useDNAEvents';
 
 export { useSegments } from './useSegments';
 export type { UseSegmentsOptions, UseSegmentsResult } from './useSegments';

@@ -10,6 +10,7 @@ from dna.models.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
+from dna.note_prompt_config import get_default_note_prompt
 
 
 class TestUserSettingsModels:
@@ -21,6 +22,7 @@ class TestUserSettingsModels:
         assert update.note_prompt is None
         assert update.regenerate_on_version_change is None
         assert update.regenerate_on_transcript_update is None
+        assert update.sync_prodtrack_tab_on_version_change is None
 
     def test_user_settings_update_with_values(self):
         """Test UserSettingsUpdate with values."""
@@ -42,6 +44,7 @@ class TestUserSettingsModels:
             note_prompt="My custom prompt",
             regenerate_on_version_change=True,
             regenerate_on_transcript_update=False,
+            sync_prodtrack_tab_on_version_change=True,
             updated_at=now,
             created_at=now,
         )
@@ -50,6 +53,7 @@ class TestUserSettingsModels:
         assert settings.note_prompt == "My custom prompt"
         assert settings.regenerate_on_version_change is True
         assert settings.regenerate_on_transcript_update is False
+        assert settings.sync_prodtrack_tab_on_version_change is True
 
     def test_user_settings_defaults(self):
         """Test UserSettings default values."""
@@ -63,6 +67,7 @@ class TestUserSettingsModels:
         assert settings.note_prompt == ""
         assert settings.regenerate_on_version_change is False
         assert settings.regenerate_on_transcript_update is False
+        assert settings.sync_prodtrack_tab_on_version_change is True
 
 
 class TestUserSettingsEndpoints:
@@ -96,16 +101,20 @@ class TestUserSettingsEndpoints:
             data = response.json()
             assert data["user_email"] == "test@example.com"
             assert data["note_prompt"] == "Custom prompt"
+            assert data["default_note_prompt"] == get_default_note_prompt()
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is False
+            assert data["sync_prodtrack_tab_on_version_change"] is True
             mock_storage_provider.get_user_settings.assert_called_once_with(
                 "test@example.com"
             )
         finally:
             app.dependency_overrides.clear()
 
-    def test_get_user_settings_returns_null(self, mock_storage_provider, auth_client):
-        """Test GET returns null when user has no settings."""
+    def test_get_user_settings_no_document_returns_defaults(
+        self, mock_storage_provider, auth_client
+    ):
+        """Test GET returns defaults and configured default prompt when user has no doc."""
         mock_storage_provider.get_user_settings.return_value = None
 
         app.dependency_overrides[get_storage_provider_cached] = (
@@ -115,7 +124,12 @@ class TestUserSettingsEndpoints:
         try:
             response = auth_client.get("/users/test@example.com/settings")
             assert response.status_code == 200
-            assert response.json() is None
+            data = response.json()
+            assert data["user_email"] == "test@example.com"
+            assert data["note_prompt"] == ""
+            assert data["default_note_prompt"] == get_default_note_prompt()
+            assert data["regenerate_on_version_change"] is False
+            assert data["regenerate_on_transcript_update"] is False
         finally:
             app.dependency_overrides.clear()
 
@@ -148,6 +162,7 @@ class TestUserSettingsEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["note_prompt"] == "Updated prompt"
+            assert data["default_note_prompt"] == get_default_note_prompt()
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is True
             mock_storage_provider.upsert_user_settings.assert_called_once()
@@ -183,7 +198,36 @@ class TestUserSettingsEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["regenerate_on_version_change"] is True
+            assert data["default_note_prompt"] == get_default_note_prompt()
             mock_storage_provider.upsert_user_settings.assert_called_once()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_user_settings_empty_saved_prompt_includes_default_field(
+        self, mock_storage_provider, auth_client
+    ):
+        """Stored user with empty note_prompt still receives default_note_prompt."""
+        now = datetime.now(timezone.utc)
+        mock_storage_provider.get_user_settings.return_value = UserSettings(
+            _id="settings1",
+            user_email="test@example.com",
+            note_prompt="",
+            regenerate_on_version_change=False,
+            regenerate_on_transcript_update=False,
+            updated_at=now,
+            created_at=now,
+        )
+
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+
+        try:
+            response = auth_client.get("/users/test@example.com/settings")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["note_prompt"] == ""
+            assert data["default_note_prompt"] == get_default_note_prompt()
         finally:
             app.dependency_overrides.clear()
 
@@ -300,6 +344,7 @@ class TestMongoDBUserSettingsProvider:
             "note_prompt": "Custom prompt",
             "regenerate_on_version_change": True,
             "regenerate_on_transcript_update": False,
+            "sync_prodtrack_tab_on_version_change": False,
             "updated_at": now,
             "created_at": now,
         }
@@ -312,6 +357,7 @@ class TestMongoDBUserSettingsProvider:
         assert result.note_prompt == "Custom prompt"
         assert result.regenerate_on_version_change is True
         assert result.regenerate_on_transcript_update is False
+        assert result.sync_prodtrack_tab_on_version_change is False
 
     @pytest.mark.asyncio
     async def test_get_user_settings_returns_none(
@@ -336,6 +382,7 @@ class TestMongoDBUserSettingsProvider:
             "note_prompt": "Updated prompt",
             "regenerate_on_version_change": True,
             "regenerate_on_transcript_update": True,
+            "sync_prodtrack_tab_on_version_change": False,
             "updated_at": now,
             "created_at": now,
         }
@@ -353,6 +400,7 @@ class TestMongoDBUserSettingsProvider:
         assert result.note_prompt == "Updated prompt"
         assert result.regenerate_on_version_change is True
         assert result.regenerate_on_transcript_update is True
+        assert result.sync_prodtrack_tab_on_version_change is False
         mock_collection.find_one_and_update.assert_called_once()
 
     @pytest.mark.asyncio

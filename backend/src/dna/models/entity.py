@@ -174,6 +174,10 @@ class Version(EntityBase):
     )
     task: Optional["Task"] = Field(default=None, description="Associated task")
     notes: list["Note"] = Field(default_factory=list, description="Associated notes")
+    prodtrack_detail_url: Optional[str] = Field(
+        default=None,
+        description="Web UI URL for this version in the production tracking system",
+    )
 
     @field_validator("notes", mode="before")
     @classmethod

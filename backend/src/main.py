@@ -22,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
@@ -38,6 +39,9 @@ from dna.models import (
     GenerateNoteRequest,
     GenerateNoteResponse,
     Note,
+    NoteQCCheck,
+    NoteQCCheckCreate,
+    NoteQCCheckUpdate,
     Platform,
     Playlist,
     PlaylistMetadata,
@@ -48,6 +52,8 @@ from dna.models import (
     PublishNotesResponse,
     PublishTranscriptRequest,
     PublishTranscriptResponse,
+    RunQCChecksRequest,
+    RunQCChecksResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -57,15 +63,17 @@ from dna.models import (
     Transcript,
     User,
     UserSettings,
+    UserSettingsResponse,
     UserSettingsUpdate,
     Version,
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
+from dna.note_prompt_config import get_default_note_prompt
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
-from dna.prompts.default_prompt import DEFAULT_PROMPT
+from dna.qc.qc_runner import run_qc_checks_for_draft
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -158,6 +166,10 @@ tags_metadata = [
     {
         "name": "User Settings",
         "description": "Operations for managing user settings and preferences",
+    },
+    {
+        "name": "Note QC",
+        "description": "User-defined LLM quality checks for draft notes at publish time",
     },
 ]
 
@@ -326,6 +338,10 @@ async def startup_event():
     """Initialize services on startup."""
     service = get_transcription_service()
     await service.init_providers()
+    storage = service.storage_provider
+    ensure_indexes = getattr(storage, "ensure_indexes", None)
+    if callable(ensure_indexes):
+        await ensure_indexes()
     await service.resubscribe_to_active_meetings()
 
 
@@ -365,6 +381,25 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.post(
+    "/test/broadcast-transcript",
+    tags=["Testing"],
+    summary="Broadcast a synthetic transcript (dev-only).",
+    include_in_schema=False,
+)
+async def test_broadcast_transcript(payload: dict) -> dict:
+    """Dev-only endpoint for tests-vm/. Gated by DNA_TESTING_ENABLED=true.
+
+    Forwards the JSON body verbatim to every WebSocket client — lets us
+    assert the broadcast shape end-to-end without needing a real meeting.
+    """
+    if os.getenv("DNA_TESTING_ENABLED", "false").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="Not found")
+    publisher = get_event_publisher()
+    await publisher.ws_manager.broadcast(payload)
+    return {"broadcasted": True, "clients": publisher.ws_manager.connection_count}
+
+
 MOCK_THUMBNAILS_DIR = (
     Path(__file__).parent / "dna" / "prodtrack_providers" / "mock_data" / "thumbnails"
 )
@@ -395,6 +430,26 @@ async def upload_attachment(
     with dest_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
     return {"id": attachment_id, "filename": filename}
+
+
+@app.get(
+    "/api/attachments/{attachment_id}",
+    tags=["Attachments"],
+    summary="Retrieve a staged attachment",
+    response_class=FileResponse,
+)
+async def get_attachment(attachment_id: str, _: CurrentUserDep) -> FileResponse:
+    """Return the image file for a staged attachment by ID."""
+    attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
+    if not attachment_dir.exists():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    files = list(attachment_dir.iterdir())
+    if not files:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    path = files[0]
+    suffix = path.suffix.lower()
+    media_type = THUMBNAIL_MEDIA_TYPES.get(suffix, "application/octet-stream")
+    return FileResponse(path, media_type=media_type)
 
 
 @app.delete("/api/attachments/{attachment_id}", tags=["Attachments"])
@@ -434,12 +489,15 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time event streaming.
 
     Clients connect to this endpoint to receive real-time events such as:
-    - segment.created / segment.updated: Transcript segment changes
+    - transcript: Raw Vexa-shaped transcript ticks (flat envelope with
+      `speaker`, `confirmed`, `pending`, `playlist_id`, `version_id`, `ts`).
+      Consumed by the frontend `TranscriptManager`.
     - bot.status_changed: Bot status updates
     - transcription.completed / transcription.error: Transcription lifecycle events
 
-    Events are sent as JSON messages with the format:
-    {"type": "event.type", "payload": {...}}
+    Most events use `{"type": "event.type", "payload": {...}}`. The
+    `transcript` event is flat — the whole message IS the payload so it can
+    be fed to `TranscriptManager.handleMessage()` without reshaping.
     """
     event_publisher = get_event_publisher()
     ws_manager = event_publisher.ws_manager
@@ -804,13 +862,14 @@ async def publish_notes(
         key = (note.user_email, note.version_id)
         notes_by_key[key].append(note)
 
+    target_keys = {(t.user_email, t.version_id) for t in request.targets}
+
     notes_to_publish = []
     for key, notes in notes_by_key.items():
         # Sort by updated_at descending and take the most recent one
         most_recent = max(notes, key=lambda n: n.updated_at)
 
-        # specific user check
-        if not request.include_others and most_recent.user_email != request.user_email:
+        if (most_recent.user_email, most_recent.version_id) not in target_keys:
             continue
 
         notes_to_publish.append(most_recent)
@@ -857,7 +916,6 @@ async def publish_notes(
                 skipped_count += 1
                 continue
 
-            # Check if note is already published (re-publish/update)
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
                     # Still apply any pending version status change
@@ -1174,9 +1232,6 @@ async def _sync_published_notes(
         from datetime import datetime, timezone
 
         for (vid, email), note in latest_notes.items():
-            # Check if we already have this specific published note to avoid writes
-            # Optimization: could query storage for all draft notes first.
-            # For now, just upsert.
             update_data = DraftNoteUpdate(
                 content=note.content or "",
                 subject=note.subject or "",
@@ -1354,22 +1409,64 @@ async def delete_playlist_metadata(
 # -----------------------------------------------------------------------------
 
 
+def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
+    """Attach configured default note prompt for API clients (e.g. settings UI)."""
+    return UserSettingsResponse(
+        _id=settings.id,
+        user_email=settings.user_email,
+        note_prompt=settings.note_prompt,
+        default_note_prompt=get_default_note_prompt(),
+        regenerate_on_version_change=settings.regenerate_on_version_change,
+        regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
+        sync_prodtrack_tab_on_version_change=(
+            settings.sync_prodtrack_tab_on_version_change
+        ),
+        updated_at=settings.updated_at,
+        created_at=settings.created_at,
+    )
+
+
+def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    default = get_default_note_prompt()
+    return UserSettingsResponse(
+        _id="",
+        user_email=user_email,
+        note_prompt="",
+        default_note_prompt=default,
+        regenerate_on_version_change=False,
+        regenerate_on_transcript_update=False,
+        sync_prodtrack_tab_on_version_change=True,
+        updated_at=now,
+        created_at=now,
+    )
+
+
 @app.get(
     "/users/{user_email}/settings",
     tags=["User Settings"],
     summary="Get user settings",
-    description="Retrieve settings for a user by their email address.",
-    response_model=Optional[UserSettings],
+    description=(
+        "Retrieve settings for a user. When the user has no saved document, "
+        "returns default toggles and the configured default note prompt in "
+        "`default_note_prompt`; `note_prompt` is empty until the user saves a custom prompt."
+    ),
+    response_model=UserSettingsResponse,
 )
 async def get_user_settings(
     user_email: str,
     provider: StorageProviderDep,
     current_user: CurrentUserDep,
-) -> Optional[UserSettings]:
+) -> UserSettingsResponse:
     """Get user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
-    return await provider.get_user_settings(user_email)
+    stored = await provider.get_user_settings(user_email)
+    if stored is None:
+        return _empty_user_settings_response(user_email)
+    return _user_settings_to_response(stored)
 
 
 @app.put(
@@ -1377,18 +1474,19 @@ async def get_user_settings(
     tags=["User Settings"],
     summary="Create or update user settings",
     description="Create or update settings for a user.",
-    response_model=UserSettings,
+    response_model=UserSettingsResponse,
 )
 async def upsert_user_settings(
     user_email: str,
     data: UserSettingsUpdate,
     provider: StorageProviderDep,
     current_user: CurrentUserDep,
-) -> UserSettings:
+) -> UserSettingsResponse:
     """Create or update user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
-    return await provider.upsert_user_settings(user_email, data)
+    updated = await provider.upsert_user_settings(user_email, data)
+    return _user_settings_to_response(updated)
 
 
 @app.delete(
@@ -1404,12 +1502,126 @@ async def delete_user_settings(
     current_user: CurrentUserDep,
 ) -> bool:
     """Delete user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
         raise HTTPException(status_code=404, detail="User settings not found")
     return True
+
+
+@app.get(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="List note QC checks",
+    response_model=list[NoteQCCheck],
+)
+async def list_qc_checks(
+    user_email: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> list[NoteQCCheck]:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.get_qc_checks(user_email)
+
+
+@app.post(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="Create a note QC check",
+    response_model=NoteQCCheck,
+    status_code=201,
+)
+async def create_qc_check(
+    user_email: str,
+    data: NoteQCCheckCreate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.create_qc_check(user_email, data)
+
+
+@app.put(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Update a note QC check",
+    response_model=NoteQCCheck,
+)
+async def update_qc_check(
+    user_email: str,
+    check_id: str,
+    data: NoteQCCheckUpdate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    updated = await storage_provider.update_qc_check(user_email, check_id, data)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="QC check not found")
+    return updated
+
+
+@app.delete(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Delete a note QC check",
+    status_code=204,
+)
+async def delete_qc_check(
+    user_email: str,
+    check_id: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> None:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    deleted = await storage_provider.delete_qc_check(user_email, check_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="QC check not found")
+
+
+@app.post(
+    "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks",
+    tags=["Note QC"],
+    summary="Run note QC checks for a draft",
+    response_model=RunQCChecksResponse,
+)
+async def run_qc_checks(
+    playlist_id: int,
+    version_id: int,
+    body: RunQCChecksRequest,
+    storage_provider: StorageProviderDep,
+    prodtrack_provider: ProdtrackProviderDep,
+    llm_provider: LLMProviderDep,
+    current_user: CurrentUserDep,
+) -> RunQCChecksResponse:
+    # Authenticated callers may QC any draft in the playlist (same as publish-notes).
+    # body.user_email identifies the draft owner, not the caller.
+    draft = await storage_provider.get_draft_note(
+        body.user_email, playlist_id, version_id
+    )
+    if draft is None:
+        return RunQCChecksResponse(results=[])
+    checks = await storage_provider.get_qc_checks(body.user_email)
+    segments = await storage_provider.get_segments_for_version(playlist_id, version_id)
+    transcript = TranscriptionProviderBase.build_transcript_text(segments)
+    version = cast(
+        Version,
+        prodtrack_provider.get_entity("version", version_id, resolve_links=False),
+    )
+    results = await run_qc_checks_for_draft(
+        checks=checks,
+        draft=draft,
+        transcript_text=transcript,
+        version=version,
+        prodtrack_provider=prodtrack_provider,
+        llm_provider=llm_provider,
+    )
+    return RunQCChecksResponse(results=results)
 
 
 # -----------------------------------------------------------------------------
@@ -1572,37 +1784,6 @@ async def get_segments_for_version(
 # -----------------------------------------------------------------------------
 
 
-def _build_version_context(version: Version) -> str:
-    """Build a context string from version metadata."""
-    parts = []
-    if version.name:
-        parts.append(f"Version: {version.name}")
-    if version.entity:
-        entity_type = version.entity.__class__.__name__
-        parts.append(f"{entity_type}: {version.entity.name}")
-    if version.task:
-        if version.task.name:
-            parts.append(f"Task: {version.task.name}")
-        if version.task.pipeline_step and version.task.pipeline_step.get("name"):
-            parts.append(f"Department: {version.task.pipeline_step['name']}")
-    if version.status:
-        parts.append(f"Status: {version.status}")
-    if version.description:
-        parts.append(f"Description: {version.description}")
-    return "\n".join(parts) if parts else "No version context available."
-
-
-def _build_transcript_text(segments: list[StoredSegment]) -> str:
-    """Build a transcript string from segments."""
-    if not segments:
-        return "No transcript available."
-    lines = []
-    for segment in segments:
-        speaker = segment.speaker or "Unknown"
-        lines.append(f"{speaker}: {segment.text}")
-    return "\n".join(lines)
-
-
 def _build_full_prompt(
     prompt: str,
     transcript: str,
@@ -1643,13 +1824,13 @@ async def generate_note(
         prompt = (
             user_settings.note_prompt
             if user_settings and user_settings.note_prompt
-            else DEFAULT_PROMPT
+            else get_default_note_prompt()
         )
 
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
         )
-        transcript = _build_transcript_text(segments)
+        transcript = TranscriptionProviderBase.build_transcript_text(segments)
 
         version = cast(
             Version,
@@ -1657,7 +1838,7 @@ async def generate_note(
                 "version", request.version_id, resolve_links=False
             ),
         )
-        context = _build_version_context(version)
+        context = ProdtrackProviderBase.build_version_context(version)
 
         draft_note = await storage_provider.get_draft_note(
             request.user_email, request.playlist_id, request.version_id

@@ -31,6 +31,18 @@ from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
 )
+from dna.models.qc_check import (
+    DEFAULT_ACTION_ITEM_CHECK,
+    NoteQCAttributeSuggestion,
+    NoteQCCheck,
+    NoteQCCheckCreate,
+    NoteQCCheckUpdate,
+    NoteQCLLMOutput,
+    NoteQCResult,
+    NoteQCSeverity,
+    RunQCChecksRequest,
+    RunQCChecksResponse,
+)
 from dna.models.requests import (
     CreateNoteRequest,
     EntityLink,
@@ -40,6 +52,7 @@ from dna.models.requests import (
     GenerateNoteResponse,
     PublishNotesRequest,
     PublishNotesResponse,
+    PublishNoteTarget,
     PublishTranscriptRequest,
     PublishTranscriptResponse,
     SearchRequest,
@@ -49,7 +62,6 @@ from dna.models.requests import (
 from dna.models.stored_segment import (
     StoredSegment,
     StoredSegmentCreate,
-    generate_segment_id,
 )
 from dna.models.transcription import (
     BotSession,
@@ -64,6 +76,7 @@ from dna.models.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
+from dna.models.user_settings_response import UserSettingsResponse
 
 __all__ = [
     "EntityBase",
@@ -87,6 +100,7 @@ __all__ = [
     "SearchRequest",
     "SearchResult",
     "StatusOption",
+    "PublishNoteTarget",
     "PublishNotesRequest",
     "PublishNotesResponse",
     "PublishTranscriptRequest",
@@ -102,7 +116,6 @@ __all__ = [
     "PublishedTranscriptUpdate",
     "StoredSegment",
     "StoredSegmentCreate",
-    "generate_segment_id",
     "BotSession",
     "BotStatus",
     "BotStatusEnum",
@@ -111,4 +124,15 @@ __all__ = [
     "TranscriptSegment",
     "UserSettings",
     "UserSettingsUpdate",
+    "UserSettingsResponse",
+    "NoteQCSeverity",
+    "NoteQCCheckCreate",
+    "NoteQCCheckUpdate",
+    "NoteQCCheck",
+    "NoteQCAttributeSuggestion",
+    "NoteQCLLMOutput",
+    "NoteQCResult",
+    "RunQCChecksRequest",
+    "RunQCChecksResponse",
+    "DEFAULT_ACTION_ITEM_CHECK",
 ]

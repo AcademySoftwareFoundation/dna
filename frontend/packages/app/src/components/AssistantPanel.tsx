@@ -9,6 +9,8 @@ import { useAISuggestion } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 
 const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
+// To re-enable the Other Pending Notes tab, set this to true
+const SHOW_OTHER_NOTES_TAB = false;
 
 interface AssistantPanelProps {
   activeTab?: string;
@@ -86,7 +88,9 @@ export function AssistantPanel({
   }, [regenerate]);
 
   useHotkeyAction('aiInsert', handleAiInsert, { enabled: !!suggestion });
-  useHotkeyAction('aiRegenerate', handleAiRegenerate);
+  useHotkeyAction('aiRegenerate', handleAiRegenerate, {
+    enabled: !isLoading,
+  });
 
   return (
     <PanelWrapper>
@@ -94,9 +98,11 @@ export function AssistantPanel({
         <StyledTabsList>
           <StyledTabsTrigger value="assistant">AI Assistant</StyledTabsTrigger>
           <StyledTabsTrigger value="transcript">Transcript</StyledTabsTrigger>
-          <StyledTabsTrigger value="other">
-            Other Pending Notes
-          </StyledTabsTrigger>
+          {SHOW_OTHER_NOTES_TAB && (
+            <StyledTabsTrigger value="other">
+              Other Pending Notes
+            </StyledTabsTrigger>
+          )}
           {isDevMode && (
             <StyledTabsTrigger value="debug">Prompt Debug</StyledTabsTrigger>
           )}
@@ -119,14 +125,16 @@ export function AssistantPanel({
           />
         </StyledTabsContent>
 
-        <StyledTabsContent value="other">
-          <OtherNotesPanel
-            playlistId={playlistId}
-            versionId={versionId}
-            userEmail={userEmail}
-            onInsertNote={onInsertNote}
-          />
-        </StyledTabsContent>
+        {SHOW_OTHER_NOTES_TAB && (
+          <StyledTabsContent value="other">
+            <OtherNotesPanel
+              playlistId={playlistId}
+              versionId={versionId}
+              userEmail={userEmail}
+              onInsertNote={onInsertNote}
+            />
+          </StyledTabsContent>
+        )}
 
         {isDevMode && (
           <StyledTabsContent value="debug">

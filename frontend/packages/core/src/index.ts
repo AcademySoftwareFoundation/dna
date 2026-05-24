@@ -6,6 +6,7 @@
  */
 
 export * from './interfaces';
+export * from './mentionLookup';
 export * from './utils';
 export { ApiHandler, createApiHandler } from './apiHandler';
 export type { ApiHandlerConfig } from './apiHandler';
