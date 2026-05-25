@@ -355,7 +355,7 @@ class TestShotgridProviderPublishTranscript:
         payload = call_args[0][1]
         assert payload["project"] == {"type": "Project", "id": 1}
         assert payload["sg_playlist"] == {"type": "Playlist", "id": 42}
-        assert payload["sg_versions"] == [{"type": "Version", "id": 101}]
+        assert payload["sg_version_in_review"] == {"type": "Version", "id": 101}
         assert payload["sg_meeting_id"] == "m-abc"
         assert payload["sg_platform"] == "google_meet"
         assert payload["sg_transcript_body"] == "Cameron: hello"

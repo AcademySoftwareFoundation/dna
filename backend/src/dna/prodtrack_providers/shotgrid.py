@@ -1025,7 +1025,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             "code": code,
             "project": {"type": "Project", "id": project_id},
             "sg_playlist": {"type": "Playlist", "id": playlist_id},
-            "sg_versions": [{"type": "Version", "id": version_id}],
+            "sg_version_in_review": {"type": "Version", "id": version_id},
             "sg_meeting_id": meeting_id,
             "sg_meeting_date": meeting_date.isoformat(),
             "sg_platform": platform,
