@@ -51,8 +51,8 @@ def _published(body_hash: str) -> PublishedTranscript:
         playlist_id=42,
         version_id=101,
         meeting_id="m-abc",
-        sg_entity_type="CustomEntity01",
-        sg_entity_id=9001,
+        entity_type="CustomEntity01",
+        entity_id=9001,
         author_email="user@test.com",
         body_hash=body_hash,
         segments_count=1,
@@ -169,7 +169,7 @@ class TestPublishTranscriptEndpoint:
     def test_republish_with_changes_updates(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """body_hash 不同要走 update，並且沿用既有的 sg_entity_id。"""
+        """body_hash 不同要走 update，並且沿用既有的 entity_id。"""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "new content")
@@ -334,8 +334,8 @@ class TestPublishTranscriptEndpoint:
             playlist_id=42,
             version_id=101,
             meeting_id="m-abc",
-            sg_entity_type="CustomEntity01",
-            sg_entity_id=9001,
+            entity_type="CustomEntity01",
+            entity_id=9001,
             author_email="user@test.com",
             body_hash="old-hash",
             segments_count=1,

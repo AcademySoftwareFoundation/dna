@@ -1090,7 +1090,7 @@ async def publish_transcript(
     )
     if existing and existing.body_hash == payload.body_hash:
         return PublishTranscriptResponse(
-            transcript_entity_id=existing.sg_entity_id,
+            transcript_entity_id=existing.entity_id,
             outcome="skipped",
             skipped_reason="no_changes_since_last_publish",
             segments_count=payload.segments_count,
@@ -1117,8 +1117,8 @@ async def publish_transcript(
         if existing:
             # 用 bookkeeping 記的 entity_type，不是當前 env；避免站台改設定時 update 打錯 slot
             updated = prodtrack.update_transcript(
-                entity_type=existing.sg_entity_type,
-                entity_id=existing.sg_entity_id,
+                entity_type=existing.entity_type,
+                entity_id=existing.entity_id,
                 body=payload.body,
                 meeting_date=payload.meeting_date,
             )
@@ -1128,10 +1128,10 @@ async def publish_transcript(
                     status_code=502,
                     detail="Failed to update transcript on the tracking system",
                 )
-            sg_entity_id = existing.sg_entity_id
+            entity_id = existing.entity_id
             outcome = "updated"
         else:
-            sg_entity_id = prodtrack.publish_transcript(
+            entity_id = prodtrack.publish_transcript(
                 project_id=project_id,
                 playlist_id=playlist_id,
                 version_id=request.version_id,
@@ -1151,8 +1151,8 @@ async def publish_transcript(
                 playlist_id=playlist_id,
                 version_id=request.version_id,
                 meeting_id=metadata.meeting_id,
-                sg_entity_type=entity_type,
-                sg_entity_id=sg_entity_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
                 author_email=current_user,
                 body_hash=payload.body_hash,
                 segments_count=payload.segments_count,
@@ -1169,19 +1169,19 @@ async def publish_transcript(
             "bookkeeping failed. Next publish will create a duplicate unless "
             "the SG row is removed or the bookkeeping row is written manually.",
             outcome,
-            sg_entity_id,
+            entity_id,
         )
         raise HTTPException(
             status_code=500,
             detail=(
-                f"Transcript row {sg_entity_id} was {outcome} on the tracking "
+                f"Transcript row {entity_id} was {outcome} on the tracking "
                 f"system but local bookkeeping failed ({e.__class__.__name__}). "
                 f"Do not retry blindly; reconcile the row manually."
             ),
         )
 
     return PublishTranscriptResponse(
-        transcript_entity_id=sg_entity_id,
+        transcript_entity_id=entity_id,
         outcome=outcome,
         segments_count=payload.segments_count,
     )

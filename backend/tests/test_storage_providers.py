@@ -24,8 +24,8 @@ def _transcript_update() -> PublishedTranscriptUpdate:
         playlist_id=42,
         version_id=7,
         meeting_id="meet-abc",
-        sg_entity_type="CustomEntity01",
-        sg_entity_id=9001,
+        entity_type="CustomEntity01",
+        entity_id=9001,
         author_email="user@test.com",
         body_hash="deadbeef",
         segments_count=12,
@@ -859,8 +859,8 @@ class TestMongoDBStorageProvider:
             "playlist_id": 42,
             "version_id": 7,
             "meeting_id": "meet-abc",
-            "sg_entity_type": "CustomEntity01",
-            "sg_entity_id": 9001,
+            "entity_type": "CustomEntity01",
+            "entity_id": 9001,
             "author_email": "user@test.com",
             "body_hash": "deadbeef",
             "segments_count": 12,
@@ -877,7 +877,7 @@ class TestMongoDBStorageProvider:
         result = await provider.get_published_transcript(42, 7, "meet-abc")
 
         assert isinstance(result, PublishedTranscript)
-        assert result.sg_entity_id == 9001
+        assert result.entity_id == 9001
         mock_collection.find_one.assert_awaited_once_with(
             {"playlist_id": 42, "version_id": 7, "meeting_id": "meet-abc"}
         )
@@ -907,8 +907,8 @@ class TestMongoDBStorageProvider:
             "playlist_id": 42,
             "version_id": 7,
             "meeting_id": "meet-abc",
-            "sg_entity_type": "CustomEntity01",
-            "sg_entity_id": 9001,
+            "entity_type": "CustomEntity01",
+            "entity_id": 9001,
             "author_email": "user@test.com",
             "body_hash": "deadbeef",
             "segments_count": 12,
@@ -925,7 +925,7 @@ class TestMongoDBStorageProvider:
         result = await provider.upsert_published_transcript(_transcript_update())
 
         assert isinstance(result, PublishedTranscript)
-        assert result.sg_entity_id == 9001
+        assert result.entity_id == 9001
 
         call_args = mock_collection.find_one_and_update.call_args
         query = call_args[0][0]
@@ -938,7 +938,7 @@ class TestMongoDBStorageProvider:
         # 跟 upsert_draft_note 的慣例對齊：composite key 只放在 $setOnInsert，
         # 避免 $set 把 query 欄位重寫一次造成 review 起來難看
         assert update["$set"]["body_hash"] == "deadbeef"
-        assert update["$set"]["sg_entity_id"] == 9001
+        assert update["$set"]["entity_id"] == 9001
         assert "updated_at" in update["$set"]
         assert "playlist_id" not in update["$set"]
         assert "version_id" not in update["$set"]
