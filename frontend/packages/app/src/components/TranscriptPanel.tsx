@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
-import { Button } from '@radix-ui/themes';
-import { Loader2, MessageSquare, AlertCircle, Upload } from 'lucide-react';
+import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
 import { useSegments } from '../hooks';
 import { useConnectionStatus } from '../hooks/useDNAEvents';
-import { PublishTranscriptDialog } from './PublishTranscriptDialog';
 
 interface TranscriptPanelProps {
   playlistId: number | null;
@@ -92,25 +90,12 @@ const StatusBar = styled.div<{ $isConnected: boolean }>`
   background: ${({ theme }) => theme.colors.bg.surface};
 `;
 
-const PublishBar = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  padding: 6px 12px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
-`;
-
-function publishEnabled(): boolean {
-  // 部署時用 VITE_ENABLE_TRANSCRIPT_PUBLISH=true 打開，才會出現 Publish 按鈕
-  const flag = import.meta.env.VITE_ENABLE_TRANSCRIPT_PUBLISH;
-  return flag === 'true' || flag === true;
-}
-
 const StatusDot = styled.div<{ $isConnected: boolean }>`
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: ${({ $isConnected, theme }) =>
-    $isConnected ? theme.colors.accent.success : theme.colors.accent.warning};
+    $isConnected ? theme.colors.status.success : theme.colors.status.warning};
 `;
 
 function formatTime(isoString: string): string {
@@ -127,13 +112,11 @@ export function TranscriptPanel({
   versionId,
 }: TranscriptPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [publishOpen, setPublishOpen] = useState(false);
   const { isConnected } = useConnectionStatus();
   const { segments, isLoading, isError, error } = useSegments({
     playlistId,
     versionId,
   });
-  const showPublish = publishEnabled() && !!playlistId && !!versionId;
 
   useEffect(() => {
     if (scrollRef.current && segments.length > 0) {
@@ -189,19 +172,6 @@ export function TranscriptPanel({
         <StatusDot $isConnected={isConnected} />
         {isConnected ? 'Live' : 'Reconnecting...'} • {segments.length} segments
       </StatusBar>
-      {showPublish && (
-        <PublishBar>
-          <Button
-            size="1"
-            variant="soft"
-            onClick={() => setPublishOpen(true)}
-            disabled={segments.length === 0}
-          >
-            <Upload size={14} />
-            Publish transcript
-          </Button>
-        </PublishBar>
-      )}
       <SegmentList ref={scrollRef}>
         {segments.map((segment, idx) => {
           // Deduplicate speaker labels: only show the speaker header on the
@@ -228,15 +198,6 @@ export function TranscriptPanel({
           );
         })}
       </SegmentList>
-      {showPublish && playlistId !== null && versionId !== null && (
-        <PublishTranscriptDialog
-          open={publishOpen}
-          onClose={() => setPublishOpen(false)}
-          playlistId={playlistId}
-          versionId={versionId}
-          segmentsCount={segments.length}
-        />
-      )}
     </PanelContainer>
   );
 }
