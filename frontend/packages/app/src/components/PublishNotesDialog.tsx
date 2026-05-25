@@ -22,14 +22,13 @@ import { Loader2, Info, MoreVertical } from 'lucide-react';
 import { usePublishNotes } from '../hooks/usePublishNotes';
 import { usePublishTranscript } from '../hooks/usePublishTranscript';
 import { useSegments } from '../hooks';
-import { useDraftNote, backendToLocal, type LocalDraftNote } from '../hooks/useDraftNote';
-import { useNoteQCChecks } from '../hooks/useNoteQCChecks';
 import {
-  DraftNote,
-  Version,
-  SearchResult,
-  NoteQCResult,
-} from '@dna/core';
+  useDraftNote,
+  backendToLocal,
+  type LocalDraftNote,
+} from '../hooks/useDraftNote';
+import { useNoteQCChecks } from '../hooks/useNoteQCChecks';
+import { DraftNote, Version, SearchResult, NoteQCResult } from '@dna/core';
 import { NoteEditor, NoteDraftStatusBadges } from './NoteEditor';
 import { UserAvatar } from './UserAvatar';
 import { NoteQCResultPill } from './NoteQCResultPill';
@@ -177,6 +176,35 @@ const SegmentTimestamp = styled.span`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
+const ToggleTranscriptButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  color: ${({ theme }) => theme.colors.text.muted};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  flex-shrink: 0;
+  margin-left: 2px;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+  }
+`;
+
 const SegmentBody = styled.p`
   margin: 0;
   font-size: 13px;
@@ -202,9 +230,9 @@ function fallbackVersion(versionId: number): Version {
   };
 }
 
-const RegisterFlushContext = createContext<(fn: () => Promise<void>) => () => void>(
-  () => () => {}
-);
+const RegisterFlushContext = createContext<
+  (fn: () => Promise<void>) => () => void
+>(() => () => {});
 
 interface PublishNoteRowProps {
   playlistId: number;
@@ -367,7 +395,10 @@ function PublishNoteRow({
 
 function formatSegmentTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   } catch {
     return '';
   }
@@ -409,17 +440,20 @@ function VersionTranscriptRow({
             Transcript
           </Text>
           <Text size="1" color="gray">
-            {isLoading ? '…' : `${speakerCount} speaker${speakerCount !== 1 ? 's' : ''}`}
+            {isLoading
+              ? '…'
+              : segmentsCount === 0
+                ? 'None recorded'
+                : `${speakerCount} speaker${speakerCount !== 1 ? 's' : ''}`}
           </Text>
-          <Button
-            size="1"
-            variant="ghost"
-            color="gray"
-            disabled={segmentsCount === 0 && !isLoading}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? 'Hide' : 'Show'}
-          </Button>
+          {(isLoading || segmentsCount > 0) && (
+            <ToggleTranscriptButton
+              disabled={isLoading}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? 'Hide' : 'Show'}
+            </ToggleTranscriptButton>
+          )}
         </Flex>
       </TranscriptRow>
       {expanded && segmentsCount > 0 && (
@@ -432,7 +466,9 @@ function VersionTranscriptRow({
                 {showHeader && (
                   <SegmentSpeakerRow>
                     <SegmentSpeaker>{seg.speaker || 'Unknown'}</SegmentSpeaker>
-                    <SegmentTimestamp>{formatSegmentTime(seg.absolute_start_time)}</SegmentTimestamp>
+                    <SegmentTimestamp>
+                      {formatSegmentTime(seg.absolute_start_time)}
+                    </SegmentTimestamp>
                   </SegmentSpeakerRow>
                 )}
                 <SegmentBody>{seg.text}</SegmentBody>
@@ -496,7 +532,11 @@ function VersionPublishCard({
           {version.thumbnail ? <img src={version.thumbnail} alt="" /> : null}
         </Thumb>
         <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
-          <Text weight="bold" size="2" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <Text
+            weight="bold"
+            size="2"
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
             {version.name || `Version ${version.id}`}
           </Text>
           <Flex align="center" gap="2">
@@ -529,7 +569,9 @@ function VersionPublishCard({
             qcRowRefreshing={qcRefreshingDraftKey === draftRowKey(d)}
             qcResults={qcResults[draftRowKey(d)] ?? []}
             qcIgnored={qcIgnored}
-            onQcToggleIgnore={(checkId) => onQcToggleIgnore(draftRowKey(d), checkId)}
+            onQcToggleIgnore={(checkId) =>
+              onQcToggleIgnore(draftRowKey(d), checkId)
+            }
             onQcRefreshDraft={() => onQcRefreshDraft(d)}
           />
         ))}
@@ -555,7 +597,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   showTitle = true,
 }) => {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [transcriptSelected, setTranscriptSelected] = useState<Record<number, boolean>>({});
+  const [transcriptSelected, setTranscriptSelected] = useState<
+    Record<number, boolean>
+  >({});
   const [successSummary, setSuccessSummary] = useState<{
     publishedCount: number;
     republishedCount: number;
@@ -565,7 +609,13 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     transcriptPublishedCount: number;
     transcriptSkippedCount: number;
   } | null>(null);
-  const { mutateAsync: publishNotes, isPending, isError, error, reset } = usePublishNotes();
+  const {
+    mutateAsync: publishNotes,
+    isPending,
+    isError,
+    error,
+    reset,
+  } = usePublishNotes();
   const { mutateAsync: publishTranscriptAsync } = usePublishTranscript();
 
   const {
@@ -668,7 +718,10 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   );
 
   const allTranscriptsSelected = useMemo(
-    () => versionCards.every(({ version }) => transcriptSelected[version.id] ?? true),
+    () =>
+      versionCards.every(
+        ({ version }) => transcriptSelected[version.id] ?? true
+      ),
     [versionCards, transcriptSelected]
   );
 
@@ -711,9 +764,12 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     setSelected((prev) => ({ ...prev, [key]: checked }));
   }, []);
 
-  const handleTranscriptToggle = useCallback((versionId: number, checked: boolean) => {
-    setTranscriptSelected((prev) => ({ ...prev, [versionId]: checked }));
-  }, []);
+  const handleTranscriptToggle = useCallback(
+    (versionId: number, checked: boolean) => {
+      setTranscriptSelected((prev) => ({ ...prev, [versionId]: checked }));
+    },
+    []
+  );
 
   const handleBatchTranscriptSelect = useCallback(() => {
     const next: Record<number, boolean> = {};
@@ -742,13 +798,18 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       publishNotes({ playlistId, request: { user_email: userEmail, targets } }),
       Promise.allSettled(
         selectedTranscriptVersionIds.map((versionId) =>
-          publishTranscriptAsync({ playlistId, request: { version_id: versionId } })
+          publishTranscriptAsync({
+            playlistId,
+            request: { version_id: versionId },
+          })
         )
       ),
     ]);
 
     const transcriptPublishedCount = transcriptResults.filter(
-      (r) => r.status === 'fulfilled' && (r.value.outcome === 'created' || r.value.outcome === 'updated')
+      (r) =>
+        r.status === 'fulfilled' &&
+        (r.value.outcome === 'created' || r.value.outcome === 'updated')
     ).length;
     const transcriptSkippedCount = transcriptResults.filter(
       (r) => r.status === 'fulfilled' && r.value.outcome === 'skipped'
@@ -773,7 +834,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     <RegisterFlushContext.Provider value={registerFlush}>
       {successSummary ? (
         <Flex direction="column" gap="4" p="4">
-          {showTitle && <Dialog.Title style={{ margin: 0 }}>Publish Notes</Dialog.Title>}
+          {showTitle && (
+            <Dialog.Title style={{ margin: 0 }}>Publish Notes</Dialog.Title>
+          )}
           <Callout.Root color="green">
             <Callout.Icon>
               <Info size={16} />
@@ -786,13 +849,33 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               Results:
             </Text>
             <ResultList>
-              {successSummary.publishedCount > 0 && <li>Notes Published: {successSummary.publishedCount}</li>}
-              {successSummary.republishedCount > 0 && <li>Notes Republished: {successSummary.republishedCount}</li>}
-              {successSummary.imageCount > 0 && <li>Images Attached: {successSummary.imageCount}</li>}
-              {successSummary.statusCount > 0 && <li>Statuses Updated: {successSummary.statusCount}</li>}
-              {successSummary.transcriptPublishedCount > 0 && <li>Transcripts Published: {successSummary.transcriptPublishedCount}</li>}
-              {successSummary.transcriptSkippedCount > 0 && <li>Transcripts Up to Date: {successSummary.transcriptSkippedCount}</li>}
-              {successSummary.failedCount > 0 && <li>Notes Failed: {successSummary.failedCount}</li>}
+              {successSummary.publishedCount > 0 && (
+                <li>Notes Published: {successSummary.publishedCount}</li>
+              )}
+              {successSummary.republishedCount > 0 && (
+                <li>Notes Republished: {successSummary.republishedCount}</li>
+              )}
+              {successSummary.imageCount > 0 && (
+                <li>Images Attached: {successSummary.imageCount}</li>
+              )}
+              {successSummary.statusCount > 0 && (
+                <li>Statuses Updated: {successSummary.statusCount}</li>
+              )}
+              {successSummary.transcriptPublishedCount > 0 && (
+                <li>
+                  Transcripts Published:{' '}
+                  {successSummary.transcriptPublishedCount}
+                </li>
+              )}
+              {successSummary.transcriptSkippedCount > 0 && (
+                <li>
+                  Transcripts Up to Date:{' '}
+                  {successSummary.transcriptSkippedCount}
+                </li>
+              )}
+              {successSummary.failedCount > 0 && (
+                <li>Notes Failed: {successSummary.failedCount}</li>
+              )}
             </ResultList>
           </SummaryBox>
 
@@ -814,7 +897,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               flexShrink: 0,
             }}
           >
-            {showTitle && <Dialog.Title style={{ margin: 0 }}>Publish Notes</Dialog.Title>}
+            {showTitle && (
+              <Dialog.Title style={{ margin: 0 }}>Publish Notes</Dialog.Title>
+            )}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger>
                 <IconButton
@@ -827,7 +912,11 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                 </IconButton>
               </DropdownMenu.Trigger>
               <DropdownMenu.Content align="end">
-                <DropdownMenu.Item onSelect={() => handleBatchSelect(allNotesSelected ? 'none' : 'all')}>
+                <DropdownMenu.Item
+                  onSelect={() =>
+                    handleBatchSelect(allNotesSelected ? 'none' : 'all')
+                  }
+                >
                   {allNotesSelected ? 'Deselect all notes' : 'Select all notes'}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => handleBatchSelect('mine')}>
@@ -838,7 +927,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Item onSelect={handleBatchTranscriptSelect}>
-                  {allTranscriptsSelected ? 'Deselect all transcripts' : 'Select all transcripts'}
+                  {allTranscriptsSelected
+                    ? 'Deselect all transcripts'
+                    : 'Select all transcripts'}
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Root>
@@ -860,7 +951,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                   selected={selected}
                   onToggle={handleToggle}
                   transcriptChecked={transcriptSelected[version.id] ?? true}
-                  onTranscriptToggle={(checked) => handleTranscriptToggle(version.id, checked)}
+                  onTranscriptToggle={(checked) =>
+                    handleTranscriptToggle(version.id, checked)
+                  }
                   qcLoading={qcLoading}
                   qcRefreshingDraftKey={qcRefreshingDraftKey}
                   qcResults={qcResults}
@@ -878,7 +971,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                 <Callout.Icon>
                   <Info size={16} />
                 </Callout.Icon>
-                <Callout.Text>{error?.message || 'Failed to publish notes'}</Callout.Text>
+                <Callout.Text>
+                  {error?.message || 'Failed to publish notes'}
+                </Callout.Text>
               </Callout.Root>
             </Flex>
           )}
@@ -923,8 +1018,19 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
   const [isPending, setIsPending] = useState(false);
 
   return (
-    <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && !isPending && onClose()}>
-      <Dialog.Content maxWidth="900px" style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && !isPending && onClose()}
+    >
+      <Dialog.Content
+        maxWidth="900px"
+        style={{
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0,
+        }}
+      >
         <Dialog.Description style={{ display: 'none' }}>
           Review and publish draft notes to production tracking.
         </Dialog.Description>
