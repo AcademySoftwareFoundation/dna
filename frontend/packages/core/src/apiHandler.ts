@@ -24,6 +24,8 @@ import {
   GetVersionStatusesParams,
   PublishNotesParams,
   PublishNotesResponse,
+  PublishTranscriptParams,
+  PublishTranscriptResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -301,9 +303,20 @@ class ApiHandler {
     return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
   }
 
-  async publishNotes(params: PublishNotesParams): Promise<PublishNotesResponse> {
+  async publishNotes(
+    params: PublishNotesParams
+  ): Promise<PublishNotesResponse> {
     return this.post<PublishNotesResponse>(
       `/playlists/${params.playlistId}/publish-notes`,
+      params.request
+    );
+  }
+
+  async publishTranscript(
+    params: PublishTranscriptParams
+  ): Promise<PublishTranscriptResponse> {
+    return this.post<PublishTranscriptResponse>(
+      `/playlists/${params.playlistId}/publish-transcript`,
       params.request
     );
   }
@@ -348,10 +361,10 @@ class ApiHandler {
   async uploadAttachment(file: File): Promise<{ id: string; filename: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await this.axiosInstance.postForm<{ id: string; filename: string }>(
-      '/api/attachments',
-      formData
-    );
+    const response = await this.axiosInstance.postForm<{
+      id: string;
+      filename: string;
+    }>('/api/attachments', formData);
     return response.data;
   }
 
