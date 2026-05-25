@@ -34,7 +34,7 @@ def _segment(
 
 
 class TestBuildTranscriptPayload:
-    """build_transcript_payload 在不同輸入下的行為。"""
+    """Behavior of build_transcript_payload across input shapes."""
 
     def test_empty_list_returns_empty_body(self):
         payload = build_transcript_payload([])
@@ -42,7 +42,8 @@ class TestBuildTranscriptPayload:
         assert payload.body == ""
         assert payload.segments_count == 0
         assert payload.body_hash == sha256(b"").hexdigest()
-        # 沒有 segment 時退而求其次取 "現在"；只驗是個 date，避免跨日的毫秒 flaky
+        # Falls back to "now" when there are no segments; assert isinstance
+        # only — strict equality would flake around UTC midnight.
         assert isinstance(payload.meeting_date, date)
 
     def test_single_segment_renders_one_line(self):
@@ -152,12 +153,12 @@ class TestBuildTranscriptPayload:
         assert payload.segments_count == 1
 
     def test_naive_start_time_treated_as_utc(self):
-        """沒時區的時間戳要當成 UTC；不可以讓 astimezone 用本機時區去 infer。"""
+        """Naive timestamps are treated as UTC, not inferred from the host TZ."""
         segments = [
             _segment(
                 segment_id="1",
                 text="late night",
-                # 主機時區若非 UTC，naive + astimezone 會把日期推到 04-16
+                # If host TZ isn't UTC, naive + astimezone would push this to 2026-04-16.
                 start="2026-04-15T23:30:00",
                 end="2026-04-15T23:30:05",
             )

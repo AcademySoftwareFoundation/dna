@@ -31,10 +31,8 @@ def build_transcript_payload(segments: list[StoredSegment]) -> TranscriptPayload
     start_time, collapse consecutive same-speaker rows, then render
     as "Speaker: text" lines.
     """
-    # 空白 segment 先過濾，不然後面會出現 "Speaker: " 這種空行
     cleaned = [s for s in segments if s.text and s.text.strip()]
 
-    # 以 (時間, 文字 hash 前 12 碼) 當 key，重複的留較新的 updated_at
     latest: dict[tuple[str, str], StoredSegment] = {}
     for seg in cleaned:
         text_sig = sha256(seg.text.encode("utf-8")).hexdigest()[:12]
@@ -50,7 +48,6 @@ def build_transcript_payload(segments: list[StoredSegment]) -> TranscriptPayload
     for seg in ordered:
         speaker = (seg.speaker or "").strip() or "Unknown"
         text = seg.text.strip()
-        # 同一個人連續講話時合併成一行，減少 SG 上的行數雜訊
         if lines and speaker == last_speaker:
             lines[-1] = f"{lines[-1]} {text}"
         else:
@@ -73,10 +70,11 @@ def _first_segment_date(ordered: list[StoredSegment]) -> date:
     if not ordered:
         return datetime.now(timezone.utc).date()
     raw = ordered[0].absolute_start_time
-    # ISO 8601 的 Z 字尾 fromisoformat 吃不下，先換成 +00:00
+    # fromisoformat before 3.11 chokes on the "Z" suffix; normalize first.
     normalized = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
     dt = datetime.fromisoformat(normalized)
-    # 沒帶時區的情況，按 StoredSegment 欄位的規範當成 UTC，不要讓本機時區 infer
+    # Naive timestamps are UTC per the StoredSegment contract; don't let
+    # astimezone() guess from the host TZ.
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).date()

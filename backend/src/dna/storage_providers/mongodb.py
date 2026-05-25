@@ -391,8 +391,7 @@ class MongoDBStorageProvider(StorageProviderBase):
             "version_id": data.version_id,
             "meeting_id": data.meeting_id,
         }
-        # composite key 只在 insert 時寫入；一般欄位用 $set。
-        # 對齊 upsert_draft_note 的用法。
+        # Composite key only on insert; mutable fields go in $set.
         payload = data.model_dump()
         set_on_insert = {
             "playlist_id": payload.pop("playlist_id"),

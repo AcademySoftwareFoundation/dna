@@ -62,7 +62,7 @@ def _published(body_hash: str) -> PublishedTranscript:
 
 
 class TestPublishTranscriptEndpoint:
-    """POST /playlists/{id}/publish-transcript 行為測試。"""
+    """Behavior tests for POST /playlists/{id}/publish-transcript."""
 
     @pytest.fixture
     def client(self):
@@ -76,8 +76,9 @@ class TestPublishTranscriptEndpoint:
     def mock_prodtrack(self):
         p = mock.Mock()
         version = mock.Mock()
-        # 真實的 ShotgridProvider 回來的 Version.project 是 dict，不是物件。
-        # 用物件 mock 會把下面 version.project.id 這種筆誤藏起來。
+        # Real ShotgridProvider returns Version.project as a dict, not an
+        # object; an attribute-style mock here would hide typos like
+        # version.project.id.
         version.project = {"type": "Project", "id": 1}
         p.get_entity.return_value = version
         return p
@@ -92,8 +93,7 @@ class TestPublishTranscriptEndpoint:
     def test_flag_off_returns_404(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """沒開 feature flag 時必須 404。這個 endpoint 不該露出來。"""
-        # 完全不帶 DNA_ENABLE_TRANSCRIPT_PUBLISH
+        """Feature flag off: the endpoint must not be reachable."""
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("DNA_ENABLE_TRANSCRIPT_PUBLISH", None)
             response = client.post(
@@ -106,7 +106,7 @@ class TestPublishTranscriptEndpoint:
     def test_happy_create_path(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """第一次推上去要 create，並且把 bookkeeping 寫回 storage。"""
+        """First publish: create the row and persist the bookkeeping."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hello")
@@ -140,8 +140,8 @@ class TestPublishTranscriptEndpoint:
     def test_republish_same_body_skips(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """body_hash 沒變就不要打 SG，回 skipped。"""
-        # 先跑一次拿到 body_hash
+        """Unchanged body_hash: don't call the provider, return skipped."""
+        # Compute the body_hash the endpoint will produce so the fixture matches.
         from dna.transcription_publish import build_transcript_payload
 
         seg = _segment("2026-04-15T10:00:00Z", "hello")
@@ -169,7 +169,7 @@ class TestPublishTranscriptEndpoint:
     def test_republish_with_changes_updates(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """body_hash 不同要走 update，並且沿用既有的 entity_id。"""
+        """Changed body_hash: update the existing entity_id rather than create."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "new content")
@@ -224,7 +224,7 @@ class TestPublishTranscriptEndpoint:
     def test_mock_provider_returns_501(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """用 mock prodtrack 時 provider 會丟 NotImplementedError，我們回 501。"""
+        """Provider raises NotImplementedError → endpoint returns 501."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
@@ -251,7 +251,6 @@ class TestPublishTranscriptEndpoint:
             _segment("2026-04-15T10:00:00Z", "hi")
         ]
         mock_storage.get_published_transcript.return_value = None
-        # version 沒有 project 的情況（通常是資料壞了）
         version = mock.Mock()
         version.project = None
         mock_prodtrack.get_entity.return_value = version
@@ -267,7 +266,7 @@ class TestPublishTranscriptEndpoint:
     def test_missing_version_returns_404(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """get_entity 對不存在的 version 會 raise ValueError，要接住轉成 404。"""
+        """get_entity raises ValueError for an unknown version → mapped to 404."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
@@ -288,7 +287,7 @@ class TestPublishTranscriptEndpoint:
     def test_update_failure_does_not_advance_body_hash(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """update_transcript 回傳 False 時要報錯，且不能把新 body_hash 存起來。"""
+        """On a False update result: raise, and don't persist the new body_hash."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "new content")
@@ -308,7 +307,7 @@ class TestPublishTranscriptEndpoint:
     def test_metadata_without_platform_is_422(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """platform 為 None / 空字串時拒絕，避免把空值丟到 SG 的 list field。"""
+        """Empty / None platform is rejected so we don't push an invalid value to SG."""
         mock_storage.get_playlist_metadata.return_value = _metadata(platform="")
 
         with mock.patch.dict(os.environ, ENABLE_FLAG):
@@ -323,12 +322,12 @@ class TestPublishTranscriptEndpoint:
     def test_update_path_uses_stored_entity_type_not_current_env(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """env var 改過以後，update 仍然要打到**原本** create 它那個 entity type。"""
+        """After env changes, update must still target the originally-created entity type."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "changed")
         ]
-        # 原本是在 CustomEntity01 那邊 create 的
+        # Bookkeeping row was created against CustomEntity01.
         mock_storage.get_published_transcript.return_value = PublishedTranscript(
             _id="pt-id",
             playlist_id=42,
@@ -344,7 +343,7 @@ class TestPublishTranscriptEndpoint:
         )
         mock_prodtrack.update_transcript.return_value = True
 
-        # 現在 env 被改成 CustomEntity05，但 9001 還是屬於 CustomEntity01
+        # Flip the env to CustomEntity05; id 9001 still belongs to CustomEntity01.
         with mock.patch.dict(
             os.environ,
             {**ENABLE_FLAG, "SHOTGRID_TRANSCRIPT_ENTITY": "CustomEntity05"},
@@ -356,13 +355,13 @@ class TestPublishTranscriptEndpoint:
 
         assert response.status_code == 200
         kwargs = mock_prodtrack.update_transcript.call_args.kwargs
-        # 必須指定原本的 CustomEntity01，不能跟著 env 走
+        # Must target the original CustomEntity01, ignoring the new env value.
         assert kwargs.get("entity_type") == "CustomEntity01"
 
     def test_all_segments_whitespace_is_422(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """通過原始 segments 的空檢查，但 build 完全被過濾掉 → 不該 publish 空 row。"""
+        """Segments exist but are all whitespace; once build filters them out, refuse to publish."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "   "),
@@ -382,8 +381,8 @@ class TestPublishTranscriptEndpoint:
     def test_bookkeeping_failure_after_sg_create_is_surfaced(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        """SG 已經 create 但 Mongo upsert 爆炸時要 surface 500，並帶 entity_id
-        讓 operator 知道 SG 側有 orphan 要善後，下次請求不可直接重試。"""
+        """SG create succeeded but Mongo upsert failed: surface 500 with the
+        entity_id so an operator can reconcile, and signal no blind retry."""
         mock_storage.get_playlist_metadata.return_value = _metadata()
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
@@ -401,5 +400,5 @@ class TestPublishTranscriptEndpoint:
             )
 
         assert response.status_code == 500
-        # entity_id 必須在錯誤訊息裡，operator 才能去 SG 手動刪除
+        # entity_id must be in the message so the operator can find the SG row.
         assert "9001" in response.json()["detail"]

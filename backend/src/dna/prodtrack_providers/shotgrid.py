@@ -1019,7 +1019,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError("Not connected to ShotGrid")
 
         entity_type = _transcript_entity_type()
-        # 用 meeting_date + meeting_id 組出人看得懂的 code，方便在 SG 頁面上辨識
+        # Human-readable code so the row is identifiable on the SG entity page.
         code = f"transcript-{version_id}-{meeting_date.isoformat()}"
         payload: dict[str, Any] = {
             "code": code,
@@ -1068,5 +1068,5 @@ def _get_dna_entity_type(sg_entity_type: str) -> str:
 
 
 def _transcript_entity_type() -> str:
-    """SG 的自訂 entity 名稱由站台決定，這裡用環境變數讓部署端切換。"""
+    """Site-specific custom-entity slot, switchable per deployment via env."""
     return os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")

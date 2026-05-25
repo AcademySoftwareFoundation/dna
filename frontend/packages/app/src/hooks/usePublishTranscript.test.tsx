@@ -72,7 +72,7 @@ describe('usePublishTranscript', () => {
           request: { version_id: 101 },
         });
       } catch {
-        // 預期會炸
+        // expected
       }
     });
 

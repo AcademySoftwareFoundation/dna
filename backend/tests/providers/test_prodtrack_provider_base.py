@@ -8,7 +8,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBas
 
 
 class TestProdtrackProviderBaseTranscriptContract:
-    """Base class 的 transcript 方法必須丟 NotImplementedError。"""
+    """Base class transcript methods must raise NotImplementedError."""
 
     def test_publish_transcript_raises_not_implemented(self):
         provider = ProdtrackProviderBase()

@@ -839,7 +839,7 @@ class TestMongoDBStorageProvider:
 
     @pytest.mark.asyncio
     async def test_published_transcripts_collection_property(self, provider):
-        """published_transcripts 應該指向 dna 資料庫底下的 published_transcripts。"""
+        """published_transcripts maps to the dna.published_transcripts collection."""
         mock_client = mock.MagicMock()
         mock_db = mock.MagicMock()
         mock_collection = mock.MagicMock()
@@ -851,7 +851,7 @@ class TestMongoDBStorageProvider:
 
     @pytest.mark.asyncio
     async def test_get_published_transcript_found(self, provider):
-        """找得到對應 (playlist, version, meeting) 時回傳完整 model。"""
+        """When a matching (playlist, version, meeting) exists, return the full model."""
         mock_collection = mock.MagicMock()
         now = datetime.now(timezone.utc)
         doc = {
@@ -884,7 +884,7 @@ class TestMongoDBStorageProvider:
 
     @pytest.mark.asyncio
     async def test_get_published_transcript_missing_returns_none(self, provider):
-        """沒有紀錄時 None 要一路傳回來。"""
+        """Missing record returns None all the way up."""
         mock_collection = mock.MagicMock()
         mock_collection.find_one = mock.AsyncMock(return_value=None)
         mock_client = mock.MagicMock()
@@ -899,7 +899,7 @@ class TestMongoDBStorageProvider:
 
     @pytest.mark.asyncio
     async def test_upsert_published_transcript_upserts_by_composite_key(self, provider):
-        """upsert 要用 (playlist, version, meeting) 當 query、並回傳完整 model。"""
+        """Upsert queries by (playlist, version, meeting) and returns the full model."""
         mock_collection = mock.MagicMock()
         now = datetime.now(timezone.utc)
         result_doc = {
@@ -935,8 +935,7 @@ class TestMongoDBStorageProvider:
             "meeting_id": "meet-abc",
         }
         update = call_args[0][1]
-        # 跟 upsert_draft_note 的慣例對齊：composite key 只放在 $setOnInsert，
-        # 避免 $set 把 query 欄位重寫一次造成 review 起來難看
+        # Composite key only on $setOnInsert; $set must not duplicate the query fields.
         assert update["$set"]["body_hash"] == "deadbeef"
         assert update["$set"]["entity_id"] == 9001
         assert "updated_at" in update["$set"]

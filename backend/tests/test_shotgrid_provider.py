@@ -310,7 +310,7 @@ class TestShotgridProviderRefactor:
 
 
 class TestShotgridProviderPublishTranscript:
-    """publish_transcript / update_transcript 要把 transcript 寫到 SG 的自訂 entity。"""
+    """publish_transcript / update_transcript write transcripts to the configured SG custom entity."""
 
     @pytest.fixture
     def mock_shotgun(self):
@@ -332,7 +332,7 @@ class TestShotgridProviderPublishTranscript:
     def test_publish_transcript_creates_row_with_default_entity_type(
         self, provider, mock_shotgun
     ):
-        """預設狀況下，SG 的 entity 應該是 CustomEntity01。"""
+        """Default entity slot is CustomEntity01."""
         from datetime import date as date_
 
         mock_sg_instance = mock_shotgun.return_value
@@ -363,7 +363,7 @@ class TestShotgridProviderPublishTranscript:
         assert "code" in payload and payload["code"]
 
     def test_publish_transcript_honours_env_override(self, provider, mock_shotgun):
-        """站台若把 entity 放在 CustomEntity05，環境變數要能切換。"""
+        """SHOTGRID_TRANSCRIPT_ENTITY env var switches the target slot."""
         from datetime import date as date_
 
         mock_sg_instance = mock_shotgun.return_value
@@ -386,7 +386,7 @@ class TestShotgridProviderPublishTranscript:
         assert mock_sg_instance.create.call_args[0][0] == "CustomEntity05"
 
     def test_publish_transcript_not_connected_raises(self, provider, mock_shotgun):
-        """沒連線時應該明確報錯，不要讓上層看到奇怪的 AttributeError。"""
+        """When not connected, raise a clear error rather than leaking AttributeError."""
         from datetime import date as date_
 
         provider.sg = None
@@ -403,7 +403,7 @@ class TestShotgridProviderPublishTranscript:
             )
 
     def test_update_transcript_only_patches_body_and_date(self, provider, mock_shotgun):
-        """update 時只能動 body 跟 meeting_date，不要把 SG 上手動改的欄位蓋掉。"""
+        """Update only patches body and meeting_date; other fields stay untouched."""
         from datetime import date as date_
 
         mock_sg_instance = mock_shotgun.return_value
@@ -429,7 +429,7 @@ class TestShotgridProviderPublishTranscript:
     def test_update_transcript_uses_caller_supplied_entity_type(
         self, provider, mock_shotgun
     ):
-        """entity_type 必須用 caller 傳進來的，不能偷讀環境變數。"""
+        """entity_type must come from the caller, not from the current env."""
         from datetime import date as date_
 
         mock_sg_instance = mock_shotgun.return_value
@@ -450,7 +450,7 @@ class TestShotgridProviderPublishTranscript:
     def test_update_transcript_swallows_sg_errors_and_returns_false(
         self, provider, mock_shotgun
     ):
-        """SG 寫入失敗時不要炸，方便 endpoint 對照 body_hash 做決策。"""
+        """Swallow SG write errors and return False so the endpoint can decide based on body_hash."""
         from datetime import date as date_
 
         mock_sg_instance = mock_shotgun.return_value

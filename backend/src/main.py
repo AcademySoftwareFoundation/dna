@@ -1029,7 +1029,6 @@ async def publish_notes(
 
 
 def _transcript_publish_enabled() -> bool:
-    """讀 DNA_ENABLE_TRANSCRIPT_PUBLISH；沒設或不是 true 就當沒開。"""
     return os.getenv("DNA_ENABLE_TRANSCRIPT_PUBLISH", "false").lower() == "true"
 
 
@@ -1063,8 +1062,8 @@ async def publish_transcript(
             detail="Playlist has no meeting associated yet",
         )
     if not metadata.platform:
-        # platform 是 SG 那邊的 list field，空字串會被站台 schema 拒；
-        # 比起讓 SG 回一個看不懂的 Fault，這裡攔下給明確錯誤。
+        # Empty platform would be rejected downstream as an opaque SG schema
+        # fault; surface a clean 422 instead.
         raise HTTPException(
             status_code=422,
             detail="Playlist metadata has no platform recorded",
@@ -1079,7 +1078,8 @@ async def publish_transcript(
 
     payload = build_transcript_payload(segments)
     if payload.segments_count == 0:
-        # 原始 list 不空但過完 whitespace filter 後清光光；不要在 SG 留空 row
+        # Segments existed but all were whitespace-only; refuse rather than
+        # create an empty row.
         raise HTTPException(
             status_code=422,
             detail="All stored segments were empty; nothing to publish",
@@ -1101,10 +1101,10 @@ async def publish_transcript(
             "version", request.version_id, resolve_links=False
         )
     except ValueError as e:
-        # get_entity 找不到對應資料時會 raise ValueError，這裡轉成 404
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Version.project 是 dict (type/id/name)，不是物件。不要用 .id 存取。
+    # Version.project is a dict {type, id, name}, not an object — don't try
+    # project_ref.id.
     project_ref = getattr(version, "project", None)
     project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
     if project_id is None:
@@ -1115,7 +1115,9 @@ async def publish_transcript(
 
     try:
         if existing:
-            # 用 bookkeeping 記的 entity_type，不是當前 env；避免站台改設定時 update 打錯 slot
+            # Take entity_type from bookkeeping, not env — sites can migrate
+            # the slot after the row is created, and the update must still
+            # target the original entity.
             updated = prodtrack.update_transcript(
                 entity_type=existing.entity_type,
                 entity_id=existing.entity_id,
@@ -1123,7 +1125,8 @@ async def publish_transcript(
                 meeting_date=payload.meeting_date,
             )
             if not updated:
-                # SG 更新失敗時千萬不能把 body_hash 往前推，否則下次會誤判 skipped
+                # Raise (and skip the bookkeeping upsert below) so the next
+                # call doesn't see a matching body_hash and incorrectly skip.
                 raise HTTPException(
                     status_code=502,
                     detail="Failed to update transcript on the tracking system",
@@ -1159,10 +1162,10 @@ async def publish_transcript(
             )
         )
     except Exception as e:
-        # SG 那邊已經寫進去了，但本地 bookkeeping 沒跟上。
-        # 下次同樣 body 的請求會再在 SG 建一列（因為 existing 會是 None）。
-        # 把 entity_id 放進錯誤訊息，讓 operator 能去 SG 手動善後；
-        # 同時讓 client 知道這個錯誤**不該直接重試**。
+        # SG row exists but local bookkeeping didn't make it. The next call
+        # with the same body would see existing=None and create a duplicate
+        # SG row. Surface entity_id so an operator can reconcile manually,
+        # and signal to the client that blind retry is unsafe.
         logger = logging.getLogger(__name__)
         logger.exception(
             "Transcript %s created on tracking system id=%s but local "

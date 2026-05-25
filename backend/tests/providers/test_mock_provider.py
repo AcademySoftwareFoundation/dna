@@ -510,7 +510,7 @@ def test_factory_raises_when_shotgrid_selected_but_no_credentials():
 
 
 class TestMockPublishTranscript:
-    """Mock provider 不能寫入 SG，嘗試 publish/update 時必須拋清楚的錯。"""
+    """Mock provider can't write to SG; publish/update must raise a clear error."""
 
     def test_publish_transcript_raises_with_user_facing_message(self, tmp_path):
         from datetime import date as date_
