@@ -14,3 +14,8 @@ services:
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
       - AUTH_PROVIDER=none
+      # Transcript publishing (V1, disabled by default). Set to "true" to
+      # expose POST /playlists/{id}/publish-transcript. See DEPLOYMENT.md
+      # for the ShotGrid site-setup checklist the custom entity depends on.
+      - DNA_ENABLE_TRANSCRIPT_PUBLISH=false
+      - SHOTGRID_TRANSCRIPT_ENTITY=CustomEntity01

@@ -27,6 +27,10 @@ from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
 )
+from dna.models.published_transcript import (
+    PublishedTranscript,
+    PublishedTranscriptUpdate,
+)
 from dna.models.qc_check import (
     DEFAULT_ACTION_ITEM_CHECK,
     NoteQCAttributeSuggestion,
@@ -49,6 +53,8 @@ from dna.models.requests import (
     PublishNotesRequest,
     PublishNotesResponse,
     PublishNoteTarget,
+    PublishTranscriptRequest,
+    PublishTranscriptResponse,
     SearchRequest,
     SearchResult,
     StatusOption,
@@ -82,6 +88,7 @@ __all__ = [
     "Version",
     "Playlist",
     "User",
+    "Transcript",
     "DNAEntity",
     "ENTITY_MODELS",
     "EntityLink",
@@ -96,6 +103,8 @@ __all__ = [
     "PublishNoteTarget",
     "PublishNotesRequest",
     "PublishNotesResponse",
+    "PublishTranscriptRequest",
+    "PublishTranscriptResponse",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",
@@ -103,6 +112,8 @@ __all__ = [
     "DraftNoteUpdate",
     "PlaylistMetadata",
     "PlaylistMetadataUpdate",
+    "PublishedTranscript",
+    "PublishedTranscriptUpdate",
     "StoredSegment",
     "StoredSegmentCreate",
     "BotSession",
@@ -110,7 +121,6 @@ __all__ = [
     "BotStatusEnum",
     "DispatchBotRequest",
     "Platform",
-    "Transcript",
     "TranscriptSegment",
     "UserSettings",
     "UserSettingsUpdate",

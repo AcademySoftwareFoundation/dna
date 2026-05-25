@@ -230,6 +230,52 @@ echo -n "new-value" | gcloud secrets versions add SECRET_NAME --data-file=-
 
 ---
 
+## Transcript Publishing Setup (optional, issue #120)
+
+`POST /playlists/{id}/publish-transcript` is feature-flagged off by default.
+Turn it on only after the ShotGrid site is prepared.
+
+### ShotGrid site-side checklist
+
+1. In **Site Preferences -> Entities**, enable one of the `CustomEntityNN`
+   slots and set its display name (e.g. "DNA Note"). Note the slot
+   number — the API still addresses it as `CustomEntityNN`, not the
+   display name.
+2. On that custom entity, add the following fields:
+   - `code` (text, built-in)
+   - `project` (entity link -> Project, built-in)
+   - `sg_playlist` (entity link -> Playlist)
+   - `sg_versions` (multi-entity link -> Version)
+   - `sg_meeting_id` (text)
+   - `sg_meeting_date` (date)
+   - `sg_platform` (list: `google_meet`, `teams`)
+   - `sg_summary` (text, long; left blank by V1, users fill in manually)
+   - `sg_transcript_body` (text, long)
+3. Grant the DNA script user read/create/update on the new entity.
+
+### DNA side
+
+Set both variables. The endpoint stays 404 without the flag.
+
+```
+DNA_ENABLE_TRANSCRIPT_PUBLISH=true
+SHOTGRID_TRANSCRIPT_ENTITY=CustomEntity05   # whichever slot you enabled
+```
+
+For the frontend build, also set the Vite flag so the Publish button
+renders:
+
+```
+VITE_ENABLE_TRANSCRIPT_PUBLISH=true
+```
+
+If the flag is off or the custom entity has not been provisioned, the
+backend returns 404 on that route; the frontend does not show the
+Publish button. Dropping the flag reverts behaviour with no data
+migration.
+
+---
+
 ## Authentication Setup
 
 DNA uses Google OAuth for authentication. Users sign in with their Google accounts, and the backend validates Google tokens.

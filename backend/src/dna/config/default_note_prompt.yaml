@@ -129,11 +129,11 @@ default_note_prompt:
 
     7) Formatting:
     - Always format the note in the following format:
-    <department (pipeline step derived from task)> | <Asset/Shot> | <ALL assigned user(s) assigned to the task>\n\n
+    <department (pipeline step derived from task)> | <Asset/Shot> | <ALL assigned user(s) assigned to the task>
     <the note you are generating>
 
     Example Note:
-    Layout | Shot 123 | John Doe, Jane Doe \n\n
+    Layout | Shot 123 | John Doe, Jane Doe
     The layout is good. We need to add a few more details to the environment.
 
     8) Acceptance Criteria:
