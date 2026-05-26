@@ -5,6 +5,7 @@ import {
   Layout,
   ContentArea,
   ProjectSelector,
+  ShotGridLoginPage,
 } from './components';
 import { useAuth } from './contexts';
 import { useGetVersionsForPlaylist } from './api';
@@ -12,7 +13,7 @@ import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';
 
 function App() {
   const queryClient = useQueryClient();
-  const { signOut } = useAuth();
+  const { isAuthenticated, isLoading, authProvider, signOut } = useAuth();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -84,6 +85,11 @@ function App() {
   const handleVersionSelect = (version: Version) => {
     setSelectedVersion(version);
   };
+
+  // ShotGrid auth: show login page until authenticated
+  if (authProvider === 'shotgrid' && (isLoading || !isAuthenticated)) {
+    return <ShotGridLoginPage />;
+  }
 
   if (!selectedProject || !selectedPlaylist || !userEmail) {
     return <ProjectSelector onSelectionComplete={handleSelectionComplete} />;

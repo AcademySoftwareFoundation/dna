@@ -1,0 +1,55 @@
+# docker-compose.local.yml — local developer overrides
+#
+# HOW TO USE
+# ----------
+# 1. Copy this file:  cp docker-compose.local.yml.example docker-compose.local.yml
+# 2. Fill in the values marked with <...>
+# 3. Start the stack: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# IMPORTANT
+# ---------
+# docker-compose.local.yml is listed in .gitignore — it must NEVER be committed.
+# It contains real credentials (API keys, passwords, secrets).
+# This example file contains only placeholders and IS safe to commit.
+
+services:
+  api:
+    environment:
+      - PYTHONUNBUFFERED=1
+
+      # ── ShotGrid ────────────────────────────────────────────────────── #
+      # Your ShotGrid site URL (include trailing slash)
+      - SHOTGRID_URL=https://<your-studio>.shotgrid.autodesk.com/
+
+      # Script credentials — used for user identity lookup at login time
+      # Create at: ShotGrid Admin → Scripts → New Script
+      - SHOTGRID_API_KEY=<your-shotgrid-script-api-key>
+      - SHOTGRID_SCRIPT_NAME=<your-shotgrid-script-name>
+
+      # ── Authentication ──────────────────────────────────────────────── #
+      - AUTH_PROVIDER=shotgrid
+      - SHOTGRID_AUTH_MODE=pat
+
+      # JWT secret — generate a strong random string (min 32 chars)
+      # Example:  openssl rand -hex 32
+      - JWT_SECRET_KEY=<change-me-use-openssl-rand-hex-32>
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRE_MINUTES=480
+
+      # ── Session storage (MongoDB) ───────────────────────────────────── #
+      # Uses the mongo service defined in docker-compose.yml — no changes needed
+      - SESSION_BACKEND=mongo
+      - MONGODB_URL=mongodb://mongo:27017
+      - SESSION_TTL_SECONDS=28800
+
+      # ── Production tracking ─────────────────────────────────────────── #
+      - PRODTRACK_PROVIDER=shotgrid
+      # Use PRODTRACK_PROVIDER=mock for local development without a real ShotGrid site
+
+      # ── Other services ──────────────────────────────────────────────── #
+      - CORS_ALLOWED_ORIGINS=http://localhost:8080
+      - OPENAI_API_KEY=<your-openai-api-key>
+
+      # Pool settings (optional — defaults are fine for local dev)
+      - SG_POOL_MAX_SIZE=200
+      - SG_ACCESS_TOKEN_TTL_BUFFER_SEC=120
