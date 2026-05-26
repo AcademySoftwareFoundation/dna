@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, cast
 
@@ -177,14 +178,14 @@ async def run_qc_checks_for_draft(
     prodtrack_provider: ProdtrackProviderBase,
     llm_provider: LLMProviderBase,
 ) -> list[NoteQCResult]:
-    """Run all enabled checks sequentially and return per-check results."""
+    """Run all enabled checks in parallel and return per-check results."""
     version = cast(Version, version)
-    results: list[NoteQCResult] = []
-    for check in checks:
-        if not check.enabled:
-            continue
-        results.append(
-            await _run_one_check(
+    enabled = [check for check in checks if check.enabled]
+    if not enabled:
+        return []
+    results = await asyncio.gather(
+        *(
+            _run_one_check(
                 check,
                 draft,
                 transcript_text,
@@ -192,5 +193,7 @@ async def run_qc_checks_for_draft(
                 prodtrack_provider,
                 llm_provider,
             )
+            for check in enabled
         )
-    return results
+    )
+    return list(results)

@@ -726,7 +726,7 @@ describe('ApiHandler', () => {
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/playlists/1/versions/2/run-qc-checks',
         { user_email: 'u@x.com' },
-        undefined
+        { timeout: 180_000 }
       );
     });
   });

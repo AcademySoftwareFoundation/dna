@@ -340,7 +340,8 @@ class ApiHandler {
   async runQCChecks(params: RunQCChecksParams): Promise<NoteQCResult[]> {
     const body = await this.post<RunQCChecksResponseBody>(
       `/playlists/${params.playlistId}/versions/${params.versionId}/run-qc-checks`,
-      { user_email: params.userEmail }
+      { user_email: params.userEmail },
+      { timeout: 180_000 }
     );
     return body.results;
   }
