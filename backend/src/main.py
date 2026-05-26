@@ -315,7 +315,7 @@ async def get_current_user(
     """
     auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
     if auth_provider_type == "none":
-        if credentials and credentials.credentials:
+        if credentials and credentials.credentials and auth_provider is not None:
             return auth_provider.get_user_email(credentials.credentials)
         return "anonymous@localhost"
 

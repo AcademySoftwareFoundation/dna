@@ -72,39 +72,69 @@ export function ShotGridAuthProvider({ children }: ShotGridAuthProviderProps) {
     setToken(null);
     setUser(null);
     apiHandler.setUser(null);
+    if (refreshTimerRef.current) {
+      clearInterval(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
   }, []);
 
-  // ── Validate stored token + set loading false on mount ───────────────── //
+  // ── Validate stored token on mount ───────────────────────────────────── //
+  //
+  // Single effect handles all three cases:
+  //   200 OK  → token valid; refresh user data from response and restore apiHandler
+  //   401/403 → token rejected; call clear() so login page is shown
+  //   network error / 5xx → keep stored credentials; app will surface 401s
+  //                          naturally if the session really is dead
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Validate stored token on mount.
-      // Clears the token on ANY failure — network error OR non-2xx response.
-      // This ensures a backend restart (which wipes MongoDB sessions) forces
-      // the user back to the login page instead of letting them reach the
-      // app with a dead session that returns 401 on every API call.
       const storedToken = sessionStorage.getItem(TOKEN_KEY);
+      const storedUserRaw = sessionStorage.getItem(USER_KEY);
+      const storedUser: ShotGridUser | null = storedUserRaw
+        ? (() => { try { return JSON.parse(storedUserRaw); } catch { return null; } })()
+        : null;
+
       if (storedToken) {
-        // Only clear the token on a definitive rejection (401 / 403).
-        // Network errors (backend still starting, transient connectivity) are
-        // not treated as token invalidation — the user would lose their session
-        // every time the page is opened during a backend restart.
         try {
           const meRes = await fetch(`${apiBase}/auth/me`, {
             headers: { Authorization: `Bearer ${storedToken}` },
           });
-          const shouldClear = meRes.status === 401 || meRes.status === 403;
-          if (shouldClear && !cancelled) {
-            sessionStorage.removeItem(TOKEN_KEY);
-            sessionStorage.removeItem(USER_KEY);
-            setToken(null);
-            setUser(null);
-            apiHandler.setUser(null);
+
+          if (cancelled) return;
+
+          if (meRes.status === 401 || meRes.status === 403) {
+            // Definitive rejection — wipe the stale session.
+            clear();
+          } else if (meRes.ok) {
+            // Token is valid. Parse the response to get fresh user data.
+            // This also covers the case where USER_KEY was missing (e.g. cleared
+            // by another tab) but the token is still alive.
+            const meData = await meRes.json().catch(() => null);
+            const freshUser: ShotGridUser = {
+              id: meData?.shotgrid_user_id ?? storedUser?.id ?? 0,
+              email: meData?.email ?? storedUser?.email ?? '',
+              name: meData?.name ?? storedUser?.name ?? '',
+              shotgrid_user_id: meData?.shotgrid_user_id ?? storedUser?.shotgrid_user_id,
+            };
+            if (!cancelled) {
+              // Update sessionStorage and state with the freshest user data,
+              // then wire up apiHandler so all API calls are authenticated.
+              persist(storedToken, freshUser);
+            }
+          } else {
+            // Non-401/403 server error (e.g. 500, 503) — keep credentials;
+            // do not log the user out for a transient backend issue.
+            if (storedUser) {
+              apiHandler.setUser({ id: String(storedUser.id), email: storedUser.email, name: storedUser.name, token: storedToken });
+            }
           }
         } catch {
-          // Network error — keep the stored token; the user will get a 401
-          // on their first real API call if the session truly expired.
+          // Network error — backend unreachable. Keep stored credentials so the
+          // user isn't forced to log in again just because the backend is starting.
+          if (!cancelled && storedUser) {
+            apiHandler.setUser({ id: String(storedUser.id), email: storedUser.email, name: storedUser.name, token: storedToken });
+          }
         }
       }
 
@@ -153,9 +183,14 @@ export function ShotGridAuthProvider({ children }: ShotGridAuthProviderProps) {
       if (!res.ok) { clear(); return; }
       const data = await res.json();
       const currentUser = sessionStorage.getItem(USER_KEY);
-      const parsedUser: ShotGridUser | null = currentUser ? JSON.parse(currentUser) : null;
+      const parsedUser: ShotGridUser | null = currentUser
+        ? (() => { try { return JSON.parse(currentUser); } catch { return null; } })()
+        : null;
       if (parsedUser) {
         persist(data.access_token, { ...parsedUser, ...data.user });
+      } else {
+        // No stored user — can't restore; force re-login.
+        clear();
       }
     } catch (err) {
       console.error('[ShotGridAuth] Token refresh failed:', err);
@@ -168,18 +203,12 @@ export function ShotGridAuthProvider({ children }: ShotGridAuthProviderProps) {
     if (!token) return;
     refreshTimerRef.current = setInterval(refreshToken, REFRESH_INTERVAL_MS);
     return () => {
-      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
     };
   }, [token, refreshToken]);
-
-  // Restore apiHandler on mount if token already in sessionStorage
-  useEffect(() => {
-    if (token && user) {
-      apiHandler.setUser({ id: String(user.id), email: user.email, name: user.name, token });
-    }
-  // Run only on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Sign-out ─────────────────────────────────────────────────────────── //
 
@@ -191,7 +220,7 @@ export function ShotGridAuthProvider({ children }: ShotGridAuthProviderProps) {
           method: 'POST',
           headers: { Authorization: `Bearer ${currentToken}` },
         });
-      } catch { /* best-effort */ }
+      } catch { /* best-effort — clear locally regardless */ }
     }
     clear();
   }, [apiBase, clear]);
