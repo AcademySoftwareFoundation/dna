@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+from datetime import date
 from typing import Any, Optional, cast
 
 from shotgun_api3 import Shotgun
@@ -1002,6 +1003,61 @@ class ShotgridProvider(ProdtrackProviderBase):
         except Exception:
             return False
 
+    def publish_transcript(
+        self,
+        *,
+        project_id: int,
+        playlist_id: int,
+        version_id: int,
+        meeting_id: str,
+        meeting_date: date,
+        platform: str,
+        body: str,
+    ) -> int:
+        """Create a transcript row in the configured SG custom entity."""
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        entity_type = _transcript_entity_type()
+        # Human-readable code so the row is identifiable on the SG entity page.
+        code = f"transcript-{version_id}-{meeting_date.isoformat()}"
+        payload: dict[str, Any] = {
+            "code": code,
+            "project": {"type": "Project", "id": project_id},
+            "sg_playlist": {"type": "Playlist", "id": playlist_id},
+            "sg_version_in_review": {"type": "Version", "id": version_id},
+            "sg_meeting_id": meeting_id,
+            "sg_meeting_date": meeting_date.isoformat(),
+            "sg_platform": platform,
+            "sg_transcript_body": body,
+        }
+        result = self._sg.create(entity_type, payload)
+        return result["id"]
+
+    def update_transcript(
+        self,
+        *,
+        entity_type: str,
+        entity_id: int,
+        body: str,
+        meeting_date: date,
+    ) -> bool:
+        """Patch body + date on an existing transcript; other fields untouched."""
+        if not self._sg:
+            return False
+        try:
+            self._sg.update(
+                entity_type,
+                entity_id,
+                {
+                    "sg_transcript_body": body,
+                    "sg_meeting_date": meeting_date.isoformat(),
+                },
+            )
+            return True
+        except Exception:
+            return False
+
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:
     """Get the DNA entity type from the ShotGrid entity type."""
@@ -1009,3 +1065,8 @@ def _get_dna_entity_type(sg_entity_type: str) -> str:
         if entity_data["entity_id"] == sg_entity_type:
             return entity_type
     raise ValueError(f"Unknown entity type: {sg_entity_type}")
+
+
+def _transcript_entity_type() -> str:
+    """Site-specific custom-entity slot, switchable per deployment via env."""
+    return os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")

@@ -462,6 +462,22 @@ export interface PublishNotesParams {
   request: PublishNotesRequest;
 }
 
+export interface PublishTranscriptRequest {
+  version_id: number;
+}
+
+export interface PublishTranscriptResponse {
+  transcript_entity_id: number;
+  outcome: 'created' | 'updated' | 'skipped';
+  skipped_reason?: string | null;
+  segments_count: number;
+}
+
+export interface PublishTranscriptParams {
+  playlistId: number;
+  request: PublishTranscriptRequest;
+}
+
 export type NoteQCSeverity = 'warning' | 'error';
 
 export interface NoteQCCheck {
