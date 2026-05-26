@@ -58,22 +58,18 @@ export function useNoteQCChecks({ open, playlistId, drafts }: UseNoteQCChecksOpt
     void (async () => {
       setLoading(true);
       try {
-        const entries = await Promise.all(
-          drafts.map(async (d) => {
-            const list = await apiHandler.runQCChecks({
-              playlistId,
-              versionId: d.version_id,
-              userEmail: d.user_email,
-            });
-            return [draftKey(d), list] as const;
-          })
-        );
+        const tasks = drafts.map(async (d) => {
+          const key = draftKey(d);
+          const list = await apiHandler.runQCChecks({
+            playlistId,
+            versionId: d.version_id,
+            userEmail: d.user_email,
+          });
+          if (cancelled) return;
+          setResults((prev) => ({ ...prev, [key]: list }));
+        });
+        await Promise.allSettled(tasks);
         if (cancelled) return;
-        const next: Record<string, NoteQCResult[]> = {};
-        for (const [k, v] of entries) {
-          next[k] = v;
-        }
-        setResults(next);
         lastCompletedBulkKeyRef.current = bulkKey;
       } finally {
         if (!cancelled) {

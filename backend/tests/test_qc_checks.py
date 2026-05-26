@@ -271,3 +271,72 @@ async def test_run_qc_checks_skips_disabled():
     )
     assert results == []
     llm.generate_structured_with_tools.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_qc_checks_runs_enabled_checks_in_parallel():
+    import asyncio
+
+    from dna.qc.qc_runner import run_qc_checks_for_draft
+
+    check_a = _sample_check(check_id="a", name="A")
+    check_b = _sample_check(check_id="b", name="B")
+    draft = _sample_draft()
+    version = _sample_version()
+    prod = mock.MagicMock()
+    gate = asyncio.Event()
+    concurrent = {"active": 0, "max": 0}
+
+    async def slow_llm(*_args, **_kwargs):
+        concurrent["active"] += 1
+        concurrent["max"] = max(concurrent["max"], concurrent["active"])
+        await gate.wait()
+        concurrent["active"] -= 1
+        return NoteQCLLMOutput(passed=True)
+
+    llm = mock.AsyncMock()
+    llm.generate_structured_with_tools = mock.AsyncMock(side_effect=slow_llm)
+
+    task = asyncio.create_task(
+        run_qc_checks_for_draft(
+            checks=[check_a, check_b],
+            draft=draft,
+            transcript_text="t",
+            version=version,
+            prodtrack_provider=prod,
+            llm_provider=llm,
+        )
+    )
+    await asyncio.sleep(0.01)
+    assert concurrent["max"] == 2
+    gate.set()
+    results = await task
+    assert len(results) == 2
+    assert [r.check_name for r in results] == ["A", "B"]
+
+
+@pytest.mark.asyncio
+async def test_run_qc_checks_preserves_enabled_check_order():
+    from dna.qc.qc_runner import run_qc_checks_for_draft
+
+    check_a = _sample_check(check_id="a", name="First")
+    check_disabled = _sample_check(check_id="x", name="Skip", enabled=False)
+    check_b = _sample_check(check_id="b", name="Second")
+    draft = _sample_draft()
+    version = _sample_version()
+    prod = mock.MagicMock()
+    llm = mock.AsyncMock()
+    llm.generate_structured_with_tools = mock.AsyncMock(
+        return_value=NoteQCLLMOutput(passed=True)
+    )
+
+    results = await run_qc_checks_for_draft(
+        checks=[check_a, check_disabled, check_b],
+        draft=draft,
+        transcript_text="t",
+        version=version,
+        prodtrack_provider=prod,
+        llm_provider=llm,
+    )
+    assert [r.check_name for r in results] == ["First", "Second"]
+    assert llm.generate_structured_with_tools.await_count == 2
