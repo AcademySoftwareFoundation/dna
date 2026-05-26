@@ -44,64 +44,59 @@ interface NoopAuthProviderInnerProps {
   children: ReactNode;
 }
 
+// AUTH_PROVIDER=none — development/testing only.
+// Uses sessionStorage so credentials are scoped to the current tab and cleared
+// when the tab closes, matching the behaviour of ShotGridAuthProvider.
 function NoopAuthProviderInner({ children }: NoopAuthProviderInnerProps) {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem(USER_STORAGE_KEY);
+    const stored = sessionStorage.getItem(USER_STORAGE_KEY);
     if (stored) {
       try { return JSON.parse(stored); } catch { return null; }
     }
     return null;
   });
 
-const [token, setToken] = useState<string | null>(() => {
-  return sessionStorage.getItem(STORAGE_KEY);
-});
+  const [token, setToken] = useState<string | null>(() => {
+    return sessionStorage.getItem(STORAGE_KEY);
+  });
 
-useEffect(() => {
-  if (token !== 'noop-token' || !user?.email) return;
-  sessionStorage.setItem(STORAGE_KEY, user.email);
-  setToken(user.email);
-}, [token, user?.email]);
+  useEffect(() => {
+    if (token !== 'noop-token' || !user?.email) return;
+    sessionStorage.setItem(STORAGE_KEY, user.email);
+    setToken(user.email);
+  }, [token, user?.email]);
 
-useEffect(() => {
-  const authToken =
-    token === 'noop-token' && user?.email ? user.email : token;
-  if (authToken && user) {
-    apiHandler.setUser({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      token: authToken,
-    });
-  } else {
-    apiHandler.setUser(null);
-  }
-}, [token, user]);
+  useEffect(() => {
+    const authToken =
+      token === 'noop-token' && user?.email ? user.email : token;
+    if (authToken && user) {
+      apiHandler.setUser({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        token: authToken,
+      });
+    } else {
+      apiHandler.setUser(null);
+    }
+  }, [token, user]);
 
   const handleSignOut = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(USER_STORAGE_KEY);
     setToken(null);
     setUser(null);
     apiHandler.setUser(null);
   }, []);
 
   const handleSignInWithEmail = useCallback((email: string) => {
-<<<<<<< HEAD
     const authUser: AuthUser = {
       id: email,
       email: email,
       name: email.split('@')[0],
     };
-
-    localStorage.setItem(STORAGE_KEY, email);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser));
-
-=======
-    const authUser: AuthUser = { id: email, email, name: email.split('@')[0] };
-    localStorage.setItem(STORAGE_KEY, email);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser));
->>>>>>> 3328c7f (feat(auth): add ShotGrid PAT authentication for backend API endpoints)
+    sessionStorage.setItem(STORAGE_KEY, email);
+    sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser));
     setToken(email);
     setUser(authUser);
   }, []);

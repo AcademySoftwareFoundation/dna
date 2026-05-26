@@ -80,8 +80,11 @@ class ShotGridCredentials:
     """
 
     user_id: int
-    username: str          # ShotGrid login name — never overwritten after login
-    access_token: str      # ShotGrid Bearer token — rotated on refresh
+    username: str = ""     # ShotGrid login name — never overwritten after login.
+                           # Default "" for backward-compat with sessions stored
+                           # before this field was added (they deserialise safely
+                           # and are re-populated on the next login).
+    access_token: str = "" # ShotGrid Bearer token — rotated on refresh
     refresh_token: Optional[str] = None
     password: Optional[str] = None
 

@@ -654,14 +654,11 @@ class ShotgridProvider(ProdtrackProviderBase):
                     )
             if version.id in notes_by_version_id:
                 version.notes = notes_by_version_id[version.id]
-<<<<<<< HEAD
 
             base = (self.url or "").rstrip("/")
             if base:
                 version.prodtrack_detail_url = f"{base}/detail/Version/{version.id}"
 
-=======
->>>>>>> 3328c7f (feat(auth): add ShotGrid PAT authentication for backend API endpoints)
             versions.append(version)
         return versions
 
