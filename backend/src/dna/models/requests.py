@@ -102,11 +102,20 @@ class StatusOption(BaseModel):
     name: str = Field(description="Display name (e.g., 'Pending Review', 'Approved')")
 
 
+class PublishNoteTarget(BaseModel):
+    """A single draft note to publish (user + version key)."""
+
+    user_email: str
+    version_id: int
+
+
 class PublishNotesRequest(BaseModel):
     """Request model for publishing draft notes."""
 
     user_email: str
-    include_others: bool = False
+    targets: list[PublishNoteTarget] = Field(
+        description="Only draft notes matching these (user_email, version_id) pairs are published."
+    )
 
 
 class PublishNotesResponse(BaseModel):
@@ -117,3 +126,20 @@ class PublishNotesResponse(BaseModel):
     skipped_count: int
     failed_count: int
     total: int
+
+
+class PublishTranscriptRequest(BaseModel):
+    """Request to publish a version's captured transcript."""
+
+    version_id: int = Field(description="Version whose segments to publish")
+
+
+class PublishTranscriptResponse(BaseModel):
+    """Response from the publish-transcript endpoint."""
+
+    transcript_entity_id: int = Field(
+        description="Entity ID of the row in the tracking system"
+    )
+    outcome: str = Field(description="created | updated | skipped")
+    skipped_reason: Optional[str] = None
+    segments_count: int

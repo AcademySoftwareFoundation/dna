@@ -439,9 +439,14 @@ export interface GetVersionStatusesParams {
   projectId?: number;
 }
 
+export interface PublishNoteTarget {
+  user_email: string;
+  version_id: number;
+}
+
 export interface PublishNotesRequest {
   user_email: string;
-  include_others: boolean;
+  targets: PublishNoteTarget[];
 }
 
 export interface PublishNotesResponse {
@@ -455,4 +460,100 @@ export interface PublishNotesResponse {
 export interface PublishNotesParams {
   playlistId: number;
   request: PublishNotesRequest;
+}
+
+export interface PublishTranscriptRequest {
+  version_id: number;
+}
+
+export interface PublishTranscriptResponse {
+  transcript_entity_id: number;
+  outcome: 'created' | 'updated' | 'skipped';
+  skipped_reason?: string | null;
+  segments_count: number;
+}
+
+export interface PublishTranscriptParams {
+  playlistId: number;
+  request: PublishTranscriptRequest;
+}
+
+export type NoteQCSeverity = 'warning' | 'error';
+
+export interface NoteQCCheck {
+  _id: string;
+  user_email: string;
+  name: string;
+  prompt: string;
+  severity: NoteQCSeverity;
+  enabled: boolean;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface NoteQCCheckCreate {
+  name: string;
+  prompt: string;
+  severity: NoteQCSeverity;
+  enabled?: boolean;
+}
+
+export interface NoteQCCheckUpdate {
+  name?: string;
+  prompt?: string;
+  severity?: NoteQCSeverity;
+  enabled?: boolean;
+}
+
+export interface NoteQCAttributeSuggestion {
+  to?: string | null;
+  cc?: string | null;
+  subject?: string | null;
+  version_status?: string | null;
+  links?: DraftNoteLink[] | null;
+}
+
+export interface NoteQCResult {
+  check_id: string;
+  check_name: string;
+  severity: NoteQCSeverity;
+  passed: boolean;
+  issue?: string | null;
+  evidence?: string | null;
+  note_suggestion?: string | null;
+  attribute_suggestion?: NoteQCAttributeSuggestion | null;
+}
+
+export interface RunQCChecksRequestBody {
+  user_email: string;
+}
+
+export interface RunQCChecksResponseBody {
+  results: NoteQCResult[];
+}
+
+export interface GetQCChecksParams {
+  userEmail: string;
+}
+
+export interface CreateQCCheckParams {
+  userEmail: string;
+  data: NoteQCCheckCreate;
+}
+
+export interface UpdateQCCheckParams {
+  userEmail: string;
+  checkId: string;
+  data: NoteQCCheckUpdate;
+}
+
+export interface DeleteQCCheckParams {
+  userEmail: string;
+  checkId: string;
+}
+
+export interface RunQCChecksParams {
+  playlistId: number;
+  versionId: number;
+  userEmail: string;
 }

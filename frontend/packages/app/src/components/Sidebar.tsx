@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
@@ -9,7 +9,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button, Tooltip } from '@radix-ui/themes';
-import type { Version } from '@dna/core';
+import type { Version, DraftNote } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
@@ -18,7 +18,7 @@ import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
-import { PublishNotesDialog } from './PublishNotesDialog';
+import { PublishDialog } from './PublishDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
@@ -273,6 +273,18 @@ export function Sidebar({
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
   const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
 
+  const publishDialogNotes = useMemo(
+    () =>
+      (draftNotes ?? []).filter((n: DraftNote) => {
+        const hasContent =
+          Boolean(n.content?.trim()) || Boolean(n.attachment_ids?.length);
+        const needsPublishing =
+          !n.published || n.edited || Boolean(n.attachment_ids?.length);
+        return hasContent && needsPublishing;
+      }),
+    [draftNotes]
+  );
+
   const inReviewVersionId = playlistMetadata?.in_review;
 
   const playlistMenuItems = [
@@ -388,7 +400,7 @@ export function Sidebar({
                 variant="solid"
                 onClick={() => setIsPublishDialogOpen(true)}
               >
-                Publish Notes
+                Publish
               </Button>
               <UserAvatar
                 name={user?.name ?? userEmail}
@@ -481,12 +493,12 @@ export function Sidebar({
 
 
       {playlistId && (
-        <PublishNotesDialog
+        <PublishDialog
           open={isPublishDialogOpen}
           onClose={() => setIsPublishDialogOpen(false)}
           playlistId={playlistId}
           userEmail={userEmail}
-          draftNotes={draftNotes || []}
+          notes={publishDialogNotes}
           versions={versions || []}
         />
       )}

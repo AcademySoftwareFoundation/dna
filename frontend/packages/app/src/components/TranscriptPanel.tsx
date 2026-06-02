@@ -95,7 +95,7 @@ const StatusDot = styled.div<{ $isConnected: boolean }>`
   height: 6px;
   border-radius: 50%;
   background: ${({ $isConnected, theme }) =>
-    $isConnected ? theme.colors.accent.success : theme.colors.accent.warning};
+    $isConnected ? theme.colors.status.success : theme.colors.status.warning};
 `;
 
 function formatTime(isoString: string): string {

@@ -29,6 +29,7 @@ export interface UseDraftNoteResult {
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
   clearDraftNote: () => void;
+  flushDebouncedSave: () => Promise<void>;
   isSaving: boolean;
   isLoading: boolean;
 }
@@ -64,7 +65,7 @@ function parseEntitiesFromString(str: string): SearchResult[] {
   return [];
 }
 
-function backendToLocal(note: DraftNote): LocalDraftNote {
+export function backendToLocal(note: DraftNote): LocalDraftNote {
   // Convert links from DraftNoteLink[] to SearchResult[]
   const links: SearchResult[] = (note.links || []).map((link) => ({
     type: link.entity_type,
@@ -73,12 +74,12 @@ function backendToLocal(note: DraftNote): LocalDraftNote {
   }));
 
   return {
-    content: note.content,
-    subject: note.subject,
-    to: parseEntitiesFromString(note.to),
-    cc: parseEntitiesFromString(note.cc),
+    content: note.content ?? '',
+    subject: note.subject ?? '',
+    to: parseEntitiesFromString(note.to ?? ''),
+    cc: parseEntitiesFromString(note.cc ?? ''),
     links,
-    versionStatus: note.version_status,
+    versionStatus: note.version_status ?? '',
     published: note.published,
     edited: note.edited,
     publishedNoteId: note.published_note_id ?? null,
@@ -172,6 +173,7 @@ export function useDraftNote({
               cc: data.cc ?? updated[index].cc,
               version_status: data.version_status ?? updated[index].version_status,
               edited: data.edited ?? updated[index].edited,
+              attachment_ids: data.attachment_ids ?? updated[index].attachment_ids,
             };
             return updated;
           } else {
@@ -330,9 +332,6 @@ export function useDraftNote({
       setLocalDraft((prev) => {
         const base = prev ?? createEmptyDraft(currentVersion, submitter);
 
-        // Determine if this update counts as an "edit" that should trigger republishing
-        // We only care if meaningful content changed (content, subject, to, cc)
-        // System updates (published status) shouldn't trigger this manually usually
         let isEdited = base.edited;
 
         const meaningfulFields: (keyof LocalDraftNote)[] = ['content', 'subject', 'to', 'cc'];
@@ -371,15 +370,25 @@ export function useDraftNote({
   const saveAttachmentIds = useCallback(
     async (ids: string[]) => {
       if (!isEnabled) return;
+      const addingAttachments = ids.length > 0;
       setLocalDraft((prev) => {
         const base = prev ?? createEmptyDraft(currentVersion, submitter);
-        return { ...base, attachmentIds: ids };
+        const edited = base.edited || addingAttachments;
+        return { ...base, attachmentIds: ids, edited };
       });
-      // Patch pending debounce data so a late-firing debounce doesn't overwrite with []
       if (pendingDataRef.current) {
-        pendingDataRef.current = { ...pendingDataRef.current, attachmentIds: ids };
+        pendingDataRef.current = {
+          ...pendingDataRef.current,
+          attachmentIds: ids,
+          ...(addingAttachments ? { edited: true } : {}),
+        };
       }
-      await upsertMutation.mutateAsync({ data: { attachment_ids: ids } });
+      await upsertMutation.mutateAsync({
+        data: {
+          attachment_ids: ids,
+          ...(addingAttachments ? { edited: true } : {}),
+        },
+      });
     },
     [isEnabled, upsertMutation, currentVersion, submitter]
   );
@@ -395,11 +404,26 @@ export function useDraftNote({
     setLocalDraft(createEmptyDraft(currentVersion, submitter));
   }, [isEnabled, deleteMutation, currentVersion, submitter]);
 
+  const flushDebouncedSave = useCallback(async () => {
+    if (!isEnabled) return;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (pendingDataRef.current) {
+      const data = localToUpdate(pendingDataRef.current);
+      pendingMutationRef.current = upsertMutation.mutateAsync({ data });
+      pendingDataRef.current = null;
+      await pendingMutationRef.current;
+    }
+  }, [isEnabled, upsertMutation]);
+
   return {
     draftNote: localDraft,
     updateDraftNote,
     saveAttachmentIds,
     clearDraftNote,
+    flushDebouncedSave,
     isSaving: upsertMutation.isPending || deleteMutation.isPending,
     isLoading,
   };
