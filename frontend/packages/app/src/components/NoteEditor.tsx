@@ -31,6 +31,8 @@ interface NoteEditorProps {
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
   variant?: 'default' | 'embedded';
+  /** Publish dialog: run after note body editor loses focus (e.g. refresh QC). */
+  onNoteContentBlur?: () => void;
 }
 
 export interface NoteEditorHandle {
@@ -323,6 +325,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       updateDraftNote,
       saveAttachmentIds,
       variant = 'default',
+      onNoteContentBlur,
     },
     ref
   ) {
@@ -670,6 +673,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             <MarkdownEditor
               value={draftNote?.content ?? ''}
               onChange={(v) => handleFieldChange('content', v)}
+              onContentBlur={onNoteContentBlur}
               onAttach={handleAttach}
               attachmentCount={attachments.length}
               attachmentFlashKey={attachFlashKey}

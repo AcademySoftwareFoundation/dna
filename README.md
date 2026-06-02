@@ -121,7 +121,7 @@ DNA is built for:
   - Submit a Pull Request: [**https://github.com/AcademySoftwareFoundation/dna/pulls**](https://github.com/AcademySoftwareFoundation/dna/pulls)
 - [GitHub project page](https://github.com/AcademySoftwareFoundation/dna)
 - [The DNA project was established by this proposal](https://github.com/AcademySoftwareFoundation/tac/issues/1040)
-- [ASWF's Machine Learning Working Group proposal](https://github.com/AcademySoftwareFoundation/tac/issues/1029) -- describes the purpose and scope of MLWG. Join the [ASWF Slack](https://slack.aswf.io/) -- join for the #wg-ml channel for the discussions about Machine Learning
+- [ASWF's Machine Learning Working Group proposal](https://github.com/AcademySoftwareFoundation/tac/issues/1029) -- describes the purpose and scope of MLWG. Join the [ASWF Slack](https://slack.aswf.io/) -- join for the #wg-ml, #dna, and ##dailies-notes-assistant-tech channels for the discussions about Machine Learning and Dailies Notes Assistant
 
 ## ☎️ Contributing and Developer Documentation
 

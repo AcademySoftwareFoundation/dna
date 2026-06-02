@@ -18,7 +18,7 @@ import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
-import { PublishNotesDialog } from './PublishNotesDialog';
+import { PublishDialog } from './PublishDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
@@ -400,7 +400,7 @@ export function Sidebar({
                 variant="solid"
                 onClick={() => setIsPublishDialogOpen(true)}
               >
-                Publish Notes
+                Publish
               </Button>
               <UserAvatar
                 name={user?.name ?? userEmail}
@@ -493,7 +493,7 @@ export function Sidebar({
 
 
       {playlistId && (
-        <PublishNotesDialog
+        <PublishDialog
           open={isPublishDialogOpen}
           onClose={() => setIsPublishDialogOpen(false)}
           playlistId={playlistId}

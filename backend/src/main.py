@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 import os
 import shutil
 import uuid
@@ -21,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
@@ -37,13 +39,21 @@ from dna.models import (
     GenerateNoteRequest,
     GenerateNoteResponse,
     Note,
+    NoteQCCheck,
+    NoteQCCheckCreate,
+    NoteQCCheckUpdate,
     Platform,
     Playlist,
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    PublishedTranscriptUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
+    PublishTranscriptRequest,
+    PublishTranscriptResponse,
+    RunQCChecksRequest,
+    RunQCChecksResponse,
     SearchRequest,
     SearchResult,
     Shot,
@@ -63,6 +73,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
+from dna.qc.qc_runner import run_qc_checks_for_draft
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -155,6 +166,10 @@ tags_metadata = [
     {
         "name": "User Settings",
         "description": "Operations for managing user settings and preferences",
+    },
+    {
+        "name": "Note QC",
+        "description": "User-defined LLM quality checks for draft notes at publish time",
     },
 ]
 
@@ -901,7 +916,6 @@ async def publish_notes(
                 skipped_count += 1
                 continue
 
-            # Check if note is already published (re-publish/update)
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
                     # Still apply any pending version status change
@@ -1014,6 +1028,168 @@ async def publish_notes(
     )
 
 
+def _transcript_publish_enabled() -> bool:
+    return os.getenv("DNA_ENABLE_TRANSCRIPT_PUBLISH", "false").lower() == "true"
+
+
+@app.post(
+    "/playlists/{playlist_id}/publish-transcript",
+    tags=["Playlists", "Transcription"],
+    summary="Publish a version's captured transcript",
+    description=(
+        "Push the stored transcript for a version to the production tracking "
+        "system as a single custom-entity row. Idempotent via body_hash."
+    ),
+    response_model=PublishTranscriptResponse,
+)
+async def publish_transcript(
+    playlist_id: int,
+    request: PublishTranscriptRequest,
+    storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
+    current_user: CurrentUserDep,
+) -> PublishTranscriptResponse:
+    """Publish one version's transcript; skip when body_hash has not changed."""
+    if not _transcript_publish_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    from dna.transcription_publish import build_transcript_payload
+
+    metadata = await storage.get_playlist_metadata(playlist_id)
+    if metadata is None or not metadata.meeting_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist has no meeting associated yet",
+        )
+    if not metadata.platform:
+        # Empty platform would be rejected downstream as an opaque SG schema
+        # fault; surface a clean 422 instead.
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist metadata has no platform recorded",
+        )
+
+    segments = await storage.get_segments_for_version(playlist_id, request.version_id)
+    if not segments:
+        raise HTTPException(
+            status_code=422,
+            detail="No transcript segments stored for this version",
+        )
+
+    payload = build_transcript_payload(segments)
+    if payload.segments_count == 0:
+        # Segments existed but all were whitespace-only; refuse rather than
+        # create an empty row.
+        raise HTTPException(
+            status_code=422,
+            detail="All stored segments were empty; nothing to publish",
+        )
+
+    existing = await storage.get_published_transcript(
+        playlist_id, request.version_id, metadata.meeting_id
+    )
+    if existing and existing.body_hash == payload.body_hash:
+        return PublishTranscriptResponse(
+            transcript_entity_id=existing.entity_id,
+            outcome="skipped",
+            skipped_reason="no_changes_since_last_publish",
+            segments_count=payload.segments_count,
+        )
+
+    try:
+        version = prodtrack.get_entity(
+            "version", request.version_id, resolve_links=False
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Version.project is a dict {type, id, name}, not an object — don't try
+    # project_ref.id.
+    project_ref = getattr(version, "project", None)
+    project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
+    if project_id is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Version has no project associated",
+        )
+
+    try:
+        if existing:
+            # Take entity_type from bookkeeping, not env — sites can migrate
+            # the slot after the row is created, and the update must still
+            # target the original entity.
+            updated = prodtrack.update_transcript(
+                entity_type=existing.entity_type,
+                entity_id=existing.entity_id,
+                body=payload.body,
+                meeting_date=payload.meeting_date,
+            )
+            if not updated:
+                # Raise (and skip the bookkeeping upsert below) so the next
+                # call doesn't see a matching body_hash and incorrectly skip.
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to update transcript on the tracking system",
+                )
+            entity_id = existing.entity_id
+            outcome = "updated"
+        else:
+            entity_id = prodtrack.publish_transcript(
+                project_id=project_id,
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=metadata.meeting_id,
+                meeting_date=payload.meeting_date,
+                platform=metadata.platform,
+                body=payload.body,
+            )
+            outcome = "created"
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+
+    entity_type = os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
+    try:
+        await storage.upsert_published_transcript(
+            PublishedTranscriptUpdate(
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=metadata.meeting_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                author_email=current_user,
+                body_hash=payload.body_hash,
+                segments_count=payload.segments_count,
+            )
+        )
+    except Exception as e:
+        # SG row exists but local bookkeeping didn't make it. The next call
+        # with the same body would see existing=None and create a duplicate
+        # SG row. Surface entity_id so an operator can reconcile manually,
+        # and signal to the client that blind retry is unsafe.
+        logger = logging.getLogger(__name__)
+        logger.exception(
+            "Transcript %s created on tracking system id=%s but local "
+            "bookkeeping failed. Next publish will create a duplicate unless "
+            "the SG row is removed or the bookkeeping row is written manually.",
+            outcome,
+            entity_id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Transcript row {entity_id} was {outcome} on the tracking "
+                f"system but local bookkeeping failed ({e.__class__.__name__}). "
+                f"Do not retry blindly; reconcile the row manually."
+            ),
+        )
+
+    return PublishTranscriptResponse(
+        transcript_entity_id=entity_id,
+        outcome=outcome,
+        segments_count=payload.segments_count,
+    )
+
+
 # -----------------------------------------------------------------------------
 # Draft Notes endpoints
 # -----------------------------------------------------------------------------
@@ -1059,9 +1235,6 @@ async def _sync_published_notes(
         from datetime import datetime, timezone
 
         for (vid, email), note in latest_notes.items():
-            # Check if we already have this specific published note to avoid writes
-            # Optimization: could query storage for all draft notes first.
-            # For now, just upsert.
             update_data = DraftNoteUpdate(
                 content=note.content or "",
                 subject=note.subject or "",
@@ -1291,7 +1464,7 @@ async def get_user_settings(
     current_user: CurrentUserDep,
 ) -> UserSettingsResponse:
     """Get user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     stored = await provider.get_user_settings(user_email)
     if stored is None:
@@ -1313,7 +1486,7 @@ async def upsert_user_settings(
     current_user: CurrentUserDep,
 ) -> UserSettingsResponse:
     """Create or update user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     updated = await provider.upsert_user_settings(user_email, data)
     return _user_settings_to_response(updated)
@@ -1332,12 +1505,126 @@ async def delete_user_settings(
     current_user: CurrentUserDep,
 ) -> bool:
     """Delete user settings."""
-    if user_email != current_user:
+    if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
         raise HTTPException(status_code=404, detail="User settings not found")
     return True
+
+
+@app.get(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="List note QC checks",
+    response_model=list[NoteQCCheck],
+)
+async def list_qc_checks(
+    user_email: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> list[NoteQCCheck]:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.get_qc_checks(user_email)
+
+
+@app.post(
+    "/users/{user_email}/qc-checks",
+    tags=["Note QC"],
+    summary="Create a note QC check",
+    response_model=NoteQCCheck,
+    status_code=201,
+)
+async def create_qc_check(
+    user_email: str,
+    data: NoteQCCheckCreate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await storage_provider.create_qc_check(user_email, data)
+
+
+@app.put(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Update a note QC check",
+    response_model=NoteQCCheck,
+)
+async def update_qc_check(
+    user_email: str,
+    check_id: str,
+    data: NoteQCCheckUpdate,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> NoteQCCheck:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    updated = await storage_provider.update_qc_check(user_email, check_id, data)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="QC check not found")
+    return updated
+
+
+@app.delete(
+    "/users/{user_email}/qc-checks/{check_id}",
+    tags=["Note QC"],
+    summary="Delete a note QC check",
+    status_code=204,
+)
+async def delete_qc_check(
+    user_email: str,
+    check_id: str,
+    storage_provider: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> None:
+    if not emails_match(user_email, current_user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    deleted = await storage_provider.delete_qc_check(user_email, check_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="QC check not found")
+
+
+@app.post(
+    "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks",
+    tags=["Note QC"],
+    summary="Run note QC checks for a draft",
+    response_model=RunQCChecksResponse,
+)
+async def run_qc_checks(
+    playlist_id: int,
+    version_id: int,
+    body: RunQCChecksRequest,
+    storage_provider: StorageProviderDep,
+    prodtrack_provider: ProdtrackProviderDep,
+    llm_provider: LLMProviderDep,
+    current_user: CurrentUserDep,
+) -> RunQCChecksResponse:
+    # Authenticated callers may QC any draft in the playlist (same as publish-notes).
+    # body.user_email identifies the draft owner, not the caller.
+    draft = await storage_provider.get_draft_note(
+        body.user_email, playlist_id, version_id
+    )
+    if draft is None:
+        return RunQCChecksResponse(results=[])
+    checks = await storage_provider.get_qc_checks(body.user_email)
+    segments = await storage_provider.get_segments_for_version(playlist_id, version_id)
+    transcript = TranscriptionProviderBase.build_transcript_text(segments)
+    version = cast(
+        Version,
+        prodtrack_provider.get_entity("version", version_id, resolve_links=False),
+    )
+    results = await run_qc_checks_for_draft(
+        checks=checks,
+        draft=draft,
+        transcript_text=transcript,
+        version=version,
+        prodtrack_provider=prodtrack_provider,
+        llm_provider=llm_provider,
+    )
+    return RunQCChecksResponse(results=results)
 
 
 # -----------------------------------------------------------------------------
@@ -1500,37 +1787,6 @@ async def get_segments_for_version(
 # -----------------------------------------------------------------------------
 
 
-def _build_version_context(version: Version) -> str:
-    """Build a context string from version metadata."""
-    parts = []
-    if version.name:
-        parts.append(f"Version: {version.name}")
-    if version.entity:
-        entity_type = version.entity.__class__.__name__
-        parts.append(f"{entity_type}: {version.entity.name}")
-    if version.task:
-        if version.task.name:
-            parts.append(f"Task: {version.task.name}")
-        if version.task.pipeline_step and version.task.pipeline_step.get("name"):
-            parts.append(f"Department: {version.task.pipeline_step['name']}")
-    if version.status:
-        parts.append(f"Status: {version.status}")
-    if version.description:
-        parts.append(f"Description: {version.description}")
-    return "\n".join(parts) if parts else "No version context available."
-
-
-def _build_transcript_text(segments: list[StoredSegment]) -> str:
-    """Build a transcript string from segments."""
-    if not segments:
-        return "No transcript available."
-    lines = []
-    for segment in segments:
-        speaker = segment.speaker or "Unknown"
-        lines.append(f"{speaker}: {segment.text}")
-    return "\n".join(lines)
-
-
 def _build_full_prompt(
     prompt: str,
     transcript: str,
@@ -1577,7 +1833,7 @@ async def generate_note(
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
         )
-        transcript = _build_transcript_text(segments)
+        transcript = TranscriptionProviderBase.build_transcript_text(segments)
 
         version = cast(
             Version,
@@ -1585,7 +1841,7 @@ async def generate_note(
                 "version", request.version_id, resolve_links=False
             ),
         )
-        context = _build_version_context(version)
+        context = ProdtrackProviderBase.build_version_context(version)
 
         draft_note = await storage_provider.get_draft_note(
             request.user_email, request.playlist_id, request.version_id
