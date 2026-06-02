@@ -1,8 +1,19 @@
-import { ApiHandler, Playlist, Project, User, Version } from '@dna/core';
+import {
+  AISuggestionManager,
+  ApiHandler,
+  Playlist,
+  Project,
+  User,
+  Version,
+} from '@dna/core';
 import { useQuery } from '@tanstack/react-query';
 
 const apiHandler = new ApiHandler({
   baseURL: import.meta.env.VITE_API_BASE_URL,
+});
+
+const aiSuggestionManager = new AISuggestionManager(apiHandler, {
+  debounceMs: 2000,
 });
 
 function useGetProjectsForUser(userEmail: string | null) {
@@ -44,4 +55,5 @@ export {
   useGetVersionsForPlaylist,
   useGetUserByEmail,
   apiHandler,
+  aiSuggestionManager,
 };

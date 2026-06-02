@@ -376,18 +376,21 @@ export interface GenerateNoteResponse {
   context: string;
 }
 
-export interface AISuggestionState {
-  suggestion: string | null;
-  prompt: string | null;
-  context: string | null;
+export interface AISuggestionGenerationState {
   isLoading: boolean;
   error: Error | null;
 }
 
-export type AISuggestionStateChangeCallback = (
+export type AISuggestionGenerationStateChangeCallback = (
   playlistId: number,
   versionId: number,
-  state: AISuggestionState
+  state: AISuggestionGenerationState
+) => void;
+
+export type AISuggestionGenerationSuccessCallback = (
+  playlistId: number,
+  versionId: number,
+  response: GenerateNoteResponse
 ) => void;
 
 // Search types for entity search endpoint

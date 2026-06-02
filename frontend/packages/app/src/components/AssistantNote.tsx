@@ -8,6 +8,8 @@ import {
   Copy,
   ArrowDownToLine,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SplitButton } from './SplitButton';
@@ -18,6 +20,12 @@ interface AssistantNoteProps {
   error?: Error | null;
   onRegenerate?: (additionalInstructions?: string) => void;
   onInsertNote?: (content: string) => void;
+  historyCount?: number;
+  activeOrdinal?: number | null;
+  canGoPrevious?: boolean;
+  canGoNext?: boolean;
+  onPreviousVersion?: () => void;
+  onNextVersion?: () => void;
 }
 
 const NoteCard = styled.div`
@@ -177,10 +185,9 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
-const ActionBar = styled.div`
+const BottomToolbar = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   margin-top: 4px;
 `;
@@ -265,12 +272,56 @@ const InstructionsInput = styled.input`
   }
 `;
 
+const VersionNav = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
+`;
+
+const VersionNavIndex = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.primary};
+  min-width: 1.5ch;
+  text-align: center;
+`;
+
+const VersionChevronButton = styled.button<{ $atLimit: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  cursor: ${({ $atLimit }) => ($atLimit ? 'default' : 'pointer')};
+  color: ${({ theme, $atLimit }) =>
+    $atLimit ? theme.colors.text.muted : theme.colors.text.secondary};
+  opacity: ${({ $atLimit }) => ($atLimit ? 0.5 : 1)};
+  transition: opacity ${({ theme }) => theme.transitions.fast},
+    color ${({ theme }) => theme.transitions.fast};
+
+  &:hover:not(:disabled) {
+    color: ${({ theme }) => theme.colors.text.primary};
+    opacity: 1;
+  }
+`;
+
 export function AssistantNote({
   suggestion,
   isLoading = false,
   error,
   onRegenerate,
   onInsertNote,
+  historyCount = 0,
+  activeOrdinal = null,
+  canGoPrevious = false,
+  canGoNext = false,
+  onPreviousVersion,
+  onNextVersion,
 }: AssistantNoteProps) {
   const { getLabel } = useHotkeyConfig();
   const [showInstructions, setShowInstructions] = useState(false);
@@ -380,11 +431,15 @@ export function AssistantNote({
         )}
 
         {hasSuggestion && !isLoading && (
-          <>
-            <NoteContent>
-              <ReactMarkdown>{suggestion}</ReactMarkdown>
-            </NoteContent>
-            <ActionBar>
+          <NoteContent>
+            <ReactMarkdown>{suggestion}</ReactMarkdown>
+          </NoteContent>
+        )}
+
+        {((hasSuggestion && !isLoading) ||
+          (historyCount > 0 && activeOrdinal != null)) && (
+          <BottomToolbar>
+            {hasSuggestion && !isLoading && (
               <ActionButtons>
                 <Tooltip content="Copy to clipboard">
                   <ActionButton
@@ -405,8 +460,31 @@ export function AssistantNote({
                   </ActionButton>
                 </Tooltip>
               </ActionButtons>
-            </ActionBar>
-          </>
+            )}
+            {historyCount > 0 && activeOrdinal != null && (
+              <VersionNav>
+                <VersionChevronButton
+                  type="button"
+                  aria-label="Previous AI note version"
+                  $atLimit={!canGoPrevious}
+                  disabled={!canGoPrevious}
+                  onClick={() => onPreviousVersion?.()}
+                >
+                  <ChevronLeft size={18} strokeWidth={2} />
+                </VersionChevronButton>
+                <VersionNavIndex>{activeOrdinal}</VersionNavIndex>
+                <VersionChevronButton
+                  type="button"
+                  aria-label="Next AI note version"
+                  $atLimit={!canGoNext}
+                  disabled={!canGoNext}
+                  onClick={() => onNextVersion?.()}
+                >
+                  <ChevronRight size={18} strokeWidth={2} />
+                </VersionChevronButton>
+              </VersionNav>
+            )}
+          </BottomToolbar>
         )}
       </ContentColumn>
     </NoteCard>
