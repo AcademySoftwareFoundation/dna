@@ -22,6 +22,7 @@ import { PublishDialog } from './PublishDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
+import { useFeatureFlags } from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -251,6 +252,7 @@ export function Sidebar({
   const searchRef = useRef<ExpandableSearchHandle>(null);
 
   const { getLabel } = useHotkeyConfig();
+  const { transcriptionEnabled } = useFeatureFlags();
 
   const toggleSettings = useCallback(() => {
     setIsSettingsOpen((prev) => !prev);
@@ -368,7 +370,7 @@ export function Sidebar({
                 department={version.task?.pipeline_step?.name}
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
-                inReview={inReviewVersionId === version.id}
+                inReview={transcriptionEnabled && inReviewVersionId === version.id}
                 noteStatus={((): NoteStatus | null => {
                   const note = draftNotes?.find(
                     (n) => n.version_id === version.id
@@ -422,7 +424,7 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedToolbar>
-          <TranscriptionMenu playlistId={playlistId} collapsed />
+          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
         </CollapsedToolbar>
       ) : (
         <Toolbar>
@@ -475,7 +477,7 @@ export function Sidebar({
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
-          <TranscriptionMenu playlistId={playlistId} />
+          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />

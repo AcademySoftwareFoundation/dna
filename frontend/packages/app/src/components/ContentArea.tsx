@@ -8,6 +8,7 @@ import { AssistantPanel } from './AssistantPanel';
 import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler } from '../api';
+import { useFeatureFlags } from '../contexts';
 import { openProdtrackVersionViaExtensionOrNewTab } from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
@@ -72,6 +73,8 @@ export function ContentArea({
   onRefresh,
 }: ContentAreaProps) {
   const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
+  const assistantPanelVisible = transcriptionEnabled || aiEnabled;
 
   const currentVersionAsSearchResult = useMemo((): SearchResult | undefined => {
     if (!version) return undefined;
@@ -281,6 +284,7 @@ export function ContentArea({
         draftNote={draftNote}
         updateDraftNote={updateDraftNote}
         saveAttachmentIds={saveAttachmentIds}
+        defaultHeight={assistantPanelVisible ? undefined : 300}
       />
       <AssistantPanel
         playlistId={playlistId}

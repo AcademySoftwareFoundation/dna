@@ -33,6 +33,7 @@ import { NoteEditor, NoteDraftStatusBadges } from './NoteEditor';
 import { UserAvatar } from './UserAvatar';
 import { NoteQCResultPill } from './NoteQCResultPill';
 import { NoteQCDiffModal } from './NoteQCDiffModal';
+import { useFeatureFlags } from '../contexts';
 
 interface PublishNotesDialogProps {
   open: boolean;
@@ -263,6 +264,7 @@ function PublishNoteRow({
   onQcToggleIgnore,
   onQcRefreshDraft,
 }: PublishNoteRowProps) {
+  const { aiEnabled } = useFeatureFlags();
   const registerFlush = useContext(RegisterFlushContext);
   const [fixOpen, setFixOpen] = useState(false);
   const [fixResult, setFixResult] = useState<NoteQCResult | null>(null);
@@ -328,16 +330,18 @@ function PublishNoteRow({
 
   return (
     <NoteRowBlock>
-      <NoteQCDiffModal
-        open={fixOpen}
-        onOpenChange={(o) => {
-          setFixOpen(o);
-          if (!o) setFixResult(null);
-        }}
-        draft={draftForModal}
-        qcResult={fixResult}
-        onApply={handleQcApply}
-      />
+      {aiEnabled && (
+        <NoteQCDiffModal
+          open={fixOpen}
+          onOpenChange={(o) => {
+            setFixOpen(o);
+            if (!o) setFixResult(null);
+          }}
+          draft={draftForModal}
+          qcResult={fixResult}
+          onApply={handleQcApply}
+        />
+      )}
       <Flex align="center" gap="2" mb="2" wrap="wrap" style={{ width: '100%' }}>
         <Checkbox
           checked={selected}
@@ -365,19 +369,21 @@ function PublishNoteRow({
             }
             layout="inline"
           />
-          <NoteQCResultPill
-            draftKey={draftKey}
-            results={qcResults}
-            loading={qcLoading || qcRowRefreshing}
-            ignored={qcIgnored}
-            onToggleIgnore={(checkId) => onQcToggleIgnore(checkId)}
-            onFix={(r) => {
-              setFixResult(r);
-              setFixOpen(true);
-            }}
-            localDraft={draftForModal}
-            onFixAll={handleQcApply}
-          />
+          {aiEnabled && (
+            <NoteQCResultPill
+              draftKey={draftKey}
+              results={qcResults}
+              loading={qcLoading || qcRowRefreshing}
+              ignored={qcIgnored}
+              onToggleIgnore={(checkId) => onQcToggleIgnore(checkId)}
+              onFix={(r) => {
+                setFixResult(r);
+                setFixOpen(true);
+              }}
+              localDraft={draftForModal}
+              onFixAll={handleQcApply}
+            />
+          )}
         </Flex>
       </Flex>
       <NoteEditor
@@ -415,6 +421,7 @@ function VersionTranscriptRow({
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
+  const { transcriptionEnabled } = useFeatureFlags();
   const { segments, isLoading } = useSegments({ playlistId, versionId });
   const [expanded, setExpanded] = useState(false);
   const segmentsCount = segments.length;
@@ -422,6 +429,8 @@ function VersionTranscriptRow({
     () => new Set(segments.map((s) => s.speaker).filter(Boolean)).size,
     [segments]
   );
+
+  if (!transcriptionEnabled) return null;
 
   return (
     <>
@@ -596,6 +605,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   onPendingChange,
   showTitle = true,
 }) => {
+  const { aiEnabled } = useFeatureFlags();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [transcriptSelected, setTranscriptSelected] = useState<
     Record<number, boolean>
@@ -626,7 +636,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     refreshDraft: qcRefreshDraft,
     hasBlockingErrors: qcHasBlockingErrors,
     refreshingDraftKey: qcRefreshingDraftKey,
-  } = useNoteQCChecks({ open, playlistId, drafts: notes });
+  } = useNoteQCChecks({ open: open && aiEnabled, playlistId, drafts: notes });
 
   const flushFnsRef = useRef(new Set<() => Promise<void>>());
   const registerFlush = useCallback((fn: () => Promise<void>) => {
@@ -666,7 +676,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       }
       return next;
     });
-  }, [open, notesFingerprint]);
+  }, [open, notesFingerprint, notes]);
 
   const versionCards = useMemo(() => {
     const byVid = new Map<number, DraftNote[]>();

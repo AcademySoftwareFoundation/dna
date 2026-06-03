@@ -19,7 +19,7 @@ import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
-import { useThemeMode } from '../contexts';
+import { useThemeMode, useFeatureFlags } from '../contexts';
 
 interface SettingsModalProps {
   userEmail: string;
@@ -220,29 +220,45 @@ const KeybindingInput = styled.button<{ $recording: boolean }>`
   }
 `;
 
+const FeatureEnableRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
+`;
+
+const FeatureEnableLabel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const FeatureEnableName = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.text.primary};
+`;
+
+const FeatureEnableDesc = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
+// --- General Tab ---
+
 interface GeneralTabProps {
   isLoading: boolean;
-  notePrompt: string;
-  regenerateOnVersionChange: boolean;
-  regenerateOnTranscriptUpdate: boolean;
   syncProdtrackTabOnVersionChange: boolean;
   isPending: boolean;
-  onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  onRegenerateOnVersionChange: (checked: boolean) => void;
-  onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
   onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
 }
 
 function GeneralTab({
   isLoading,
-  notePrompt,
-  regenerateOnVersionChange,
-  regenerateOnTranscriptUpdate,
   syncProdtrackTabOnVersionChange,
   isPending,
-  onNotePromptChange,
-  onRegenerateOnVersionChange,
-  onRegenerateOnTranscriptUpdate,
   onSyncProdtrackTabOnVersionChange,
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
@@ -272,83 +288,6 @@ function GeneralTab({
       </Section>
 
       <Section>
-        <SectionTitle>
-          Note Taking Prompt
-          <Tooltip
-            content={
-              <>
-                Customize the prompt used when generating notes from
-                transcript and version information. You can include
-                the following tags in the prompt:
-                <br />
-                <br />
-                {'{{ transcript }}'} - What was said on this version
-                <br />
-                {'{{ context }}'} - Includes context for the version
-                <br />
-                {'{{ notes }}'} - Any notes you took on this version
-                already
-              </>
-            }
-          >
-            <TooltipIcon>
-              <Info size={14} />
-            </TooltipIcon>
-          </Tooltip>
-        </SectionTitle>
-        <SectionDescription>
-          This prompt is used when generating notes via the transcript
-          and version information.
-        </SectionDescription>
-        <TextAreaWrapper>
-          <StyledTextArea
-            placeholder="Enter your custom prompt for generating notes..."
-            value={notePrompt}
-            onChange={onNotePromptChange}
-            disabled={isPending}
-          />
-        </TextAreaWrapper>
-      </Section>
-
-      <Section>
-        <SectionTitle>Note Regeneration</SectionTitle>
-        <CheckboxRow>
-          <Checkbox
-            checked={regenerateOnVersionChange}
-            onCheckedChange={onRegenerateOnVersionChange}
-            disabled={isPending}
-          />
-          <CheckboxContent>
-            <CheckboxLabel>
-              Regenerate notes on version change
-            </CheckboxLabel>
-            <CheckboxDescription>
-              Automatically regenerate the AI note when switching to a
-              different version in review.
-            </CheckboxDescription>
-          </CheckboxContent>
-        </CheckboxRow>
-
-        <CheckboxRow>
-          <Checkbox
-            checked={regenerateOnTranscriptUpdate}
-            onCheckedChange={onRegenerateOnTranscriptUpdate}
-            disabled={isPending}
-          />
-          <CheckboxContent>
-            <CheckboxLabel>
-              Regenerate on transcript update
-            </CheckboxLabel>
-            <CheckboxDescription>
-              Automatically regenerate the AI note when a new
-              transcript segment comes in or an existing segment is
-              updated.
-            </CheckboxDescription>
-          </CheckboxContent>
-        </CheckboxRow>
-      </Section>
-
-      <Section>
         <SectionTitle>Production tracking (browser)</SectionTitle>
         <SectionDescription>
           Requires the DNA tab sync Chrome extension.
@@ -375,6 +314,8 @@ function GeneralTab({
     </ModalContent>
   );
 }
+
+// --- Keybindings Tab ---
 
 interface KeybindingsTabProps {
   actions: HotkeyAction[];
@@ -442,21 +383,178 @@ function KeybindingsTab({
   );
 }
 
+// --- Transcription Tab ---
+
+function TranscriptionTab() {
+  const { transcriptionEnabled, setTranscriptionEnabled } = useFeatureFlags();
+
+  return (
+    <ModalContent>
+      <FeatureEnableRow>
+        <FeatureEnableLabel>
+          <FeatureEnableName>Enable Feature</FeatureEnableName>
+          <FeatureEnableDesc>
+            Show transcription controls and the Transcript tab
+          </FeatureEnableDesc>
+        </FeatureEnableLabel>
+        <Switch
+          checked={transcriptionEnabled}
+          onCheckedChange={setTranscriptionEnabled}
+        />
+      </FeatureEnableRow>
+    </ModalContent>
+  );
+}
+
+// --- AI Tab ---
+
+interface AITabProps {
+  isLoading: boolean;
+  notePrompt: string;
+  regenerateOnVersionChange: boolean;
+  regenerateOnTranscriptUpdate: boolean;
+  isPending: boolean;
+  userEmail: string;
+  onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onRegenerateOnVersionChange: (checked: boolean) => void;
+  onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
+}
+
+function AITab({
+  isLoading,
+  notePrompt,
+  regenerateOnVersionChange,
+  regenerateOnTranscriptUpdate,
+  isPending,
+  userEmail,
+  onNotePromptChange,
+  onRegenerateOnVersionChange,
+  onRegenerateOnTranscriptUpdate,
+}: AITabProps) {
+  const { aiEnabled, setAiEnabled } = useFeatureFlags();
+
+  if (isLoading) {
+    return (
+      <Flex align="center" justify="center" py="6">
+        <SpinnerIcon size={24} />
+      </Flex>
+    );
+  }
+
+  return (
+    <ModalContent>
+      <FeatureEnableRow>
+        <FeatureEnableLabel>
+          <FeatureEnableName>Enable Feature</FeatureEnableName>
+          <FeatureEnableDesc>
+            Show AI note suggestions and Note QC checks
+          </FeatureEnableDesc>
+        </FeatureEnableLabel>
+        <Switch
+          checked={aiEnabled}
+          onCheckedChange={setAiEnabled}
+        />
+      </FeatureEnableRow>
+
+      <Section>
+        <SectionTitle>
+          Note Generation
+          <Tooltip
+            content={
+              <>
+                Customize the prompt used when generating notes from
+                transcript and version information. You can include
+                the following tags in the prompt:
+                <br />
+                <br />
+                {'{{ transcript }}'} - What was said on this version
+                <br />
+                {'{{ context }}'} - Includes context for the version
+                <br />
+                {'{{ notes }}'} - Any notes you took on this version
+                already
+              </>
+            }
+          >
+            <TooltipIcon>
+              <Info size={14} />
+            </TooltipIcon>
+          </Tooltip>
+        </SectionTitle>
+        <SectionDescription>
+          This prompt is used when generating notes via the transcript
+          and version information.
+        </SectionDescription>
+        <TextAreaWrapper>
+          <StyledTextArea
+            placeholder="Enter your custom prompt for generating notes..."
+            value={notePrompt}
+            onChange={onNotePromptChange}
+            disabled={isPending}
+          />
+        </TextAreaWrapper>
+
+        <CheckboxRow>
+          <Checkbox
+            checked={regenerateOnVersionChange}
+            onCheckedChange={onRegenerateOnVersionChange}
+            disabled={isPending}
+          />
+          <CheckboxContent>
+            <CheckboxLabel>
+              Regenerate notes on version change
+            </CheckboxLabel>
+            <CheckboxDescription>
+              Automatically regenerate the AI note when switching to a
+              different version in review.
+            </CheckboxDescription>
+          </CheckboxContent>
+        </CheckboxRow>
+
+        <CheckboxRow>
+          <Checkbox
+            checked={regenerateOnTranscriptUpdate}
+            onCheckedChange={onRegenerateOnTranscriptUpdate}
+            disabled={isPending}
+          />
+          <CheckboxContent>
+            <CheckboxLabel>
+              Regenerate on transcript update
+            </CheckboxLabel>
+            <CheckboxDescription>
+              Automatically regenerate the AI note when a new
+              transcript segment comes in or an existing segment is
+              updated.
+            </CheckboxDescription>
+          </CheckboxContent>
+        </CheckboxRow>
+      </Section>
+
+      <Section>
+        <SectionTitle>Note QC</SectionTitle>
+        <NoteQCTab userEmail={userEmail} />
+      </Section>
+    </ModalContent>
+  );
+}
+
+// --- Keybinding Recorder ---
+
 function formatKeysForDisplay(keys: string): string {
   return keys
     .split('+')
     .map((part) => {
       const p = part.trim().toLowerCase();
       if (p === 'meta')
-        return navigator.platform.includes('Mac') ? '\u2318' : 'Ctrl';
-      if (p === 'shift') return '\u21E7';
+        return navigator.platform.includes('Mac') ? '⌘' : 'Ctrl';
+      if (p === 'shift') return '⇧';
       if (p === 'alt')
-        return navigator.platform.includes('Mac') ? '\u2325' : 'Alt';
+        return navigator.platform.includes('Mac') ? '⌥' : 'Alt';
       if (p === 'ctrl') return 'Ctrl';
-      if (p === 'down' || p === 'arrowdown') return '\u2193';
-      if (p === 'up' || p === 'arrowup') return '\u2191';
-      if (p === 'left' || p === 'arrowleft') return '\u2190';
-      if (p === 'right' || p === 'arrowright') return '\u2192';
+      if (p === 'down' || p === 'arrowdown') return '↓';
+      if (p === 'up' || p === 'arrowup') return '↑';
+      if (p === 'left' || p === 'arrowleft') return '←';
+      if (p === 'right' || p === 'arrowright') return '→';
       if (p === 'space') return 'Space';
       if (p === 'escape') return 'Esc';
       return p.toUpperCase();
@@ -525,6 +623,8 @@ function KeybindingRecorder({
     </KeybindingInput>
   );
 }
+
+// --- Settings Modal ---
 
 export function SettingsModal({
   userEmail,
@@ -669,20 +769,17 @@ export function SettingsModal({
             <StyledTabsTrigger value="keybindings">
               Keybindings
             </StyledTabsTrigger>
-            <StyledTabsTrigger value="note-qc">Note QC</StyledTabsTrigger>
+            <StyledTabsTrigger value="transcription">
+              Transcription
+            </StyledTabsTrigger>
+            <StyledTabsTrigger value="ai">AI</StyledTabsTrigger>
           </StyledTabsList>
 
           <Tabs.Content value="general">
             <GeneralTab
               isLoading={isLoading}
-              notePrompt={notePrompt}
-              regenerateOnVersionChange={regenerateOnVersionChange}
-              regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
               syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
               isPending={mutation.isPending}
-              onNotePromptChange={handleNotePromptChange}
-              onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
-              onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
               onSyncProdtrackTabOnVersionChange={
                 handleSyncProdtrackTabOnVersionChange
               }
@@ -698,8 +795,22 @@ export function SettingsModal({
             />
           </Tabs.Content>
 
-          <Tabs.Content value="note-qc">
-            <NoteQCTab userEmail={userEmail} />
+          <Tabs.Content value="transcription">
+            <TranscriptionTab />
+          </Tabs.Content>
+
+          <Tabs.Content value="ai">
+            <AITab
+              isLoading={isLoading}
+              notePrompt={notePrompt}
+              regenerateOnVersionChange={regenerateOnVersionChange}
+              regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
+              isPending={mutation.isPending}
+              userEmail={userEmail}
+              onNotePromptChange={handleNotePromptChange}
+              onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
+              onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
+            />
           </Tabs.Content>
         </Tabs.Root>
 
