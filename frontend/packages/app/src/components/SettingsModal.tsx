@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
+import * as RadioGroup from '@radix-ui/react-radio-group';
 import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
@@ -147,6 +148,56 @@ const StyledTabsTrigger = styled(Tabs.Trigger)`
   }
 `;
 
+const RadioGroupRoot = styled(RadioGroup.Root)`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const RadioItem = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+`;
+
+const RadioIndicator = styled(RadioGroup.Item)`
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid ${({ theme }) => theme.colors.border.default};
+  background: transparent;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color ${({ theme }) => theme.transitions.fast};
+
+  &[data-state='checked'] {
+    border-color: ${({ theme }) => theme.colors.accent.main};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.accent.main};
+    outline-offset: 2px;
+  }
+`;
+
+const RadioDot = styled(RadioGroup.Indicator)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+
+  &::after {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: ${({ theme }) => theme.colors.accent.main};
+  }
+`;
+
 const AppearanceRow = styled.div`
   display: flex;
   align-items: center;
@@ -251,15 +302,19 @@ const FeatureEnableDesc = styled.span`
 interface GeneralTabProps {
   isLoading: boolean;
   syncProdtrackTabOnVersionChange: boolean;
+  prodtrackPageType: 'version' | 'entity';
   isPending: boolean;
   onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
+  onProdtrackPageTypeChange: (value: 'version' | 'entity') => void;
 }
 
 function GeneralTab({
   isLoading,
   syncProdtrackTabOnVersionChange,
+  prodtrackPageType,
   isPending,
   onSyncProdtrackTabOnVersionChange,
+  onProdtrackPageTypeChange,
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
 
@@ -310,6 +365,36 @@ function GeneralTab({
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
+
+        <CheckboxContent style={{ paddingTop: '8px' }}>
+          <CheckboxLabel>Page to sync</CheckboxLabel>
+          <CheckboxDescription>
+            Which production-tracking page opens when a version is selected.
+          </CheckboxDescription>
+        </CheckboxContent>
+        <RadioGroupRoot
+          value={prodtrackPageType}
+          onValueChange={(v) => onProdtrackPageTypeChange(v as 'version' | 'entity')}
+        >
+          <RadioItem>
+            <RadioIndicator value="version" id="pt-version">
+              <RadioDot />
+            </RadioIndicator>
+            <CheckboxContent>
+              <CheckboxLabel>Version Detail</CheckboxLabel>
+              <CheckboxDescription>Open the version&apos;s detail page</CheckboxDescription>
+            </CheckboxContent>
+          </RadioItem>
+          <RadioItem>
+            <RadioIndicator value="entity" id="pt-entity">
+              <RadioDot />
+            </RadioIndicator>
+            <CheckboxContent>
+              <CheckboxLabel>Shot / Asset Detail</CheckboxLabel>
+              <CheckboxDescription>Open the linked shot or asset detail page</CheckboxDescription>
+            </CheckboxContent>
+          </RadioItem>
+        </RadioGroupRoot>
       </Section>
     </ModalContent>
   );
@@ -642,6 +727,7 @@ export function SettingsModal({
     useState(false);
   const [syncProdtrackTabOnVersionChange, setSyncProdtrackTabOnVersionChange] =
     useState(true);
+  const [prodtrackPageType, setProdtrackPageType] = useState<'version' | 'entity'>('version');
   const [isDirty, setIsDirty] = useState(false);
 
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
@@ -678,12 +764,14 @@ export function SettingsModal({
       setSyncProdtrackTabOnVersionChange(
         settings.sync_prodtrack_tab_on_version_change ?? true
       );
+      setProdtrackPageType(settings.prodtrack_page_type ?? 'version');
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
       setRegenerateOnVersionChange(false);
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
+      setProdtrackPageType('version');
       setIsDirty(false);
     }
   }, [settings]);
@@ -714,6 +802,14 @@ export function SettingsModal({
     []
   );
 
+  const handleProdtrackPageTypeChange = useCallback(
+    (value: 'version' | 'entity') => {
+      setProdtrackPageType(value);
+      setIsDirty(true);
+    },
+    []
+  );
+
   const handleSave = useCallback(() => {
     const defaultTrimmed = (settings?.default_note_prompt ?? '').trim();
     const currentTrimmed = notePrompt.trim();
@@ -724,6 +820,7 @@ export function SettingsModal({
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
+      prodtrack_page_type: prodtrackPageType,
     });
   }, [
     mutation,
@@ -732,6 +829,7 @@ export function SettingsModal({
     regenerateOnVersionChange,
     regenerateOnTranscriptUpdate,
     syncProdtrackTabOnVersionChange,
+    prodtrackPageType,
   ]);
 
   const handleOpenChange = useCallback(
@@ -779,10 +877,12 @@ export function SettingsModal({
             <GeneralTab
               isLoading={isLoading}
               syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
+              prodtrackPageType={prodtrackPageType}
               isPending={mutation.isPending}
               onSyncProdtrackTabOnVersionChange={
                 handleSyncProdtrackTabOnVersionChange
               }
+              onProdtrackPageTypeChange={handleProdtrackPageTypeChange}
             />
           </Tabs.Content>
 

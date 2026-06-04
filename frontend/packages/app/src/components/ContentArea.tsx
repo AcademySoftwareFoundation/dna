@@ -180,8 +180,14 @@ export function ContentArea({
     (userSettings === null ||
       (userSettings.sync_prodtrack_tab_on_version_change ?? true) === true);
 
+  const prodtrackPageType = userSettings?.prodtrack_page_type ?? 'version';
+  const activeProdtrackUrl =
+    prodtrackPageType === 'entity'
+      ? (version?.prodtrack_entity_detail_url ?? version?.prodtrack_detail_url)
+      : version?.prodtrack_detail_url;
+
   const handleSyncProdtrackTab = useCallback(() => {
-    const url = version?.prodtrack_detail_url;
+    const url = activeProdtrackUrl;
     if (!url || !extensionId) return;
     void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
       tabId: prodtrackControlledTabId ?? undefined,
@@ -190,13 +196,13 @@ export function ContentArea({
         setProdtrackControlledTabId(result.tabId);
       }
     });
-  }, [version?.prodtrack_detail_url, extensionId, prodtrackControlledTabId]);
+  }, [activeProdtrackUrl, extensionId, prodtrackControlledTabId]);
 
   useEffect(() => {
-    if (!version?.prodtrack_detail_url) return;
+    if (!activeProdtrackUrl) return;
     if (!shouldAutoSyncProdtrackTab) return;
     if (!extensionId) return;
-    const url = version.prodtrack_detail_url;
+    const url = activeProdtrackUrl;
     const timer = window.setTimeout(() => {
       void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
         tabId: prodtrackTabIdRef.current ?? undefined,
@@ -209,18 +215,18 @@ export function ContentArea({
     return () => window.clearTimeout(timer);
   }, [
     version?.id,
-    version?.prodtrack_detail_url,
+    activeProdtrackUrl,
     shouldAutoSyncProdtrackTab,
     extensionId,
   ]);
 
-  const syncProdtrackTitle = !version?.prodtrack_detail_url
+  const syncProdtrackTitle = !activeProdtrackUrl
     ? 'Production tracking URL is not available for this version.'
     : extensionId
       ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
       : 'Open production tracking in a new browser tab.';
 
-  const syncProdtrackDisabled = !version?.prodtrack_detail_url;
+  const syncProdtrackDisabled = !activeProdtrackUrl;
 
   if (!version) {
     return (
@@ -265,7 +271,7 @@ export function ContentArea({
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
         onVersionStatusChange={handleVersionStatusChange}
-        prodtrackDetailUrl={version.prodtrack_detail_url}
+        prodtrackDetailUrl={activeProdtrackUrl}
         prodtrackTabUsesExtension={!!extensionId}
         onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
         syncProdtrackDisabled={syncProdtrackDisabled}

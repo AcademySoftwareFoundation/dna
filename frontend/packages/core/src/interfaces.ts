@@ -84,6 +84,7 @@ export interface Version extends EntityBase {
   task?: Task;
   notes: Note[];
   prodtrack_detail_url?: string;
+  prodtrack_entity_detail_url?: string;
 }
 
 export interface Playlist extends EntityBase {
@@ -339,6 +340,7 @@ export interface UserSettings {
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;
+  prodtrack_page_type: 'version' | 'entity';
   updated_at: string;
   created_at: string;
 }
@@ -348,6 +350,7 @@ export interface UserSettingsUpdate {
   regenerate_on_version_change?: boolean;
   regenerate_on_transcript_update?: boolean;
   sync_prodtrack_tab_on_version_change?: boolean;
+  prodtrack_page_type?: 'version' | 'entity';
 }
 
 export interface GetUserSettingsParams {
