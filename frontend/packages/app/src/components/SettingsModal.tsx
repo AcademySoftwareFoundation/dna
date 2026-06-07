@@ -116,6 +116,15 @@ const Footer = styled.div`
   padding-top: 16px;
   margin-top: 8px;
   border-top: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  flex-shrink: 0;
+`;
+
+const TabsContentWrapper = styled.div`
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  flex: 1;
+  padding-right: 4px;
 `;
 
 const StyledTabsList = styled(Tabs.List)`
@@ -854,14 +863,14 @@ export function SettingsModal({
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       {trigger && <Dialog.Trigger>{trigger}</Dialog.Trigger>}
-      <Dialog.Content maxWidth="600px">
+      <Dialog.Content maxWidth="600px" style={{ maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
         <Dialog.Title>Settings</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="4">
           Configure your preferences for note generation, AI assistance, and
           keyboard shortcuts.
         </Dialog.Description>
 
-        <Tabs.Root defaultValue="general">
+        <Tabs.Root defaultValue="general" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
           <StyledTabsList>
             <StyledTabsTrigger value="general">General</StyledTabsTrigger>
             <StyledTabsTrigger value="keybindings">
@@ -873,44 +882,52 @@ export function SettingsModal({
             <StyledTabsTrigger value="ai">AI</StyledTabsTrigger>
           </StyledTabsList>
 
-          <Tabs.Content value="general">
-            <GeneralTab
-              isLoading={isLoading}
-              syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
-              prodtrackPageType={prodtrackPageType}
-              isPending={mutation.isPending}
-              onSyncProdtrackTabOnVersionChange={
-                handleSyncProdtrackTabOnVersionChange
-              }
-              onProdtrackPageTypeChange={handleProdtrackPageTypeChange}
-            />
+          <Tabs.Content value="general" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <TabsContentWrapper>
+              <GeneralTab
+                isLoading={isLoading}
+                syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
+                prodtrackPageType={prodtrackPageType}
+                isPending={mutation.isPending}
+                onSyncProdtrackTabOnVersionChange={
+                  handleSyncProdtrackTabOnVersionChange
+                }
+                onProdtrackPageTypeChange={handleProdtrackPageTypeChange}
+              />
+            </TabsContentWrapper>
           </Tabs.Content>
 
-          <Tabs.Content value="keybindings">
-            <KeybindingsTab
-              actions={actions}
-              getKeysForAction={getKeysForAction}
-              onRecord={handleRecordKeybinding}
-              onResetToDefaults={resetToDefaults}
-            />
+          <Tabs.Content value="keybindings" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <TabsContentWrapper>
+              <KeybindingsTab
+                actions={actions}
+                getKeysForAction={getKeysForAction}
+                onRecord={handleRecordKeybinding}
+                onResetToDefaults={resetToDefaults}
+              />
+            </TabsContentWrapper>
           </Tabs.Content>
 
-          <Tabs.Content value="transcription">
-            <TranscriptionTab />
+          <Tabs.Content value="transcription" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <TabsContentWrapper>
+              <TranscriptionTab />
+            </TabsContentWrapper>
           </Tabs.Content>
 
-          <Tabs.Content value="ai">
-            <AITab
-              isLoading={isLoading}
-              notePrompt={notePrompt}
-              regenerateOnVersionChange={regenerateOnVersionChange}
-              regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
-              isPending={mutation.isPending}
-              userEmail={userEmail}
-              onNotePromptChange={handleNotePromptChange}
-              onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
-              onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
-            />
+          <Tabs.Content value="ai" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <TabsContentWrapper>
+              <AITab
+                isLoading={isLoading}
+                notePrompt={notePrompt}
+                regenerateOnVersionChange={regenerateOnVersionChange}
+                regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
+                isPending={mutation.isPending}
+                userEmail={userEmail}
+                onNotePromptChange={handleNotePromptChange}
+                onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
+                onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
+              />
+            </TabsContentWrapper>
           </Tabs.Content>
         </Tabs.Root>
 
