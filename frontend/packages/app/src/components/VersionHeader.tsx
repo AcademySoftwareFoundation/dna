@@ -401,7 +401,7 @@ export function VersionHeader({
   isSettingInReview = false,
 }: VersionHeaderProps) {
   const { getLabel } = useHotkeyConfig();
-  const { transcriptionEnabled } = useFeatureFlags();
+  const { inReviewEnabled } = useFeatureFlags();
   const { statuses, isLoading: isLoadingStatuses } = useVersionStatuses({ projectId });
   const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
   const displayCode = versionNumber || shotCode || 'Untitled Version';
@@ -416,7 +416,7 @@ export function VersionHeader({
           </BackButton>
         </Tooltip>
         <TopBarActions>
-          {transcriptionEnabled && (
+          {inReviewEnabled && (
             <InReviewButton onClick={onInReview} disabled={!hasInReview}>
               <Eye size={14} />
               In Review
@@ -462,7 +462,7 @@ export function VersionHeader({
           <Thumbnail>
             {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
           </Thumbnail>
-          {transcriptionEnabled && (
+          {inReviewEnabled && (
             <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
               <SetInReviewButton
                 $isInReview={isCurrentVersionInReview}

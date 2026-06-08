@@ -326,6 +326,7 @@ function GeneralTab({
   onProdtrackPageTypeChange,
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
+  const { inReviewEnabled, setInReviewEnabled } = useFeatureFlags();
 
   if (isLoading) {
     return (
@@ -347,6 +348,20 @@ function GeneralTab({
           <Switch
             checked={mode === 'light'}
             onCheckedChange={(checked) => setMode(checked ? 'light' : 'dark')}
+          />
+        </AppearanceRow>
+      </Section>
+
+      <Section>
+        <SectionTitle>In Review</SectionTitle>
+        <AppearanceRow>
+          <KeybindingLabel>
+            <KeybindingName>Enable In Review</KeybindingName>
+            <KeybindingDesc>Show In Review / Set In Review controls and the version indicator</KeybindingDesc>
+          </KeybindingLabel>
+          <Switch
+            checked={inReviewEnabled}
+            onCheckedChange={setInReviewEnabled}
           />
         </AppearanceRow>
       </Section>

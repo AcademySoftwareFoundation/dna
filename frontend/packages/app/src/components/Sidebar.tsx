@@ -252,7 +252,7 @@ export function Sidebar({
   const searchRef = useRef<ExpandableSearchHandle>(null);
 
   const { getLabel } = useHotkeyConfig();
-  const { transcriptionEnabled } = useFeatureFlags();
+  const { transcriptionEnabled, inReviewEnabled } = useFeatureFlags();
 
   const toggleSettings = useCallback(() => {
     setIsSettingsOpen((prev) => !prev);
@@ -370,7 +370,7 @@ export function Sidebar({
                 department={version.task?.pipeline_step?.name}
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
-                inReview={transcriptionEnabled && inReviewVersionId === version.id}
+                inReview={inReviewEnabled && inReviewVersionId === version.id}
                 noteStatus={((): NoteStatus | null => {
                   const note = draftNotes?.find(
                     (n) => n.version_id === version.id

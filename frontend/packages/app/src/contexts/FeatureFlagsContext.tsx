@@ -9,12 +9,15 @@ import {
 
 const TRANSCRIPTION_KEY = 'dna-transcription-enabled';
 const AI_KEY = 'dna-ai-enabled';
+const IN_REVIEW_KEY = 'dna-in-review-enabled';
 
 interface FeatureFlagsContextValue {
   transcriptionEnabled: boolean;
   aiEnabled: boolean;
+  inReviewEnabled: boolean;
   setTranscriptionEnabled: (enabled: boolean) => void;
   setAiEnabled: (enabled: boolean) => void;
+  setInReviewEnabled: (enabled: boolean) => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | null>(null);
@@ -30,6 +33,11 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     return stored === 'true';
   });
 
+  const [inReviewEnabled, setInReviewState] = useState(() => {
+    const stored = localStorage.getItem(IN_REVIEW_KEY);
+    return stored === null ? true : stored === 'true';
+  });
+
   const setTranscriptionEnabled = useCallback((enabled: boolean) => {
     localStorage.setItem(TRANSCRIPTION_KEY, String(enabled));
     setTranscriptionState(enabled);
@@ -40,13 +48,20 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setAiState(enabled);
   }, []);
 
+  const setInReviewEnabled = useCallback((enabled: boolean) => {
+    localStorage.setItem(IN_REVIEW_KEY, String(enabled));
+    setInReviewState(enabled);
+  }, []);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
         transcriptionEnabled,
         aiEnabled,
+        inReviewEnabled,
         setTranscriptionEnabled,
         setAiEnabled,
+        setInReviewEnabled,
       }}
     >
       {children}
