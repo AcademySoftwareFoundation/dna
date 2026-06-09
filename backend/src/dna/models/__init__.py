@@ -23,6 +23,13 @@ from dna.models.entity import (
     User,
     Version,
 )
+from dna.models.meeting_recording import (
+    MeetingRecording,
+    MeetingRecordingCreate,
+    RecordingClip,
+    RecordingClipInfo,
+    RecordingUploadResponse,
+)
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
@@ -112,6 +119,11 @@ __all__ = [
     "DraftNoteUpdate",
     "PlaylistMetadata",
     "PlaylistMetadataUpdate",
+    "MeetingRecording",
+    "MeetingRecordingCreate",
+    "RecordingClip",
+    "RecordingClipInfo",
+    "RecordingUploadResponse",
     "PublishedTranscript",
     "PublishedTranscriptUpdate",
     "StoredSegment",

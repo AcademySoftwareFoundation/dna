@@ -12,6 +12,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     HTTPException,
     Request,
     UploadFile,
@@ -38,6 +39,7 @@ from dna.models import (
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
+    MeetingRecordingCreate,
     Note,
     NoteQCCheck,
     NoteQCCheckCreate,
@@ -52,6 +54,9 @@ from dna.models import (
     PublishNotesResponse,
     PublishTranscriptRequest,
     PublishTranscriptResponse,
+    RecordingClip,
+    RecordingClipInfo,
+    RecordingUploadResponse,
     RunQCChecksRequest,
     RunQCChecksResponse,
     SearchRequest,
@@ -83,6 +88,16 @@ from dna.transcription_providers.transcription_provider_base import (
     get_transcription_provider,
 )
 from dna.transcription_service import TranscriptionService, get_transcription_service
+from dna.video_render import (
+    FfmpegError,
+    extract_thumbnail,
+    probe_duration_seconds,
+    render_clip,
+)
+from dna.video_segment_publish import (
+    build_video_cuts_payload,
+    parse_recording_t0_from_zoom_folder,
+)
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -460,6 +475,169 @@ async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
         raise HTTPException(status_code=404, detail="Attachment not found")
     shutil.rmtree(attachment_dir)
     return {"deleted": attachment_id}
+
+
+# -----------------------------------------------------------------------------
+# Meeting recording upload + clip rendering (video-segment feature)
+# -----------------------------------------------------------------------------
+
+
+def _video_segment_publish_enabled() -> bool:
+    return os.getenv("DNA_ENABLE_VIDEO_SEGMENT_PUBLISH", "false").lower() == "true"
+
+
+@app.post(
+    "/api/recordings/upload",
+    tags=["Recordings"],
+    summary="Upload a Zoom recording and render per-version clips",
+    description=(
+        "Store the uploaded MP4, derive the recording start from the Zoom "
+        "folder name, replay the stored transcript segmentation into a cut "
+        "list, and render one clip + first-frame thumbnail per cut. Synchronous "
+        "(no async worker in V1). Flag-gated by DNA_ENABLE_VIDEO_SEGMENT_PUBLISH."
+    ),
+    response_model=RecordingUploadResponse,
+)
+async def upload_recording(
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+    file: UploadFile = File(...),
+    playlist_id: int = Form(...),
+    folder_name: str = Form(
+        ...,
+        description=(
+            "Zoom recording folder name, e.g. "
+            '"2026-05-27 06.44.49 Cameron Target\'s Zoom Meeting". The start '
+            "time is parsed from this; the browser does not transmit it with the "
+            "file, so it must be sent as its own field."
+        ),
+    ),
+) -> RecordingUploadResponse:
+    """Process an uploaded recording into per-version clips. Pure replay of the
+    live segmentation already encoded in the stored transcript timestamps."""
+    if not _video_segment_publish_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    logger = logging.getLogger(__name__)
+
+    # Recording t0 must come from the folder name (Zoom writes it in local time;
+    # parse_recording_t0_from_zoom_folder converts to UTC). Fail clearly if the
+    # folder name isn't a recognizable Zoom timestamp.
+    try:
+        recording_t0 = parse_recording_t0_from_zoom_folder(folder_name)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    recording_id = str(uuid.uuid4())
+    recording_dir = ATTACHMENT_STORE_DIR / recording_id
+    recording_dir.mkdir(parents=True)
+    source_path = recording_dir / "source.mp4"
+    with source_path.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    try:
+        duration_seconds = probe_duration_seconds(source_path)
+    except FfmpegError as e:
+        shutil.rmtree(recording_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=422, detail=f"Could not read the uploaded video: {e}"
+        )
+
+    # Group every stored segment by the version it was attached to in-review.
+    all_segments = await storage.get_segments_for_playlist(playlist_id)
+    segments_by_version: dict[int, list[StoredSegment]] = {}
+    for seg in all_segments:
+        segments_by_version.setdefault(seg.version_id, []).append(seg)
+
+    cut_lists = build_video_cuts_payload(
+        segments_by_version,
+        recording_t0=recording_t0,
+        recording_duration_seconds=duration_seconds,
+    )
+
+    metadata = await storage.get_playlist_metadata(playlist_id)
+    meeting_id = metadata.meeting_id if metadata else None
+
+    clips: list[RecordingClip] = []
+    for cut_list in cut_lists:
+        for index, cut in enumerate(cut_list.cuts):
+            clip_id = str(uuid.uuid4())
+            thumb_id = str(uuid.uuid4())
+            filename = f"clip-v{cut_list.version_id}-{index}.mp4"
+            clip_path = ATTACHMENT_STORE_DIR / clip_id / filename
+            thumb_path = ATTACHMENT_STORE_DIR / thumb_id / "thumb.jpg"
+            try:
+                render_clip(
+                    source_path,
+                    clip_path,
+                    start_seconds=cut.video_in_seconds,
+                    end_seconds=cut.video_out_seconds,
+                )
+                # First frame of the clip is the in-point frame of the cut.
+                extract_thumbnail(clip_path, thumb_path)
+            except FfmpegError as e:
+                logger.exception(
+                    "ffmpeg failed rendering clip for recording %s version %s",
+                    recording_id,
+                    cut_list.version_id,
+                )
+                raise HTTPException(
+                    status_code=500, detail=f"Failed to render a recording clip: {e}"
+                )
+            clips.append(
+                RecordingClip(
+                    clip_id=clip_id,
+                    version_id=cut_list.version_id,
+                    thumb_id=thumb_id,
+                    filename=filename,
+                    duration_seconds=round(
+                        cut.video_out_seconds - cut.video_in_seconds, 3
+                    ),
+                    video_in_seconds=cut.video_in_seconds,
+                    video_out_seconds=cut.video_out_seconds,
+                    transcript_segment_ids=cut.transcript_segment_ids,
+                    body_hash=cut_list.body_hash,
+                )
+            )
+
+    if not clips:
+        # Either no segments, or all fell outside the recording window. Refuse
+        # rather than persist an empty recording.
+        shutil.rmtree(recording_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No transcript segments fell within the recording; "
+                "nothing to render."
+            ),
+        )
+
+    await storage.create_meeting_recording(
+        MeetingRecordingCreate(
+            recording_id=recording_id,
+            playlist_id=playlist_id,
+            meeting_id=meeting_id,
+            folder_name=folder_name,
+            recording_t0=recording_t0,
+            duration_seconds=duration_seconds,
+            clips=clips,
+        )
+    )
+
+    return RecordingUploadResponse(
+        recording_id=recording_id,
+        clips=[
+            RecordingClipInfo(
+                clip_id=c.clip_id,
+                version_id=c.version_id,
+                thumb_id=c.thumb_id,
+                duration_seconds=c.duration_seconds,
+                video_in_seconds=c.video_in_seconds,
+                video_out_seconds=c.video_out_seconds,
+            )
+            for c in clips
+        ],
+    )
 
 
 @app.get(

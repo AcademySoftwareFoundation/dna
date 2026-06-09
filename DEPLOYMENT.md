@@ -276,6 +276,56 @@ migration.
 
 ---
 
+## Video Segment Publishing Setup (optional)
+
+After a review meeting, a Zoom recording can be uploaded and cut into
+per-Version clips by replaying the segmentation already encoded in the
+stored transcript. `POST /api/recordings/upload` is feature-flagged off by
+default and returns 404 until enabled.
+
+### DNA side
+
+```
+DNA_ENABLE_VIDEO_SEGMENT_PUBLISH=true
+# IANA zone the Zoom recording folder name is written in. Zoom names the
+# folder ("YYYY-MM-DD HH.MM.SS <title>") in the host's local time; DNA
+# converts it to UTC to align with the (UTC) transcript timestamps.
+ZOOM_RECORDING_TIMEZONE=America/New_York
+# Gap (seconds) between transcript segments above which a new clip starts.
+SEGMENT_RUN_GAP_SECONDS=2.0
+```
+
+`ffmpeg`/`ffprobe` must be available to the backend — they are installed in
+the backend Docker image. Rendered clips and thumbnails are written under
+`ATTACHMENT_STORE_DIR` (same store as image attachments).
+
+### Body-size limit (important)
+
+The MP4 is uploaded as a single multipart request, so the server and any
+reverse proxy must allow large request bodies. nginx defaults to a **1 MB**
+`client_max_body_size`, which will reject any real recording with a 413.
+Raise it on every proxy in front of the backend, e.g.:
+
+```nginx
+# in the server (or location /api/recordings/) block
+client_max_body_size 4g;
+```
+
+On Cloud Run, the inbound request size limit applies; for very large MP4s
+(>1 GB) prefer a deployment with a higher limit or chunked upload (a V2
+concern — V1 assumes typical 1–2 hour meeting recordings).
+
+### Frontend build
+
+```
+VITE_ENABLE_VIDEO_SEGMENT_PUBLISH=true
+```
+
+Dropping `DNA_ENABLE_VIDEO_SEGMENT_PUBLISH` reverts behaviour with no data
+migration; already-rendered clips remain on disk.
+
+---
+
 ## Authentication Setup
 
 DNA uses Google OAuth for authentication. Users sign in with their Google accounts, and the backend validates Google tokens.

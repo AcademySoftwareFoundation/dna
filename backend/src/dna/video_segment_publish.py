@@ -81,8 +81,12 @@ def parse_recording_t0_from_zoom_folder(folder_name: str) -> datetime:
         )
     parts = {k: int(v) for k, v in match.groupdict().items()}
     local = datetime(
-        parts["y"], parts["mo"], parts["d"],
-        parts["h"], parts["mi"], parts["s"],
+        parts["y"],
+        parts["mo"],
+        parts["d"],
+        parts["h"],
+        parts["mi"],
+        parts["s"],
         tzinfo=_recording_timezone(),
     )
     return local.astimezone(timezone.utc)
@@ -151,7 +155,11 @@ def build_video_cuts_payload(
     for version_id in sorted(segments_by_version):
         parsed = sorted(
             (
-                (_parse_utc(s.absolute_start_time), _parse_utc(s.absolute_end_time), s.segment_id)
+                (
+                    _parse_utc(s.absolute_start_time),
+                    _parse_utc(s.absolute_end_time),
+                    s.segment_id,
+                )
                 for s in segments_by_version[version_id]
             ),
             key=lambda t: (t[0], t[1]),

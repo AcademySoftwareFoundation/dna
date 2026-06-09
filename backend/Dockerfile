@@ -2,10 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies. ffmpeg (+ffprobe) is used to cut recording
+# clips and extract first-frame thumbnails for the video-segment feature.
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements

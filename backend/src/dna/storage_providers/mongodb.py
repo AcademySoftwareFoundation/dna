@@ -11,6 +11,7 @@ from bson import ObjectId
 from pymongo import AsyncMongoClient, ReturnDocument
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
+from dna.models.meeting_recording import MeetingRecording, MeetingRecordingCreate
 from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
 from dna.models.published_transcript import (
     PublishedTranscript,
@@ -57,6 +58,11 @@ class MongoDBStorageProvider(StorageProviderBase):
             [("user_email", 1)],
             name="qc_checks_by_user",
         )
+        await self.meeting_recordings_collection.create_index(
+            [("recording_id", 1)],
+            unique=True,
+            name="meeting_recordings_by_id",
+        )
         self._indexes_ensured = True
 
     @property
@@ -89,6 +95,10 @@ class MongoDBStorageProvider(StorageProviderBase):
     @property
     def published_transcripts_collection(self) -> Any:
         return self.db.published_transcripts
+
+    @property
+    def meeting_recordings_collection(self) -> Any:
+        return self.db.meeting_recordings
 
     @property
     def qc_checks_collection(self) -> Any:
@@ -316,6 +326,41 @@ class MongoDBStorageProvider(StorageProviderBase):
             doc["_id"] = str(doc["_id"])
             results.append(StoredSegment(**doc))
         return results
+
+    async def get_segments_for_playlist(self, playlist_id: int) -> list[StoredSegment]:
+        """Get all segments for a playlist (every version), ordered for grouping."""
+        query = {"playlist_id": playlist_id}
+        cursor = self.segments_collection.find(query).sort(
+            [("version_id", 1), ("absolute_start_time", 1)]
+        )
+        results = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(StoredSegment(**doc))
+        return results
+
+    async def create_meeting_recording(
+        self, data: MeetingRecordingCreate
+    ) -> MeetingRecording:
+        """Persist a processed recording and its rendered clips."""
+        now = datetime.now(timezone.utc)
+        doc = data.model_dump()
+        doc["created_at"] = now
+        result = await self.meeting_recordings_collection.insert_one(doc)
+        doc["_id"] = str(result.inserted_id)
+        return MeetingRecording(**doc)
+
+    async def get_meeting_recording(
+        self, recording_id: str
+    ) -> Optional[MeetingRecording]:
+        """Fetch a stored recording by its recording_id."""
+        doc = await self.meeting_recordings_collection.find_one(
+            {"recording_id": recording_id}
+        )
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return MeetingRecording(**doc)
+        return None
 
     async def get_user_settings(self, user_email: str) -> Optional[UserSettings]:
         """Get user settings by email."""

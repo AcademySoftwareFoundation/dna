@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
+    from dna.models.meeting_recording import (
+        MeetingRecording,
+        MeetingRecordingCreate,
+    )
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
     from dna.models.published_transcript import (
         PublishedTranscript,
@@ -99,6 +103,24 @@ class StorageProviderBase:
         self, playlist_id: int, version_id: int
     ) -> list["StoredSegment"]:
         """Get all segments for a version, ordered by start time."""
+        raise NotImplementedError()
+
+    async def get_segments_for_playlist(
+        self, playlist_id: int
+    ) -> list["StoredSegment"]:
+        """Get all segments for a playlist (every version), ordered for grouping."""
+        raise NotImplementedError()
+
+    async def create_meeting_recording(
+        self, data: "MeetingRecordingCreate"
+    ) -> "MeetingRecording":
+        """Persist a processed recording and its rendered clips."""
+        raise NotImplementedError()
+
+    async def get_meeting_recording(
+        self, recording_id: str
+    ) -> Optional["MeetingRecording"]:
+        """Fetch a stored recording by its recording_id."""
         raise NotImplementedError()
 
     async def get_user_settings(self, user_email: str) -> Optional["UserSettings"]:

@@ -106,7 +106,9 @@ class TestBuildVideoCutsPayload:
     """Cut-list construction is a pure replay of stored-segment timestamps."""
 
     def test_empty_input_returns_empty_list(self):
-        result = build_video_cuts_payload({}, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            {}, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert result == []
 
@@ -114,12 +116,22 @@ class TestBuildVideoCutsPayload:
         # One contiguous run: 10:05:00 -> 10:05:30, i.e. 300s..330s into the video.
         segments = {
             10: [
-                _segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z"),
-                _segment(segment_id="b", start="2026-05-27T10:05:10Z", end="2026-05-27T10:05:30Z"),
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                ),
+                _segment(
+                    segment_id="b",
+                    start="2026-05-27T10:05:10Z",
+                    end="2026-05-27T10:05:30Z",
+                ),
             ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert len(result) == 1
         cut_list = result[0]
@@ -134,12 +146,22 @@ class TestBuildVideoCutsPayload:
         # Two runs separated by a 60s gap (>> default threshold).
         segments = {
             10: [
-                _segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z"),
-                _segment(segment_id="b", start="2026-05-27T10:06:10Z", end="2026-05-27T10:06:20Z"),
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                ),
+                _segment(
+                    segment_id="b",
+                    start="2026-05-27T10:06:10Z",
+                    end="2026-05-27T10:06:20Z",
+                ),
             ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         cuts = result[0].cuts
         assert len(cuts) == 2
@@ -152,12 +174,22 @@ class TestBuildVideoCutsPayload:
         # 1.5s gap with default threshold 2.0 -> same run.
         segments = {
             10: [
-                _segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z"),
-                _segment(segment_id="b", start="2026-05-27T10:05:11.5Z", end="2026-05-27T10:05:20Z"),
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                ),
+                _segment(
+                    segment_id="b",
+                    start="2026-05-27T10:05:11.5Z",
+                    end="2026-05-27T10:05:20Z",
+                ),
             ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert len(result[0].cuts) == 1
         assert result[0].cuts[0].transcript_segment_ids == ["a", "b"]
@@ -165,24 +197,58 @@ class TestBuildVideoCutsPayload:
     def test_gap_threshold_is_configurable(self):
         segments = {
             10: [
-                _segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z"),
-                _segment(segment_id="b", start="2026-05-27T10:05:15Z", end="2026-05-27T10:05:20Z"),
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                ),
+                _segment(
+                    segment_id="b",
+                    start="2026-05-27T10:05:15Z",
+                    end="2026-05-27T10:05:20Z",
+                ),
             ]
         }
         # 5s gap. threshold 2 -> split; threshold 10 -> single.
-        split = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION, gap_seconds=2.0)
-        joined = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION, gap_seconds=10.0)
+        split = build_video_cuts_payload(
+            segments,
+            recording_t0=T0,
+            recording_duration_seconds=DURATION,
+            gap_seconds=2.0,
+        )
+        joined = build_video_cuts_payload(
+            segments,
+            recording_t0=T0,
+            recording_duration_seconds=DURATION,
+            gap_seconds=10.0,
+        )
 
         assert len(split[0].cuts) == 2
         assert len(joined[0].cuts) == 1
 
     def test_multi_version_grouped_and_ordered_by_version_id(self):
         segments = {
-            20: [_segment(segment_id="x", version_id=20, start="2026-05-27T10:10:00Z", end="2026-05-27T10:10:10Z")],
-            10: [_segment(segment_id="a", version_id=10, start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z")],
+            20: [
+                _segment(
+                    segment_id="x",
+                    version_id=20,
+                    start="2026-05-27T10:10:00Z",
+                    end="2026-05-27T10:10:10Z",
+                )
+            ],
+            10: [
+                _segment(
+                    segment_id="a",
+                    version_id=10,
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                )
+            ],
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert [cl.version_id for cl in result] == [10, 20]
         assert result[0].cuts[0].transcript_segment_ids == ["a"]
@@ -193,12 +259,22 @@ class TestBuildVideoCutsPayload:
         # two segments are within the gap threshold so they form one run.
         segments = {
             10: [
-                _segment(segment_id="b", start="2026-05-27T10:05:11Z", end="2026-05-27T10:05:30Z"),
-                _segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z"),
+                _segment(
+                    segment_id="b",
+                    start="2026-05-27T10:05:11Z",
+                    end="2026-05-27T10:05:30Z",
+                ),
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                ),
             ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         cut = result[0].cuts[0]
         assert cut.transcript_segment_ids == ["a", "b"]
@@ -208,30 +284,54 @@ class TestBuildVideoCutsPayload:
     def test_cut_entirely_before_recording_is_dropped(self):
         # Segment ends before t0 -> negative offsets -> dropped.
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T09:00:00Z", end="2026-05-27T09:00:10Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T09:00:00Z",
+                    end="2026-05-27T09:00:10Z",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert result[0].cuts == []
 
     def test_cut_entirely_after_recording_is_dropped(self):
         # Starts after the recording ends (>3600s) -> dropped.
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T11:30:00Z", end="2026-05-27T11:30:10Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T11:30:00Z",
+                    end="2026-05-27T11:30:10Z",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert result[0].cuts == []
 
     def test_cut_overlapping_start_is_clamped_to_zero(self):
         # Starts 30s before t0, ends 30s after -> clamp in to 0.0.
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T09:59:30Z", end="2026-05-27T10:00:30Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T09:59:30Z",
+                    end="2026-05-27T10:00:30Z",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         cut = result[0].cuts[0]
         assert cut.video_in_seconds == 0.0
@@ -240,10 +340,18 @@ class TestBuildVideoCutsPayload:
     def test_cut_overlapping_end_is_clamped_to_duration(self):
         # Duration 100s; run is 90s..130s -> clamp out to 100.
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T10:01:30Z", end="2026-05-27T10:02:10Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:01:30Z",
+                    end="2026-05-27T10:02:10Z",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=100.0)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=100.0
+        )
 
         cut = result[0].cuts[0]
         assert cut.video_in_seconds == 90.0
@@ -252,36 +360,72 @@ class TestBuildVideoCutsPayload:
     def test_body_hash_is_stable_across_rebuilds(self):
         segments = {
             10: [
-                _segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z"),
-                _segment(segment_id="b", start="2026-05-27T10:06:10Z", end="2026-05-27T10:06:20Z"),
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                ),
+                _segment(
+                    segment_id="b",
+                    start="2026-05-27T10:06:10Z",
+                    end="2026-05-27T10:06:20Z",
+                ),
             ]
         }
 
-        first = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
-        second = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        first = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
+        second = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert first[0].body_hash == second[0].body_hash
         assert first[0].body_hash  # non-empty
 
     def test_body_hash_changes_when_cuts_change(self):
         base = {
-            10: [_segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:10Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:10Z",
+                )
+            ]
         }
         changed = {
-            10: [_segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:20Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:20Z",
+                )
+            ]
         }
 
-        h1 = build_video_cuts_payload(base, recording_t0=T0, recording_duration_seconds=DURATION)[0].body_hash
-        h2 = build_video_cuts_payload(changed, recording_t0=T0, recording_duration_seconds=DURATION)[0].body_hash
+        h1 = build_video_cuts_payload(
+            base, recording_t0=T0, recording_duration_seconds=DURATION
+        )[0].body_hash
+        h2 = build_video_cuts_payload(
+            changed, recording_t0=T0, recording_duration_seconds=DURATION
+        )[0].body_hash
 
         assert h1 != h2
 
     def test_version_with_only_out_of_bounds_segments_yields_empty_cuts(self):
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T09:00:00Z", end="2026-05-27T09:00:10Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T09:00:00Z",
+                    end="2026-05-27T09:00:10Z",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert len(result) == 1
         assert result[0].version_id == 10
@@ -291,20 +435,36 @@ class TestBuildVideoCutsPayload:
         # A degenerate segment whose start == end collapses to a zero-length
         # cut after clamping and must be dropped rather than emitted.
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T10:05:00Z", end="2026-05-27T10:05:00Z")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00Z",
+                    end="2026-05-27T10:05:00Z",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         assert result[0].cuts == []
 
     def test_naive_absolute_timestamps_treated_as_utc(self):
         # No tz suffix -> must be read as UTC, not host-local.
         segments = {
-            10: [_segment(segment_id="a", start="2026-05-27T10:05:00", end="2026-05-27T10:05:10")]
+            10: [
+                _segment(
+                    segment_id="a",
+                    start="2026-05-27T10:05:00",
+                    end="2026-05-27T10:05:10",
+                )
+            ]
         }
 
-        result = build_video_cuts_payload(segments, recording_t0=T0, recording_duration_seconds=DURATION)
+        result = build_video_cuts_payload(
+            segments, recording_t0=T0, recording_duration_seconds=DURATION
+        )
 
         cut = result[0].cuts[0]
         assert cut.video_in_seconds == 300.0
