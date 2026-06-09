@@ -251,39 +251,25 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def publish_video_segments(
-        self,
-        *,
-        project_id: int,
-        playlist_id: int,
-        version_id: int,
-        meeting_id: str,
-        meeting_date: date,
-        platform: str,
-        clips: list["VideoSegmentClipPayload"],
-    ) -> int:
-        """Create a video-segment row for one version's clips.
-
-        Uploads each rendered clip as a tracking-system Version (binary sent via
-        the SDK, mirroring note image attachments) and links them to a single
-        custom-entity row. Returns the entity ID of that row.
-        """
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    def update_video_segments(
+    def attach_clip_versions(
         self,
         *,
         entity_type: str,
         entity_id: int,
         project_id: int,
-        meeting_date: date,
         clips: list["VideoSegmentClipPayload"],
-    ) -> bool:
-        """Re-attach freshly-rendered clips to an existing video-segment row.
+    ) -> list[int]:
+        """Attach a version's rendered clips to an existing transcript row.
 
-        `entity_type` must come from the caller's bookkeeping (the slot the row
-        was created in), not the current env — studios may migrate slots and
-        updates against pre-migration rows must still resolve.
+        Recordings piggyback on the transcript publishing workflow: each clip is
+        uploaded as a tracking-system Version (binary sent via the SDK, mirroring
+        note image attachments) and linked onto the *existing* custom-entity row
+        that the transcript publish created for the same (playlist, version,
+        meeting) — so the clip lands on the row that already carries the correct
+        Version-In-Review and transcript text, rather than a separate row.
+
+        `entity_type`/`entity_id` identify that transcript row (from the caller's
+        bookkeeping). Returns the IDs of the created clip Versions.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

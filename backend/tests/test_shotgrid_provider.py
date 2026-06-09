@@ -467,8 +467,8 @@ class TestShotgridProviderPublishTranscript:
         assert ok is False
 
 
-class TestShotgridProviderPublishVideoSegments:
-    """publish/update_video_segments create clip Versions linked to a row."""
+class TestShotgridProviderAttachClipVersions:
+    """attach_clip_versions creates clip Versions linked onto the transcript row."""
 
     @pytest.fixture
     def mock_shotgun(self):
@@ -502,44 +502,27 @@ class TestShotgridProviderPublishVideoSegments:
             for i in range(n)
         ]
 
-    def test_publish_creates_row_with_default_entity_and_clip_versions(
+    def test_creates_clip_versions_and_links_to_existing_row(
         self, provider, mock_shotgun
     ):
-        """Default slot CustomEntity14; one Version per clip is created+uploaded."""
-        from datetime import date as date_
-
+        """One Version per clip is created+uploaded and linked onto the row."""
         sg = mock_shotgun.return_value
         provider.sg = sg
-        # First create() is the row; subsequent create() calls are clip Versions.
-        sg.create.side_effect = [{"id": 7000}, {"id": 8001}, {"id": 8002}]
+        # No row is created here; every create() is a clip Version.
+        sg.create.side_effect = [{"id": 8001}, {"id": 8002}]
 
-        entity_id = provider.publish_video_segments(
+        version_ids = provider.attach_clip_versions(
+            entity_type="CustomEntity14",
+            entity_id=7000,
             project_id=1,
-            playlist_id=42,
-            version_id=101,
-            meeting_id="m-abc",
-            meeting_date=date_(2026, 4, 15),
-            platform="zoom",
             clips=self._clips(2),
         )
 
-        assert entity_id == 7000
+        assert version_ids == [8001, 8002]
 
-        # Row creation: first create call, default entity slot + expected fields.
-        row_call = sg.create.call_args_list[0]
-        assert row_call[0][0] == "CustomEntity14"
-        row_payload = row_call[0][1]
-        assert row_payload["project"] == {"type": "Project", "id": 1}
-        assert row_payload["sg_playlist"] == {"type": "Playlist", "id": 42}
-        assert row_payload["sg_version_in_review"] == {"type": "Version", "id": 101}
-        assert row_payload["sg_meeting_id"] == "m-abc"
-        assert row_payload["sg_meeting_date"] == "2026-04-15"
-        assert row_payload["sg_platform"] == "zoom"
-        assert row_payload["code"]
-
-        # Two clip Versions created.
-        version_calls = [c for c in sg.create.call_args_list if c[0][0] == "Version"]
-        assert len(version_calls) == 2
+        # Only Versions are created (no custom-entity row).
+        assert all(c[0][0] == "Version" for c in sg.create.call_args_list)
+        assert len(sg.create.call_args_list) == 2
 
         # Each clip MP4 uploaded to the configured movie field.
         assert sg.upload.call_count == 2
@@ -549,86 +532,17 @@ class TestShotgridProviderPublishVideoSegments:
         assert up[0][2] == "/tmp/clip-0.mp4"
         assert up.kwargs["field_name"] == "sg_uploaded_movie"
 
-        # Clips linked back onto the row via the link field.
+        # Clips linked onto the *given* transcript row via the link field.
         link_update = sg.update.call_args
         assert link_update[0][0] == "CustomEntity14"
         assert link_update[0][1] == 7000
-        assert link_update[0][2]["sg_clips"] == [
+        assert link_update[0][2]["sg_versions"] == [
             {"type": "Version", "id": 8001},
             {"type": "Version", "id": 8002},
         ]
 
-    def test_publish_honours_entity_and_field_env_overrides(
-        self, provider, mock_shotgun
-    ):
-        from datetime import date as date_
-
-        sg = mock_shotgun.return_value
-        provider.sg = sg
-        sg.create.side_effect = [{"id": 7001}, {"id": 8003}]
-
-        with mock.patch.dict(
-            os.environ,
-            {
-                "SHOTGRID_VIDEO_SEGMENT_ENTITY": "CustomEntity07",
-                "SHOTGRID_CLIP_MOVIE_FIELD": "sg_movie",
-                "SHOTGRID_CLIP_LINK_FIELD": "sg_linked_clips",
-            },
-        ):
-            provider.publish_video_segments(
-                project_id=1,
-                playlist_id=42,
-                version_id=101,
-                meeting_id="m-abc",
-                meeting_date=date_(2026, 4, 15),
-                platform="zoom",
-                clips=self._clips(1),
-            )
-
-        assert sg.create.call_args_list[0][0][0] == "CustomEntity07"
-        assert sg.upload.call_args.kwargs["field_name"] == "sg_movie"
-        assert "sg_linked_clips" in sg.update.call_args[0][2]
-
-    def test_publish_with_no_clips_skips_link_update(self, provider, mock_shotgun):
-        from datetime import date as date_
-
-        sg = mock_shotgun.return_value
-        provider.sg = sg
-        sg.create.return_value = {"id": 7002}
-
-        entity_id = provider.publish_video_segments(
-            project_id=1,
-            playlist_id=42,
-            version_id=101,
-            meeting_id="m-abc",
-            meeting_date=date_(2026, 4, 15),
-            platform="zoom",
-            clips=[],
-        )
-
-        assert entity_id == 7002
-        sg.upload.assert_not_called()
-        sg.update.assert_not_called()
-
-    def test_publish_not_connected_raises(self, provider, mock_shotgun):
-        from datetime import date as date_
-
-        provider.sg = None
-        provider._sudo_connection = None
-        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
-            provider.publish_video_segments(
-                project_id=1,
-                playlist_id=42,
-                version_id=101,
-                meeting_id="m-abc",
-                meeting_date=date_(2026, 4, 15),
-                platform="zoom",
-                clips=self._clips(1),
-            )
-
-    def test_update_uses_caller_entity_type_not_env(self, provider, mock_shotgun):
-        from datetime import date as date_
-
+    def test_uses_caller_entity_type_not_env(self, provider, mock_shotgun):
+        """The row is the caller's (bookkeeping) slot, never re-read from env."""
         sg = mock_shotgun.return_value
         provider.sg = sg
         sg.create.return_value = {"id": 8005}
@@ -636,47 +550,60 @@ class TestShotgridProviderPublishVideoSegments:
         with mock.patch.dict(
             os.environ, {"SHOTGRID_VIDEO_SEGMENT_ENTITY": "CustomEntity99"}
         ):
-            ok = provider.update_video_segments(
+            provider.attach_clip_versions(
                 entity_type="CustomEntity02",
                 entity_id=7000,
                 project_id=1,
-                meeting_date=date_(2026, 4, 16),
                 clips=self._clips(1),
             )
 
-        assert ok is True
-        # Pinned to the bookkeeping slot, not the (now different) env slot.
         assert sg.update.call_args[0][0] == "CustomEntity02"
-        patch = sg.update.call_args[0][2]
-        assert patch["sg_meeting_date"] == "2026-04-16"
-        assert patch["sg_clips"] == [{"type": "Version", "id": 8005}]
+        assert sg.update.call_args[0][1] == 7000
 
-    def test_update_not_connected_returns_false(self, provider, mock_shotgun):
-        from datetime import date as date_
-
-        provider.sg = None
-        provider._sudo_connection = None
-        ok = provider.update_video_segments(
-            entity_type="CustomEntity02",
-            entity_id=7000,
-            project_id=1,
-            meeting_date=date_(2026, 4, 16),
-            clips=self._clips(1),
-        )
-        assert ok is False
-
-    def test_update_swallows_sg_errors_and_returns_false(self, provider, mock_shotgun):
-        from datetime import date as date_
-
+    def test_honours_field_env_overrides(self, provider, mock_shotgun):
         sg = mock_shotgun.return_value
         provider.sg = sg
-        sg.create.side_effect = Exception("sg boom")
+        sg.create.return_value = {"id": 8003}
 
-        ok = provider.update_video_segments(
-            entity_type="CustomEntity02",
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHOTGRID_CLIP_MOVIE_FIELD": "sg_movie",
+                "SHOTGRID_CLIP_LINK_FIELD": "sg_linked_clips",
+            },
+        ):
+            provider.attach_clip_versions(
+                entity_type="CustomEntity14",
+                entity_id=7000,
+                project_id=1,
+                clips=self._clips(1),
+            )
+
+        assert sg.upload.call_args.kwargs["field_name"] == "sg_movie"
+        assert "sg_linked_clips" in sg.update.call_args[0][2]
+
+    def test_with_no_clips_skips_link_update(self, provider, mock_shotgun):
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+
+        version_ids = provider.attach_clip_versions(
+            entity_type="CustomEntity14",
             entity_id=7000,
             project_id=1,
-            meeting_date=date_(2026, 4, 16),
-            clips=self._clips(1),
+            clips=[],
         )
-        assert ok is False
+
+        assert version_ids == []
+        sg.upload.assert_not_called()
+        sg.update.assert_not_called()
+
+    def test_not_connected_raises(self, provider, mock_shotgun):
+        provider.sg = None
+        provider._sudo_connection = None
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.attach_clip_versions(
+                entity_type="CustomEntity14",
+                entity_id=7000,
+                project_id=1,
+                clips=self._clips(1),
+            )

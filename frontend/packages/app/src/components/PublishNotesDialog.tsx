@@ -977,35 +977,37 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       version_id: d.version_id,
     }));
 
-    const [notesResult, transcriptResults, recordingResults] =
-      await Promise.all([
-        toPublish.length > 0
-          ? publishNotes({
-              playlistId,
-              request: { user_email: userEmail, targets },
-            })
-          : Promise.resolve({
-              published_count: 0,
-              republished_count: 0,
-              failed_count: 0,
-            }),
-        Promise.allSettled(
-          selectedTranscriptVersionIds.map((versionId) =>
-            publishTranscriptAsync({
-              playlistId,
-              request: { version_id: versionId },
-            })
-          )
-        ),
-        Promise.allSettled(
-          selectedRecordingVersionIds.map((versionId) =>
-            publishVideoSegmentsAsync({
-              playlistId,
-              request: { version_id: versionId, recording_id: recordingId! },
-            })
-          )
-        ),
-      ]);
+    // Notes + transcripts first. Recordings piggyback on the transcript row,
+    // so they must run *after* the transcript publish has created/updated it.
+    const [notesResult, transcriptResults] = await Promise.all([
+      toPublish.length > 0
+        ? publishNotes({
+            playlistId,
+            request: { user_email: userEmail, targets },
+          })
+        : Promise.resolve({
+            published_count: 0,
+            republished_count: 0,
+            failed_count: 0,
+          }),
+      Promise.allSettled(
+        selectedTranscriptVersionIds.map((versionId) =>
+          publishTranscriptAsync({
+            playlistId,
+            request: { version_id: versionId },
+          })
+        )
+      ),
+    ]);
+
+    const recordingResults = await Promise.allSettled(
+      selectedRecordingVersionIds.map((versionId) =>
+        publishVideoSegmentsAsync({
+          playlistId,
+          request: { version_id: versionId, recording_id: recordingId! },
+        })
+      )
+    );
 
     const transcriptPublishedCount = transcriptResults.filter(
       (r) =>

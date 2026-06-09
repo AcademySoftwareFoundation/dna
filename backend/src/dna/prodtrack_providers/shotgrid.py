@@ -1099,65 +1099,28 @@ class ShotgridProvider(ProdtrackProviderBase):
             refs.append({"type": "Version", "id": version["id"]})
         return refs
 
-    def publish_video_segments(
-        self,
-        *,
-        project_id: int,
-        playlist_id: int,
-        version_id: int,
-        meeting_id: str,
-        meeting_date: date,
-        platform: str,
-        clips: list["VideoSegmentClipPayload"],
-    ) -> int:
-        """Create a video-segment row + a Version per clip, linked to the row."""
-        if not self._sg:
-            raise ValueError("Not connected to ShotGrid")
-
-        entity_type = _video_segment_entity_type()
-        code = f"clips-{version_id}-{meeting_date.isoformat()}"
-        payload: dict[str, Any] = {
-            "code": code,
-            "project": {"type": "Project", "id": project_id},
-            "sg_playlist": {"type": "Playlist", "id": playlist_id},
-            "sg_version_in_review": {"type": "Version", "id": version_id},
-            "sg_meeting_id": meeting_id,
-            "sg_meeting_date": meeting_date.isoformat(),
-            "sg_platform": platform,
-        }
-        result = self._sg.create(entity_type, payload)
-        entity_id = result["id"]
-
-        clip_refs = self._upload_clip_versions(project_id, clips)
-        if clip_refs:
-            self._sg.update(entity_type, entity_id, {_clip_link_field(): clip_refs})
-        return entity_id
-
-    def update_video_segments(
+    def attach_clip_versions(
         self,
         *,
         entity_type: str,
         entity_id: int,
         project_id: int,
-        meeting_date: date,
         clips: list["VideoSegmentClipPayload"],
-    ) -> bool:
-        """Re-render path: create new clip Versions and re-link to the row.
+    ) -> list[int]:
+        """Create a Version per clip and link them onto the transcript row.
 
-        `entity_type` is the slot from bookkeeping, never re-read from env. V1
-        does not prune previously-linked Versions; that is a follow-up.
+        `entity_type`/`entity_id` identify the existing transcript row (from
+        bookkeeping); the clip Versions are set on its link field (sg_versions).
+        Replacing the link field is intentional: a re-publish supersedes the
+        prior clips for this row. V1 does not prune the now-orphaned Versions.
         """
         if not self._sg:
-            return False
-        try:
-            clip_refs = self._upload_clip_versions(project_id, clips)
-            patch: dict[str, Any] = {"sg_meeting_date": meeting_date.isoformat()}
-            if clip_refs:
-                patch[_clip_link_field()] = clip_refs
-            self._sg.update(entity_type, entity_id, patch)
-            return True
-        except Exception:
-            return False
+            raise ValueError("Not connected to ShotGrid")
+
+        clip_refs = self._upload_clip_versions(project_id, clips)
+        if clip_refs:
+            self._sg.update(entity_type, entity_id, {_clip_link_field(): clip_refs})
+        return [ref["id"] for ref in clip_refs]
 
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:

@@ -1444,15 +1444,20 @@ async def publish_video_segments(
 
     # All clips of a version share the version's cut-list hash.
     body_hash = clips[0].body_hash
-    meeting_date = recording.recording_t0.date()
 
-    metadata = await storage.get_playlist_metadata(playlist_id)
-    if metadata is None or not metadata.platform:
-        # Empty platform would be rejected downstream as an opaque SG schema
-        # fault; surface a clean 422 instead.
+    # Clips piggyback on the transcript publish: attach them to the row the
+    # transcript created for this (playlist, version, meeting), so the clip
+    # lands alongside the matching transcript + correct Version-In-Review.
+    transcript = await storage.get_published_transcript(
+        playlist_id, request.version_id, recording.meeting_id
+    )
+    if transcript is None:
         raise HTTPException(
             status_code=422,
-            detail="Playlist metadata has no platform recorded",
+            detail=(
+                "No published transcript for this version yet; recordings attach "
+                "to the transcript row, so publish the transcript first."
+            ),
         )
 
     existing = await storage.get_published_video_segments(
@@ -1490,41 +1495,21 @@ async def publish_video_segments(
         for i, clip in enumerate(clips)
     ]
 
+    # entity_type comes from the transcript bookkeeping, not env — the slot may
+    # have migrated since the transcript row was created.
     try:
-        if existing:
-            # entity_type comes from bookkeeping, not env — the slot may have
-            # migrated since the row was created.
-            updated = prodtrack.update_video_segments(
-                entity_type=existing.entity_type,
-                entity_id=existing.entity_id,
-                project_id=project_id,
-                meeting_date=meeting_date,
-                clips=clip_payloads,
-            )
-            if not updated:
-                # Raise (and skip the bookkeeping upsert) so the next call
-                # doesn't see a matching body_hash and incorrectly skip.
-                raise HTTPException(
-                    status_code=502,
-                    detail="Failed to update clips on the tracking system",
-                )
-            entity_id = existing.entity_id
-            entity_type = existing.entity_type
-            outcome = "updated"
-        else:
-            entity_id = prodtrack.publish_video_segments(
-                project_id=project_id,
-                playlist_id=playlist_id,
-                version_id=request.version_id,
-                meeting_id=recording.meeting_id,
-                meeting_date=meeting_date,
-                platform=metadata.platform,
-                clips=clip_payloads,
-            )
-            entity_type = os.getenv("SHOTGRID_VIDEO_SEGMENT_ENTITY", "CustomEntity14")
-            outcome = "created"
+        prodtrack.attach_clip_versions(
+            entity_type=transcript.entity_type,
+            entity_id=transcript.entity_id,
+            project_id=project_id,
+            clips=clip_payloads,
+        )
     except NotImplementedError as e:
         raise HTTPException(status_code=501, detail=str(e))
+
+    entity_id = transcript.entity_id
+    entity_type = transcript.entity_type
+    outcome = "updated" if existing else "created"
 
     try:
         await storage.upsert_published_video_segments(
@@ -1541,23 +1526,19 @@ async def publish_video_segments(
             )
         )
     except Exception as e:
-        # SG row exists but local bookkeeping didn't make it. The next call
-        # with the same body would see existing=None and create a duplicate SG
-        # row. Surface entity_id so an operator can reconcile, and signal that
-        # blind retry is unsafe.
+        # Clips are attached on the tracking system but local bookkeeping didn't
+        # make it. A retry would re-attach (replacing the same field) — safe —
+        # but surface the row id so an operator can confirm, and log it.
         logger.exception(
-            "Video segments %s created on tracking system id=%s but local "
-            "bookkeeping failed. Next publish will create a duplicate unless "
-            "the SG row is removed or the bookkeeping row is written manually.",
-            outcome,
+            "Clips attached to transcript row id=%s but local bookkeeping "
+            "failed; re-publish will re-attach.",
             entity_id,
         )
         raise HTTPException(
             status_code=500,
             detail=(
-                f"Clip row {entity_id} was {outcome} on the tracking system but "
-                f"local bookkeeping failed ({e.__class__.__name__}). Do not "
-                f"retry blindly; reconcile the row manually."
+                f"Clips were attached to transcript row {entity_id} but local "
+                f"bookkeeping failed ({e.__class__.__name__})."
             ),
         )
 

@@ -544,39 +544,18 @@ class TestMockPublishTranscript:
 
 
 class TestMockPublishVideoSegments:
-    """Mock provider can't write to SG; video-segment publish/update must raise."""
+    """Mock provider can't write to SG; attaching clip versions must raise."""
 
-    def test_publish_video_segments_raises_with_user_facing_message(self, tmp_path):
-        from datetime import date as date_
-
+    def test_attach_clip_versions_raises_with_user_facing_message(self, tmp_path):
         db_path = tmp_path / "mock.db"
         _create_seeded_db(db_path)
         provider = MockProdtrackProvider(db_path=db_path)
 
         with pytest.raises(NotImplementedError, match="live ShotGrid connection"):
-            provider.publish_video_segments(
-                project_id=1,
-                playlist_id=400,
-                version_id=300,
-                meeting_id="m-1",
-                meeting_date=date_(2026, 4, 15),
-                platform="zoom",
-                clips=[],
-            )
-
-    def test_update_video_segments_raises_with_user_facing_message(self, tmp_path):
-        from datetime import date as date_
-
-        db_path = tmp_path / "mock.db"
-        _create_seeded_db(db_path)
-        provider = MockProdtrackProvider(db_path=db_path)
-
-        with pytest.raises(NotImplementedError, match="live ShotGrid connection"):
-            provider.update_video_segments(
-                entity_type="CustomEntity02",
+            provider.attach_clip_versions(
+                entity_type="CustomEntity14",
                 entity_id=9001,
                 project_id=1,
-                meeting_date=date_(2026, 4, 15),
                 clips=[],
             )
 

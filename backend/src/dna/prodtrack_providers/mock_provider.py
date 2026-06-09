@@ -617,13 +617,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             "Set PRODTRACK_PROVIDER=shotgrid to use it."
         )
 
-    def publish_video_segments(self, **_: object) -> int:
-        raise NotImplementedError(
-            "Video segment publishing requires a live ShotGrid connection. "
-            "Set PRODTRACK_PROVIDER=shotgrid to use it."
-        )
-
-    def update_video_segments(self, **_: object) -> bool:
+    def attach_clip_versions(self, **_: object) -> list[int]:
         raise NotImplementedError(
             "Video segment publishing requires a live ShotGrid connection. "
             "Set PRODTRACK_PROVIDER=shotgrid to use it."
