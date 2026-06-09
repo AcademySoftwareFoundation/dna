@@ -346,4 +346,9 @@ def get_llm_provider() -> LLMProviderBase:
 
         return OpenAIProvider()
 
+    if provider_type == "custom":
+        from dna.llm_providers.custom_provider import CustomProvider
+
+        return CustomProvider()
+
     raise ValueError(f"Unknown LLM provider: {provider_type}")
