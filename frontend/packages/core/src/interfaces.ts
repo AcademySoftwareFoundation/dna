@@ -481,6 +481,45 @@ export interface PublishTranscriptParams {
   request: PublishTranscriptRequest;
 }
 
+export interface RecordingClipInfo {
+  clip_id: string;
+  version_id: number;
+  thumb_id: string;
+  duration_seconds: number;
+  video_in_seconds: number;
+  video_out_seconds: number;
+}
+
+export interface UploadRecordingResponse {
+  recording_id: string;
+  clips: RecordingClipInfo[];
+}
+
+export interface UploadRecordingParams {
+  playlistId: number;
+  // The Zoom recording folder name, e.g. "2026-05-27 06.44.49 ... Meeting".
+  // The browser does not send it with the file, so it is passed explicitly.
+  folderName: string;
+  file: File;
+}
+
+export interface PublishVideoSegmentsRequest {
+  version_id: number;
+  recording_id: string;
+}
+
+export interface PublishVideoSegmentsResponse {
+  video_segment_entity_id: number;
+  outcome: 'created' | 'updated' | 'skipped';
+  skipped_reason?: string | null;
+  clips_count: number;
+}
+
+export interface PublishVideoSegmentsParams {
+  playlistId: number;
+  request: PublishVideoSegmentsRequest;
+}
+
 export type NoteQCSeverity = 'warning' | 'error';
 
 export interface NoteQCCheck {

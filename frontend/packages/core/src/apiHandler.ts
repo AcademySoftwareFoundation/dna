@@ -26,6 +26,10 @@ import {
   PublishNotesResponse,
   PublishTranscriptParams,
   PublishTranscriptResponse,
+  PublishVideoSegmentsParams,
+  PublishVideoSegmentsResponse,
+  UploadRecordingParams,
+  UploadRecordingResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -321,6 +325,31 @@ class ApiHandler {
     );
   }
 
+  async uploadRecording(
+    params: UploadRecordingParams
+  ): Promise<UploadRecordingResponse> {
+    const formData = new FormData();
+    formData.append('file', params.file);
+    formData.append('playlist_id', String(params.playlistId));
+    // Folder name carries the recording start time; the browser drops it from
+    // the file, so it must be sent as its own field.
+    formData.append('folder_name', params.folderName);
+    const response = await this.axiosInstance.postForm<UploadRecordingResponse>(
+      '/api/recordings/upload',
+      formData
+    );
+    return response.data;
+  }
+
+  async publishVideoSegments(
+    params: PublishVideoSegmentsParams
+  ): Promise<PublishVideoSegmentsResponse> {
+    return this.post<PublishVideoSegmentsResponse>(
+      `/playlists/${params.playlistId}/publish-video-segments`,
+      params.request
+    );
+  }
+
   async getQCChecks(params: GetQCChecksParams): Promise<NoteQCCheck[]> {
     const rows = await this.get<(NoteQCCheck & { id?: string })[]>(
       `/users/${encodeURIComponent(params.userEmail)}/qc-checks`
@@ -359,7 +388,9 @@ class ApiHandler {
     return body.results;
   }
 
-  async uploadAttachment(file: File): Promise<{ id: string; filename: string }> {
+  async uploadAttachment(
+    file: File
+  ): Promise<{ id: string; filename: string }> {
     const formData = new FormData();
     formData.append('file', file);
     const response = await this.axiosInstance.postForm<{

@@ -10,6 +10,7 @@ describe('ApiHandler', () => {
   let mockAxiosInstance: {
     get: ReturnType<typeof vi.fn>;
     post: ReturnType<typeof vi.fn>;
+    postForm: ReturnType<typeof vi.fn>;
     put: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
     interceptors: {
@@ -26,6 +27,7 @@ describe('ApiHandler', () => {
     mockAxiosInstance = {
       get: vi.fn(),
       post: vi.fn(),
+      postForm: vi.fn(),
       put: vi.fn(),
       delete: vi.fn(),
       interceptors: {
@@ -701,6 +703,74 @@ describe('ApiHandler', () => {
       expect(result.outcome).toBe('created');
       expect(result.transcript_entity_id).toBe(9001);
       expect(result.segments_count).toBe(12);
+    });
+  });
+
+  describe('uploadRecording', () => {
+    it('posts multipart form with file, playlist_id and folder_name', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.postForm.mockResolvedValue({
+        data: {
+          recording_id: 'rec-1',
+          clips: [
+            {
+              clip_id: 'c1',
+              version_id: 101,
+              thumb_id: 't1',
+              duration_seconds: 10,
+              video_in_seconds: 300,
+              video_out_seconds: 310,
+            },
+          ],
+        },
+      });
+      const file = new File(['x'], 'zoom_0.mp4', { type: 'video/mp4' });
+
+      const result = await api.uploadRecording({
+        playlistId: 42,
+        folderName: "2026-05-27 06.44.49 Cameron Target's Zoom Meeting",
+        file,
+      });
+
+      expect(mockAxiosInstance.postForm).toHaveBeenCalledTimes(1);
+      const [url, formData] = mockAxiosInstance.postForm.mock.calls[0];
+      expect(url).toBe('/api/recordings/upload');
+      expect(formData.get('playlist_id')).toBe('42');
+      expect(formData.get('folder_name')).toBe(
+        "2026-05-27 06.44.49 Cameron Target's Zoom Meeting"
+      );
+      expect(formData.get('file')).toBe(file);
+      expect(result.recording_id).toBe('rec-1');
+      expect(result.clips).toHaveLength(1);
+      expect(result.clips[0].thumb_id).toBe('t1');
+    });
+  });
+
+  describe('publishVideoSegments', () => {
+    it('posts to the publish-video-segments endpoint and returns the response', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.post.mockResolvedValue({
+        data: {
+          video_segment_entity_id: 7000,
+          outcome: 'created',
+          skipped_reason: null,
+          clips_count: 3,
+        },
+      });
+
+      const result = await api.publishVideoSegments({
+        playlistId: 42,
+        request: { version_id: 101, recording_id: 'rec-1' },
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/playlists/42/publish-video-segments',
+        { version_id: 101, recording_id: 'rec-1' },
+        undefined
+      );
+      expect(result.outcome).toBe('created');
+      expect(result.video_segment_entity_id).toBe(7000);
+      expect(result.clips_count).toBe(3);
     });
   });
 
