@@ -17,6 +17,10 @@ if TYPE_CHECKING:
         PublishedTranscript,
         PublishedTranscriptUpdate,
     )
+    from dna.models.published_video_segments import (
+        PublishedVideoSegments,
+        PublishedVideoSegmentsUpdate,
+    )
     from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCCheckUpdate
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
     from dna.models.user_settings import UserSettings, UserSettingsUpdate
@@ -150,6 +154,22 @@ class StorageProviderBase:
 
         Upsert key is (playlist_id, version_id, meeting_id). A re-publish with a
         different body_hash overwrites the existing row rather than inserting.
+        """
+        raise NotImplementedError()
+
+    async def get_published_video_segments(
+        self, playlist_id: int, version_id: int, meeting_id: str, recording_id: str
+    ) -> Optional["PublishedVideoSegments"]:
+        """Get the bookkeeping row for a published clip set."""
+        raise NotImplementedError()
+
+    async def upsert_published_video_segments(
+        self, data: "PublishedVideoSegmentsUpdate"
+    ) -> "PublishedVideoSegments":
+        """Create or update the published-video-segments bookkeeping row.
+
+        Upsert key is (playlist_id, version_id, meeting_id, recording_id). A
+        re-publish with a different body_hash overwrites the mutable fields.
         """
         raise NotImplementedError()
 

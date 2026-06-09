@@ -39,6 +39,10 @@ from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
 )
+from dna.models.published_video_segments import (
+    PublishedVideoSegments,
+    PublishedVideoSegmentsUpdate,
+)
 from dna.models.qc_check import (
     DEFAULT_ACTION_ITEM_CHECK,
     NoteQCAttributeSuggestion,
@@ -63,6 +67,8 @@ from dna.models.requests import (
     PublishNoteTarget,
     PublishTranscriptRequest,
     PublishTranscriptResponse,
+    PublishVideoSegmentsRequest,
+    PublishVideoSegmentsResponse,
     SearchRequest,
     SearchResult,
     StatusOption,
@@ -113,6 +119,8 @@ __all__ = [
     "PublishNotesResponse",
     "PublishTranscriptRequest",
     "PublishTranscriptResponse",
+    "PublishVideoSegmentsRequest",
+    "PublishVideoSegmentsResponse",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",
@@ -128,6 +136,8 @@ __all__ = [
     "VideoSegmentClipPayload",
     "PublishedTranscript",
     "PublishedTranscriptUpdate",
+    "PublishedVideoSegments",
+    "PublishedVideoSegmentsUpdate",
     "StoredSegment",
     "StoredSegmentCreate",
     "BotSession",

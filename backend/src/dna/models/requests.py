@@ -143,3 +143,23 @@ class PublishTranscriptResponse(BaseModel):
     outcome: str = Field(description="created | updated | skipped")
     skipped_reason: Optional[str] = None
     segments_count: int
+
+
+class PublishVideoSegmentsRequest(BaseModel):
+    """Request to publish a version's rendered recording clips."""
+
+    version_id: int = Field(description="Version whose clips to publish")
+    recording_id: str = Field(
+        description="Recording (from /api/recordings/upload) the clips came from"
+    )
+
+
+class PublishVideoSegmentsResponse(BaseModel):
+    """Response from the publish-video-segments endpoint."""
+
+    video_segment_entity_id: int = Field(
+        description="Entity ID of the row in the tracking system"
+    )
+    outcome: str = Field(description="created | updated | skipped")
+    skipped_reason: Optional[str] = None
+    clips_count: int

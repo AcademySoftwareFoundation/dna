@@ -50,10 +50,13 @@ from dna.models import (
     PlaylistMetadataUpdate,
     Project,
     PublishedTranscriptUpdate,
+    PublishedVideoSegmentsUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
     PublishTranscriptRequest,
     PublishTranscriptResponse,
+    PublishVideoSegmentsRequest,
+    PublishVideoSegmentsResponse,
     RecordingClip,
     RecordingClipInfo,
     RecordingUploadResponse,
@@ -71,6 +74,7 @@ from dna.models import (
     UserSettingsResponse,
     UserSettingsUpdate,
     Version,
+    VideoSegmentClipPayload,
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.note_prompt_config import get_default_note_prompt
@@ -1365,6 +1369,174 @@ async def publish_transcript(
         transcript_entity_id=entity_id,
         outcome=outcome,
         segments_count=payload.segments_count,
+    )
+
+
+@app.post(
+    "/playlists/{playlist_id}/publish-video-segments",
+    tags=["Playlists", "Recordings"],
+    summary="Publish a version's rendered recording clips",
+    description=(
+        "Push a version's already-rendered clips (from a prior recording "
+        "upload) to the production tracking system as Versions linked to the "
+        "video-segment custom entity. Idempotent via the cut-list body_hash."
+    ),
+    response_model=PublishVideoSegmentsResponse,
+)
+async def publish_video_segments(
+    playlist_id: int,
+    request: PublishVideoSegmentsRequest,
+    storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
+    current_user: CurrentUserDep,
+) -> PublishVideoSegmentsResponse:
+    """Publish one version's clips; skip when the cut-list body_hash is unchanged."""
+    if not _video_segment_publish_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    logger = logging.getLogger(__name__)
+
+    recording = await storage.get_meeting_recording(request.recording_id)
+    if recording is None or recording.playlist_id != playlist_id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    if not recording.meeting_id:
+        # The bookkeeping key needs a meeting id; a recording uploaded without a
+        # meeting association can't be published idempotently.
+        raise HTTPException(
+            status_code=422,
+            detail="Recording has no meeting associated; cannot publish",
+        )
+
+    clips = [c for c in recording.clips if c.version_id == request.version_id]
+    if not clips:
+        raise HTTPException(
+            status_code=422,
+            detail="No rendered clips for this version; nothing to publish",
+        )
+
+    # All clips of a version share the version's cut-list hash.
+    body_hash = clips[0].body_hash
+    meeting_date = recording.recording_t0.date()
+
+    metadata = await storage.get_playlist_metadata(playlist_id)
+    if metadata is None or not metadata.platform:
+        # Empty platform would be rejected downstream as an opaque SG schema
+        # fault; surface a clean 422 instead.
+        raise HTTPException(
+            status_code=422,
+            detail="Playlist metadata has no platform recorded",
+        )
+
+    existing = await storage.get_published_video_segments(
+        playlist_id, request.version_id, recording.meeting_id, request.recording_id
+    )
+    if existing and existing.body_hash == body_hash:
+        return PublishVideoSegmentsResponse(
+            video_segment_entity_id=existing.entity_id,
+            outcome="skipped",
+            skipped_reason="no_changes_since_last_publish",
+            clips_count=len(clips),
+        )
+
+    try:
+        version = prodtrack.get_entity(
+            "version", request.version_id, resolve_links=False
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Version.project is a dict {type, id, name}, not an object.
+    project_ref = getattr(version, "project", None)
+    project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
+    if project_id is None:
+        raise HTTPException(status_code=404, detail="Version has no project associated")
+
+    clip_payloads = [
+        VideoSegmentClipPayload(
+            code=f"v{request.version_id}-clip{i + 1}",
+            file_path=str(ATTACHMENT_STORE_DIR / clip.clip_id / clip.filename),
+            video_in_seconds=clip.video_in_seconds,
+            video_out_seconds=clip.video_out_seconds,
+            duration_seconds=clip.duration_seconds,
+        )
+        for i, clip in enumerate(clips)
+    ]
+
+    try:
+        if existing:
+            # entity_type comes from bookkeeping, not env — the slot may have
+            # migrated since the row was created.
+            updated = prodtrack.update_video_segments(
+                entity_type=existing.entity_type,
+                entity_id=existing.entity_id,
+                project_id=project_id,
+                meeting_date=meeting_date,
+                clips=clip_payloads,
+            )
+            if not updated:
+                # Raise (and skip the bookkeeping upsert) so the next call
+                # doesn't see a matching body_hash and incorrectly skip.
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to update clips on the tracking system",
+                )
+            entity_id = existing.entity_id
+            entity_type = existing.entity_type
+            outcome = "updated"
+        else:
+            entity_id = prodtrack.publish_video_segments(
+                project_id=project_id,
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=recording.meeting_id,
+                meeting_date=meeting_date,
+                platform=metadata.platform,
+                clips=clip_payloads,
+            )
+            entity_type = os.getenv("SHOTGRID_VIDEO_SEGMENT_ENTITY", "CustomEntity14")
+            outcome = "created"
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+
+    try:
+        await storage.upsert_published_video_segments(
+            PublishedVideoSegmentsUpdate(
+                playlist_id=playlist_id,
+                version_id=request.version_id,
+                meeting_id=recording.meeting_id,
+                recording_id=request.recording_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                author_email=current_user,
+                body_hash=body_hash,
+                clips_count=len(clips),
+            )
+        )
+    except Exception as e:
+        # SG row exists but local bookkeeping didn't make it. The next call
+        # with the same body would see existing=None and create a duplicate SG
+        # row. Surface entity_id so an operator can reconcile, and signal that
+        # blind retry is unsafe.
+        logger.exception(
+            "Video segments %s created on tracking system id=%s but local "
+            "bookkeeping failed. Next publish will create a duplicate unless "
+            "the SG row is removed or the bookkeeping row is written manually.",
+            outcome,
+            entity_id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Clip row {entity_id} was {outcome} on the tracking system but "
+                f"local bookkeeping failed ({e.__class__.__name__}). Do not "
+                f"retry blindly; reconcile the row manually."
+            ),
+        )
+
+    return PublishVideoSegmentsResponse(
+        video_segment_entity_id=entity_id,
+        outcome=outcome,
+        clips_count=len(clips),
     )
 
 

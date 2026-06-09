@@ -17,6 +17,10 @@ from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
 )
+from dna.models.published_video_segments import (
+    PublishedVideoSegments,
+    PublishedVideoSegmentsUpdate,
+)
 from dna.models.qc_check import (
     DEFAULT_ACTION_ITEM_CHECK,
     NoteQCCheck,
@@ -63,6 +67,16 @@ class MongoDBStorageProvider(StorageProviderBase):
             unique=True,
             name="meeting_recordings_by_id",
         )
+        await self.published_video_segments_collection.create_index(
+            [
+                ("playlist_id", 1),
+                ("version_id", 1),
+                ("meeting_id", 1),
+                ("recording_id", 1),
+            ],
+            unique=True,
+            name="published_video_segments_key",
+        )
         self._indexes_ensured = True
 
     @property
@@ -99,6 +113,10 @@ class MongoDBStorageProvider(StorageProviderBase):
     @property
     def meeting_recordings_collection(self) -> Any:
         return self.db.meeting_recordings
+
+    @property
+    def published_video_segments_collection(self) -> Any:
+        return self.db.published_video_segments
 
     @property
     def qc_checks_collection(self) -> Any:
@@ -454,6 +472,52 @@ class MongoDBStorageProvider(StorageProviderBase):
         )
         result["_id"] = str(result["_id"])
         return PublishedTranscript(**result)
+
+    async def get_published_video_segments(
+        self, playlist_id: int, version_id: int, meeting_id: str, recording_id: str
+    ) -> Optional[PublishedVideoSegments]:
+        """Fetch the bookkeeping row for a previously published clip set."""
+        query = {
+            "playlist_id": playlist_id,
+            "version_id": version_id,
+            "meeting_id": meeting_id,
+            "recording_id": recording_id,
+        }
+        doc = await self.published_video_segments_collection.find_one(query)
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return PublishedVideoSegments(**doc)
+        return None
+
+    async def upsert_published_video_segments(
+        self, data: PublishedVideoSegmentsUpdate
+    ) -> PublishedVideoSegments:
+        """Insert or overwrite the bookkeeping row for a published clip set."""
+        now = datetime.now(timezone.utc)
+        query = {
+            "playlist_id": data.playlist_id,
+            "version_id": data.version_id,
+            "meeting_id": data.meeting_id,
+            "recording_id": data.recording_id,
+        }
+        # Composite key only on insert; mutable fields go in $set.
+        payload = data.model_dump()
+        set_on_insert = {
+            "playlist_id": payload.pop("playlist_id"),
+            "version_id": payload.pop("version_id"),
+            "meeting_id": payload.pop("meeting_id"),
+            "recording_id": payload.pop("recording_id"),
+            "created_at": now,
+        }
+        update: dict[str, Any] = {
+            "$set": {**payload, "updated_at": now},
+            "$setOnInsert": set_on_insert,
+        }
+        result = await self.published_video_segments_collection.find_one_and_update(
+            query, update, upsert=True, return_document=ReturnDocument.AFTER
+        )
+        result["_id"] = str(result["_id"])
+        return PublishedVideoSegments(**result)
 
     async def get_qc_checks(self, user_email: str) -> list[NoteQCCheck]:
         query = {"user_email": user_email}
