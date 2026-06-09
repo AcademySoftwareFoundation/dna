@@ -37,9 +37,15 @@ class MeetingRecordingCreate(BaseModel):
     recording_id: str
     playlist_id: int
     meeting_id: Optional[str] = None
-    folder_name: str = Field(description="Zoom folder name the start time came from")
+    folder_name: Optional[str] = Field(
+        default=None, description="Zoom folder name, when the start time came from one"
+    )
     recording_t0: datetime = Field(
         description="UTC instant of the recording's 00:00:00"
+    )
+    recording_t0_source: str = Field(
+        default="meeting_end",
+        description="How t0 was derived: meeting_end | zoom_folder",
     )
     duration_seconds: float
     clips: list[RecordingClip] = Field(default_factory=list)

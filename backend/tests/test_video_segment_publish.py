@@ -14,6 +14,7 @@ from dna.models.stored_segment import StoredSegment
 from dna.video_segment_publish import (
     build_video_cuts_payload,
     parse_recording_t0_from_zoom_folder,
+    recording_t0_from_meeting_end,
 )
 
 
@@ -100,6 +101,38 @@ class TestParseRecordingT0FromZoomFolder:
     def test_empty_folder_name_raises_value_error(self):
         with pytest.raises(ValueError):
             parse_recording_t0_from_zoom_folder("")
+
+
+class TestRecordingT0FromMeetingEnd:
+    """t0 derived by working backward from the bot-leave (meeting end) time."""
+
+    def test_subtracts_duration_from_end(self):
+        ended = datetime(2026, 5, 27, 11, 0, 0, tzinfo=timezone.utc)
+        t0 = recording_t0_from_meeting_end(ended, 3600.0)
+        assert t0 == datetime(2026, 5, 27, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_positive_offset_shifts_t0_later(self):
+        ended = datetime(2026, 5, 27, 11, 0, 0, tzinfo=timezone.utc)
+        t0 = recording_t0_from_meeting_end(ended, 3600.0, offset_seconds=5.0)
+        assert t0 == datetime(2026, 5, 27, 10, 0, 5, tzinfo=timezone.utc)
+
+    def test_negative_offset_shifts_t0_earlier(self):
+        ended = datetime(2026, 5, 27, 11, 0, 0, tzinfo=timezone.utc)
+        t0 = recording_t0_from_meeting_end(ended, 3600.0, offset_seconds=-10.0)
+        assert t0 == datetime(2026, 5, 27, 9, 59, 50, tzinfo=timezone.utc)
+
+    def test_naive_end_treated_as_utc(self):
+        ended = datetime(2026, 5, 27, 11, 0, 0)  # naive
+        t0 = recording_t0_from_meeting_end(ended, 600.0)
+        assert t0 == datetime(2026, 5, 27, 10, 50, 0, tzinfo=timezone.utc)
+        assert t0.tzinfo == timezone.utc
+
+    def test_non_utc_end_converted(self):
+        ended = datetime(
+            2026, 5, 27, 7, 0, 0, tzinfo=ZoneInfo("America/New_York")
+        )  # 11:00 UTC (EDT)
+        t0 = recording_t0_from_meeting_end(ended, 3600.0)
+        assert t0 == datetime(2026, 5, 27, 10, 0, 0, tzinfo=timezone.utc)
 
 
 class TestBuildVideoCutsPayload:

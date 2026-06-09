@@ -322,6 +322,30 @@ class TranscriptionService:
         platform = payload.get("platform")
         meeting_id = payload.get("meeting_id")
 
+        # Record when the bot left as the wallclock anchor for recording
+        # alignment. DNA's receipt of this event approximates the recording's
+        # end; the video segmenter derives t0 = ended_at - recording_duration.
+        if meeting_id and self.storage_provider is not None:
+            try:
+                meta = await self.storage_provider.get_playlist_metadata_by_meeting_id(
+                    meeting_id
+                )
+                if meta is not None:
+                    from dna.models.playlist_metadata import PlaylistMetadataUpdate
+
+                    await self.storage_provider.upsert_playlist_metadata(
+                        meta.playlist_id,
+                        PlaylistMetadataUpdate(
+                            transcription_ended_at=datetime.now(timezone.utc)
+                        ),
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to record transcription end time for meeting %s: %s",
+                    meeting_id,
+                    e,
+                )
+
         if platform and meeting_id:
             meeting_key = f"{platform}:{meeting_id}"
 

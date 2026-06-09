@@ -23,6 +23,12 @@ class PlaylistMetadataUpdate(BaseModel):
     transcription_paused: Optional[bool] = Field(
         default=None, description="Whether transcription storage is paused"
     )
+    transcription_ended_at: Optional[datetime] = Field(
+        default=None,
+        description="UTC instant the bot left / transcription completed. Used as "
+        "the wallclock anchor to align an uploaded recording (t0 = ended_at - "
+        "recording_duration).",
+    )
     clear_resumed_at: bool = Field(
         default=False,
         description="If True, clears transcription_resumed_at. "
@@ -46,4 +52,9 @@ class PlaylistMetadata(BaseModel):
         default=None,
         description="Timestamp when transcription was last resumed. "
         "Segments with start time before this are discarded.",
+    )
+    transcription_ended_at: Optional[datetime] = Field(
+        default=None,
+        description="UTC instant the bot left / transcription completed; the "
+        "wallclock anchor for aligning an uploaded recording.",
     )

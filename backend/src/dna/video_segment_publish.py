@@ -15,7 +15,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from zoneinfo import ZoneInfo
 
@@ -90,6 +90,32 @@ def parse_recording_t0_from_zoom_folder(folder_name: str) -> datetime:
         tzinfo=_recording_timezone(),
     )
     return local.astimezone(timezone.utc)
+
+
+def recording_t0_from_meeting_end(
+    transcription_ended_at: datetime,
+    recording_duration_seconds: float,
+    offset_seconds: float = 0.0,
+) -> datetime:
+    """Derive the recording's UTC t0 by working backward from the bot-leave time.
+
+    ``transcription_ended_at`` (when the bot left / transcription completed)
+    approximates the recording's *end*; subtracting the file duration yields the
+    instant of the recording's 00:00:00:
+
+        t0 = transcription_ended_at - recording_duration + offset
+
+    ``offset_seconds`` is a manual nudge for drift between the bot-leave instant
+    and the recording's actual last frame (independent clocks). Naive datetimes
+    are treated as UTC.
+    """
+    if transcription_ended_at.tzinfo is None:
+        ended = transcription_ended_at.replace(tzinfo=timezone.utc)
+    else:
+        ended = transcription_ended_at.astimezone(timezone.utc)
+    return ended - timedelta(seconds=recording_duration_seconds) + timedelta(
+        seconds=offset_seconds
+    )
 
 
 def _parse_utc(raw: str) -> datetime:

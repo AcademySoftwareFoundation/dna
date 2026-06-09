@@ -53,6 +53,21 @@ def _metadata() -> PlaylistMetadata:
     )
 
 
+# Meeting ended at 11:00:00Z; with a 3600s recording, t0 works back to 10:00:00Z.
+ENDED_AT = datetime(2026, 5, 27, 11, 0, 0, tzinfo=timezone.utc)
+MEETING_END_T0 = datetime(2026, 5, 27, 10, 0, 0, tzinfo=timezone.utc)
+
+
+def _metadata_with_end() -> PlaylistMetadata:
+    return PlaylistMetadata(
+        _id="meta",
+        playlist_id=42,
+        meeting_id="m-abc",
+        platform="google_meet",
+        transcription_ended_at=ENDED_AT,
+    )
+
+
 def _fake_render(source, dest, *, start_seconds, end_seconds):
     Path(dest).parent.mkdir(parents=True, exist_ok=True)
     Path(dest).write_bytes(b"fake-clip")
@@ -284,4 +299,76 @@ class TestUploadRecordingEndpoint:
             resp = self._post(client)
 
         assert resp.status_code == 422
+        assert list(store_dir.iterdir()) == []
+
+    def test_uses_meeting_end_anchor_without_folder_name(
+        self, client, mock_storage, override_deps, store_dir, stub_ffmpeg
+    ):
+        mock_storage.get_playlist_metadata.return_value = _metadata_with_end()
+        mock_storage.get_segments_for_playlist.return_value = [
+            _segment(
+                version_id=10,
+                segment_id="a",
+                start="2026-05-27T10:50:00Z",
+                end="2026-05-27T10:50:10Z",
+            ),
+        ]
+
+        with mock.patch.dict(os.environ, ENABLE_ENV):
+            resp = client.post(
+                "/api/recordings/upload",
+                files={"file": ("meet.mp4", b"x", "video/mp4")},
+                data={"playlist_id": "42"},  # no folder_name
+            )
+
+        assert resp.status_code == 200, resp.text
+        saved = mock_storage.create_meeting_recording.call_args.args[0]
+        assert saved.recording_t0_source == "meeting_end"
+        assert saved.recording_t0 == MEETING_END_T0
+        # 10:50:00 - 10:00:00 = 3000s in.
+        assert saved.clips[0].video_in_seconds == pytest.approx(3000.0)
+
+    def test_offset_seconds_shifts_t0(
+        self, client, mock_storage, override_deps, store_dir, stub_ffmpeg
+    ):
+        mock_storage.get_playlist_metadata.return_value = _metadata_with_end()
+        mock_storage.get_segments_for_playlist.return_value = [
+            _segment(
+                version_id=10,
+                segment_id="a",
+                start="2026-05-27T10:50:00Z",
+                end="2026-05-27T10:50:10Z",
+            ),
+        ]
+
+        with mock.patch.dict(os.environ, ENABLE_ENV):
+            resp = client.post(
+                "/api/recordings/upload",
+                files={"file": ("meet.mp4", b"x", "video/mp4")},
+                data={"playlist_id": "42", "offset_seconds": "5"},
+            )
+
+        assert resp.status_code == 200
+        saved = mock_storage.create_meeting_recording.call_args.args[0]
+        # t0 shifted 5s later -> segment offset 5s smaller.
+        assert saved.recording_t0 == datetime(
+            2026, 5, 27, 10, 0, 5, tzinfo=timezone.utc
+        )
+        assert saved.clips[0].video_in_seconds == pytest.approx(2995.0)
+
+    def test_no_anchor_returns_422(
+        self, client, mock_storage, override_deps, store_dir, stub_ffmpeg
+    ):
+        # No meeting end recorded and no folder name -> cannot align.
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+
+        with mock.patch.dict(os.environ, ENABLE_ENV):
+            resp = client.post(
+                "/api/recordings/upload",
+                files={"file": ("meet.mp4", b"x", "video/mp4")},
+                data={"playlist_id": "42"},
+            )
+
+        assert resp.status_code == 422
+        assert "align" in resp.json()["detail"].lower()
         assert list(store_dir.iterdir()) == []

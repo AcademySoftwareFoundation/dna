@@ -278,21 +278,37 @@ migration.
 
 ## Video Segment Publishing Setup (optional)
 
-After a review meeting, a Zoom recording can be uploaded and cut into
+After a review meeting, the meeting recording can be uploaded and cut into
 per-Version clips by replaying the segmentation already encoded in the
 stored transcript. `POST /api/recordings/upload` is feature-flagged off by
 default and returns 404 until enabled.
+
+### How alignment works
+
+To cut the video, DNA needs `recording_t0` — the wallclock instant of the
+recording's `00:00:00`. It is resolved in this order:
+
+1. **Bot-leave (primary, Google Meet).** When the bot leaves / transcription
+   completes, DNA records `transcription_ended_at` on the playlist. The upload
+   then works backward: `t0 = transcription_ended_at − recording_duration`.
+   The bot-leave instant and the recording's true last frame are independent
+   clocks, so the upload accepts a manual `offset_seconds` nudge (exposed in
+   the UI) to correct any constant drift.
+2. **Zoom folder name (fallback).** If there is no recorded meeting end, DNA
+   parses the Zoom folder name (`YYYY-MM-DD HH.MM.SS <title>`), attaches
+   `ZOOM_RECORDING_TIMEZONE`, and converts to UTC. (Vexa currently has issues
+   with Zoom; this path is secondary.)
+
+If neither is available the upload returns 422.
 
 ### DNA side
 
 ```
 DNA_ENABLE_VIDEO_SEGMENT_PUBLISH=true
-# IANA zone the Zoom recording folder name is written in. Zoom names the
-# folder ("YYYY-MM-DD HH.MM.SS <title>") in the host's local time; DNA
-# converts it to UTC to align with the (UTC) transcript timestamps.
-ZOOM_RECORDING_TIMEZONE=America/New_York
 # Gap (seconds) between transcript segments above which a new clip starts.
 SEGMENT_RUN_GAP_SECONDS=2.0
+# Zoom fallback only: IANA zone the Zoom folder name is written in.
+ZOOM_RECORDING_TIMEZONE=America/New_York
 # ShotGrid target slot + field IDs for published clips. Validate these against
 # the real site schema before enabling (see docs/adr/0001-...). Clips are
 # published as Versions (MP4 uploaded to SHOTGRID_CLIP_MOVIE_FIELD) linked onto

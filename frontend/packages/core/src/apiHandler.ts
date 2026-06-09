@@ -331,9 +331,14 @@ class ApiHandler {
     const formData = new FormData();
     formData.append('file', params.file);
     formData.append('playlist_id', String(params.playlistId));
-    // Folder name carries the recording start time; the browser drops it from
-    // the file, so it must be sent as its own field.
-    formData.append('folder_name', params.folderName);
+    // Folder name is an optional Zoom fallback; the browser drops it from the
+    // file, so it must be sent as its own field when supplied.
+    if (params.folderName) {
+      formData.append('folder_name', params.folderName);
+    }
+    if (params.offsetSeconds !== undefined) {
+      formData.append('offset_seconds', String(params.offsetSeconds));
+    }
     const response = await this.axiosInstance.postForm<UploadRecordingResponse>(
       '/api/recordings/upload',
       formData

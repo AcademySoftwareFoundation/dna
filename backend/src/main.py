@@ -101,6 +101,7 @@ from dna.video_render import (
 from dna.video_segment_publish import (
     build_video_cuts_payload,
     parse_recording_t0_from_zoom_folder,
+    recording_t0_from_meeting_end,
 )
 
 # API metadata for Swagger documentation
@@ -507,13 +508,20 @@ async def upload_recording(
     _: CurrentUserDep,
     file: UploadFile = File(...),
     playlist_id: int = Form(...),
-    folder_name: str = Form(
-        ...,
+    folder_name: Optional[str] = Form(
+        default=None,
         description=(
-            "Zoom recording folder name, e.g. "
-            '"2026-05-27 06.44.49 Cameron Target\'s Zoom Meeting". The start '
-            "time is parsed from this; the browser does not transmit it with the "
-            "file, so it must be sent as its own field."
+            "Optional Zoom recording folder name, e.g. "
+            '"2026-05-27 06.44.49 Cameron Target\'s Zoom Meeting". Only used as a '
+            "fallback when the meeting has no recorded end time."
+        ),
+    ),
+    offset_seconds: float = Form(
+        default=0.0,
+        description=(
+            "Manual nudge (seconds) applied to the derived recording start, to "
+            "correct drift between the bot-leave instant and the recording's "
+            "actual last frame. Positive shifts cuts later."
         ),
     ),
 ) -> RecordingUploadResponse:
@@ -523,14 +531,6 @@ async def upload_recording(
         raise HTTPException(status_code=404, detail="Not Found")
 
     logger = logging.getLogger(__name__)
-
-    # Recording t0 must come from the folder name (Zoom writes it in local time;
-    # parse_recording_t0_from_zoom_folder converts to UTC). Fail clearly if the
-    # folder name isn't a recognizable Zoom timestamp.
-    try:
-        recording_t0 = parse_recording_t0_from_zoom_folder(folder_name)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
 
     recording_id = str(uuid.uuid4())
     recording_dir = ATTACHMENT_STORE_DIR / recording_id
@@ -547,6 +547,36 @@ async def upload_recording(
             status_code=422, detail=f"Could not read the uploaded video: {e}"
         )
 
+    metadata = await storage.get_playlist_metadata(playlist_id)
+    meeting_id = metadata.meeting_id if metadata else None
+
+    # Resolve the recording's t0. Preferred (Google Meet) path: work backward
+    # from when the bot left (transcription_ended_at) using the file duration.
+    # Fall back to a Zoom folder-name start time when supplied.
+    if metadata is not None and metadata.transcription_ended_at is not None:
+        recording_t0 = recording_t0_from_meeting_end(
+            metadata.transcription_ended_at,
+            duration_seconds,
+            offset_seconds=offset_seconds,
+        )
+        recording_t0_source = "meeting_end"
+    elif folder_name:
+        try:
+            recording_t0 = parse_recording_t0_from_zoom_folder(folder_name)
+        except ValueError as e:
+            shutil.rmtree(recording_dir, ignore_errors=True)
+            raise HTTPException(status_code=422, detail=str(e))
+        recording_t0_source = "zoom_folder"
+    else:
+        shutil.rmtree(recording_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Cannot align the recording: the meeting has no recorded end "
+                "time yet and no folder name was provided."
+            ),
+        )
+
     # Group every stored segment by the version it was attached to in-review.
     all_segments = await storage.get_segments_for_playlist(playlist_id)
     segments_by_version: dict[int, list[StoredSegment]] = {}
@@ -558,9 +588,6 @@ async def upload_recording(
         recording_t0=recording_t0,
         recording_duration_seconds=duration_seconds,
     )
-
-    metadata = await storage.get_playlist_metadata(playlist_id)
-    meeting_id = metadata.meeting_id if metadata else None
 
     clips: list[RecordingClip] = []
     for cut_list in cut_lists:
@@ -623,6 +650,7 @@ async def upload_recording(
             meeting_id=meeting_id,
             folder_name=folder_name,
             recording_t0=recording_t0,
+            recording_t0_source=recording_t0_source,
             duration_seconds=duration_seconds,
             clips=clips,
         )

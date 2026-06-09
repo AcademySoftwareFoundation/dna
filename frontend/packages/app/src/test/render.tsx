@@ -6,6 +6,7 @@ import { Theme } from '@radix-ui/themes';
 import { theme } from '../styles';
 import { AuthProvider } from '../contexts/AuthContext';
 import { ThemeModeProvider } from '../contexts/ThemeContext';
+import { FeatureFlagsProvider } from '../contexts/FeatureFlagsContext';
 
 interface WrapperProps {
   children: ReactNode;
@@ -30,7 +31,9 @@ function AllTheProviders({ children }: WrapperProps) {
       <ThemeProvider theme={theme}>
         <Theme>
           <ThemeModeProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <FeatureFlagsProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </FeatureFlagsProvider>
           </ThemeModeProvider>
         </Theme>
       </ThemeProvider>

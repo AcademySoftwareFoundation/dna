@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?: string;
   readonly VITE_PRODTRACK_TAB_SYNC_INSTALL_URL?: string;
+  readonly VITE_ENABLE_VIDEO_SEGMENT_PUBLISH?: string;
 }
 
 interface ImportMeta {

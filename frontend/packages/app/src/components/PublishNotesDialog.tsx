@@ -21,14 +21,22 @@ import {
 import { Loader2, Info, MoreVertical } from 'lucide-react';
 import { usePublishNotes } from '../hooks/usePublishNotes';
 import { usePublishTranscript } from '../hooks/usePublishTranscript';
+import { usePublishVideoSegments } from '../hooks/usePublishVideoSegments';
 import { useSegments } from '../hooks';
+import { apiHandler } from '../api';
 import {
   useDraftNote,
   backendToLocal,
   type LocalDraftNote,
 } from '../hooks/useDraftNote';
 import { useNoteQCChecks } from '../hooks/useNoteQCChecks';
-import { DraftNote, Version, SearchResult, NoteQCResult } from '@dna/core';
+import {
+  DraftNote,
+  Version,
+  SearchResult,
+  NoteQCResult,
+  RecordingClipInfo,
+} from '@dna/core';
 import { NoteEditor, NoteDraftStatusBadges } from './NoteEditor';
 import { UserAvatar } from './UserAvatar';
 import { NoteQCResultPill } from './NoteQCResultPill';
@@ -53,6 +61,10 @@ export interface PublishNotesTabContentProps {
   versions?: Version[];
   onPendingChange?: (isPending: boolean) => void;
   showTitle?: boolean;
+  // Set once a recording has been processed (Slice 6). recordingClips drive
+  // the per-version Recording rows; recordingId scopes the publish call.
+  recordingId?: string;
+  recordingClips?: RecordingClipInfo[];
 }
 
 const SpinnerIcon = styled(Loader2)`
@@ -490,6 +502,88 @@ function VersionTranscriptRow({
   );
 }
 
+const RecordingThumb = styled.div`
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: ${({ theme }) => theme.radii.md};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  box-shadow: ${({ theme }) => theme.shadows.sm};
+  overflow: hidden;
+  flex-shrink: 0;
+  background: ${({ theme }) => theme.colors.bg.surfaceHover};
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`;
+
+function RecordingClipThumbnail({ thumbId }: { thumbId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let revoked = false;
+    let objectUrl: string | null = null;
+    apiHandler
+      .getAttachmentBlobUrl(thumbId)
+      .then((u) => {
+        objectUrl = u;
+        if (!revoked) setUrl(u);
+        else URL.revokeObjectURL(u);
+      })
+      .catch(() => {
+        // Thumbnail is best-effort; leave the box empty on failure.
+      });
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [thumbId]);
+
+  return (
+    <RecordingThumb>{url ? <img src={url} alt="" /> : null}</RecordingThumb>
+  );
+}
+
+function VersionRecordingRow({
+  clips,
+  checked,
+  onCheckedChange,
+}: {
+  clips: RecordingClipInfo[];
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const totalSeconds = useMemo(
+    () => clips.reduce((sum, c) => sum + (c.duration_seconds ?? 0), 0),
+    [clips]
+  );
+
+  if (clips.length === 0) return null;
+
+  return (
+    <TranscriptRow>
+      <Flex align="center" gap="2" style={{ flex: 1 }}>
+        <Checkbox
+          checked={checked}
+          onCheckedChange={(c) => onCheckedChange(c === true)}
+        />
+        <Text size="2" weight="medium">
+          Recording
+        </Text>
+        <Text size="1" color="gray">
+          {clips.length} clip{clips.length !== 1 ? 's' : ''} ·{' '}
+          {Math.round(totalSeconds)}s
+        </Text>
+      </Flex>
+      <RecordingClipThumbnail thumbId={clips[0].thumb_id} />
+    </TranscriptRow>
+  );
+}
+
 interface VersionPublishCardProps {
   playlistId: number;
   version: Version;
@@ -499,6 +593,9 @@ interface VersionPublishCardProps {
   onToggle: (key: string, checked: boolean) => void;
   transcriptChecked: boolean;
   onTranscriptToggle: (checked: boolean) => void;
+  recordingClips: RecordingClipInfo[];
+  recordingChecked: boolean;
+  onRecordingToggle: (checked: boolean) => void;
   qcLoading: boolean;
   qcRefreshingDraftKey: string | null;
   qcResults: Record<string, NoteQCResult[]>;
@@ -516,6 +613,9 @@ function VersionPublishCard({
   onToggle,
   transcriptChecked,
   onTranscriptToggle,
+  recordingClips,
+  recordingChecked,
+  onRecordingToggle,
   qcLoading,
   qcRefreshingDraftKey,
   qcResults,
@@ -590,6 +690,11 @@ function VersionPublishCard({
           checked={transcriptChecked}
           onCheckedChange={onTranscriptToggle}
         />
+        <VersionRecordingRow
+          clips={recordingClips}
+          checked={recordingChecked}
+          onCheckedChange={onRecordingToggle}
+        />
       </Flex>
     </VersionCard>
   );
@@ -604,10 +709,15 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   versions = [],
   onPendingChange,
   showTitle = true,
+  recordingId,
+  recordingClips = [],
 }) => {
   const { aiEnabled } = useFeatureFlags();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [transcriptSelected, setTranscriptSelected] = useState<
+    Record<number, boolean>
+  >({});
+  const [recordingSelected, setRecordingSelected] = useState<
     Record<number, boolean>
   >({});
   const [successSummary, setSuccessSummary] = useState<{
@@ -618,6 +728,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     statusCount: number;
     transcriptPublishedCount: number;
     transcriptSkippedCount: number;
+    recordingsPublishedCount: number;
   } | null>(null);
   const {
     mutateAsync: publishNotes,
@@ -627,6 +738,18 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     reset,
   } = usePublishNotes();
   const { mutateAsync: publishTranscriptAsync } = usePublishTranscript();
+  const { mutateAsync: publishVideoSegmentsAsync } = usePublishVideoSegments();
+
+  // version_id -> its rendered clips, from the processed recording.
+  const clipsByVersion = useMemo(() => {
+    const map = new Map<number, RecordingClipInfo[]>();
+    for (const clip of recordingClips) {
+      const arr = map.get(clip.version_id) ?? [];
+      arr.push(clip);
+      map.set(clip.version_id, arr);
+    }
+    return map;
+  }, [recordingClips]);
 
   const {
     results: qcResults,
@@ -700,11 +823,23 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     for (const [vid, drafts] of byVid) {
       if (!seen.has(vid)) {
         ordered.push({ version: fallbackVersion(vid), drafts });
+        seen.add(vid);
+      }
+    }
+
+    // A recording can produce clips for a version that has no draft notes;
+    // surface a card for it so its Recording row can be published.
+    for (const vid of clipsByVersion.keys()) {
+      if (!seen.has(vid)) {
+        const version =
+          versions.find((v) => v.id === vid) ?? fallbackVersion(vid);
+        ordered.push({ version, drafts: [] });
+        seen.add(vid);
       }
     }
 
     return ordered;
-  }, [notes, versions]);
+  }, [notes, versions, clipsByVersion]);
 
   useEffect(() => {
     if (!open) return;
@@ -717,9 +852,29 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     });
   }, [open, versionCards]);
 
+  useEffect(() => {
+    if (!open) return;
+    setRecordingSelected((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const vid of clipsByVersion.keys()) {
+        next[vid] = prev[vid] ?? true;
+      }
+      return next;
+    });
+  }, [open, clipsByVersion]);
+
+  const recordingSelectedCount = useMemo(
+    () =>
+      [...clipsByVersion.keys()].filter((vid) => recordingSelected[vid] ?? true)
+        .length,
+    [clipsByVersion, recordingSelected]
+  );
+
   const selectedCount = useMemo(
-    () => notes.filter((d) => selected[draftRowKey(d)]).length,
-    [notes, selected]
+    () =>
+      notes.filter((d) => selected[draftRowKey(d)]).length +
+      recordingSelectedCount,
+    [notes, selected, recordingSelectedCount]
   );
 
   const allNotesSelected = useMemo(
@@ -789,9 +944,31 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     setTranscriptSelected(next);
   }, [versionCards, allTranscriptsSelected]);
 
+  const handleRecordingToggle = useCallback(
+    (versionId: number, checked: boolean) => {
+      setRecordingSelected((prev) => ({ ...prev, [versionId]: checked }));
+    },
+    []
+  );
+
   const handlePublishSelected = async () => {
     const toPublish = notes.filter((d) => selected[draftRowKey(d)]);
-    if (toPublish.length === 0) return;
+
+    const selectedTranscriptVersionIds = versionCards
+      .filter(({ version }) => transcriptSelected[version.id] ?? true)
+      .map(({ version }) => version.id);
+
+    const selectedRecordingVersionIds = recordingId
+      ? [...clipsByVersion.keys()].filter(
+          (vid) => recordingSelected[vid] ?? true
+        )
+      : [];
+
+    if (toPublish.length === 0 && selectedRecordingVersionIds.length === 0) {
+      // Transcripts piggyback on the notes publish action; with neither notes
+      // nor recordings selected there is nothing to do.
+      return;
+    }
 
     await flushAllDrafts();
 
@@ -800,21 +977,35 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       version_id: d.version_id,
     }));
 
-    const selectedTranscriptVersionIds = versionCards
-      .filter(({ version }) => transcriptSelected[version.id] ?? true)
-      .map(({ version }) => version.id);
-
-    const [notesResult, transcriptResults] = await Promise.all([
-      publishNotes({ playlistId, request: { user_email: userEmail, targets } }),
-      Promise.allSettled(
-        selectedTranscriptVersionIds.map((versionId) =>
-          publishTranscriptAsync({
-            playlistId,
-            request: { version_id: versionId },
-          })
-        )
-      ),
-    ]);
+    const [notesResult, transcriptResults, recordingResults] =
+      await Promise.all([
+        toPublish.length > 0
+          ? publishNotes({
+              playlistId,
+              request: { user_email: userEmail, targets },
+            })
+          : Promise.resolve({
+              published_count: 0,
+              republished_count: 0,
+              failed_count: 0,
+            }),
+        Promise.allSettled(
+          selectedTranscriptVersionIds.map((versionId) =>
+            publishTranscriptAsync({
+              playlistId,
+              request: { version_id: versionId },
+            })
+          )
+        ),
+        Promise.allSettled(
+          selectedRecordingVersionIds.map((versionId) =>
+            publishVideoSegmentsAsync({
+              playlistId,
+              request: { version_id: versionId, recording_id: recordingId! },
+            })
+          )
+        ),
+      ]);
 
     const transcriptPublishedCount = transcriptResults.filter(
       (r) =>
@@ -825,6 +1016,12 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       (r) => r.status === 'fulfilled' && r.value.outcome === 'skipped'
     ).length;
 
+    const recordingsPublishedCount = recordingResults.filter(
+      (r) =>
+        r.status === 'fulfilled' &&
+        (r.value.outcome === 'created' || r.value.outcome === 'updated')
+    ).length;
+
     setSuccessSummary({
       publishedCount: notesResult.published_count,
       republishedCount: notesResult.republished_count,
@@ -833,6 +1030,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       statusCount: countStatuses(toPublish),
       transcriptPublishedCount,
       transcriptSkippedCount,
+      recordingsPublishedCount,
     });
   };
 
@@ -881,6 +1079,12 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                 <li>
                   Transcripts Up to Date:{' '}
                   {successSummary.transcriptSkippedCount}
+                </li>
+              )}
+              {successSummary.recordingsPublishedCount > 0 && (
+                <li>
+                  Recordings Published:{' '}
+                  {successSummary.recordingsPublishedCount}
                 </li>
               )}
               {successSummary.failedCount > 0 && (
@@ -946,9 +1150,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
           </Flex>
 
           <ScrollBody>
-            {notes.length === 0 ? (
+            {versionCards.length === 0 ? (
               <Text size="2" color="gray">
-                No notes to publish.
+                Nothing to publish.
               </Text>
             ) : (
               versionCards.map(({ version, drafts }) => (
@@ -963,6 +1167,11 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                   transcriptChecked={transcriptSelected[version.id] ?? true}
                   onTranscriptToggle={(checked) =>
                     handleTranscriptToggle(version.id, checked)
+                  }
+                  recordingClips={clipsByVersion.get(version.id) ?? []}
+                  recordingChecked={recordingSelected[version.id] ?? true}
+                  onRecordingToggle={(checked) =>
+                    handleRecordingToggle(version.id, checked)
                   }
                   qcLoading={qcLoading}
                   qcRefreshingDraftKey={qcRefreshingDraftKey}
@@ -997,10 +1206,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               </Dialog.Close>
               <Button
                 disabled={
-                  isPending ||
-                  notes.length === 0 ||
-                  selectedCount === 0 ||
-                  publishBlockedByQc
+                  isPending || selectedCount === 0 || publishBlockedByQc
                 }
                 onClick={() => void handlePublishSelected()}
               >

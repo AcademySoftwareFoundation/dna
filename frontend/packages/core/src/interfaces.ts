@@ -497,10 +497,13 @@ export interface UploadRecordingResponse {
 
 export interface UploadRecordingParams {
   playlistId: number;
-  // The Zoom recording folder name, e.g. "2026-05-27 06.44.49 ... Meeting".
-  // The browser does not send it with the file, so it is passed explicitly.
-  folderName: string;
   file: File;
+  // Optional Zoom folder name fallback (e.g. "2026-05-27 06.44.49 ... Meeting").
+  // Only used when the meeting has no recorded end time to anchor against.
+  folderName?: string;
+  // Manual nudge (seconds) on the derived recording start, for drift between
+  // the bot-leave instant and the recording's actual last frame.
+  offsetSeconds?: number;
 }
 
 export interface PublishVideoSegmentsRequest {

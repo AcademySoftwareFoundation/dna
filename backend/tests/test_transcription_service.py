@@ -177,6 +177,34 @@ class TestOnVexaEvent:
         assert calls[1][0][0] == EventType.TRANSCRIPTION_COMPLETED
 
     @pytest.mark.asyncio
+    async def test_records_transcription_end_time_on_completion(
+        self, service, mock_storage_provider
+    ):
+        """Bot leaving persists transcription_ended_at as the alignment anchor."""
+        from datetime import datetime, timezone
+
+        from dna.models.playlist_metadata import PlaylistMetadata
+
+        mock_storage_provider.get_playlist_metadata_by_meeting_id.return_value = (
+            PlaylistMetadata(
+                _id="meta", playlist_id=42, meeting_id="x", platform="google_meet"
+            )
+        )
+
+        before = datetime.now(timezone.utc)
+        await service._on_vexa_event(
+            "bot.status_changed",
+            {"status": "completed", "platform": "google_meet", "meeting_id": "x"},
+        )
+        after = datetime.now(timezone.utc)
+
+        mock_storage_provider.upsert_playlist_metadata.assert_awaited_once()
+        args = mock_storage_provider.upsert_playlist_metadata.call_args.args
+        assert args[0] == 42
+        ended = args[1].transcription_ended_at
+        assert ended is not None and before <= ended <= after
+
+    @pytest.mark.asyncio
     async def test_publishes_error_on_status_failed(
         self, service, mock_event_publisher
     ):
