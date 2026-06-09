@@ -29,6 +29,7 @@ from dna.models.meeting_recording import (
     RecordingClip,
     RecordingClipInfo,
     RecordingUploadResponse,
+    VideoSegmentClipPayload,
 )
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
@@ -124,6 +125,7 @@ __all__ = [
     "RecordingClip",
     "RecordingClipInfo",
     "RecordingUploadResponse",
+    "VideoSegmentClipPayload",
     "PublishedTranscript",
     "PublishedTranscriptUpdate",
     "StoredSegment",

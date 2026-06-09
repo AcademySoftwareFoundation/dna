@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
+    from dna.models.meeting_recording import VideoSegmentClipPayload
 
 
 class UserNotFoundError(Exception):
@@ -247,6 +248,42 @@ class ProdtrackProviderBase:
         Only body and meeting_date are touched on purpose; summary and other
         fields are left alone so manual edits on the tracking-system side
         survive a re-publish.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def publish_video_segments(
+        self,
+        *,
+        project_id: int,
+        playlist_id: int,
+        version_id: int,
+        meeting_id: str,
+        meeting_date: date,
+        platform: str,
+        clips: list["VideoSegmentClipPayload"],
+    ) -> int:
+        """Create a video-segment row for one version's clips.
+
+        Uploads each rendered clip as a tracking-system Version (binary sent via
+        the SDK, mirroring note image attachments) and links them to a single
+        custom-entity row. Returns the entity ID of that row.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def update_video_segments(
+        self,
+        *,
+        entity_type: str,
+        entity_id: int,
+        project_id: int,
+        meeting_date: date,
+        clips: list["VideoSegmentClipPayload"],
+    ) -> bool:
+        """Re-attach freshly-rendered clips to an existing video-segment row.
+
+        `entity_type` must come from the caller's bookkeeping (the slot the row
+        was created in), not the current env — studios may migrate slots and
+        updates against pre-migration rows must still resolve.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

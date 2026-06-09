@@ -32,3 +32,31 @@ class TestProdtrackProviderBaseTranscriptContract:
                 body="Speaker: updated",
                 meeting_date=date(2026, 4, 15),
             )
+
+
+class TestProdtrackProviderBaseVideoSegmentContract:
+    """Base class video-segment methods must raise NotImplementedError."""
+
+    def test_publish_video_segments_raises_not_implemented(self):
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError):
+            provider.publish_video_segments(
+                project_id=1,
+                playlist_id=10,
+                version_id=100,
+                meeting_id="m-1",
+                meeting_date=date(2026, 4, 15),
+                platform="zoom",
+                clips=[],
+            )
+
+    def test_update_video_segments_raises_not_implemented(self):
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError):
+            provider.update_video_segments(
+                entity_type="CustomEntity02",
+                entity_id=9001,
+                project_id=1,
+                meeting_date=date(2026, 4, 15),
+                clips=[],
+            )

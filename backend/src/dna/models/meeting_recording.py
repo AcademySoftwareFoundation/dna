@@ -54,6 +54,20 @@ class MeetingRecording(MeetingRecordingCreate):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class VideoSegmentClipPayload(BaseModel):
+    """One clip handed to the prodtrack provider for publishing.
+
+    Carries the on-disk path of the rendered MP4 plus the cut metadata the
+    provider needs to label the ShotGrid Version it creates.
+    """
+
+    code: str = Field(description="Human-readable name for the ShotGrid Version")
+    file_path: str = Field(description="Absolute path to the rendered clip MP4")
+    video_in_seconds: float
+    video_out_seconds: float
+    duration_seconds: float
+
+
 class RecordingClipInfo(BaseModel):
     """Per-clip info returned to the frontend after processing."""
 

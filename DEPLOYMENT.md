@@ -293,6 +293,13 @@ DNA_ENABLE_VIDEO_SEGMENT_PUBLISH=true
 ZOOM_RECORDING_TIMEZONE=America/New_York
 # Gap (seconds) between transcript segments above which a new clip starts.
 SEGMENT_RUN_GAP_SECONDS=2.0
+# ShotGrid target slot + field IDs for published clips. Validate these against
+# the real site schema before enabling (see docs/adr/0001-...). Clips are
+# published as Versions (MP4 uploaded to SHOTGRID_CLIP_MOVIE_FIELD) linked onto
+# a row in SHOTGRID_VIDEO_SEGMENT_ENTITY via SHOTGRID_CLIP_LINK_FIELD.
+SHOTGRID_VIDEO_SEGMENT_ENTITY=CustomEntity14
+SHOTGRID_CLIP_MOVIE_FIELD=sg_uploaded_movie
+SHOTGRID_CLIP_LINK_FIELD=sg_clips
 ```
 
 `ffmpeg`/`ffprobe` must be available to the backend — they are installed in

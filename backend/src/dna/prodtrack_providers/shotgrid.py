@@ -3,9 +3,12 @@
 import contextlib
 import os
 from datetime import date
-from typing import Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from shotgun_api3 import Shotgun
+
+if TYPE_CHECKING:
+    from dna.models.meeting_recording import VideoSegmentClipPayload
 
 from dna.models.entity import (
     ENTITY_MODELS,
@@ -1066,6 +1069,96 @@ class ShotgridProvider(ProdtrackProviderBase):
         except Exception:
             return False
 
+    def _upload_clip_versions(
+        self, project_id: int, clips: list["VideoSegmentClipPayload"]
+    ) -> list[dict[str, Any]]:
+        """Create one Version per clip, upload its MP4, return link refs.
+
+        Mirrors note image-attachment upload: the binary is pushed through the
+        SDK's upload(), not a separate HTTP call.
+        """
+        refs: list[dict[str, Any]] = []
+        for clip in clips:
+            version = self._sg.create(
+                "Version",
+                {
+                    "code": clip.code,
+                    "project": {"type": "Project", "id": project_id},
+                    "description": (
+                        f"Recording clip "
+                        f"{clip.video_in_seconds:.1f}s-{clip.video_out_seconds:.1f}s"
+                    ),
+                },
+            )
+            self._sg.upload(
+                "Version",
+                version["id"],
+                clip.file_path,
+                field_name=_clip_movie_field(),
+            )
+            refs.append({"type": "Version", "id": version["id"]})
+        return refs
+
+    def publish_video_segments(
+        self,
+        *,
+        project_id: int,
+        playlist_id: int,
+        version_id: int,
+        meeting_id: str,
+        meeting_date: date,
+        platform: str,
+        clips: list["VideoSegmentClipPayload"],
+    ) -> int:
+        """Create a video-segment row + a Version per clip, linked to the row."""
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        entity_type = _video_segment_entity_type()
+        code = f"clips-{version_id}-{meeting_date.isoformat()}"
+        payload: dict[str, Any] = {
+            "code": code,
+            "project": {"type": "Project", "id": project_id},
+            "sg_playlist": {"type": "Playlist", "id": playlist_id},
+            "sg_version_in_review": {"type": "Version", "id": version_id},
+            "sg_meeting_id": meeting_id,
+            "sg_meeting_date": meeting_date.isoformat(),
+            "sg_platform": platform,
+        }
+        result = self._sg.create(entity_type, payload)
+        entity_id = result["id"]
+
+        clip_refs = self._upload_clip_versions(project_id, clips)
+        if clip_refs:
+            self._sg.update(entity_type, entity_id, {_clip_link_field(): clip_refs})
+        return entity_id
+
+    def update_video_segments(
+        self,
+        *,
+        entity_type: str,
+        entity_id: int,
+        project_id: int,
+        meeting_date: date,
+        clips: list["VideoSegmentClipPayload"],
+    ) -> bool:
+        """Re-render path: create new clip Versions and re-link to the row.
+
+        `entity_type` is the slot from bookkeeping, never re-read from env. V1
+        does not prune previously-linked Versions; that is a follow-up.
+        """
+        if not self._sg:
+            return False
+        try:
+            clip_refs = self._upload_clip_versions(project_id, clips)
+            patch: dict[str, Any] = {"sg_meeting_date": meeting_date.isoformat()}
+            if clip_refs:
+                patch[_clip_link_field()] = clip_refs
+            self._sg.update(entity_type, entity_id, patch)
+            return True
+        except Exception:
+            return False
+
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:
     """Get the DNA entity type from the ShotGrid entity type."""
@@ -1078,3 +1171,23 @@ def _get_dna_entity_type(sg_entity_type: str) -> str:
 def _transcript_entity_type() -> str:
     """Site-specific custom-entity slot, switchable per deployment via env."""
     return os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
+
+
+def _video_segment_entity_type() -> str:
+    """Custom-entity slot that holds a version's rendered recording clips.
+
+    Defaults to the same slot the transcript workflow uses on this deployment
+    (CustomEntity14) so clips land alongside their transcripts; override per
+    site with SHOTGRID_VIDEO_SEGMENT_ENTITY.
+    """
+    return os.getenv("SHOTGRID_VIDEO_SEGMENT_ENTITY", "CustomEntity14")
+
+
+def _clip_movie_field() -> str:
+    """Version field the clip MP4 is uploaded to (site-configurable)."""
+    return os.getenv("SHOTGRID_CLIP_MOVIE_FIELD", "sg_uploaded_movie")
+
+
+def _clip_link_field() -> str:
+    """Multi-entity field on the row linking to the clip Versions."""
+    return os.getenv("SHOTGRID_CLIP_LINK_FIELD", "sg_clips")
