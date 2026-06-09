@@ -19,3 +19,10 @@ services:
       # for the ShotGrid site-setup checklist the custom entity depends on.
       - DNA_ENABLE_TRANSCRIPT_PUBLISH=false
       - SHOTGRID_TRANSCRIPT_ENTITY=CustomEntity01
+      # Video-segment publishing (V1, disabled by default). Zoom names its
+      # recording folder in local time (e.g. "2026-05-27 06.44.49 ..."), so the
+      # recording start is read in this IANA zone then converted to UTC.
+      - ZOOM_RECORDING_TIMEZONE=America/New_York
+      # Gap (seconds) between transcript segments above which a new video cut
+      # starts. A gap = Vexa was paused or another version was in-review.
+      - SEGMENT_RUN_GAP_SECONDS=2.0
