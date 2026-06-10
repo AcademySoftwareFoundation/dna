@@ -326,7 +326,7 @@ function GeneralTab({
   onProdtrackPageTypeChange,
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
-  const { inReviewEnabled, setInReviewEnabled } = useFeatureFlags();
+  const { inReviewEnabled, setInReviewEnabled, inReviewLocked } = useFeatureFlags();
 
   if (isLoading) {
     return (
@@ -359,10 +359,13 @@ function GeneralTab({
             <KeybindingName>Enable In Review</KeybindingName>
             <KeybindingDesc>Show In Review / Set In Review controls and the version indicator</KeybindingDesc>
           </KeybindingLabel>
-          <Switch
-            checked={inReviewEnabled}
-            onCheckedChange={setInReviewEnabled}
-          />
+          <Tooltip content={inReviewLocked ? `${inReviewEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration` : undefined} hidden={!inReviewLocked}>
+            <Switch
+              checked={inReviewEnabled}
+              onCheckedChange={setInReviewEnabled}
+              disabled={inReviewLocked}
+            />
+          </Tooltip>
         </AppearanceRow>
       </Section>
 
@@ -495,7 +498,7 @@ function KeybindingsTab({
 // --- Transcription Tab ---
 
 function TranscriptionTab() {
-  const { transcriptionEnabled, setTranscriptionEnabled } = useFeatureFlags();
+  const { transcriptionEnabled, setTranscriptionEnabled, transcriptionLocked } = useFeatureFlags();
 
   return (
     <ModalContent>
@@ -506,10 +509,13 @@ function TranscriptionTab() {
             Show transcription controls and the Transcript tab
           </FeatureEnableDesc>
         </FeatureEnableLabel>
-        <Switch
-          checked={transcriptionEnabled}
-          onCheckedChange={setTranscriptionEnabled}
-        />
+        <Tooltip content={transcriptionLocked ? `${transcriptionEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration` : undefined} hidden={!transcriptionLocked}>
+          <Switch
+            checked={transcriptionEnabled}
+            onCheckedChange={setTranscriptionEnabled}
+            disabled={transcriptionLocked}
+          />
+        </Tooltip>
       </FeatureEnableRow>
     </ModalContent>
   );
@@ -540,7 +546,7 @@ function AITab({
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
 }: AITabProps) {
-  const { aiEnabled, setAiEnabled } = useFeatureFlags();
+  const { aiEnabled, setAiEnabled, aiLocked } = useFeatureFlags();
 
   if (isLoading) {
     return (
@@ -559,10 +565,13 @@ function AITab({
             Show AI note suggestions and Note QC checks
           </FeatureEnableDesc>
         </FeatureEnableLabel>
-        <Switch
-          checked={aiEnabled}
-          onCheckedChange={setAiEnabled}
-        />
+        <Tooltip content={aiLocked ? `${aiEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration` : undefined} hidden={!aiLocked}>
+          <Switch
+            checked={aiEnabled}
+            onCheckedChange={setAiEnabled}
+            disabled={aiLocked}
+          />
+        </Tooltip>
       </FeatureEnableRow>
 
       <Section>
