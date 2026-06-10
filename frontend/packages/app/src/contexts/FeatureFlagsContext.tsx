@@ -28,6 +28,8 @@ interface FeatureFlagsContextValue {
   transcriptionLocked: boolean;
   aiLocked: boolean;
   inReviewLocked: boolean;
+  transcriptionLockReason: string | null;
+  inReviewLockReason: string | null;
   setTranscriptionEnabled: (enabled: boolean) => void;
   setAiEnabled: (enabled: boolean) => void;
   setInReviewEnabled: (enabled: boolean) => void;
@@ -36,7 +38,7 @@ interface FeatureFlagsContextValue {
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | null>(null);
 
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
-  const [transcriptionEnabled, setTranscriptionState] = useState(() => {
+  const [transcriptionBase, setTranscriptionState] = useState(() => {
     if (ENV_TRANSCRIPTION !== null) return ENV_TRANSCRIPTION;
     const stored = localStorage.getItem(TRANSCRIPTION_KEY);
     return stored === 'true';
@@ -48,11 +50,17 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     return stored === 'true';
   });
 
-  const [inReviewEnabled, setInReviewState] = useState(() => {
+  const [inReviewBase, setInReviewState] = useState(() => {
     if (ENV_IN_REVIEW !== null) return ENV_IN_REVIEW;
     const stored = localStorage.getItem(IN_REVIEW_KEY);
     return stored === null ? true : stored === 'true';
   });
+
+  // Russian-doll dependency: AI ⊆ Transcription ⊆ In Review.
+  // AI requires Transcription, and Transcription requires In Review, so
+  // enabling a parent (via UI toggle or env override) forces its children on.
+  const transcriptionEnabled = transcriptionBase || aiEnabled;
+  const inReviewEnabled = inReviewBase || transcriptionEnabled;
 
   const setTranscriptionEnabled = useCallback((enabled: boolean) => {
     if (ENV_TRANSCRIPTION !== null) return;
@@ -78,9 +86,21 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
         transcriptionEnabled,
         aiEnabled,
         inReviewEnabled,
-        transcriptionLocked: ENV_TRANSCRIPTION !== null,
+        transcriptionLocked: ENV_TRANSCRIPTION !== null || aiEnabled,
         aiLocked: ENV_AI !== null,
-        inReviewLocked: ENV_IN_REVIEW !== null,
+        inReviewLocked: ENV_IN_REVIEW !== null || transcriptionEnabled,
+        transcriptionLockReason:
+          ENV_TRANSCRIPTION !== null
+            ? 'pipeline'
+            : aiEnabled
+              ? 'ai'
+              : null,
+        inReviewLockReason:
+          ENV_IN_REVIEW !== null
+            ? 'pipeline'
+            : transcriptionEnabled
+              ? 'transcription'
+              : null,
         setTranscriptionEnabled,
         setAiEnabled,
         setInReviewEnabled,
