@@ -9,7 +9,10 @@ import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler } from '../api';
 import { useFeatureFlags } from '../contexts';
-import { openProdtrackVersionViaExtensionOrNewTab } from '../prodtrackTabSync/sendProdtrackTabSync';
+import {
+  openProdtrackVersionViaExtensionOrNewTab,
+  openProdtrackVersionInExtension,
+} from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -198,14 +201,32 @@ export function ContentArea({
     });
   }, [activeProdtrackUrl, extensionId, prodtrackControlledTabId]);
 
+  // Tracks the version id we last reacted to, so we only sync on an actual
+  // version change (not on settings/url/mount re-renders for the same version).
+  const lastProdtrackVersionIdRef = useRef<number | null>(null);
+
   useEffect(() => {
+    const currentVersionId = version?.id ?? null;
+    if (currentVersionId == null) return;
+
+    const previousVersionId = lastProdtrackVersionIdRef.current;
+    lastProdtrackVersionIdRef.current = currentVersionId;
+    if (currentVersionId === previousVersionId) return;
+
+    // Only sync into a PT tab the user already opened with the "PT tab" button.
+    // We never open the tab automatically — not on launch, not on version change.
+    const controlledTabId = prodtrackTabIdRef.current;
+    if (controlledTabId == null) return;
+
     if (!activeProdtrackUrl) return;
     if (!shouldAutoSyncProdtrackTab) return;
     if (!extensionId) return;
     const url = activeProdtrackUrl;
     const timer = window.setTimeout(() => {
-      void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
-        tabId: prodtrackTabIdRef.current ?? undefined,
+      // Extension-only (no new-tab fallback): if the controlled tab was closed,
+      // a failed sync must not spawn a window on its own.
+      void openProdtrackVersionInExtension(extensionId, url, {
+        tabId: controlledTabId,
       }).then((result) => {
         if (result.ok && typeof result.tabId === 'number') {
           setProdtrackControlledTabId(result.tabId);
