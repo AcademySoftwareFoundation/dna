@@ -14,10 +14,13 @@ import { Button, TextField, Popover, Text } from '@radix-ui/themes';
 import type { BotStatusEnum } from '@dna/core';
 import {
   useTranscription,
+  useExtensionTranscriptionBridge,
+  disconnectExtensionCapture,
   parseMeetingUrl,
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
 } from '../hooks';
+import { useAuth } from '../contexts';
 import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
@@ -75,6 +78,30 @@ const StatusIndicator = styled.div<{ $status: BotStatusEnum }>`
         : 'none'}
     1.5s ease-in-out infinite;
 `;
+
+const ExtensionInstructions = styled.div`
+  padding: 8px 12px;
+  background: ${({ theme }) => theme.colors.bg.surface};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 12px;
+  line-height: 1.4;
+  color: ${({ theme }) => theme.colors.text.secondary};
+`;
+
+const isExtensionTranscriptionMode =
+  import.meta.env.VITE_TRANSCRIPTION_MODE === 'extension';
+
+const transcriptionExtensionId =
+  import.meta.env.VITE_TRANSCRIPTION_EXTENSION_ID?.trim() ?? '';
+
+const extensionStatusLabel: Record<string, string> = {
+  not_installed: 'Extension not installed',
+  disconnected: 'Extension disconnected',
+  awaiting_tab: 'Choose Meet tab in extension',
+  connecting: 'Connecting extension…',
+  connected: 'Extension connected',
+  paused: 'Extension paused',
+};
 
 const StatusText = styled.span`
   font-size: 13px;
@@ -285,6 +312,8 @@ export function TranscriptionMenu({
   const [passcode, setPasscode] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const theme = useTheme();
+  const { token } = useAuth();
+  const backendUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
   const {
     session,
@@ -307,9 +336,33 @@ export function TranscriptionMenu({
     'in_call',
     'transcribing',
   ].includes(currentStatus);
-  const phoneStatus = getPhoneStatus(currentStatus);
-  const needsPasscode = parseMeetingUrl(meetingUrl)?.platform === 'teams';
   const isPaused = metadata?.transcription_paused ?? false;
+
+  const {
+    extensionUiStatus,
+    extensionError,
+    installUrl,
+    refreshExtensionStatus,
+    connectExtension,
+    isConnecting,
+  } = useExtensionTranscriptionBridge({
+    extensionId: transcriptionExtensionId,
+    playlistId,
+    backendUrl,
+    authToken: token,
+    enabled: isExtensionTranscriptionMode && isOpen,
+    isPaused,
+    isBotActive: isActive,
+    onConnectMeeting: async (url) => {
+      await dispatchBot(url, passcode || undefined);
+    },
+    onDisconnect: stopBot,
+  });
+
+  const phoneStatus = getPhoneStatus(currentStatus);
+  const needsPasscode =
+    !isExtensionTranscriptionMode &&
+    parseMeetingUrl(meetingUrl)?.platform === 'teams';
 
   const isLiveButPaused =
     isPaused && ['in_call', 'transcribing'].includes(currentStatus);
@@ -351,6 +404,9 @@ export function TranscriptionMenu({
 
   const handleStop = useCallback(async () => {
     try {
+      if (isExtensionTranscriptionMode && transcriptionExtensionId) {
+        await disconnectExtensionCapture(transcriptionExtensionId);
+      }
       await stopBot();
     } catch {
       // Error is handled by the hook
@@ -359,6 +415,9 @@ export function TranscriptionMenu({
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
+    if (open && isExtensionTranscriptionMode) {
+      void refreshExtensionStatus();
+    }
     if (!open && !isActive) {
       clearSession();
       setMeetingUrl('');
@@ -440,7 +499,33 @@ export function TranscriptionMenu({
             </ErrorMessage>
           )}
 
-          {!isActive && (
+          {isExtensionTranscriptionMode && extensionError && (
+            <ErrorMessage>
+              <AlertCircle size={14} />
+              {extensionError}
+            </ErrorMessage>
+          )}
+
+          {isExtensionTranscriptionMode && (
+            <StatusRow>
+              <StatusIndicator $status={isActive ? currentStatus : 'idle'} />
+              <StatusText>
+                {extensionStatusLabel[extensionUiStatus] ??
+                  extensionUiStatus}
+              </StatusText>
+            </StatusRow>
+          )}
+
+          {isExtensionTranscriptionMode &&
+            extensionUiStatus === 'not_installed' && (
+              <Text size="1" as="p">
+                <a href={installUrl} target="_blank" rel="noreferrer">
+                  Install DNA Meet Transcription extension
+                </a>
+              </Text>
+            )}
+
+          {!isActive && !isExtensionTranscriptionMode && (
             <InputGroup>
               <TextField.Root
                 placeholder="Paste meeting URL..."
@@ -480,6 +565,31 @@ export function TranscriptionMenu({
                   </>
                 )}
               </Button>
+            ) : isExtensionTranscriptionMode ? (
+              <Button
+                variant="solid"
+                onClick={() => void connectExtension()}
+                disabled={
+                  isConnecting ||
+                  isDispatching ||
+                  !playlistId ||
+                  extensionUiStatus === 'not_installed' ||
+                  !token
+                }
+                style={{ flex: 1 }}
+              >
+                {isConnecting || isDispatching ? (
+                  <>
+                    <SpinnerIcon size={14} />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Phone size={14} />
+                    Connect
+                  </>
+                )}
+              </Button>
             ) : (
               <Button
                 variant="solid"
@@ -502,7 +612,14 @@ export function TranscriptionMenu({
             )}
           </ButtonRow>
 
-          {!playlistId && (
+          {isExtensionTranscriptionMode && extensionUiStatus === 'awaiting_tab' && (
+            <ExtensionInstructions>
+              Multiple Meet tabs are open. Click the extension icon in your
+              toolbar and choose the tab to transcribe.
+            </ExtensionInstructions>
+          )}
+
+          {!isExtensionTranscriptionMode && !playlistId && (
             <Text size="1" color="gray">
               Select a playlist to enable transcription
             </Text>

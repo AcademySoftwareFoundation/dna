@@ -1199,12 +1199,25 @@ ws.onmessage = (event) => {
 |----------|---------|-------------|
 | `VEXA_API_URL` | `https://api.cloud.vexa.ai` | Vexa REST API base URL |
 | `VEXA_API_KEY` | (required) | API key for Vexa authentication |
-| `TRANSCRIPTION_PROVIDER` | `vexa` | Transcription provider type |
+| `TRANSCRIPTION_PROVIDER` | `vexa` | Transcription provider type (`vexa` or `browser_extension`) |
 | `STORAGE_PROVIDER` | `mongodb` | Storage backend type |
 | `MONGODB_URL` | `mongodb://localhost:27017` | MongoDB connection URL |
 | `MONGODB_DB` | `dna` | MongoDB database name |
 
 The Vexa WebSocket URL is derived from `VEXA_API_URL` automatically (`https://` → `wss://`, `http://` → `ws://`, appending `/ws`).
+
+### Browser extension provider (`browser_extension`)
+
+When `TRANSCRIPTION_PROVIDER=browser_extension`, DNA does not call Vexa. Instead:
+
+1. The DNA web app dispatches a bot via `POST /transcription/bot` (same as Vexa mode).
+2. The user starts the [Chrome extension](../../chrome-extension/README.md) on the matching Google Meet tab.
+3. The extension connects to `WS /transcription/extension/ws?token=<auth_token>` and sends:
+   - `{"action":"register","platform":"google_meet","meeting_id":"..."}`
+   - `{"type":"transcript","speaker":"...","confirmed":[...],"pending":[...],"ts":"..."}`
+4. The backend `BrowserExtensionTranscriptionProvider` routes frames into `TranscriptionService.on_transcription_updated`, which persists segments and broadcasts the flat `transcript` envelope to frontend `/ws` clients.
+
+Set `VITE_TRANSCRIPTION_MODE=extension` in the frontend to show extension setup instructions after dispatch.
 
 ### Frontend Environment Variables
 
@@ -1212,6 +1225,7 @@ The Vexa WebSocket URL is derived from `VEXA_API_URL` automatically (`https://` 
 |----------|---------|-------------|
 | `VITE_WS_URL` | `ws://localhost:8000/ws` | Backend WebSocket URL |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | Backend REST API URL |
+| `VITE_TRANSCRIPTION_MODE` | (unset) | Set to `extension` when using the Chrome extension provider |
 
 ---
 

@@ -112,4 +112,11 @@ def get_transcription_provider() -> TranscriptionProviderBase:
 
         return VexaTranscriptionProvider()
 
+    if provider_type == "browser_extension":
+        from dna.transcription_providers.browser_extension import (
+            BrowserExtensionTranscriptionProvider,
+        )
+
+        return BrowserExtensionTranscriptionProvider()
+
     raise ValueError(f"Unknown transcription provider: {provider_type}")

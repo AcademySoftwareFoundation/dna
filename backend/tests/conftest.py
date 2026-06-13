@@ -9,6 +9,11 @@ os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 
 # Mock aio_pika if not present to avoid ImportErrors during collection
 try:
+    import instructor
+except ImportError:
+    sys.modules["instructor"] = MagicMock()
+
+try:
     import aio_pika
 except ImportError:
     sys.modules["aio_pika"] = MagicMock()

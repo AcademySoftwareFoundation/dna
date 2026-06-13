@@ -18,6 +18,10 @@ export {
 } from './usePlaylistMetadata';
 
 export { useTranscription, parseMeetingUrl } from './useTranscription';
+export {
+  useExtensionTranscriptionBridge,
+  disconnectExtensionCapture,
+} from './useExtensionTranscriptionBridge';
 export type {
   ParsedMeetingUrl,
   UseTranscriptionOptions,

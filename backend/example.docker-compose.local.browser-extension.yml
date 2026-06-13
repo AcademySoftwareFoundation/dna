@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      - TRANSCRIPTION_PROVIDER=browser_extension
+      - AUTH_PROVIDER=none

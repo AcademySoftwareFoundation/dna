@@ -26,6 +26,10 @@ from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
+from dna.extension_ws import (
+    authenticate_extension_websocket,
+    handle_extension_websocket,
+)
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
     Asset,
@@ -77,6 +81,9 @@ from dna.qc.qc_runner import run_qc_checks_for_draft
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
+)
+from dna.transcription_providers.browser_extension import (
+    BrowserExtensionTranscriptionProvider,
 )
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
@@ -511,6 +518,35 @@ async def websocket_endpoint(websocket: WebSocket):
                 break
     finally:
         await ws_manager.disconnect(websocket)
+
+
+@app.websocket("/transcription/extension/ws")
+async def extension_websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for Chrome extension transcript ingress.
+
+    Authenticate with ``Authorization: Bearer <token>`` header or ``?token=``
+    query parameter. The extension must register with a meeting that was
+    dispatched via ``POST /transcription/bot`` when using the
+    ``browser_extension`` transcription provider.
+    """
+    user_email = await authenticate_extension_websocket(websocket)
+    if user_email is None:
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
+    provider = get_transcription_provider_cached()
+    if not isinstance(provider, BrowserExtensionTranscriptionProvider):
+        await websocket.accept()
+        await websocket.send_json(
+            {
+                "type": "error",
+                "message": "TRANSCRIPTION_PROVIDER is not browser_extension",
+            }
+        )
+        await websocket.close(code=4403)
+        return
+
+    await handle_extension_websocket(websocket, provider)
 
 
 # -----------------------------------------------------------------------------

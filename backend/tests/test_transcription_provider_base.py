@@ -143,6 +143,18 @@ class TestGetTranscriptionProvider:
             provider = get_transcription_provider()
             assert isinstance(provider, VexaTranscriptionProvider)
 
+    def test_returns_browser_extension_provider_when_configured(self):
+        """Test that factory returns BrowserExtensionTranscriptionProvider."""
+        with mock.patch.dict(
+            "os.environ", {"TRANSCRIPTION_PROVIDER": "browser_extension"}
+        ):
+            from dna.transcription_providers.browser_extension import (
+                BrowserExtensionTranscriptionProvider,
+            )
+
+            provider = get_transcription_provider()
+            assert isinstance(provider, BrowserExtensionTranscriptionProvider)
+
     def test_raises_error_for_unknown_provider(self):
         """Test that factory raises ValueError for unknown provider."""
         with mock.patch.dict("os.environ", {"TRANSCRIPTION_PROVIDER": "unknown"}):

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DNA Transcription</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 12px;
+        width: 280px;
+      }
+      #status {
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      #tabSection {
+        display: none;
+      }
+      select,
+      button {
+        width: 100%;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="status">Loading…</p>
+    <div id="tabSection">
+      <label for="tabSelect">Choose a Meet tab</label>
+      <select id="tabSelect"></select>
+      <button id="selectBtn" type="button">Use this tab</button>
+    </div>
+    <script type="module" src="./popup.js"></script>
+  </body>
+</html>
