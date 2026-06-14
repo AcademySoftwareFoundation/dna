@@ -41,13 +41,13 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   const [transcriptionBase, setTranscriptionState] = useState(() => {
     if (ENV_TRANSCRIPTION !== null) return ENV_TRANSCRIPTION;
     const stored = localStorage.getItem(TRANSCRIPTION_KEY);
-    return stored === 'true';
+    return stored === null ? true : stored === 'true';
   });
 
   const [aiEnabled, setAiState] = useState(() => {
     if (ENV_AI !== null) return ENV_AI;
     const stored = localStorage.getItem(AI_KEY);
-    return stored === 'true';
+    return stored === null ? true : stored === 'true';
   });
 
   const [inReviewBase, setInReviewState] = useState(() => {
