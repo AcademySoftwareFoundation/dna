@@ -14,6 +14,7 @@ class UserSettingsResponse(BaseModel):
     user_email: str
     note_prompt: str = ""
     default_note_prompt: str = ""
+    llm_model: Optional[str] = None
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True

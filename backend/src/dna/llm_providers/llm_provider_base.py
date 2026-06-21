@@ -168,6 +168,7 @@ class LLMProviderBase:
         context: str,
         existing_notes: str,
         additional_instructions: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> str:
         """Generate a note suggestion from the given inputs.
 
@@ -177,6 +178,7 @@ class LLMProviderBase:
             context: Version context (entity name, task, status, etc.).
             existing_notes: Any notes the user has already written.
             additional_instructions: Optional additional instructions to append.
+            model: Optional model override.
 
         Returns:
             The generated note suggestion.
@@ -189,7 +191,7 @@ class LLMProviderBase:
             user_message += f"\n\nAdditional Instructions: {additional_instructions}"
 
         response = await self.client.chat.completions.create(
-            model=self.model,
+            model=model or self.model,
             messages=[
                 {"role": "system", "content": GENERATE_NOTE_PROMPT},
                 {"role": "user", "content": user_message},
@@ -209,6 +211,7 @@ class LLMProviderBase:
         max_iterations: int = 5,
         temperature: float = 0.2,
         max_tool_result_chars: int = DEFAULT_MAX_TOOL_RESULT_CHARS,
+        model: Optional[str] = None,
     ) -> str:
         """Run an agentic loop: LLM may call tools until it returns final text."""
         messages: list[dict[str, Any]] = [
@@ -218,7 +221,7 @@ class LLMProviderBase:
         last_text = ""
         for _ in range(max_iterations):
             response = await self.client.chat.completions.create(
-                model=self.model,
+                model=model or self.model,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
@@ -252,6 +255,7 @@ class LLMProviderBase:
         temperature: float = 0.2,
         max_tool_result_chars: int = DEFAULT_MAX_TOOL_RESULT_CHARS,
         extraction_user_message: str | None = None,
+        model: Optional[str] = None,
     ) -> T:
         """Tool-use phase then instructor-validated structured extraction."""
         messages: list[dict[str, Any]] = [
@@ -261,7 +265,7 @@ class LLMProviderBase:
         hit_limit_with_tools = False
         for i in range(max_iterations):
             response = await self.client.chat.completions.create(
-                model=self.model,
+                model=model or self.model,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
@@ -296,7 +300,7 @@ class LLMProviderBase:
                 max_iterations,
             )
             response = await self.client.chat.completions.create(
-                model=self.model,
+                model=model or self.model,
                 messages=messages,
                 tools=tools,
                 tool_choice="none",
@@ -324,7 +328,7 @@ class LLMProviderBase:
             mode=instructor.Mode.JSON,
         )
         return await instructor_client.chat.completions.create(
-            model=self.model,
+            model=model or self.model,
             messages=extraction_messages,
             response_model=response_model,
             temperature=temperature,

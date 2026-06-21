@@ -1413,32 +1413,30 @@ async def delete_playlist_metadata(
 
 
 def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
-    """Attach configured default note prompt for API clients (e.g. settings UI)."""
+    """Convert UserSettings model to API response with defaults included."""
     return UserSettingsResponse(
-        _id=settings.id,
+        id=settings.id,
         user_email=settings.user_email,
         note_prompt=settings.note_prompt,
         default_note_prompt=get_default_note_prompt(),
+        llm_model=settings.llm_model,
         regenerate_on_version_change=settings.regenerate_on_version_change,
         regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
-        sync_prodtrack_tab_on_version_change=(
-            settings.sync_prodtrack_tab_on_version_change
-        ),
+        sync_prodtrack_tab_on_version_change=settings.sync_prodtrack_tab_on_version_change,
         updated_at=settings.updated_at,
         created_at=settings.created_at,
     )
 
 
 def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
-    from datetime import datetime, timezone
-
+    """Create an empty settings response with correct defaults."""
     now = datetime.now(timezone.utc)
-    default = get_default_note_prompt()
     return UserSettingsResponse(
-        _id="",
+        id="default",
         user_email=user_email,
         note_prompt="",
-        default_note_prompt=default,
+        default_note_prompt=get_default_note_prompt(),
+        llm_model=None,
         regenerate_on_version_change=False,
         regenerate_on_transcript_update=False,
         sync_prodtrack_tab_on_version_change=True,
@@ -1858,6 +1856,7 @@ async def generate_note(
             context=context,
             existing_notes=existing_notes,
             additional_instructions=request.additional_instructions,
+            model=user_settings.llm_model if user_settings else None,
         )
 
         return GenerateNoteResponse(

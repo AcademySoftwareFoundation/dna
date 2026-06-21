@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import styled from 'styled-components';
-import {
   Dialog,
   AlertDialog,
   Button,
@@ -9,6 +8,7 @@ import {
   Flex,
   Switch,
   Tooltip,
+  Select,
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Loader2, Info } from 'lucide-react';
@@ -20,6 +20,7 @@ import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode } from '../contexts';
+import { StyledSelectTrigger, StyledSelectContent } from './FormInputs';
 
 interface SettingsModalProps {
   userEmail: string;
@@ -223,11 +224,13 @@ const KeybindingInput = styled.button<{ $recording: boolean }>`
 interface GeneralTabProps {
   isLoading: boolean;
   notePrompt: string;
+  llmModel: string | null;
   regenerateOnVersionChange: boolean;
   regenerateOnTranscriptUpdate: boolean;
   syncProdtrackTabOnVersionChange: boolean;
   isPending: boolean;
   onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onLlmModelChange: (model: string | null) => void;
   onRegenerateOnVersionChange: (checked: boolean) => void;
   onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
   onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
@@ -236,11 +239,13 @@ interface GeneralTabProps {
 function GeneralTab({
   isLoading,
   notePrompt,
+  llmModel,
   regenerateOnVersionChange,
   regenerateOnTranscriptUpdate,
   syncProdtrackTabOnVersionChange,
   isPending,
   onNotePromptChange,
+  onLlmModelChange,
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
   onSyncProdtrackTabOnVersionChange,
@@ -308,6 +313,31 @@ function GeneralTab({
             disabled={isPending}
           />
         </TextAreaWrapper>
+      </Section>
+
+      <Section>
+        <SectionTitle>LLM Model</SectionTitle>
+        <SectionDescription>
+          Select the AI model to use for note generation and other LLM tasks.
+        </SectionDescription>
+        <Select.Root 
+          value={llmModel || 'system-default'} 
+          onValueChange={(val) => onLlmModelChange(val === 'system-default' ? null : val)}
+          disabled={isPending}
+        >
+          <StyledSelectTrigger placeholder="Select an LLM model..." />
+          <StyledSelectContent>
+            <Select.Item value="system-default">System Default</Select.Item>
+            <Select.Item value="gpt-4o-mini">OpenAI: gpt-4o-mini</Select.Item>
+            <Select.Item value="gpt-4o">OpenAI: gpt-4o</Select.Item>
+            <Select.Item value="gpt-4-turbo">OpenAI: gpt-4-turbo</Select.Item>
+            <Select.Item value="o1-mini">OpenAI: o1-mini</Select.Item>
+            <Select.Item value="gemini-2.5-flash">Gemini: gemini-2.5-flash</Select.Item>
+            <Select.Item value="gemini-2.5-pro">Gemini: gemini-2.5-pro</Select.Item>
+            <Select.Item value="gemini-1.5-flash">Gemini: gemini-1.5-flash</Select.Item>
+            <Select.Item value="gemini-1.5-pro">Gemini: gemini-1.5-pro</Select.Item>
+          </StyledSelectContent>
+        </Select.Root>
       </Section>
 
       <Section>
@@ -536,6 +566,7 @@ export function SettingsModal({
   const open = controlledOpen ?? internalOpen;
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [notePrompt, setNotePrompt] = useState('');
+  const [llmModel, setLlmModel] = useState<string | null>(null);
   const [regenerateOnVersionChange, setRegenerateOnVersionChange] =
     useState(false);
   const [regenerateOnTranscriptUpdate, setRegenerateOnTranscriptUpdate] =
@@ -573,6 +604,7 @@ export function SettingsModal({
           ? settings.note_prompt
           : settings.default_note_prompt;
       setNotePrompt(displayPrompt);
+      setLlmModel(settings.llm_model || null);
       setRegenerateOnVersionChange(settings.regenerate_on_version_change);
       setRegenerateOnTranscriptUpdate(settings.regenerate_on_transcript_update);
       setSyncProdtrackTabOnVersionChange(
@@ -581,6 +613,7 @@ export function SettingsModal({
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
+      setLlmModel(null);
       setRegenerateOnVersionChange(false);
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
@@ -595,6 +628,11 @@ export function SettingsModal({
     },
     []
   );
+
+  const handleLlmModelChange = useCallback((model: string | null) => {
+    setLlmModel(model);
+    setIsDirty(true);
+  }, []);
 
   const handleRegenerateOnVersionChange = useCallback((checked: boolean) => {
     setRegenerateOnVersionChange(checked);
@@ -621,6 +659,7 @@ export function SettingsModal({
       currentTrimmed === '' || currentTrimmed === defaultTrimmed;
     mutation.mutate({
       note_prompt: persistAsDefault ? '' : notePrompt,
+      llm_model: llmModel,
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
@@ -628,6 +667,7 @@ export function SettingsModal({
   }, [
     mutation,
     notePrompt,
+    llmModel,
     settings?.default_note_prompt,
     regenerateOnVersionChange,
     regenerateOnTranscriptUpdate,
@@ -676,11 +716,13 @@ export function SettingsModal({
             <GeneralTab
               isLoading={isLoading}
               notePrompt={notePrompt}
+              llmModel={llmModel}
               regenerateOnVersionChange={regenerateOnVersionChange}
               regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
               syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
               isPending={mutation.isPending}
               onNotePromptChange={handleNotePromptChange}
+              onLlmModelChange={handleLlmModelChange}
               onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
               onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
               onSyncProdtrackTabOnVersionChange={
