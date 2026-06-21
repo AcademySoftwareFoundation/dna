@@ -128,7 +128,10 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
   );
 
   const activeFailures = useMemo(
-    () => failedResults.filter((r) => !ignored.has(ignoreKey(draftKey, r.check_id))),
+    () =>
+      failedResults.filter(
+        (r) => !ignored.has(ignoreKey(draftKey, r.check_id))
+      ),
     [failedResults, ignored, draftKey]
   );
 
@@ -137,16 +140,20 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
     [localDraft, activeFailures]
   );
 
-  const fixAllEnabled = activeFailures.length >= 2 && fixAllBlockReason === null;
+  const fixAllEnabled =
+    activeFailures.length >= 2 && fixAllBlockReason === null;
 
   const { label, tone } = useMemo(() => {
-    if (loading) return { label: 'Note QC: Running…', tone: 'loading' as const };
-    if (results.length === 0) return { label: 'Note QC: —', tone: 'loading' as const };
+    if (loading)
+      return { label: 'Note QC: Running…', tone: 'loading' as const };
+    if (results.length === 0)
+      return { label: 'Note QC: —', tone: 'loading' as const };
     if (failedResults.length === 0) {
       return { label: 'Note QC: All checks pass', tone: 'ok' as const };
     }
     const unresolvedErr = failedResults.find(
-      (r) => r.severity === 'error' && !ignored.has(ignoreKey(draftKey, r.check_id))
+      (r) =>
+        r.severity === 'error' && !ignored.has(ignoreKey(draftKey, r.check_id))
     );
     if (unresolvedErr) {
       return {
@@ -155,7 +162,9 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
       };
     }
     const unresolvedWarn = failedResults.find(
-      (r) => r.severity === 'warning' && !ignored.has(ignoreKey(draftKey, r.check_id))
+      (r) =>
+        r.severity === 'warning' &&
+        !ignored.has(ignoreKey(draftKey, r.check_id))
     );
     if (unresolvedWarn) {
       return {
@@ -178,16 +187,28 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
+      <Popover.Trigger>
         <PillButton type="button" $tone={tone} aria-label="Note QC status">
           {loading ? <Spin size={12} /> : null}
-          <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span
+            style={{
+              maxWidth: 220,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {label}
           </span>
           {!loading ? <ChevronDown size={14} /> : null}
         </PillButton>
       </Popover.Trigger>
-      <Popover.Content width="360px" side="bottom" align="end" style={{ padding: '12px 14px' }}>
+      <Popover.Content
+        width="360px"
+        side="bottom"
+        align="end"
+        style={{ padding: '12px 14px' }}
+      >
         <Flex direction="column" gap="2">
           <Flex align="center" justify="between" gap="2" wrap="wrap" mb="1">
             <Text size="2" weight="bold">
@@ -210,7 +231,9 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
                     onClick={() => {
                       if (!fixAllEnabled) return;
                       setOpen(false);
-                      onFixAll(mergeQCResultPatches(localDraft, activeFailures));
+                      onFixAll(
+                        mergeQCResultPatches(localDraft, activeFailures)
+                      );
                     }}
                   >
                     Fix all
@@ -250,16 +273,28 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
                   ) : null}
                   <Details>
                     <summary>
-                      <ChevronRight className="qc-details-chevron" size={14} aria-hidden />
+                      <ChevronRight
+                        className="qc-details-chevron"
+                        size={14}
+                        aria-hidden
+                      />
                       Extra details
                     </summary>
                     {r.evidence ? (
-                      <Text as="p" size="1" style={{ marginTop: 6, lineHeight: 1.4 }}>
+                      <Text
+                        as="p"
+                        size="1"
+                        style={{ marginTop: 6, lineHeight: 1.4 }}
+                      >
                         {r.evidence}
                       </Text>
                     ) : null}
                     {qcNormalized.note_suggestion ? (
-                      <Text as="p" size="1" style={{ marginTop: 6, lineHeight: 1.4 }}>
+                      <Text
+                        as="p"
+                        size="1"
+                        style={{ marginTop: 6, lineHeight: 1.4 }}
+                      >
                         <strong>Suggested note:</strong>{' '}
                         {qcNormalized.note_suggestion.slice(0, 400)}
                         {qcNormalized.note_suggestion.length > 400 ? '…' : ''}

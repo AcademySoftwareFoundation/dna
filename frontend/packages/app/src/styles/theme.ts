@@ -70,7 +70,7 @@ export const darkTheme = {
       strong: 'rgba(255, 255, 255, 0.15)',
     },
   },
-} as const;
+};
 
 export const lightTheme = {
   ...base,
@@ -99,7 +99,7 @@ export const lightTheme = {
       strong: 'rgba(0, 0, 0, 0.28)',
     },
   },
-} as const;
+};
 
 // backwards-compatible default export
 export const theme = darkTheme;

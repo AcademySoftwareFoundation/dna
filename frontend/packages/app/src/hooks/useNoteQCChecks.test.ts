@@ -8,7 +8,11 @@ import { apiHandler } from '../api';
 
 function wrapper(queryClient: QueryClient) {
   return function W({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client: queryClient }, children);
+    return createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children
+    );
   };
 }
 
@@ -38,7 +42,8 @@ describe('useNoteQCChecks', () => {
   let spy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    spy = vi.spyOn(apiHandler, 'runQCChecks').mockResolvedValue([
+    spy = vi.spyOn(apiHandler, 'runQCChecks') as any;
+    spy.mockResolvedValue([
       {
         check_id: 'c1',
         check_name: 'Test',
@@ -132,13 +137,15 @@ describe('useNoteQCChecks', () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: 0 } },
     });
-    let resolveFirst: (value: Awaited<ReturnType<typeof apiHandler.runQCChecks>>) => void;
-    const firstPromise = new Promise<Awaited<ReturnType<typeof apiHandler.runQCChecks>>>(
-      (resolve) => {
-        resolveFirst = resolve;
-      }
-    );
-    spy.mockImplementation(({ userEmail }) => {
+    let resolveFirst: (
+      value: Awaited<ReturnType<typeof apiHandler.runQCChecks>>
+    ) => void;
+    const firstPromise = new Promise<
+      Awaited<ReturnType<typeof apiHandler.runQCChecks>>
+    >((resolve) => {
+      resolveFirst = resolve;
+    });
+    spy.mockImplementation(({ userEmail }: any) => {
       if (userEmail === 'a@test.com') {
         return firstPromise;
       }

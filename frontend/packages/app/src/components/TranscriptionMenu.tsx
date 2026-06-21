@@ -368,12 +368,22 @@ export function TranscriptionMenu({
 
   const renderMainButtonContent = () => {
     if (collapsed) {
-      return <PulsingPhone size={18} color={phoneIconColor} $shouldPulse={shouldPulseYellow} />;
+      return (
+        <PulsingPhone
+          size={18}
+          color={phoneIconColor}
+          $shouldPulse={shouldPulseYellow}
+        />
+      );
     }
 
     return (
       <>
-        <PulsingPhone size={14} color={phoneIconColor} $shouldPulse={shouldPulseYellow} />
+        <PulsingPhone
+          size={14}
+          color={phoneIconColor}
+          $shouldPulse={shouldPulseYellow}
+        />
         {isActive ? (
           <>
             <StatusIndicator $status={currentStatus} />
@@ -416,7 +426,7 @@ export function TranscriptionMenu({
 
   return (
     <Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
-      <Popover.Trigger asChild>
+      <Popover.Trigger>
         <div style={{ display: 'inline-block' }}>{renderTrigger()}</div>
       </Popover.Trigger>
       <Popover.Content side="top" align="start" sideOffset={8}>

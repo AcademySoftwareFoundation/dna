@@ -61,9 +61,12 @@ const EditorWrapper = styled.div<{
           $isDragOver ? theme.colors.accent.main : theme.colors.border.subtle
         }`};
   box-shadow: ${({ $embedded, $isDragOver, theme }) =>
-    $embedded && $isDragOver ? `inset 0 0 0 2px ${theme.colors.accent.main}` : 'none'};
+    $embedded && $isDragOver
+      ? `inset 0 0 0 2px ${theme.colors.accent.main}`
+      : 'none'};
   border-radius: ${({ theme }) => theme.radii.lg};
-  transition: border-color ${({ theme }) => theme.transitions.fast},
+  transition:
+    border-color ${({ theme }) => theme.transitions.fast},
     box-shadow ${({ theme }) => theme.transitions.fast};
 `;
 
@@ -155,9 +158,7 @@ export function NoteDraftStatusBadges({
 
   const badges = (
     <>
-      {showPublished && (
-        <StatusBadge $compact={compact}>Published</StatusBadge>
-      )}
+      {showPublished && <StatusBadge $compact={compact}>Published</StatusBadge>}
       {showEdited && (
         <StatusBadge $isWarning $compact={compact}>
           Published (Edited)
@@ -406,7 +407,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         const entries: StagedAttachment[] = results.map((result, i) =>
           result.status === 'fulfilled'
             ? result.value
-            : ({ id: newIds[i], previewUrl: '', backendId: newIds[i], broken: true } as StagedAttachment)
+            : ({
+                id: newIds[i],
+                previewUrl: '',
+                backendId: newIds[i],
+                broken: true,
+              } as StagedAttachment)
         );
 
         const next = [...attachmentsRef.current, ...entries];

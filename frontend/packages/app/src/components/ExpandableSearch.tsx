@@ -1,4 +1,11 @@
-import { useState, useRef, useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useImperativeHandle,
+  forwardRef,
+} from 'react';
 import styled from 'styled-components';
 import { Search, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Version } from '@dna/core';
@@ -192,14 +199,19 @@ function searchVersionAttributes(version: Version, query: string): boolean {
   );
 }
 
-export const ExpandableSearch = forwardRef<ExpandableSearchHandle, ExpandableSearchProps>(
-function ExpandableSearch({
-  placeholder = 'Search...',
-  versions = [],
-  selectedVersionId,
-  onVersionSelect,
-  onExpandedChange,
-}, ref) {
+export const ExpandableSearch = forwardRef<
+  ExpandableSearchHandle,
+  ExpandableSearchProps
+>(function ExpandableSearch(
+  {
+    placeholder = 'Search...',
+    versions = [],
+    selectedVersionId,
+    onVersionSelect,
+    onExpandedChange,
+  },
+  ref
+) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
@@ -343,5 +355,4 @@ function ExpandableSearch({
       </SearchButton>
     </Container>
   );
-}
-);
+});

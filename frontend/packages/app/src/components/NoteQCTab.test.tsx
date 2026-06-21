@@ -7,7 +7,8 @@ describe('NoteQCTab', () => {
   let spy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    spy = vi.spyOn(apiHandler, 'getQCChecks').mockResolvedValue([
+    spy = vi.spyOn(apiHandler, 'getQCChecks') as any;
+    spy.mockResolvedValue([
       {
         _id: 'abc',
         user_email: 'u@test.com',

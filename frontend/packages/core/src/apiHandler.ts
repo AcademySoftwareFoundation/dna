@@ -42,8 +42,6 @@ import {
   SearchResult,
   StatusOption,
   NoteQCCheck,
-  NoteQCCheckCreate,
-  NoteQCCheckUpdate,
   NoteQCResult,
   RunQCChecksResponseBody,
   GetQCChecksParams,
@@ -359,7 +357,9 @@ class ApiHandler {
     return body.results;
   }
 
-  async uploadAttachment(file: File): Promise<{ id: string; filename: string }> {
+  async uploadAttachment(
+    file: File
+  ): Promise<{ id: string; filename: string }> {
     const formData = new FormData();
     formData.append('file', file);
     const response = await this.axiosInstance.postForm<{

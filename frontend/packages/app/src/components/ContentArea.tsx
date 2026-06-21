@@ -75,7 +75,11 @@ export function ContentArea({
 
   const currentVersionAsSearchResult = useMemo((): SearchResult | undefined => {
     if (!version) return undefined;
-    return { type: 'Version', id: version.id, name: version.name || `Version ${version.id}` };
+    return {
+      type: 'Version',
+      id: version.id,
+      name: version.name || `Version ${version.id}`,
+    };
   }, [version]);
 
   const versionSubmitter = useMemo((): SearchResult | undefined => {
@@ -91,11 +95,15 @@ export function ContentArea({
     submitter: versionSubmitter,
   });
 
-  const selectedVersionStatus = draftNote?.versionStatus || (version?.status ?? '');
+  const selectedVersionStatus =
+    draftNote?.versionStatus || (version?.status ?? '');
 
-  const handleVersionStatusChange = useCallback((code: string) => {
-    updateDraftNote({ versionStatus: code });
-  }, [updateDraftNote]);
+  const handleVersionStatusChange = useCallback(
+    (code: string) => {
+      updateDraftNote({ versionStatus: code });
+    },
+    [updateDraftNote]
+  );
 
   const handleRefreshClick = useCallback(() => {
     updateDraftNote({ versionStatus: version?.status ?? '' });
@@ -170,7 +178,6 @@ export function ContentArea({
       queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
       enabled: !!userEmail,
     });
-
 
   const shouldAutoSyncProdtrackTab =
     userSettingsQuerySuccess &&
@@ -248,46 +255,46 @@ export function ContentArea({
   return (
     <>
       <ContentWrapper>
-      <VersionHeader
-        shotCode={entityName}
-        versionNumber={versionNumber}
-        submittedBy={version.user?.name}
-        dateSubmitted={formatDate(version.created_at as string)}
-        versionStatus={selectedVersionStatus}
-        projectId={version.project?.id}
-        thumbnailUrl={version.thumbnail}
-        links={links}
-        onBack={handleBack}
-        onNext={handleNext}
-        onInReview={handleInReview}
-        onSetInReview={handleSetInReview}
-        onVersionStatusChange={handleVersionStatusChange}
-        prodtrackDetailUrl={version.prodtrack_detail_url}
-        prodtrackTabUsesExtension={!!extensionId}
-        onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
-        syncProdtrackDisabled={syncProdtrackDisabled}
-        syncProdtrackTitle={syncProdtrackTitle}
-        canGoBack={canGoBack}
-        canGoNext={canGoNext}
-        hasInReview={hasInReview}
-        isCurrentVersionInReview={isCurrentVersionInReview}
-        isSettingInReview={isSettingInReview}
-        onRefresh={handleRefreshClick}
-      />
-      <NoteEditor
-        ref={noteEditorRef}
-        projectId={version.project?.id}
-        currentVersion={version}
-        draftNote={draftNote}
-        updateDraftNote={updateDraftNote}
-        saveAttachmentIds={saveAttachmentIds}
-      />
-      <AssistantPanel
-        playlistId={playlistId}
-        versionId={version.id}
-        userEmail={userEmail}
-        onInsertNote={handleInsertNote}
-      />
+        <VersionHeader
+          shotCode={entityName}
+          versionNumber={versionNumber}
+          submittedBy={version.user?.name}
+          dateSubmitted={formatDate(version.created_at as string)}
+          versionStatus={selectedVersionStatus}
+          projectId={version.project?.id}
+          thumbnailUrl={version.thumbnail}
+          links={links}
+          onBack={handleBack}
+          onNext={handleNext}
+          onInReview={handleInReview}
+          onSetInReview={handleSetInReview}
+          onVersionStatusChange={handleVersionStatusChange}
+          prodtrackDetailUrl={version.prodtrack_detail_url}
+          prodtrackTabUsesExtension={!!extensionId}
+          onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
+          syncProdtrackDisabled={syncProdtrackDisabled}
+          syncProdtrackTitle={syncProdtrackTitle}
+          canGoBack={canGoBack}
+          canGoNext={canGoNext}
+          hasInReview={hasInReview}
+          isCurrentVersionInReview={isCurrentVersionInReview}
+          isSettingInReview={isSettingInReview}
+          onRefresh={handleRefreshClick}
+        />
+        <NoteEditor
+          ref={noteEditorRef}
+          projectId={version.project?.id}
+          currentVersion={version}
+          draftNote={draftNote}
+          updateDraftNote={updateDraftNote}
+          saveAttachmentIds={saveAttachmentIds}
+        />
+        <AssistantPanel
+          playlistId={playlistId}
+          versionId={version.id}
+          userEmail={userEmail}
+          onInsertNote={handleInsertNote}
+        />
       </ContentWrapper>
     </>
   );

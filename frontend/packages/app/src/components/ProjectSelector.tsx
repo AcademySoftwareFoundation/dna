@@ -4,10 +4,7 @@ import { Button, Flex, Select, Spinner } from '@radix-ui/themes';
 import { Playlist, Project } from '@dna/core';
 import { useGetProjectsForUser, useGetPlaylistsForProject } from '../api';
 import { Logo } from './Logo';
-import {
-  StyledSelectTrigger,
-  StyledSelectContent,
-} from './FormInputs';
+import { StyledSelectTrigger, StyledSelectContent } from './FormInputs';
 import { useAuth } from '../contexts';
 
 export const STORAGE_KEYS = {
@@ -294,7 +291,15 @@ export function clearUserSession(): void {
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
-  const { isAuthenticated, isLoading: isAuthLoading, user, signIn, signInWithEmail, signOut, authProvider } = useAuth();
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    user,
+    signIn,
+    signInWithEmail,
+    signOut,
+    authProvider,
+  } = useAuth();
   const [emailInput, setEmailInput] = useState('');
   const [step, setStep] = useState<Step>('loading');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);

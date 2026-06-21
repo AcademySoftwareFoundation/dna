@@ -27,13 +27,22 @@ export interface UseNoteQCChecksOptions {
   drafts: DraftNote[];
 }
 
-export function useNoteQCChecks({ open, playlistId, drafts }: UseNoteQCChecksOptions) {
+export function useNoteQCChecks({
+  open,
+  playlistId,
+  drafts,
+}: UseNoteQCChecksOptions) {
   const [results, setResults] = useState<Record<string, NoteQCResult[]>>({});
   const [loading, setLoading] = useState(false);
   const [ignored, setIgnored] = useState<Set<string>>(() => new Set());
-  const [refreshingDraftKey, setRefreshingDraftKey] = useState<string | null>(null);
+  const [refreshingDraftKey, setRefreshingDraftKey] = useState<string | null>(
+    null
+  );
 
-  const fingerprint = useMemo(() => draftsIdentityFingerprint(drafts), [drafts]);
+  const fingerprint = useMemo(
+    () => draftsIdentityFingerprint(drafts),
+    [drafts]
+  );
 
   const lastCompletedBulkKeyRef = useRef<string | null>(null);
 

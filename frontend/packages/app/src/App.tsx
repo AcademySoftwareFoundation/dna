@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Playlist, Project, Version } from '@dna/core';
-import {
-  Layout,
-  ContentArea,
-  ProjectSelector,
-} from './components';
+import { Layout, ContentArea, ProjectSelector } from './components';
 import { useAuth } from './contexts';
 import { useGetVersionsForPlaylist } from './api';
 import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';

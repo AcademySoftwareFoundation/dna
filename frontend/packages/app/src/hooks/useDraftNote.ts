@@ -157,57 +157,69 @@ export function useDraftNote({
       }),
     onMutate: async ({ data }) => {
       await queryClient.cancelQueries({ queryKey: ['draftNotes', playlistId] });
-      const previousDraftNotes = queryClient.getQueryData<DraftNote[]>(['draftNotes', playlistId]);
+      const previousDraftNotes = queryClient.getQueryData<DraftNote[]>([
+        'draftNotes',
+        playlistId,
+      ]);
 
       if (previousDraftNotes) {
-        queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
-          if (!old) return old;
-          const index = old.findIndex((n) => n.version_id === versionId);
-          if (index !== -1) {
-            const updated = [...old];
-            updated[index] = {
-              ...updated[index],
-              content: data.content ?? updated[index].content,
-              subject: data.subject ?? updated[index].subject,
-              to: data.to ?? updated[index].to,
-              cc: data.cc ?? updated[index].cc,
-              version_status: data.version_status ?? updated[index].version_status,
-              edited: data.edited ?? updated[index].edited,
-              attachment_ids: data.attachment_ids ?? updated[index].attachment_ids,
-            };
-            return updated;
-          } else {
-            return [
-              ...old,
-              {
-                id: -1,
-                _id: 'temp_id',
-                version_id: versionId!,
-                playlist_id: playlistId!,
-                user_id: -1,
-                user_email: userEmail!,
-                content: data.content ?? '',
-                subject: data.subject ?? '',
-                to: data.to ?? '',
-                cc: data.cc ?? '',
-                links: data.links ?? [],
-                version_status: data.version_status ?? '',
-                published: false,
-                edited: data.edited ?? false,
-                published_note_id: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-            ];
+        queryClient.setQueryData<DraftNote[]>(
+          ['draftNotes', playlistId],
+          (old) => {
+            if (!old) return old;
+            const index = old.findIndex((n) => n.version_id === versionId);
+            if (index !== -1) {
+              const updated = [...old];
+              updated[index] = {
+                ...updated[index],
+                content: data.content ?? updated[index].content,
+                subject: data.subject ?? updated[index].subject,
+                to: data.to ?? updated[index].to,
+                cc: data.cc ?? updated[index].cc,
+                version_status:
+                  data.version_status ?? updated[index].version_status,
+                edited: data.edited ?? updated[index].edited,
+                attachment_ids:
+                  data.attachment_ids ?? updated[index].attachment_ids,
+              };
+              return updated;
+            } else {
+              return [
+                ...old,
+                {
+                  id: -1,
+                  _id: 'temp_id',
+                  version_id: versionId!,
+                  playlist_id: playlistId!,
+                  user_id: -1,
+                  user_email: userEmail!,
+                  content: data.content ?? '',
+                  subject: data.subject ?? '',
+                  to: data.to ?? '',
+                  cc: data.cc ?? '',
+                  links: data.links ?? [],
+                  version_status: data.version_status ?? '',
+                  published: false,
+                  edited: data.edited ?? false,
+                  published_note_id: null,
+                  attachment_ids: data.attachment_ids ?? [],
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ];
+            }
           }
-        });
+        );
       }
 
       return { previousDraftNotes };
     },
     onError: (_err, _variables, context) => {
       if (context?.previousDraftNotes) {
-        queryClient.setQueryData(['draftNotes', playlistId], context.previousDraftNotes);
+        queryClient.setQueryData(
+          ['draftNotes', playlistId],
+          context.previousDraftNotes
+        );
       }
     },
     onSettled: () => {
@@ -284,7 +296,9 @@ export function useDraftNote({
         });
       } else if (!isLoading) {
         // Loading finished with no server draft — initialise empty if still null
-        setLocalDraft((prev) => prev ?? createEmptyDraft(currentVersion, submitter));
+        setLocalDraft(
+          (prev) => prev ?? createEmptyDraft(currentVersion, submitter)
+        );
       }
     }
   }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail]);
@@ -334,9 +348,15 @@ export function useDraftNote({
 
         let isEdited = base.edited;
 
-        const meaningfulFields: (keyof LocalDraftNote)[] = ['content', 'subject', 'to', 'cc'];
-        const hasMeaningfulChange = meaningfulFields.some(field =>
-          updates[field] !== undefined && updates[field] !== base[field]
+        const meaningfulFields: (keyof LocalDraftNote)[] = [
+          'content',
+          'subject',
+          'to',
+          'cc',
+        ];
+        const hasMeaningfulChange = meaningfulFields.some(
+          (field) =>
+            updates[field] !== undefined && updates[field] !== base[field]
         );
 
         if (hasMeaningfulChange) {

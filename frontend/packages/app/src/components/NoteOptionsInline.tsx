@@ -221,7 +221,10 @@ export function NoteOptionsInline({
 
           <FieldRow>
             <FieldGroup>
-              <FieldLabel $required $hasError={lockedTo.length === 0 && toValue.length === 0}>
+              <FieldLabel
+                $required
+                $hasError={lockedTo.length === 0 && toValue.length === 0}
+              >
                 To
               </FieldLabel>
               <EntitySearchInput
@@ -273,7 +276,6 @@ export function NoteOptionsInline({
               />
             </FieldGroup>
           </FieldRow>
-
         </EditForm>
       </Wrapper>
     );
@@ -281,7 +283,9 @@ export function NoteOptionsInline({
 
   // Combine locked + editable for display only
   const allTo = [...lockedTo, ...toValue];
-  const allLinks = currentVersion ? [currentVersion, ...linksValue] : linksValue;
+  const allLinks = currentVersion
+    ? [currentVersion, ...linksValue]
+    : linksValue;
 
   return (
     <Wrapper>
@@ -293,7 +297,11 @@ export function NoteOptionsInline({
               {allTo.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
-                  entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+                  entity={{
+                    type: entity.type.toLowerCase() as EntityType,
+                    id: entity.id,
+                    name: entity.name,
+                  }}
                   size="compact"
                 />
               ))}
@@ -315,7 +323,11 @@ export function NoteOptionsInline({
               {ccValue.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
-                  entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+                  entity={{
+                    type: entity.type.toLowerCase() as EntityType,
+                    id: entity.id,
+                    name: entity.name,
+                  }}
                   size="compact"
                 />
               ))}
@@ -342,7 +354,11 @@ export function NoteOptionsInline({
               {allLinks.slice(0, 2).map((entity) => (
                 <EntityPill
                   key={`${entity.type}-${entity.id}`}
-                  entity={{ type: entity.type.toLowerCase() as EntityType, id: entity.id, name: entity.name }}
+                  entity={{
+                    type: entity.type.toLowerCase() as EntityType,
+                    id: entity.id,
+                    name: entity.name,
+                  }}
                   size="compact"
                 />
               ))}

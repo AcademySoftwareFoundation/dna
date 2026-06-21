@@ -6,7 +6,13 @@ import type {
 } from '@dna/core';
 import type { LocalDraftNote } from '../hooks/useDraftNote';
 
-export type QCField = 'content' | 'subject' | 'versionStatus' | 'to' | 'cc' | 'links';
+export type QCField =
+  | 'content'
+  | 'subject'
+  | 'versionStatus'
+  | 'to'
+  | 'cc'
+  | 'links';
 
 const FIELD_LABELS: Record<QCField, string> = {
   content: 'note body',
@@ -34,7 +40,9 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 }
 
-function looksLikeEmbeddedNotePayload(parsed: unknown): parsed is Record<string, unknown> {
+function looksLikeEmbeddedNotePayload(
+  parsed: unknown
+): parsed is Record<string, unknown> {
   if (!isPlainObject(parsed)) return false;
   return [...EMBEDDED_NOTE_KEYS].some((k) => k in parsed);
 }
@@ -72,7 +80,8 @@ function normalizeLinksFromPayload(raw: unknown): DraftNoteLink[] | null {
       links.push({
         entity_type: String(item.entity_type ?? ''),
         entity_id: Number(item.entity_id),
-        entity_name: item.entity_name != null ? String(item.entity_name) : undefined,
+        entity_name:
+          item.entity_name != null ? String(item.entity_name) : undefined,
       });
       continue;
     }
@@ -122,7 +131,7 @@ function mergeAttributes(
     for (const key of keys) {
       const v = explicit[key];
       if (v !== undefined && v !== null) {
-        out[key] = v;
+        (out as any)[key] = v;
       }
     }
   }
@@ -161,7 +170,10 @@ export function normalizeQCResult(qc: NoteQCResult): NoteQCResult {
   return next;
 }
 
-function parseRecipients(json: string, fallback: SearchResult[]): SearchResult[] {
+function parseRecipients(
+  json: string,
+  fallback: SearchResult[]
+): SearchResult[] {
   try {
     const p = JSON.parse(json);
     return Array.isArray(p) ? p : fallback;
@@ -178,7 +190,10 @@ function linksToSearchResults(links: DraftNoteLink[]): SearchResult[] {
   }));
 }
 
-export function applyNormalizedQCToDraft(draft: LocalDraftNote, qc: NoteQCResult): LocalDraftNote {
+export function applyNormalizedQCToDraft(
+  draft: LocalDraftNote,
+  qc: NoteQCResult
+): LocalDraftNote {
   const n = normalizeQCResult(qc);
   let next: LocalDraftNote = { ...draft };
   if (n.note_suggestion != null) {
@@ -189,7 +204,8 @@ export function applyNormalizedQCToDraft(draft: LocalDraftNote, qc: NoteQCResult
     return next;
   }
   if (a.subject != null) next = { ...next, subject: a.subject };
-  if (a.version_status != null) next = { ...next, versionStatus: a.version_status };
+  if (a.version_status != null)
+    next = { ...next, versionStatus: a.version_status };
   if (a.to != null) {
     next = { ...next, to: parseRecipients(a.to, draft.to) };
   }
@@ -204,21 +220,31 @@ export function applyNormalizedQCToDraft(draft: LocalDraftNote, qc: NoteQCResult
 
 function recipientsEqual(a: SearchResult[], b: SearchResult[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((x, i) => x.type === b[i].type && x.id === b[i].id && x.name === b[i].name);
+  return a.every(
+    (x, i) => x.type === b[i].type && x.id === b[i].id && x.name === b[i].name
+  );
 }
 
-function draftEqualsSuggested(draft: LocalDraftNote, suggested: LocalDraftNote): Partial<LocalDraftNote> {
+function draftEqualsSuggested(
+  draft: LocalDraftNote,
+  suggested: LocalDraftNote
+): Partial<LocalDraftNote> {
   const patch: Partial<LocalDraftNote> = {};
   if (suggested.content !== draft.content) patch.content = suggested.content;
   if (suggested.subject !== draft.subject) patch.subject = suggested.subject;
-  if (suggested.versionStatus !== draft.versionStatus) patch.versionStatus = suggested.versionStatus;
+  if (suggested.versionStatus !== draft.versionStatus)
+    patch.versionStatus = suggested.versionStatus;
   if (!recipientsEqual(suggested.to, draft.to)) patch.to = suggested.to;
   if (!recipientsEqual(suggested.cc, draft.cc)) patch.cc = suggested.cc;
-  if (!recipientsEqual(suggested.links, draft.links)) patch.links = suggested.links;
+  if (!recipientsEqual(suggested.links, draft.links))
+    patch.links = suggested.links;
   return patch;
 }
 
-export function getAffectedQCFields(draft: LocalDraftNote, qc: NoteQCResult): Set<QCField> {
+export function getAffectedQCFields(
+  draft: LocalDraftNote,
+  qc: NoteQCResult
+): Set<QCField> {
   const p = buildLocalPatch(draft, qc);
   const s = new Set<QCField>();
   if (p.content !== undefined) s.add('content');
@@ -230,7 +256,10 @@ export function getAffectedQCFields(draft: LocalDraftNote, qc: NoteQCResult): Se
   return s;
 }
 
-export function findOverlappingQCFields(draft: LocalDraftNote, results: NoteQCResult[]): QCField[] {
+export function findOverlappingQCFields(
+  draft: LocalDraftNote,
+  results: NoteQCResult[]
+): QCField[] {
   const seen = new Map<QCField, string>();
   const conflicts = new Set<QCField>();
   for (const r of results) {
@@ -245,7 +274,10 @@ export function findOverlappingQCFields(draft: LocalDraftNote, results: NoteQCRe
   return [...conflicts];
 }
 
-export function buildLocalPatch(draft: LocalDraftNote, qc: NoteQCResult): Partial<LocalDraftNote> {
+export function buildLocalPatch(
+  draft: LocalDraftNote,
+  qc: NoteQCResult
+): Partial<LocalDraftNote> {
   const suggested = applyNormalizedQCToDraft(draft, qc);
   const diff = draftEqualsSuggested(draft, suggested);
   if (Object.keys(diff).length === 0) {
@@ -254,8 +286,13 @@ export function buildLocalPatch(draft: LocalDraftNote, qc: NoteQCResult): Partia
   return { edited: true, ...diff };
 }
 
-export function mergeQCResultPatches(draft: LocalDraftNote, results: NoteQCResult[]): Partial<LocalDraftNote> {
-  const ordered = [...results].sort((a, b) => a.check_id.localeCompare(b.check_id));
+export function mergeQCResultPatches(
+  draft: LocalDraftNote,
+  results: NoteQCResult[]
+): Partial<LocalDraftNote> {
+  const ordered = [...results].sort((a, b) =>
+    a.check_id.localeCompare(b.check_id)
+  );
   let virtual: LocalDraftNote = { ...draft };
   let merged: Partial<LocalDraftNote> = {};
   for (const r of ordered) {
@@ -269,11 +306,16 @@ export function mergeQCResultPatches(draft: LocalDraftNote, results: NoteQCResul
   return merged;
 }
 
-export function fixAllDisabledReason(draft: LocalDraftNote, results: NoteQCResult[]): string | null {
+export function fixAllDisabledReason(
+  draft: LocalDraftNote,
+  results: NoteQCResult[]
+): string | null {
   if (results.length < 2) {
     return null;
   }
-  const withoutSuggestions = results.filter((r) => getAffectedQCFields(draft, r).size === 0);
+  const withoutSuggestions = results.filter(
+    (r) => getAffectedQCFields(draft, r).size === 0
+  );
   if (withoutSuggestions.length > 0) {
     return 'One or more checks have no suggested field changes to merge. Use Fix on each check that offers a suggestion.';
   }
@@ -297,7 +339,10 @@ function formatRecipientList(list: SearchResult[]): string {
   return list.map((x) => x.name || `${x.type} ${x.id}`).join(', ');
 }
 
-export function getQCPreviewRows(draft: LocalDraftNote, qc: NoteQCResult): QCPreviewRow[] {
+export function getQCPreviewRows(
+  draft: LocalDraftNote,
+  qc: NoteQCResult
+): QCPreviewRow[] {
   const suggested = applyNormalizedQCToDraft(draft, qc);
   const rows: QCPreviewRow[] = [];
   if (suggested.content !== draft.content) {

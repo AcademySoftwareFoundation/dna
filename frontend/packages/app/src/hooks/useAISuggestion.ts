@@ -142,13 +142,7 @@ export function useAISuggestion({
           // Error is captured in state
         });
     },
-    [
-      playlistId,
-      versionId,
-      userEmail,
-      isEnabled,
-      settingsUpsertInflight,
-    ]
+    [playlistId, versionId, userEmail, isEnabled, settingsUpsertInflight]
   );
 
   return useMemo(

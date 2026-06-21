@@ -31,7 +31,7 @@ const CodeBlock = styled.pre`
   padding: 12px;
   font-size: 12px;
   font-family: ${({ theme }) => theme.fonts.mono};
-  background: ${({ theme }) => theme.colors.background.secondary};
+  background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.subtle};
   border-radius: 6px;
   white-space: pre-wrap;

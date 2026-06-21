@@ -69,12 +69,21 @@ export const NoteQCDiffModal: React.FC<NoteQCDiffModalProps> = ({
           ) : (
             <Flex direction="column" gap="3" style={{ width: '100%' }}>
               {previewRows.map((row) => (
-                <Flex key={row.field} direction="column" gap="1" style={{ minWidth: 0 }}>
+                <Flex
+                  key={row.field}
+                  direction="column"
+                  gap="1"
+                  style={{ minWidth: 0 }}
+                >
                   <Text size="1" weight="bold">
                     {row.label}
                   </Text>
                   <Flex gap="2" align="start" style={{ width: '100%' }}>
-                    <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Flex
+                      direction="column"
+                      gap="1"
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
                       <Text size="1" color="gray">
                         Current
                       </Text>
@@ -85,12 +94,20 @@ export const NoteQCDiffModal: React.FC<NoteQCDiffModalProps> = ({
                           lineHeight: 1.45,
                         }}
                       >
-                        <Text as="span" size="2" style={{ whiteSpace: 'pre-wrap' }}>
+                        <Text
+                          as="span"
+                          size="2"
+                          style={{ whiteSpace: 'pre-wrap' }}
+                        >
                           {row.current}
                         </Text>
                       </div>
                     </Flex>
-                    <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
+                    <Flex
+                      direction="column"
+                      gap="1"
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
                       <Text size="1" color="gray">
                         Suggested
                       </Text>
@@ -101,7 +118,11 @@ export const NoteQCDiffModal: React.FC<NoteQCDiffModalProps> = ({
                           lineHeight: 1.45,
                         }}
                       >
-                        <Text as="span" size="2" style={{ whiteSpace: 'pre-wrap' }}>
+                        <Text
+                          as="span"
+                          size="2"
+                          style={{ whiteSpace: 'pre-wrap' }}
+                        >
                           {row.suggested}
                         </Text>
                       </div>
@@ -116,7 +137,12 @@ export const NoteQCDiffModal: React.FC<NoteQCDiffModalProps> = ({
           </Text>
           <Flex justify="end" gap="2" mt="3">
             <Dialog.Close>
-              <Button variant="soft" color="gray" type="button" disabled={pending}>
+              <Button
+                variant="soft"
+                color="gray"
+                type="button"
+                disabled={pending}
+              >
                 Cancel
               </Button>
             </Dialog.Close>

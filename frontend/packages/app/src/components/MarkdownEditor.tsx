@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, useCallback, type FocusEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  type FocusEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -453,7 +459,10 @@ export function MarkdownEditor({
         return;
       }
       const related = e.relatedTarget;
-      if (related instanceof Element && related.closest('[data-mention-dropdown]')) {
+      if (
+        related instanceof Element &&
+        related.closest('[data-mention-dropdown]')
+      ) {
         return;
       }
       if (related instanceof Node && e.currentTarget.contains(related)) {

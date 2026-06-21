@@ -5,7 +5,13 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import App from './App';
 import { darkTheme, lightTheme, GlobalStyles } from './styles';
-import { EventProvider, ToastProvider, ThemeModeProvider, useThemeMode, AuthProvider } from './contexts';
+import {
+  EventProvider,
+  ToastProvider,
+  ThemeModeProvider,
+  useThemeMode,
+  AuthProvider,
+} from './contexts';
 import { HotkeysProvider } from './hotkeys';
 import '@radix-ui/themes/styles.css';
 import './index.css';

@@ -30,8 +30,7 @@ interface EventContextValue {
 
 const EventContext = createContext<EventContextValue | null>(null);
 
-const WEBSOCKET_URL =
-  import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+const WEBSOCKET_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
 
 interface EventProviderProps {
   children: ReactNode;

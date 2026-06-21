@@ -65,17 +65,22 @@ export function useSegments({
   const activeKeyRef = useRef<string>('');
   const activeKey = `${playlistId ?? '-'}:${versionId ?? '-'}`;
 
-  const [liveSegments, setLiveSegments] = useState<StoredSegment[] | null>(null);
+  const [liveSegments, setLiveSegments] = useState<StoredSegment[] | null>(
+    null
+  );
 
   // Additive merge: feed confirmed segments into the manager via the tick
   // path (which does not clear state), then pull the reconciled array out.
-  const mergeConfirmed = useCallback((rest: StoredSegment[]): StoredSegment[] => {
-    const mgr = managerRef.current!;
-    if (rest && rest.length > 0) {
-      mgr.handleMessage({ type: 'transcript', confirmed: rest, pending: [] });
-    }
-    return mgr.getSegments();
-  }, []);
+  const mergeConfirmed = useCallback(
+    (rest: StoredSegment[]): StoredSegment[] => {
+      const mgr = managerRef.current!;
+      if (rest && rest.length > 0) {
+        mgr.handleMessage({ type: 'transcript', confirmed: rest, pending: [] });
+      }
+      return mgr.getSegments();
+    },
+    []
+  );
 
   // Version change — reset manager, then seed from any cached REST already
   // in React Query so WS ticks append onto the historical transcript rather
@@ -124,8 +129,8 @@ export function useSegments({
       const message: TranscriptMessage = {
         type: 'transcript',
         speaker: payload.speaker,
-        confirmed: (payload.confirmed ?? []) as StoredSegment[],
-        pending: (payload.pending ?? []) as StoredSegment[],
+        confirmed: (payload.confirmed ?? []) as unknown as StoredSegment[],
+        pending: (payload.pending ?? []) as unknown as StoredSegment[],
         ts: payload.ts,
       };
       const next = managerRef.current!.handleMessage(message);

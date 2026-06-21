@@ -1,6 +1,7 @@
 """API response models for user settings (includes configured default prompt)."""
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 

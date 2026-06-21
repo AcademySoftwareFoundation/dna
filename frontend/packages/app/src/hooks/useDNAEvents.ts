@@ -65,7 +65,8 @@ export function useTranscriptEvents(
 
   const filteredCallback = useCallback(
     (event: DNAEvent<TranscriptEventPayload>) => {
-      if (playlistId != null && event.payload.playlist_id !== playlistId) return;
+      if (playlistId != null && event.payload.playlist_id !== playlistId)
+        return;
       if (versionId != null && event.payload.version_id !== versionId) return;
       callback(event);
     },

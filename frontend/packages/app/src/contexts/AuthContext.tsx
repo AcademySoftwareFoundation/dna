@@ -217,8 +217,7 @@ function GoogleAuthProviderInner({ children }: GoogleAuthProviderInnerProps) {
     token,
     authProvider: 'google',
     signIn: handleSignIn,
-    signInWithEmail: () =>
-      console.warn('Use signIn for Google auth provider'),
+    signInWithEmail: () => console.warn('Use signIn for Google auth provider'),
     signOut: handleSignOut,
   };
 

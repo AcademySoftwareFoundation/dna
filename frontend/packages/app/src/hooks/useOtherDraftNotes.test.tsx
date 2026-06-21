@@ -52,6 +52,9 @@ const mockDraftNotes: DraftNote[] = [
     version_status: '',
     updated_at: '2025-01-15T00:00:00Z',
     created_at: '2025-01-15T00:00:00Z',
+    published: false,
+    edited: false,
+    attachment_ids: [],
   },
   {
     _id: 'def456',
@@ -66,6 +69,9 @@ const mockDraftNotes: DraftNote[] = [
     version_status: 'pending',
     updated_at: '2025-01-15T00:00:00Z',
     created_at: '2025-01-15T00:00:00Z',
+    published: false,
+    edited: false,
+    attachment_ids: [],
   },
   {
     _id: 'ghi789',
@@ -80,6 +86,9 @@ const mockDraftNotes: DraftNote[] = [
     version_status: '',
     updated_at: '2025-01-15T00:00:00Z',
     created_at: '2025-01-15T00:00:00Z',
+    published: false,
+    edited: false,
+    attachment_ids: [],
   },
 ];
 

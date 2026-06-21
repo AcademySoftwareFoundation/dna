@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import styled from 'styled-components';
+import {
   Dialog,
   AlertDialog,
   Button,
@@ -282,17 +283,16 @@ function GeneralTab({
           <Tooltip
             content={
               <>
-                Customize the prompt used when generating notes from
-                transcript and version information. You can include
-                the following tags in the prompt:
+                Customize the prompt used when generating notes from transcript
+                and version information. You can include the following tags in
+                the prompt:
                 <br />
                 <br />
                 {'{{ transcript }}'} - What was said on this version
                 <br />
                 {'{{ context }}'} - Includes context for the version
                 <br />
-                {'{{ notes }}'} - Any notes you took on this version
-                already
+                {'{{ notes }}'} - Any notes you took on this version already
               </>
             }
           >
@@ -302,8 +302,8 @@ function GeneralTab({
           </Tooltip>
         </SectionTitle>
         <SectionDescription>
-          This prompt is used when generating notes via the transcript
-          and version information.
+          This prompt is used when generating notes via the transcript and
+          version information.
         </SectionDescription>
         <TextAreaWrapper>
           <StyledTextArea
@@ -320,9 +320,11 @@ function GeneralTab({
         <SectionDescription>
           Select the AI model to use for note generation and other LLM tasks.
         </SectionDescription>
-        <Select.Root 
-          value={llmModel || 'system-default'} 
-          onValueChange={(val) => onLlmModelChange(val === 'system-default' ? null : val)}
+        <Select.Root
+          value={llmModel || 'system-default'}
+          onValueChange={(val) =>
+            onLlmModelChange(val === 'system-default' ? null : val)
+          }
           disabled={isPending}
         >
           <StyledSelectTrigger placeholder="Select an LLM model..." />
@@ -332,10 +334,18 @@ function GeneralTab({
             <Select.Item value="gpt-4o">OpenAI: gpt-4o</Select.Item>
             <Select.Item value="gpt-4-turbo">OpenAI: gpt-4-turbo</Select.Item>
             <Select.Item value="o1-mini">OpenAI: o1-mini</Select.Item>
-            <Select.Item value="gemini-2.5-flash">Gemini: gemini-2.5-flash</Select.Item>
-            <Select.Item value="gemini-2.5-pro">Gemini: gemini-2.5-pro</Select.Item>
-            <Select.Item value="gemini-1.5-flash">Gemini: gemini-1.5-flash</Select.Item>
-            <Select.Item value="gemini-1.5-pro">Gemini: gemini-1.5-pro</Select.Item>
+            <Select.Item value="gemini-2.5-flash">
+              Gemini: gemini-2.5-flash
+            </Select.Item>
+            <Select.Item value="gemini-2.5-pro">
+              Gemini: gemini-2.5-pro
+            </Select.Item>
+            <Select.Item value="gemini-1.5-flash">
+              Gemini: gemini-1.5-flash
+            </Select.Item>
+            <Select.Item value="gemini-1.5-pro">
+              Gemini: gemini-1.5-pro
+            </Select.Item>
           </StyledSelectContent>
         </Select.Root>
       </Section>
@@ -349,12 +359,10 @@ function GeneralTab({
             disabled={isPending}
           />
           <CheckboxContent>
-            <CheckboxLabel>
-              Regenerate notes on version change
-            </CheckboxLabel>
+            <CheckboxLabel>Regenerate notes on version change</CheckboxLabel>
             <CheckboxDescription>
-              Automatically regenerate the AI note when switching to a
-              different version in review.
+              Automatically regenerate the AI note when switching to a different
+              version in review.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
@@ -366,13 +374,10 @@ function GeneralTab({
             disabled={isPending}
           />
           <CheckboxContent>
-            <CheckboxLabel>
-              Regenerate on transcript update
-            </CheckboxLabel>
+            <CheckboxLabel>Regenerate on transcript update</CheckboxLabel>
             <CheckboxDescription>
-              Automatically regenerate the AI note when a new
-              transcript segment comes in or an existing segment is
-              updated.
+              Automatically regenerate the AI note when a new transcript segment
+              comes in or an existing segment is updated.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
@@ -390,9 +395,7 @@ function GeneralTab({
             disabled={isPending}
           />
           <CheckboxContent>
-            <CheckboxLabel>
-              Sync PT tab when version changes
-            </CheckboxLabel>
+            <CheckboxLabel>Sync PT tab when version changes</CheckboxLabel>
             <CheckboxDescription>
               When enabled (default), the extension updates your
               production-tracking tab whenever you select a different version.
@@ -423,8 +426,8 @@ function KeybindingsTab({
     <ModalContent>
       <Section>
         <SectionDescription>
-          Click a shortcut to record a new key combination. Press Escape
-          to cancel.
+          Click a shortcut to record a new key combination. Press Escape to
+          cancel.
         </SectionDescription>
         {actions.map((action) => (
           <KeybindingRow key={action.id}>
@@ -724,7 +727,9 @@ export function SettingsModal({
               onNotePromptChange={handleNotePromptChange}
               onLlmModelChange={handleLlmModelChange}
               onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
-              onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
+              onRegenerateOnTranscriptUpdate={
+                handleRegenerateOnTranscriptUpdate
+              }
               onSyncProdtrackTabOnVersionChange={
                 handleSyncProdtrackTabOnVersionChange
               }

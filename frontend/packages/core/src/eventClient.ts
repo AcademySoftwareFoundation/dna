@@ -129,7 +129,9 @@ export class DNAEventClient {
       };
     } catch (error) {
       const err =
-        error instanceof Error ? error : new Error('Failed to create WebSocket');
+        error instanceof Error
+          ? error
+          : new Error('Failed to create WebSocket');
       this._connectionError = err;
       this.notifyConnectionState(false, err);
       if (this.shouldReconnect) {
@@ -183,7 +185,9 @@ export class DNAEventClient {
       // so `TranscriptManager.handleMessage()` can consume it directly.
       // All other events follow the classic `{type, payload}` envelope.
       const payload =
-        eventType === 'transcript' ? message : (message as unknown as { payload: unknown }).payload;
+        eventType === 'transcript'
+          ? message
+          : (message as unknown as { payload: unknown }).payload;
 
       const event: DNAEvent = { type: eventType, payload };
 

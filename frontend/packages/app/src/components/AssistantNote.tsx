@@ -44,7 +44,7 @@ const BotIcon = styled.div`
     ${({ theme }) => theme.colors.accent.main} 0%,
     ${({ theme }) => theme.colors.accent.subtle} 100%
   );
-  border-radius: ${({ theme }) => theme.radii.full};
+  border-radius: 9999px;
   color: white;
 `;
 
@@ -395,7 +395,9 @@ export function AssistantNote({
                     Copy
                   </ActionButton>
                 </Tooltip>
-                <Tooltip content={`Insert below your note (${getLabel('aiInsert')})`}>
+                <Tooltip
+                  content={`Insert below your note (${getLabel('aiInsert')})`}
+                >
                   <ActionButton
                     onClick={handleInsert}
                     aria-label="Insert note below yours"

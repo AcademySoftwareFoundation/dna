@@ -40,7 +40,6 @@ function createWrapper() {
 }
 
 const mockDraftNote: DraftNote = {
-  id: 1,
   _id: 'abc123',
   user_email: 'test@example.com',
   playlist_id: 1,

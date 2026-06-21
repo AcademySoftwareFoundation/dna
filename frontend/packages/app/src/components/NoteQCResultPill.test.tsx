@@ -47,7 +47,9 @@ describe('NoteQCResultPill', () => {
         onFixAll={vi.fn()}
       />
     );
-    expect(screen.getByLabelText(/Note QC status/i)).toHaveTextContent(/Running/);
+    expect(screen.getByLabelText(/Note QC status/i)).toHaveTextContent(
+      /Running/
+    );
   });
 
   it('shows pass label when all checks pass', () => {
@@ -71,6 +73,8 @@ describe('NoteQCResultPill', () => {
         onFixAll={vi.fn()}
       />
     );
-    expect(screen.getByLabelText(/Note QC status/i)).toHaveTextContent(/All checks pass/);
+    expect(screen.getByLabelText(/Note QC status/i)).toHaveTextContent(
+      /All checks pass/
+    );
   });
 });

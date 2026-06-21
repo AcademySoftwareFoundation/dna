@@ -79,8 +79,10 @@ export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => apiHandler.deleteQCCheck({ userEmail, checkId: id }),
-    onSuccess: () => void qcClient.invalidateQueries({ queryKey: ['qcChecks', userEmail] }),
+    mutationFn: (id: string) =>
+      apiHandler.deleteQCCheck({ userEmail, checkId: id }),
+    onSuccess: () =>
+      void qcClient.invalidateQueries({ queryKey: ['qcChecks', userEmail] }),
   });
 
   const handleSave = useCallback(() => {
@@ -107,8 +109,8 @@ export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
   return (
     <Flex direction="column" gap="3">
       <Text size="2" color="gray">
-        Define LLM checks that run when you open Publish. Error-level failures block publishing
-        until you fix or ignore them.
+        Define LLM checks that run when you open Publish. Error-level failures
+        block publishing until you fix or ignore them.
       </Text>
       <Flex justify="end">
         <Button type="button" size="2" onClick={openCreate}>
@@ -133,14 +135,25 @@ export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
                 onCheckedChange={(v) => toggleEnabled(c, v === true)}
               />
               <Flex direction="column" gap="1" style={{ flex: 1, minWidth: 0 }}>
-                <Text weight="medium" size="2" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <Text
+                  weight="medium"
+                  size="2"
+                  style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
                   {c.name}
                 </Text>
                 <Text size="1" color="gray">
-                  {c.severity === 'error' ? 'Error (blocks publish)' : 'Warning'}
+                  {c.severity === 'error'
+                    ? 'Error (blocks publish)'
+                    : 'Warning'}
                 </Text>
               </Flex>
-              <Button type="button" variant="ghost" size="1" onClick={() => openEdit(c)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="1"
+                onClick={() => openEdit(c)}
+              >
                 <Pencil size={16} />
               </Button>
               <Button
@@ -169,7 +182,11 @@ export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
               <Text size="1" weight="medium" as="div" mb="1">
                 Name
               </Text>
-              <TextField.Root value={name} onChange={(e) => setName(e.target.value)} placeholder="Short name" />
+              <TextField.Root
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Short name"
+              />
             </label>
             <label>
               <Text size="1" weight="medium" as="div" mb="1">

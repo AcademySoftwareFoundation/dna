@@ -28,11 +28,11 @@ const Card = styled.div<{ $selected?: boolean }>`
   transition: all ${({ theme }) => theme.transitions.fast};
   border: 2px solid
     ${({ theme, $selected }) =>
-    $selected ? theme.colors.accent.main : 'transparent'};
+      $selected ? theme.colors.accent.main : 'transparent'};
 
   &:hover {
     border-color: ${({ theme, $selected }) =>
-    $selected ? theme.colors.accent.main : theme.colors.border.strong};
+      $selected ? theme.colors.accent.main : theme.colors.border.strong};
   }
 `;
 
@@ -92,9 +92,12 @@ const InReviewIcon = styled.span`
 
 const statusColor = (theme: DefaultTheme, status: NoteStatus) => {
   switch (status) {
-    case 'published': return theme.colors.status.success;
-    case 'edited': return theme.colors.status.warning;
-    case 'draft': return theme.colors.status.info;
+    case 'published':
+      return theme.colors.status.success;
+    case 'edited':
+      return theme.colors.status.warning;
+    case 'draft':
+      return theme.colors.status.info;
   }
 };
 
@@ -126,7 +129,8 @@ const PortalPill = styled.div<{ $status: NoteStatus }>`
     border-radius: 4px;
     font-size: 12px;
     font-weight: 600;
-    background-color: ${({ theme, $status }) => statusColor(theme, $status) + '33'};
+    background-color: ${({ theme, $status }) =>
+      statusColor(theme, $status) + '33'};
     color: ${({ theme, $status }) => statusColor(theme, $status)};
   }
 `;
@@ -150,7 +154,15 @@ const Department = styled.span`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
-function StatusBadge({ status, label, letter }: { status: NoteStatus; label: string; letter: string }) {
+function StatusBadge({
+  status,
+  label,
+  letter,
+}: {
+  status: NoteStatus;
+  label: string;
+  letter: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
@@ -174,19 +186,20 @@ function StatusBadge({ status, label, letter }: { status: NoteStatus; label: str
       >
         {letter}
       </StatusIcon>
-      {pos && createPortal(
-        <PortalPill
-          $status={status}
-          style={{
-            top: pos.top,
-            right: pos.right,
-            transform: 'translateY(-100%) translateY(-6px)',
-          }}
-        >
-          <span>{label}</span>
-        </PortalPill>,
-        document.body
-      )}
+      {pos &&
+        createPortal(
+          <PortalPill
+            $status={status}
+            style={{
+              top: pos.top,
+              right: pos.right,
+              transform: 'translateY(-100%) translateY(-6px)',
+            }}
+          >
+            <span>{label}</span>
+          </PortalPill>,
+          document.body
+        )}
     </>
   );
 }
@@ -205,17 +218,23 @@ export function VersionCard({
 
   const getStatusLetter = (status: NoteStatus) => {
     switch (status) {
-      case 'published': return 'P';
-      case 'edited': return 'E';
-      case 'draft': return 'D';
+      case 'published':
+        return 'P';
+      case 'edited':
+        return 'E';
+      case 'draft':
+        return 'D';
     }
   };
 
   const getStatusLabel = (status: NoteStatus) => {
     switch (status) {
-      case 'published': return 'Published';
-      case 'edited': return 'Published (Edited)';
-      case 'draft': return 'Draft';
+      case 'published':
+        return 'Published';
+      case 'edited':
+        return 'Published (Edited)';
+      case 'draft':
+        return 'Draft';
     }
   };
 
