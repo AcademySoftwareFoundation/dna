@@ -160,15 +160,45 @@ configure_llm() {
     echo "  (Press Enter on any prompt to skip and fill in manually later)"
     echo ""
     echo "  1) OpenAI  (default)"
-    echo "  2) Gemini"
-    echo "  3) Skip"
+    echo "  2) Anthropic (Claude)"
+    echo "  3) Gemini"
+    echo "  4) Skip"
     echo ""
     read -r -p "  Choice [1]: " llm_choice
     llm_choice="${llm_choice:-1}"
     echo ""
 
     case "$llm_choice" in
-        2|[gG]emini)
+        2|[aA]nthropic|[cC]laude)
+            read -r -p "  Anthropic API key: " anthropic_key
+            if [[ -n "$anthropic_key" ]]; then
+                # The example file has an OPENAI_API_KEY line; replace it with
+                # the Anthropic key and insert LLM_PROVIDER=anthropic above it.
+                python3 - "$BACKEND_DIR/docker-compose.local.yml" "$anthropic_key" <<'PYEOF'
+import sys
+
+path, key = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    lines = f.readlines()
+out = []
+for line in lines:
+    stripped = line.lstrip()
+    if stripped.startswith('- OPENAI_API_KEY='):
+        indent = line[: len(line) - len(stripped)]
+        out.append(f"{indent}- LLM_PROVIDER=anthropic\n")
+        out.append(f"{indent}- ANTHROPIC_API_KEY={key}\n")
+        out.append(f"{indent}- ANTHROPIC_MODEL=claude-opus-4-8\n")
+    else:
+        out.append(line)
+with open(path, 'w') as f:
+    f.writelines(out)
+PYEOF
+                ok "Anthropic API key written to backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set ANTHROPIC_API_KEY and LLM_PROVIDER=anthropic in backend/docker-compose.local.yml"
+            fi
+            ;;
+        3|[gG]emini)
             read -r -p "  Gemini API key: " gemini_key
             if [[ -n "$gemini_key" ]]; then
                 # The example file has an OPENAI_API_KEY line; replace it with
@@ -196,7 +226,7 @@ PYEOF
                 warn "Skipped — set GEMINI_API_KEY and LLM_PROVIDER=gemini in backend/docker-compose.local.yml"
             fi
             ;;
-        3|[sS]kip)
+        4|[sS]kip)
             warn "Skipped — set your LLM API key in backend/docker-compose.local.yml"
             ;;
         *)
