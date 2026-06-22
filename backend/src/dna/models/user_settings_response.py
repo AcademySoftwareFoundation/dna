@@ -14,6 +14,10 @@ class UserSettingsResponse(BaseModel):
     user_email: str
     note_prompt: str = ""
     default_note_prompt: str = ""
+    glossary_global: str = ""
+    glossary_project: str = ""
+    default_glossary_global: str = ""
+    default_glossary_project: str = ""
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True

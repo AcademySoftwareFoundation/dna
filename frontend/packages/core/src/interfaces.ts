@@ -337,6 +337,14 @@ export interface UserSettings {
   note_prompt: string;
   /** Configured default prompt template (for display when note_prompt is empty). */
   default_note_prompt: string;
+  /** Saved custom global glossary; empty means use deployment default. */
+  glossary_global: string;
+  /** Saved custom project glossary; empty means use deployment default. */
+  glossary_project: string;
+  /** Configured default global glossary (for display when glossary_global is empty). */
+  default_glossary_global: string;
+  /** Configured default project glossary (for display when glossary_project is empty). */
+  default_glossary_project: string;
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;
@@ -347,6 +355,8 @@ export interface UserSettings {
 
 export interface UserSettingsUpdate {
   note_prompt?: string;
+  glossary_global?: string;
+  glossary_project?: string;
   regenerate_on_version_change?: boolean;
   regenerate_on_transcript_update?: boolean;
   sync_prodtrack_tab_on_version_change?: boolean;
