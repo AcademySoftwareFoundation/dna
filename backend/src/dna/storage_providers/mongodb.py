@@ -339,6 +339,8 @@ class MongoDBStorageProvider(StorageProviderBase):
         }
         defaults = {
             "note_prompt": "",
+            "glossary_global": "",
+            "glossary_project": "",
             "regenerate_on_version_change": False,
             "regenerate_on_transcript_update": False,
             "sync_prodtrack_tab_on_version_change": True,

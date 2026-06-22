@@ -68,6 +68,11 @@ from dna.models import (
     Version,
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
+from dna.glossary_config import (
+    get_default_glossary_global,
+    get_default_glossary_project,
+    inject_glossaries,
+)
 from dna.note_prompt_config import get_default_note_prompt
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
@@ -1419,6 +1424,10 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
         user_email=settings.user_email,
         note_prompt=settings.note_prompt,
         default_note_prompt=get_default_note_prompt(),
+        glossary_global=settings.glossary_global,
+        glossary_project=settings.glossary_project,
+        default_glossary_global=get_default_glossary_global(),
+        default_glossary_project=get_default_glossary_project(),
         regenerate_on_version_change=settings.regenerate_on_version_change,
         regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
         sync_prodtrack_tab_on_version_change=(
@@ -1440,6 +1449,10 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         user_email=user_email,
         note_prompt="",
         default_note_prompt=default,
+        glossary_global="",
+        glossary_project="",
+        default_glossary_global=get_default_glossary_global(),
+        default_glossary_project=get_default_glossary_project(),
         regenerate_on_version_change=False,
         regenerate_on_transcript_update=False,
         sync_prodtrack_tab_on_version_change=True,
@@ -1794,6 +1807,8 @@ def _build_full_prompt(
     context: str,
     existing_notes: str,
     additional_instructions: str | None = None,
+    glossary_global: str = "",
+    glossary_project: str = "",
 ) -> str:
     """Build the full prompt with template values substituted."""
     result = prompt
@@ -1803,6 +1818,7 @@ def _build_full_prompt(
     result = result.replace("{{context}}", context)
     result = result.replace("{{ notes }}", existing_notes)
     result = result.replace("{{notes}}", existing_notes)
+    result = inject_glossaries(result, glossary_global, glossary_project)
     if additional_instructions:
         result += f"\n\nAdditional Instructions: {additional_instructions}"
     return result
@@ -1830,6 +1846,16 @@ async def generate_note(
             if user_settings and user_settings.note_prompt
             else get_default_note_prompt()
         )
+        glossary_global = (
+            user_settings.glossary_global
+            if user_settings and user_settings.glossary_global
+            else get_default_glossary_global()
+        )
+        glossary_project = (
+            user_settings.glossary_project
+            if user_settings and user_settings.glossary_project
+            else get_default_glossary_project()
+        )
 
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
@@ -1850,7 +1876,13 @@ async def generate_note(
         existing_notes = draft_note.content if draft_note else ""
 
         full_prompt = _build_full_prompt(
-            prompt, transcript, context, existing_notes, request.additional_instructions
+            prompt,
+            transcript,
+            context,
+            existing_notes,
+            request.additional_instructions,
+            glossary_global,
+            glossary_project,
         )
 
         suggestion = await llm_provider.generate_note(
@@ -1859,6 +1891,8 @@ async def generate_note(
             context=context,
             existing_notes=existing_notes,
             additional_instructions=request.additional_instructions,
+            glossary_global=glossary_global,
+            glossary_project=glossary_project,
         )
 
         return GenerateNoteResponse(

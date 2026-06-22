@@ -154,6 +154,12 @@ default_note_prompt:
     Now, here is the transcript and the version data:
 
 
+    Glossary — Global Terms:
+    {{ glossary_global }}
+
+    Glossary — Project Terms:
+    {{ glossary_project }}
+
     Transcript:
     {{ transcript }}
 
