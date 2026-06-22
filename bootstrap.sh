@@ -22,6 +22,10 @@ FRONTEND_ENV="$FRONTEND_DIR/packages/app/.env"
 VEXA_ADMIN_URL="http://localhost:8056"
 VEXA_ADMIN_TOKEN="your-admin-token"
 VEXA_LOCAL_EMAIL="dna-local@example.com"
+# Set to "true" when the user chooses hosted Vexa (api.cloud.vexa.ai); the
+# local Vexa container and transcription-backend setup are then skipped.
+VEXA_HOSTED=false
+VEXA_CLOUD_URL="https://api.cloud.vexa.ai"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -241,6 +245,42 @@ PYEOF
     esac
 }
 
+# ── step 3.5: Vexa deployment (self-hosted vs hosted cloud) ───────────────────
+
+configure_vexa() {
+    echo ""
+    echo -e "${BOLD}Vexa setup${NC}"
+    echo "  Vexa provides the meeting bot and transcription that DNA consumes."
+    echo ""
+    echo -e "  1) Self-hosted Vexa  ${BOLD}(default — runs locally in Docker)${NC}"
+    echo "  2) Hosted Vexa  (api.cloud.vexa.ai)"
+    echo ""
+    read -r -p "  Choice [1]: " vexa_choice
+    vexa_choice="${vexa_choice:-1}"
+    echo ""
+
+    case "$vexa_choice" in
+        2|[hH]osted|[cC]loud)
+            VEXA_HOSTED=true
+            set_env_var "VEXA_API_URL" "$VEXA_CLOUD_URL" \
+                "$BACKEND_DIR/docker-compose.local.yml"
+            ok "Vexa API URL set to ${VEXA_CLOUD_URL}"
+            read -r -p "  Vexa cloud API key (from https://www.vexa.ai, or Enter to skip): " vexa_cloud_key
+            if [[ -n "$vexa_cloud_key" ]]; then
+                set_env_var "VEXA_API_KEY" "$vexa_cloud_key" \
+                    "$BACKEND_DIR/docker-compose.local.yml"
+                ok "Vexa cloud API key written to backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set VEXA_API_KEY in backend/docker-compose.local.yml"
+            fi
+            info "Local Vexa container and transcription-backend setup will be skipped."
+            ;;
+        *)
+            VEXA_HOSTED=false
+            ;;
+    esac
+}
+
 # ── step 4: transcription service setup ───────────────────────────────────────
 
 # Append SKIP_TRANSCRIPTION_CHECK=true to docker-compose.local.vexa.yml so
@@ -277,7 +317,7 @@ configure_transcription() {
     echo "  Vexa needs an OpenAI Whisper-compatible transcription backend."
     echo ""
     echo -e "  1) Remote service via vexa.ai  ${BOLD}(recommended — free tier available)${NC}"
-    echo "     Get a free key at: https://staging.vexa.ai/dashboard/transcription"
+    echo "     Get a free key at: https://cal.com/dmitrygrankin/web?duration=15"
     echo ""
     echo "  2) Self-hosted transcription service"
     echo "     Requires Docker (GPU recommended). Setup guide:"
@@ -318,7 +358,7 @@ configure_transcription() {
             add_skip_transcription_check
             ;;
         *)
-            echo "  Get your free key at: https://staging.vexa.ai/dashboard/transcription"
+            echo "  Get your free key at: https://cal.com/dmitrygrankin/web?duration=15"
             echo ""
             read -r -p "  Transcription API key (press Enter to skip): " trans_key
             if [[ -n "$trans_key" ]]; then
@@ -549,15 +589,24 @@ start_full_stack() {
     local compose_cmd
     compose_cmd="$(get_compose_cmd)"
 
+    # Re-derive hosting from the configured API URL so --start (which skips the
+    # interactive prompts) starts the right set of containers.
+    if grep -qF "VEXA_API_URL=${VEXA_CLOUD_URL}" \
+            "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+        VEXA_HOSTED=true
+    fi
+
+    # Hosted Vexa runs no local vexa/vexa-db/vexa-dashboard containers, so omit
+    # the Vexa compose files entirely (order otherwise matches the original).
+    local -a compose_files=(-f docker-compose.yml)
+    [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.vexa.yml)
+    compose_files+=(-f docker-compose.debug.yml -f docker-compose.local.yml)
+    [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.local.vexa.yml)
+
     info "Starting the full DNA stack (first run builds containers — this may take a few minutes)..."
     (
         cd "$BACKEND_DIR"
-        $compose_cmd \
-            -f docker-compose.yml \
-            -f docker-compose.vexa.yml \
-            -f docker-compose.debug.yml \
-            -f docker-compose.local.yml \
-            -f docker-compose.local.vexa.yml \
+        $compose_cmd "${compose_files[@]}" \
             up --build -d --force-recreate --remove-orphans
     )
     ok "All services started"
@@ -590,7 +639,11 @@ print_summary() {
     echo "  Running services:"
     echo "    DNA API      →  http://localhost:8000"
     echo "    API Docs     →  http://localhost:8000/docs"
-    echo "    Vexa Admin   →  http://localhost:3001"
+    if [[ "$VEXA_HOSTED" == "true" ]]; then
+        echo "    Vexa         →  ${VEXA_CLOUD_URL} (hosted)"
+    else
+        echo "    Vexa Admin   →  http://localhost:3001"
+    fi
     echo ""
     echo "  To start the frontend (in a new terminal):"
     echo "    cd frontend && npm run dev"
@@ -607,12 +660,21 @@ print_summary() {
         echo "    backend/docker-compose.local.yml"
         echo ""
     fi
-    if grep -q 'TRANSCRIBER_API_KEY=\*\*' \
+    if [[ "$VEXA_HOSTED" == "true" ]]; then
+        if grep -q 'VEXA_API_KEY=\*\*' \
+                "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+            needs_attention=true
+            echo -e "  ${YELLOW}Action needed:${NC} fill in your hosted Vexa API key in:"
+            echo "    backend/docker-compose.local.yml  (VEXA_API_KEY)"
+            echo "  Get a key at: https://www.vexa.ai"
+            echo ""
+        fi
+    elif grep -q 'TRANSCRIBER_API_KEY=\*\*' \
             "$BACKEND_DIR/docker-compose.local.vexa.yml" 2>/dev/null; then
         needs_attention=true
         echo -e "  ${YELLOW}Action needed:${NC} fill in your transcription API key in:"
         echo "    backend/docker-compose.local.vexa.yml"
-        echo "  Get a free key at: https://staging.vexa.ai/dashboard/transcription"
+        echo "  Get a free key at: https://cal.com/dmitrygrankin/web?duration=15"
         echo ""
     fi
     if [[ "$needs_attention" == "true" ]]; then
@@ -654,13 +716,18 @@ main() {
         copy_config_files
         echo ""
         configure_llm
-        configure_transcription
+        configure_vexa
+        if [[ "$VEXA_HOSTED" != "true" ]]; then
+            configure_transcription
+        fi
         configure_prodtrack
         configure_feature_flags
         install_frontend
         echo ""
-        bootstrap_vexa
-        echo ""
+        if [[ "$VEXA_HOSTED" != "true" ]]; then
+            bootstrap_vexa
+            echo ""
+        fi
         start_full_stack
         echo ""
         wait_for_dna
