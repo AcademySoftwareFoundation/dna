@@ -26,6 +26,7 @@ from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
+from dna.extension_config import get_extension_transcription_config
 from dna.extension_ws import (
     authenticate_extension_websocket,
     handle_extension_websocket,
@@ -39,6 +40,7 @@ from dna.models import (
     DispatchBotRequest,
     DraftNote,
     DraftNoteUpdate,
+    ExtensionTranscriptionConfig,
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
@@ -546,7 +548,9 @@ async def extension_websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=4403)
         return
 
-    await handle_extension_websocket(websocket, provider)
+    await handle_extension_websocket(
+        websocket, provider, get_transcription_service_cached()
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -1668,6 +1672,21 @@ async def run_qc_checks(
 # -----------------------------------------------------------------------------
 
 
+@app.get(
+    "/transcription/extension-config",
+    tags=["Transcription"],
+    summary="Get Chrome extension transcription config",
+    description=(
+        "Returns server-managed STT settings passed to the DNA Meet "
+        "Transcription Chrome extension when connecting."
+    ),
+    response_model=ExtensionTranscriptionConfig,
+)
+async def get_extension_config(_: CurrentUserDep) -> ExtensionTranscriptionConfig:
+    """Return transcription extension configuration from environment."""
+    return get_extension_transcription_config()
+
+
 @app.post(
     "/transcription/bot",
     tags=["Transcription"],
@@ -1705,6 +1724,7 @@ async def dispatch_bot(
             ),
         )
 
+        transcription_service.transcription_provider = transcription_provider
         await transcription_service.subscribe_to_meeting(
             platform=request.platform.value,
             meeting_id=request.meeting_id,

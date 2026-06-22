@@ -43,8 +43,17 @@ def mock_event_publisher():
 
 
 @pytest.fixture
-def service(mock_transcription_provider, mock_storage_provider, mock_event_publisher):
+def service(
+    mock_transcription_provider,
+    mock_storage_provider,
+    mock_event_publisher,
+    monkeypatch,
+):
     """Create a TranscriptionService with mocked providers."""
+    monkeypatch.setattr(
+        "dna.transcription_service.get_transcription_provider",
+        lambda: mock_transcription_provider,
+    )
     svc = TranscriptionService(
         transcription_provider=mock_transcription_provider,
         storage_provider=mock_storage_provider,
@@ -94,10 +103,10 @@ class TestSubscribeToMeeting:
         assert "google_meet:abc-def-ghi" in service._subscribed_meetings
 
     @pytest.mark.asyncio
-    async def test_skips_duplicate_subscription(
+    async def test_refreshes_duplicate_subscription(
         self, service, mock_transcription_provider
     ):
-        """Test that duplicate subscriptions are skipped."""
+        """Test that duplicate subscriptions refresh the provider callback."""
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
@@ -109,11 +118,15 @@ class TestSubscribeToMeeting:
             playlist_id=42,
         )
 
-        assert mock_transcription_provider.subscribe_to_meeting.call_count == 1
+        assert mock_transcription_provider.subscribe_to_meeting.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_handles_provider_not_initialized(self, service, caplog):
-        """Test handling when provider is not initialized."""
+    async def test_handles_provider_not_initialized(self, service, caplog, monkeypatch):
+        """Test handling when provider factory returns nothing."""
+        monkeypatch.setattr(
+            "dna.transcription_service.get_transcription_provider",
+            lambda: None,
+        )
         service.transcription_provider = None
 
         await service.subscribe_to_meeting(

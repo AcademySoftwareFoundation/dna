@@ -16,6 +16,7 @@ import {
   GetBotStatusParams,
   GetTranscriptParams,
   GetSegmentsParams,
+  ExtensionTranscriptionConfig,
   GetUserSettingsParams,
   UpsertUserSettingsParams,
   DeleteUserSettingsParams,
@@ -231,6 +232,12 @@ class ApiHandler {
   async getBotStatus(params: GetBotStatusParams): Promise<BotStatus> {
     return this.get<BotStatus>(
       `/transcription/bot/${params.platform}/${encodeURIComponent(params.meetingId)}/status`
+    );
+  }
+
+  async getExtensionTranscriptionConfig(): Promise<ExtensionTranscriptionConfig> {
+    return this.get<ExtensionTranscriptionConfig>(
+      '/transcription/extension-config'
     );
   }
 

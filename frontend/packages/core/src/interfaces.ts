@@ -287,6 +287,34 @@ export interface Transcript {
   duration?: number;
 }
 
+export interface ExtensionTranscriptionConfig {
+  stt_url: string;
+  stt_api_key: string;
+  stt_model: string;
+  chunk_duration_ms: number;
+  language?: string | null;
+}
+
+export interface ExtensionTranscriptionConfigPayload {
+  sttUrl: string;
+  sttApiKey: string;
+  sttModel: string;
+  chunkDurationMs: number;
+  language?: string;
+}
+
+export function toExtensionTranscriptionPayload(
+  config: ExtensionTranscriptionConfig,
+): ExtensionTranscriptionConfigPayload {
+  return {
+    sttUrl: config.stt_url,
+    sttApiKey: config.stt_api_key,
+    sttModel: config.stt_model,
+    chunkDurationMs: config.chunk_duration_ms,
+    language: config.language ?? undefined,
+  };
+}
+
 export interface DispatchBotParams {
   request: DispatchBotRequest;
 }

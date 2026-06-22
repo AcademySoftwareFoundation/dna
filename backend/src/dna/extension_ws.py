@@ -8,6 +8,7 @@ from dna.models.extension_transcript import ExtensionRegisterMessage
 from dna.transcription_providers.browser_extension import (
     BrowserExtensionTranscriptionProvider,
 )
+from dna.transcription_service import TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ async def authenticate_extension_websocket(websocket: WebSocket) -> str | None:
 async def handle_extension_websocket(
     websocket: WebSocket,
     transcription_provider: BrowserExtensionTranscriptionProvider,
+    transcription_service: TranscriptionService,
 ) -> None:
     """Handle the Chrome extension WebSocket connection lifecycle."""
     await websocket.accept()
@@ -65,6 +67,13 @@ async def handle_extension_websocket(
                         }
                     )
                     continue
+
+                transcription_service.transcription_provider = transcription_provider
+                await transcription_service.subscribe_to_meeting(
+                    platform=register_msg.platform,
+                    meeting_id=register_msg.meeting_id,
+                    playlist_id=result["playlist_id"],
+                )
 
                 await websocket.send_json(
                     {

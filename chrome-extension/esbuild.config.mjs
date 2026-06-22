@@ -10,7 +10,7 @@ const entryPoints = {
   'background/service-worker': 'src/background/service-worker.ts',
   'popup/popup': 'src/popup/popup.ts',
   'content/meet-dom': 'src/content/meet-dom.ts',
-  'options/options': 'src/options/options.ts',
+  'offscreen/offscreen': 'src/offscreen/offscreen.ts',
 };
 
 async function buildAll(watch = false) {
@@ -21,7 +21,7 @@ async function buildAll(watch = false) {
   );
   writeFileSync(join(distDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
-  for (const file of ['popup/popup.html', 'options/options.html']) {
+  for (const file of ['popup/popup.html', 'offscreen/offscreen.html']) {
     cpSync(join(__dirname, 'src', file), join(distDir, file));
   }
 

@@ -1,6 +1,7 @@
 DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
 
-COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml
+COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.local.yml
+
 
 # If start-local fails with: blob sha256:... input/output error — Docker’s local
 # image store is damaged. Run: make docker-fix-api-image, restart Docker Desktop,
@@ -13,7 +14,7 @@ docker-fix-api-image:
 	@echo "Removed backend-api if present. Restart Docker Desktop, then: make start-local"
 
 build:
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml build --no-cache
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml build --no-cache
 
 start-local:
 	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL) up --build

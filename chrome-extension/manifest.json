@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "DNA Meet Transcription",
   "version": "0.1.0",
-  "description": "Captures Google Meet tab audio and sends transcripts to DNA.",
-  "permissions": ["tabCapture", "activeTab", "storage", "scripting", "tabs"],
+  "description": "Captures Google Meet tab audio plus your microphone and sends transcripts to DNA.",
+  "permissions": ["tabCapture", "activeTab", "scripting", "tabs", "offscreen"],
   "host_permissions": [
     "https://meet.google.com/*",
     "http://localhost/*",
@@ -18,7 +18,6 @@
     "default_popup": "popup/popup.html",
     "default_title": "DNA Meet Transcription"
   },
-  "options_page": "options/options.html",
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],

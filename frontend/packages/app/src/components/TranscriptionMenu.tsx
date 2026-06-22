@@ -98,6 +98,7 @@ const extensionStatusLabel: Record<string, string> = {
   not_installed: 'Extension not installed',
   disconnected: 'Extension disconnected',
   awaiting_tab: 'Choose Meet tab in extension',
+  awaiting_capture: 'Enable capture on Meet tab',
   connecting: 'Connecting extension…',
   connected: 'Extension connected',
   paused: 'Extension paused',
@@ -616,6 +617,14 @@ export function TranscriptionMenu({
             <ExtensionInstructions>
               Multiple Meet tabs are open. Click the extension icon in your
               toolbar and choose the tab to transcribe.
+            </ExtensionInstructions>
+          )}
+
+          {isExtensionTranscriptionMode && extensionUiStatus === 'awaiting_capture' && (
+            <ExtensionInstructions>
+              Switch to your Google Meet tab, click the DNA extension icon in
+              the toolbar, then click Enable tab + mic capture. Allow microphone
+              access when prompted.
             </ExtensionInstructions>
           )}
 

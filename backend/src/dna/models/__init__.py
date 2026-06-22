@@ -23,6 +23,7 @@ from dna.models.entity import (
     User,
     Version,
 )
+from dna.models.extension_config import ExtensionTranscriptionConfig
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
@@ -120,6 +121,7 @@ __all__ = [
     "BotStatus",
     "BotStatusEnum",
     "DispatchBotRequest",
+    "ExtensionTranscriptionConfig",
     "Platform",
     "TranscriptSegment",
     "UserSettings",

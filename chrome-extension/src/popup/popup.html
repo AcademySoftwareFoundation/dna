@@ -7,19 +7,54 @@
       body {
         font-family: system-ui, sans-serif;
         margin: 12px;
-        width: 280px;
+        width: 360px;
       }
       #status {
         font-size: 13px;
         margin-bottom: 8px;
+        line-height: 1.4;
       }
-      #tabSection {
+      #tabSection,
+      #captureSection,
+      #logSection {
         display: none;
+      }
+      #logSection {
+        margin-top: 12px;
+      }
+      #logHint {
+        font-size: 11px;
+        color: #666;
+        margin: 0 0 6px;
+        line-height: 1.35;
+      }
+      #logOutput {
+        font-size: 10px;
+        line-height: 1.35;
+        max-height: 180px;
+        overflow-y: auto;
+        background: #111;
+        color: #d4ffd4;
+        padding: 8px;
+        border-radius: 6px;
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
       select,
       button {
         width: 100%;
         margin-top: 6px;
+      }
+      #clearLogsBtn {
+        width: auto;
+        margin-top: 6px;
+        font-size: 11px;
+        padding: 4px 8px;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
     </style>
   </head>
@@ -29,6 +64,17 @@
       <label for="tabSelect">Choose a Meet tab</label>
       <select id="tabSelect"></select>
       <button id="selectBtn" type="button">Use this tab</button>
+    </div>
+    <div id="captureSection">
+      <button id="captureBtn" type="button">Enable tab + mic capture</button>
+    </div>
+    <div id="logSection">
+      <p id="logHint">
+        Debug log (also in service worker: chrome://extensions → DNA Meet Transcription →
+        Service worker → Inspect)
+      </p>
+      <pre id="logOutput"></pre>
+      <button id="clearLogsBtn" type="button">Clear logs</button>
     </div>
     <script type="module" src="./popup.js"></script>
   </body>

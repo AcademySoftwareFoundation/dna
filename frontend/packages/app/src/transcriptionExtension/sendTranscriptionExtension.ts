@@ -20,6 +20,7 @@ export type TranscriptionExtensionPhase =
   | 'idle'
   | 'awaiting_tab'
   | 'ready'
+  | 'awaiting_capture'
   | 'capturing';
 
 export interface TranscriptionExtensionStatus {
@@ -31,11 +32,20 @@ export interface TranscriptionExtensionStatus {
   tabId?: number | null;
 }
 
+export interface ExtensionTranscriptionPayload {
+  sttUrl: string;
+  sttApiKey: string;
+  sttModel: string;
+  chunkDurationMs: number;
+  language?: string;
+}
+
 export interface ConnectTranscriptionExtensionParams {
   extensionId: string;
   playlistId: number;
   backendUrl: string;
   authToken: string;
+  transcription: ExtensionTranscriptionPayload;
   timeoutMs?: number;
 }
 
@@ -46,9 +56,12 @@ export interface StartTranscriptionExtensionParams {
   meetingId: string;
   backendUrl: string;
   authToken: string;
+  transcription: ExtensionTranscriptionPayload;
   tabId?: number | null;
   timeoutMs?: number;
 }
+
+const DEFAULT_START_TIMEOUT_MS = 15_000;
 
 type ChromeRuntime = {
   sendMessage: (
@@ -107,6 +120,7 @@ function parseStatus(raw: unknown): TranscriptionExtensionStatus | null {
     phase !== 'idle' &&
     phase !== 'awaiting_tab' &&
     phase !== 'ready' &&
+    phase !== 'awaiting_capture' &&
     phase !== 'capturing'
   ) {
     return null;
@@ -118,6 +132,23 @@ function parseStatus(raw: unknown): TranscriptionExtensionStatus | null {
     meetingId: typeof o.meetingId === 'string' ? o.meetingId : null,
     platform: typeof o.platform === 'string' ? o.platform : null,
     tabId: typeof o.tabId === 'number' ? o.tabId : null,
+  };
+}
+
+function parseFailureReason(
+  body: Record<string, unknown>,
+): TranscriptionExtensionResult {
+  const reason = body.reason;
+  if (reason === 'no_meet_tab') {
+    return { ok: false, reason: 'no_meet_tab' };
+  }
+  if (reason === 'stt_not_configured') {
+    return { ok: false, reason: 'stt_not_configured' };
+  }
+  return {
+    ok: false,
+    reason: 'error',
+    detail: String(reason ?? 'request_failed'),
   };
 }
 
@@ -182,6 +213,9 @@ export async function connectTranscriptionExtension(
   if (!getChromeRuntime()?.sendMessage) {
     return { ok: false, reason: 'no_chrome' };
   }
+  if (!params.transcription.sttApiKey) {
+    return { ok: false, reason: 'stt_not_configured' };
+  }
 
   const timeoutMs = params.timeoutMs ?? 800;
   const raw = await sendExternalMessage(
@@ -191,6 +225,7 @@ export async function connectTranscriptionExtension(
       playlistId: params.playlistId,
       backendUrl: params.backendUrl,
       authToken: params.authToken,
+      transcription: params.transcription,
     },
     timeoutMs,
   );
@@ -209,15 +244,7 @@ export async function connectTranscriptionExtension(
 
   const body = raw as Record<string, unknown>;
   if (body.ok !== true) {
-    const reason = body.reason;
-    if (reason === 'no_meet_tab') {
-      return { ok: false, reason: 'no_meet_tab' };
-    }
-    return {
-      ok: false,
-      reason: 'error',
-      detail: String(reason ?? 'connect_failed'),
-    };
+    return parseFailureReason(body);
   }
 
   const status = parseStatus(body);
@@ -250,9 +277,18 @@ export async function startTranscriptionExtension(
       backendUrl: params.backendUrl,
       authToken: params.authToken,
       tabId: params.tabId ?? undefined,
+      transcription: params.transcription,
     },
-    params.timeoutMs ?? 800,
+    params.timeoutMs ?? DEFAULT_START_TIMEOUT_MS,
   );
+
+  if (raw === undefined) {
+    return {
+      ok: false,
+      reason: 'error',
+      detail: 'Extension did not respond in time. Reload the extension and try again.',
+    };
+  }
 
   if (raw && typeof raw === 'object' && '__error' in raw) {
     return {
@@ -263,11 +299,16 @@ export async function startTranscriptionExtension(
   }
 
   if (!parseOkResponse(raw)) {
-    const reason = (raw as { reason?: string })?.reason;
+    const body = raw as { reason?: string; detail?: string };
+    const reason = body.reason;
     if (reason === 'stt_not_configured') {
       return { ok: false, reason: 'stt_not_configured' };
     }
-    return { ok: false, reason: 'error', detail: reason ?? 'start_failed' };
+    return {
+      ok: false,
+      reason: 'error',
+      detail: body.detail ?? reason ?? 'Extension failed to start capture.',
+    };
   }
 
   return { ok: true };

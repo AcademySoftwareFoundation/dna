@@ -183,20 +183,17 @@ class TranscriptionService:
     async def subscribe_to_meeting(
         self, platform: str, meeting_id: str, playlist_id: int
     ) -> None:
-        """Subscribe to Vexa updates for a meeting."""
+        """Subscribe to transcription updates for a meeting."""
+        self.transcription_provider = get_transcription_provider()
         if self.transcription_provider is None:
             logger.error("Transcription provider not initialized")
             return
 
         meeting_key = f"{platform}:{meeting_id}"
-        if meeting_key in self._subscribed_meetings:
-            logger.info("Already subscribed to meeting: %s", meeting_key)
-            return
-
         self._meeting_to_playlist[meeting_key] = playlist_id
 
         logger.info(
-            "Subscribing to Vexa updates for meeting: %s (playlist_id: %s)",
+            "Subscribing to transcription updates for meeting: %s (playlist_id: %s)",
             meeting_key,
             playlist_id,
         )

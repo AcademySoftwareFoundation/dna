@@ -1210,14 +1210,24 @@ The Vexa WebSocket URL is derived from `VEXA_API_URL` automatically (`https://` 
 
 When `TRANSCRIPTION_PROVIDER=browser_extension`, DNA does not call Vexa. Instead:
 
-1. The DNA web app dispatches a bot via `POST /transcription/bot` (same as Vexa mode).
-2. The user starts the [Chrome extension](../../chrome-extension/README.md) on the matching Google Meet tab.
-3. The extension connects to `WS /transcription/extension/ws?token=<auth_token>` and sends:
+1. The DNA web app fetches STT settings from `GET /transcription/extension-config` and passes them to the Chrome extension on **Connect**.
+2. The DNA web app dispatches a bot via `POST /transcription/bot` (same as Vexa mode).
+3. The extension captures Meet tab audio and connects to `WS /transcription/extension/ws?token=<auth_token>`, sending:
    - `{"action":"register","platform":"google_meet","meeting_id":"..."}`
    - `{"type":"transcript","speaker":"...","confirmed":[...],"pending":[...],"ts":"..."}`
 4. The backend `BrowserExtensionTranscriptionProvider` routes frames into `TranscriptionService.on_transcription_updated`, which persists segments and broadcasts the flat `transcript` envelope to frontend `/ws` clients.
 
-Set `VITE_TRANSCRIPTION_MODE=extension` in the frontend to show extension setup instructions after dispatch.
+Backend environment variables for extension STT:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TRANSCRIPTION_STT_API_KEY` | (required) | API key for the Whisper-compatible STT service |
+| `TRANSCRIPTION_STT_URL` | Vexa transcription URL | OpenAI-compatible transcription endpoint |
+| `TRANSCRIPTION_STT_MODEL` | `whisper-1` | STT model name |
+| `TRANSCRIPTION_CHUNK_DURATION_MS` | `5000` | Audio chunk size for tab capture |
+| `TRANSCRIPTION_STT_LANGUAGE` | (unset) | Optional language hint |
+
+Set `VITE_TRANSCRIPTION_MODE=extension` in the frontend to show extension connect UI instead of manual Meet URL entry.
 
 ### Frontend Environment Variables
 

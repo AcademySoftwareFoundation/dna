@@ -5,6 +5,7 @@ export interface TranscriberConfig {
   language?: string;
   maxRetries?: number;
   retryDelayMs?: number;
+  onLog?: (message: string, detail?: unknown) => void;
 }
 
 export interface TranscriptionSegment {
@@ -48,11 +49,14 @@ export async function transcribeAudio(
     });
 
     if (response.status === 503 && attempt < maxRetries - 1) {
+      config.onLog?.('STT 503, retrying', { attempt: attempt + 1 });
       await sleep(retryDelayMs);
       continue;
     }
 
     if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      config.onLog?.('STT HTTP error', { status: response.status, body: body.slice(0, 200) });
       throw new Error(`STT request failed: ${response.status}`);
     }
 

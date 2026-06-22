@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Platform } from '@dna/core';
+import { toExtensionTranscriptionPayload } from '@dna/core';
+import { apiHandler } from '../api';
 import {
   connectTranscriptionExtension,
   disconnectTranscriptionExtension,
@@ -8,6 +10,7 @@ import {
   pingTranscriptionExtension,
   startTranscriptionExtension,
   waitForExtensionReady,
+  type ExtensionTranscriptionPayload,
   type TranscriptionExtensionPhase,
 } from '../transcriptionExtension/sendTranscriptionExtension';
 
@@ -15,6 +18,7 @@ export type ExtensionUiStatus =
   | 'not_installed'
   | 'disconnected'
   | 'awaiting_tab'
+  | 'awaiting_capture'
   | 'connecting'
   | 'connected'
   | 'paused';
@@ -44,24 +48,39 @@ const installUrl =
   import.meta.env.VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL?.trim() ||
   'https://github.com/AcademySoftwareFoundation/dna/blob/main/chrome-extension/README.md';
 
+const sttNotConfiguredMessage =
+  'Transcription is not configured on the DNA server. Set TRANSCRIPTION_STT_API_KEY for the backend.';
+
 function phaseToUiStatus(
   phase: TranscriptionExtensionPhase | null,
   isPaused: boolean,
   isBotActive: boolean,
 ): ExtensionUiStatus {
+  if (phase === 'awaiting_tab') {
+    return 'awaiting_tab';
+  }
+  if (phase === 'awaiting_capture') {
+    return 'awaiting_capture';
+  }
   if (isBotActive && isPaused) {
     return 'paused';
   }
   if (phase === 'capturing' || isBotActive) {
     return 'connected';
   }
-  if (phase === 'awaiting_tab') {
-    return 'awaiting_tab';
-  }
   if (phase === 'ready') {
     return 'disconnected';
   }
   return 'disconnected';
+}
+
+async function loadServerTranscriptionConfig(): Promise<ExtensionTranscriptionPayload | null> {
+  try {
+    const config = await apiHandler.getExtensionTranscriptionConfig();
+    return toExtensionTranscriptionPayload(config);
+  } catch {
+    return null;
+  }
 }
 
 export function useExtensionTranscriptionBridge({
@@ -120,11 +139,18 @@ export function useExtensionTranscriptionBridge({
     setExtensionError(null);
 
     try {
+      const transcription = await loadServerTranscriptionConfig();
+      if (!transcription?.sttApiKey) {
+        setExtensionError(sttNotConfiguredMessage);
+        return;
+      }
+
       const connectResult = await connectTranscriptionExtension({
         extensionId,
         playlistId,
         backendUrl,
         authToken,
+        transcription,
       });
 
       if (!connectResult.ok) {
@@ -135,6 +161,8 @@ export function useExtensionTranscriptionBridge({
         } else if (connectResult.reason === 'no_extension') {
           setExtensionUiStatus('not_installed');
           setExtensionError('DNA Meet Transcription extension is not installed.');
+        } else if (connectResult.reason === 'stt_not_configured') {
+          setExtensionError(sttNotConfiguredMessage);
         } else {
           setExtensionError(
             connectResult.detail ?? 'Could not connect to the extension.',
@@ -180,13 +208,12 @@ export function useExtensionTranscriptionBridge({
         backendUrl,
         authToken,
         tabId,
+        transcription,
       });
 
       if (!startResult.ok) {
         if (startResult.reason === 'stt_not_configured') {
-          setExtensionError(
-            'Configure the STT API key in the extension options page.',
-          );
+          setExtensionError(sttNotConfiguredMessage);
         } else {
           setExtensionError(
             startResult.detail ?? 'Extension failed to start capture.',
@@ -195,8 +222,10 @@ export function useExtensionTranscriptionBridge({
         return;
       }
 
-      setExtensionUiStatus(isPaused ? 'paused' : 'connected');
-      setExtensionError(null);
+      setExtensionUiStatus('awaiting_capture');
+      setExtensionError(
+        'Click the DNA extension icon on your Google Meet tab, then choose Enable tab + mic capture. Allow microphone access when Chrome prompts you.',
+      );
     } finally {
       setIsConnecting(false);
       void refreshExtensionStatus();

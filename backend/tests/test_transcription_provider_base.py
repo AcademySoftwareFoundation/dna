@@ -10,6 +10,7 @@ from dna.models.transcription import Platform
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
     get_transcription_provider,
+    reset_transcription_provider,
 )
 
 
@@ -126,6 +127,9 @@ class TestTranscriptionProviderBase:
 
 class TestGetTranscriptionProvider:
     """Tests for get_transcription_provider factory function."""
+
+    def setup_method(self):
+        reset_transcription_provider()
 
     def test_returns_vexa_provider_by_default(self):
         """Test that factory returns VexaTranscriptionProvider by default."""

@@ -5,6 +5,7 @@ export interface DnaWsClientOptions {
   authToken: string;
   onStop?: () => void;
   onError?: (message: string) => void;
+  onLog?: (message: string, detail?: unknown) => void;
 }
 
 export interface RegisterResult {
@@ -25,8 +26,13 @@ export class DnaWsClient {
 
   constructor(private readonly options: DnaWsClientOptions) {}
 
+  private log(message: string, detail?: unknown): void {
+    this.options.onLog?.(message, detail);
+  }
+
   async connect(): Promise<void> {
     const wsUrl = buildWsUrl(this.options.backendUrl, this.options.authToken);
+    this.log('Opening WebSocket', { url: wsUrl.replace(/token=[^&]+/, 'token=***') });
     this.ws = new WebSocket(wsUrl);
 
     await new Promise<void>((resolve, reject) => {
@@ -35,8 +41,14 @@ export class DnaWsClient {
         return;
       }
 
-      this.ws.onopen = () => resolve();
+      this.ws.onopen = () => {
+        this.log('WebSocket open');
+        resolve();
+      };
       this.ws.onerror = () => reject(new Error('WebSocket connection failed'));
+      this.ws.onclose = (event) => {
+        this.log('WebSocket closed', { code: event.code, reason: event.reason });
+      };
       this.ws.onmessage = (event) => this.handleMessage(event.data);
     });
   }
@@ -54,6 +66,8 @@ export class DnaWsClient {
       this.options.onError?.('Invalid server message');
       return;
     }
+
+    this.log('WebSocket message', { type: data.type });
 
     if (data.type === 'registered' && this.pendingRegister) {
       this.pendingRegister.resolve({
@@ -85,6 +99,8 @@ export class DnaWsClient {
       return Promise.reject(new Error('WebSocket is not connected'));
     }
 
+    this.log('Registering meeting', { platform, meetingId });
+
     return new Promise((resolve, reject) => {
       this.pendingRegister = { resolve, reject };
       this.ws?.send(
@@ -108,6 +124,7 @@ export class DnaWsClient {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;
     }
+    this.log('Sending meeting status', { status });
     this.ws.send(JSON.stringify({ type: 'meeting.status', status }));
   }
 

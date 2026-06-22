@@ -8,6 +8,13 @@ import {
 } from './sendTranscriptionExtension';
 
 describe('sendTranscriptionExtension', () => {
+  const transcription = {
+    sttUrl: 'https://stt.example/v1/audio/transcriptions',
+    sttApiKey: 'secret',
+    sttModel: 'whisper-1',
+    chunkDurationMs: 5000,
+  };
+
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
   });
@@ -60,6 +67,7 @@ describe('sendTranscriptionExtension', () => {
       playlistId: 42,
       backendUrl: 'http://localhost:8000',
       authToken: 'token',
+      transcription,
     });
 
     expect(result.ok).toBe(true);
@@ -101,6 +109,7 @@ describe('sendTranscriptionExtension', () => {
       backendUrl: 'http://localhost:8000',
       authToken: 'token',
       tabId: 1,
+      transcription,
     });
     expect(result).toEqual({ ok: true });
   });

@@ -18,6 +18,16 @@ if TYPE_CHECKING:
 
 EventCallback = Callable[[str, dict[str, Any]], Coroutine[Any, Any, None]]
 
+_provider_instance: "TranscriptionProviderBase | None" = None
+_provider_type: str | None = None
+
+
+def reset_transcription_provider() -> None:
+    """Reset the cached provider instance (for tests)."""
+    global _provider_instance, _provider_type
+    _provider_instance = None
+    _provider_type = None
+
 
 class TranscriptionProviderBase:
     """Abstract base class for transcription providers."""
@@ -105,18 +115,26 @@ class TranscriptionProviderBase:
 
 def get_transcription_provider() -> TranscriptionProviderBase:
     """Factory function to get the configured transcription provider."""
+    global _provider_instance, _provider_type
+
     provider_type = os.getenv("TRANSCRIPTION_PROVIDER", "vexa")
+    if _provider_instance is not None and _provider_type == provider_type:
+        return _provider_instance
 
     if provider_type == "vexa":
         from dna.transcription_providers.vexa import VexaTranscriptionProvider
 
-        return VexaTranscriptionProvider()
+        _provider_instance = VexaTranscriptionProvider()
+        _provider_type = provider_type
+        return _provider_instance
 
     if provider_type == "browser_extension":
         from dna.transcription_providers.browser_extension import (
             BrowserExtensionTranscriptionProvider,
         )
 
-        return BrowserExtensionTranscriptionProvider()
+        _provider_instance = BrowserExtensionTranscriptionProvider()
+        _provider_type = provider_type
+        return _provider_instance
 
     raise ValueError(f"Unknown transcription provider: {provider_type}")
