@@ -12,6 +12,7 @@ import instructor
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
+from dna.glossary_config import inject_glossaries
 from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,8 @@ class LLMProviderBase:
         transcript: str,
         context: str,
         existing_notes: str,
+        glossary_global: str = "",
+        glossary_project: str = "",
     ) -> str:
         """Substitute template placeholders in the prompt."""
         result = prompt
@@ -153,6 +156,7 @@ class LLMProviderBase:
         result = result.replace("{{context}}", context)
         result = result.replace("{{ notes }}", existing_notes)
         result = result.replace("{{notes}}", existing_notes)
+        result = inject_glossaries(result, glossary_global, glossary_project)
         return result
 
     async def close(self) -> None:
@@ -168,6 +172,8 @@ class LLMProviderBase:
         context: str,
         existing_notes: str,
         additional_instructions: Optional[str] = None,
+        glossary_global: str = "",
+        glossary_project: str = "",
     ) -> str:
         """Generate a note suggestion from the given inputs.
 
@@ -177,12 +183,19 @@ class LLMProviderBase:
             context: Version context (entity name, task, status, etc.).
             existing_notes: Any notes the user has already written.
             additional_instructions: Optional additional instructions to append.
+            glossary_global: Global VFX glossary text injected as context.
+            glossary_project: Project-specific glossary text injected as context.
 
         Returns:
             The generated note suggestion.
         """
         user_message = self._substitute_template(
-            prompt, transcript, context, existing_notes
+            prompt,
+            transcript,
+            context,
+            existing_notes,
+            glossary_global,
+            glossary_project,
         )
 
         if additional_instructions:
@@ -335,6 +348,11 @@ class LLMProviderBase:
 def get_llm_provider() -> LLMProviderBase:
     """Factory function to get the configured LLM provider."""
     provider_type = os.getenv("LLM_PROVIDER", "openai").lower()
+
+    if provider_type == "anthropic":
+        from dna.llm_providers.anthropic_provider import AnthropicProvider
+
+        return AnthropicProvider()
 
     if provider_type == "gemini":
         from dna.llm_providers.gemini_provider import GeminiProvider
