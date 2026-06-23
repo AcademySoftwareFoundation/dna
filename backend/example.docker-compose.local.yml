@@ -1,6 +1,8 @@
 # Local development override. Copy to docker-compose.local.yml and fill in secrets.
 # Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
 # Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
+# Mock DB path: change MOCK_PRODTRACK_DB_PATH to /app/.local/mock.db if you
+# want the backend to use a locally bootstrapped DB instead of the checked-in fixture.
 # To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
 services:
   api:
@@ -10,6 +12,7 @@ services:
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
       - PRODTRACK_PROVIDER=mock
+      - MOCK_PRODTRACK_DB_PATH=src/dna/prodtrack_providers/mock_data/mock.db
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key

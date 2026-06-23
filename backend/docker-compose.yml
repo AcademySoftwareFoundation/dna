@@ -29,6 +29,7 @@ services:
       - ./pytest.ini:/app/pytest.ini
       - ./.coveragerc:/app/.coveragerc
       - ./htmlcov:/app/htmlcov
+      - ./.local:/app/.local
     environment:
       - PYTHONUNBUFFERED=1
       - SHOTGRID_URL=https://your-shotgrid-url.com

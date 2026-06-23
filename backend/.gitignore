@@ -40,5 +40,6 @@ backend/docker-compose.debug.yml
 backend/docker-compose.vexa.yml
 
 # Local environment files
+.local/
 docker-compose.local.yml*
 docker-compose.local.vexa.yml*
