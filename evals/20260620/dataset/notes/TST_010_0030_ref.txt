@@ -1,0 +1,5 @@
+- Remove middle tree in foreground.
+- Want to read prisoners.
+- Lessen smoke obscuring prisoners, limit bloom of fire glow.
+- Background trees are fine.
+- Guard with helmet SL at the end is looking good.

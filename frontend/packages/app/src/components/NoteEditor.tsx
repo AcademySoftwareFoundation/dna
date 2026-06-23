@@ -33,6 +33,8 @@ interface NoteEditorProps {
   variant?: 'default' | 'embedded';
   /** Publish dialog: run after note body editor loses focus (e.g. refresh QC). */
   onNoteContentBlur?: () => void;
+  /** Override the initial editor height (pixels). Defaults to DEFAULT_HEIGHT. */
+  defaultHeight?: number;
 }
 
 export interface NoteEditorHandle {
@@ -326,6 +328,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       saveAttachmentIds,
       variant = 'default',
       onNoteContentBlur,
+      defaultHeight,
     },
     ref
   ) {
@@ -350,7 +353,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       };
     }, [currentVersion?.user]);
 
-    const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
+    const [editorHeight, setEditorHeight] = useState(defaultHeight ?? DEFAULT_HEIGHT);
     const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
     const [isAttachmentTrayOpen, setIsAttachmentTrayOpen] = useState(false);
     const [attachFlashKey, setAttachFlashKey] = useState(0);
@@ -566,12 +569,15 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       [draftNote?.content, updateDraftNote]
     );
 
-    const handleFieldChange = <K extends keyof NonNullable<typeof draftNote>>(
-      key: K,
-      value: NonNullable<typeof draftNote>[K]
-    ) => {
-      updateDraftNote({ [key]: value });
-    };
+    const handleFieldChange = useCallback(
+      <K extends keyof NonNullable<typeof draftNote>>(
+        key: K,
+        value: NonNullable<typeof draftNote>[K]
+      ) => {
+        updateDraftNote({ [key]: value });
+      },
+      [updateDraftNote]
+    );
 
     // The submitter is stored in draftNote.to but shown as a locked (non-removable)
     // entity. Filter it from the editable portion and re-add it on save.

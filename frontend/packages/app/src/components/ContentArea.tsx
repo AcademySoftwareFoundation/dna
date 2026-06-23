@@ -8,7 +8,11 @@ import { AssistantPanel } from './AssistantPanel';
 import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler } from '../api';
-import { openProdtrackVersionViaExtensionOrNewTab } from '../prodtrackTabSync/sendProdtrackTabSync';
+import { useFeatureFlags } from '../contexts';
+import {
+  openProdtrackVersionViaExtensionOrNewTab,
+  openProdtrackVersionInExtension,
+} from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -72,6 +76,8 @@ export function ContentArea({
   onRefresh,
 }: ContentAreaProps) {
   const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
+  const assistantPanelVisible = transcriptionEnabled || aiEnabled;
 
   const currentVersionAsSearchResult = useMemo((): SearchResult | undefined => {
     if (!version) return undefined;
@@ -177,8 +183,14 @@ export function ContentArea({
     (userSettings === null ||
       (userSettings.sync_prodtrack_tab_on_version_change ?? true) === true);
 
+  const prodtrackPageType = userSettings?.prodtrack_page_type ?? 'version';
+  const activeProdtrackUrl =
+    prodtrackPageType === 'entity'
+      ? (version?.prodtrack_entity_detail_url ?? version?.prodtrack_detail_url)
+      : version?.prodtrack_detail_url;
+
   const handleSyncProdtrackTab = useCallback(() => {
-    const url = version?.prodtrack_detail_url;
+    const url = activeProdtrackUrl;
     if (!url || !extensionId) return;
     void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
       tabId: prodtrackControlledTabId ?? undefined,
@@ -187,16 +199,34 @@ export function ContentArea({
         setProdtrackControlledTabId(result.tabId);
       }
     });
-  }, [version?.prodtrack_detail_url, extensionId, prodtrackControlledTabId]);
+  }, [activeProdtrackUrl, extensionId, prodtrackControlledTabId]);
+
+  // Tracks the version id we last reacted to, so we only sync on an actual
+  // version change (not on settings/url/mount re-renders for the same version).
+  const lastProdtrackVersionIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!version?.prodtrack_detail_url) return;
+    const currentVersionId = version?.id ?? null;
+    if (currentVersionId == null) return;
+
+    const previousVersionId = lastProdtrackVersionIdRef.current;
+    lastProdtrackVersionIdRef.current = currentVersionId;
+    if (currentVersionId === previousVersionId) return;
+
+    // Only sync into a PT tab the user already opened with the "PT tab" button.
+    // We never open the tab automatically — not on launch, not on version change.
+    const controlledTabId = prodtrackTabIdRef.current;
+    if (controlledTabId == null) return;
+
+    if (!activeProdtrackUrl) return;
     if (!shouldAutoSyncProdtrackTab) return;
     if (!extensionId) return;
-    const url = version.prodtrack_detail_url;
+    const url = activeProdtrackUrl;
     const timer = window.setTimeout(() => {
-      void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
-        tabId: prodtrackTabIdRef.current ?? undefined,
+      // Extension-only (no new-tab fallback): if the controlled tab was closed,
+      // a failed sync must not spawn a window on its own.
+      void openProdtrackVersionInExtension(extensionId, url, {
+        tabId: controlledTabId,
       }).then((result) => {
         if (result.ok && typeof result.tabId === 'number') {
           setProdtrackControlledTabId(result.tabId);
@@ -206,18 +236,18 @@ export function ContentArea({
     return () => window.clearTimeout(timer);
   }, [
     version?.id,
-    version?.prodtrack_detail_url,
+    activeProdtrackUrl,
     shouldAutoSyncProdtrackTab,
     extensionId,
   ]);
 
-  const syncProdtrackTitle = !version?.prodtrack_detail_url
+  const syncProdtrackTitle = !activeProdtrackUrl
     ? 'Production tracking URL is not available for this version.'
     : extensionId
       ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
       : 'Open production tracking in a new browser tab.';
 
-  const syncProdtrackDisabled = !version?.prodtrack_detail_url;
+  const syncProdtrackDisabled = !activeProdtrackUrl;
 
   if (!version) {
     return (
@@ -262,7 +292,7 @@ export function ContentArea({
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
         onVersionStatusChange={handleVersionStatusChange}
-        prodtrackDetailUrl={version.prodtrack_detail_url}
+        prodtrackDetailUrl={activeProdtrackUrl}
         prodtrackTabUsesExtension={!!extensionId}
         onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
         syncProdtrackDisabled={syncProdtrackDisabled}
@@ -281,6 +311,7 @@ export function ContentArea({
         draftNote={draftNote}
         updateDraftNote={updateDraftNote}
         saveAttachmentIds={saveAttachmentIds}
+        defaultHeight={assistantPanelVisible ? undefined : 300}
       />
       <AssistantPanel
         playlistId={playlistId}

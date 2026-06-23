@@ -17,6 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/backend"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
+FRONTEND_ENV="$FRONTEND_DIR/packages/app/.env"
 
 VEXA_ADMIN_URL="http://localhost:8056"
 VEXA_ADMIN_TOKEN="your-admin-token"
@@ -63,6 +64,47 @@ set_env_var() {
     local key="$1" value="$2" file="$3"
     sed -i.bak "s|${key}=.*|${key}=${value}|g" "$file"
     rm -f "${file}.bak"
+}
+
+# Set a frontend VITE_* flag, uncommenting the line if it ships commented out in
+# the example .env. Appends the line if the key is not present at all.
+set_feature_flag() {
+    local key="$1" value="$2" file="$3"
+    # Match only a bare assignment line (optionally commented): "KEY=" or
+    # "KEY=value" with no trailing prose, so explanatory comments that mention
+    # the key are left untouched.
+    if grep -qE "^#? *${key}=[^[:space:]]*$" "$file"; then
+        sed -i.bak -E "s|^#? *${key}=[^[:space:]]*$|${key}=${value}|" "$file"
+        rm -f "${file}.bak"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$file"
+    fi
+}
+
+# Map a user answer (o/on, f/off, u/blank) to "true", "false", or "" (unset).
+normalize_flag() {
+    case "$1" in
+        o|[oO][nN])   echo "true" ;;
+        f|[oO][fF][fF]) echo "false" ;;
+        *)            echo "" ;;
+    esac
+}
+
+# Apply one feature flag: write it to the frontend .env, or report it as left
+# user-controlled when the value is empty. $4 is an optional note (e.g. cascade).
+apply_feature_flag() {
+    local key="$1" label="$2" value="$3" note="${4:-}"
+    if [[ -z "$value" ]]; then
+        ok "${label} left user-controlled"
+        return
+    fi
+    set_feature_flag "$key" "$value" "$FRONTEND_ENV"
+    local state="ON"; [[ "$value" == "false" ]] && state="OFF"
+    if [[ -n "$note" ]]; then
+        ok "${label} forced ${state} (${note}) in frontend/packages/app/.env"
+    else
+        ok "${label} forced ${state} in frontend/packages/app/.env"
+    fi
 }
 
 # ── step 1: prerequisites ──────────────────────────────────────────────────────
@@ -299,7 +341,84 @@ configure_prodtrack() {
     esac
 }
 
-# ── step 6: frontend dependencies ─────────────────────────────────────────────
+# ── step 6: frontend feature flags ────────────────────────────────────────────
+
+# Walk In Review → Transcription → AI (outer doll to inner), enforcing the
+# cascade: forcing an outer feature off forces the inner ones off too.
+configure_feature_flags_individually() {
+    echo "  For each feature choose: [o]n, o[f]f, or [u]ser-controlled (Enter)."
+    echo ""
+
+    local in_review trans ai
+
+    read -r -p "  In Review:     [o]n / o[f]f / [u]ser-controlled [u]: " in_review
+    in_review="$(normalize_flag "${in_review:-u}")"
+    apply_feature_flag "VITE_FEATURE_IN_REVIEW" "In Review" "$in_review"
+
+    # Transcription needs In Review, so a forced-off In Review forces it off.
+    if [[ "$in_review" == "false" ]]; then
+        trans="false"
+        apply_feature_flag "VITE_FEATURE_TRANSCRIPTION" "Transcription" "$trans" "requires In Review"
+    else
+        read -r -p "  Transcription: [o]n / o[f]f / [u]ser-controlled [u]: " trans
+        trans="$(normalize_flag "${trans:-u}")"
+        apply_feature_flag "VITE_FEATURE_TRANSCRIPTION" "Transcription" "$trans"
+    fi
+
+    # AI needs Transcription, so a forced-off Transcription forces it off.
+    if [[ "$trans" == "false" ]]; then
+        ai="false"
+        apply_feature_flag "VITE_FEATURE_AI" "AI" "$ai" "requires Transcription"
+    else
+        read -r -p "  AI:            [o]n / o[f]f / [u]ser-controlled [u]: " ai
+        ai="$(normalize_flag "${ai:-u}")"
+        apply_feature_flag "VITE_FEATURE_AI" "AI" "$ai"
+    fi
+}
+
+configure_feature_flags() {
+    echo ""
+    echo -e "${BOLD}Frontend feature flags (pipeline-level overrides)${NC}"
+    echo "  Optionally lock In Review, Transcription, and AI for ALL users by"
+    echo "  setting VITE_FEATURE_* in frontend/packages/app/.env. A locked feature"
+    echo "  shows a grayed-out toggle in Settings; left unset, each user decides"
+    echo "  for themselves (all three default ON)."
+    echo ""
+    echo "  They cascade like russian dolls — AI needs Transcription, and"
+    echo "  Transcription needs In Review:"
+    echo "    AI  ⊆  Transcription  ⊆  In Review"
+    echo "  Forcing an outer feature off also forces the inner ones off."
+    echo ""
+    echo -e "  1) Leave all user-controlled  ${BOLD}(default)${NC}"
+    echo "  2) Force all three ON for everyone"
+    echo "  3) Force all three OFF for everyone"
+    echo "  4) Configure each feature individually"
+    echo ""
+    read -r -p "  Choice [1]: " ff_choice
+    ff_choice="${ff_choice:-1}"
+    echo ""
+
+    case "$ff_choice" in
+        2)
+            apply_feature_flag "VITE_FEATURE_IN_REVIEW"    "In Review"     "true"
+            apply_feature_flag "VITE_FEATURE_TRANSCRIPTION" "Transcription" "true"
+            apply_feature_flag "VITE_FEATURE_AI"            "AI"            "true"
+            ;;
+        3)
+            apply_feature_flag "VITE_FEATURE_IN_REVIEW"    "In Review"     "false"
+            apply_feature_flag "VITE_FEATURE_TRANSCRIPTION" "Transcription" "false"
+            apply_feature_flag "VITE_FEATURE_AI"            "AI"            "false"
+            ;;
+        4)
+            configure_feature_flags_individually
+            ;;
+        *)
+            ok "Feature flags left user-controlled (VITE_FEATURE_* stay unset)"
+            ;;
+    esac
+}
+
+# ── step 7: frontend dependencies ─────────────────────────────────────────────
 
 install_frontend() {
     info "Installing frontend dependencies..."
@@ -507,6 +626,7 @@ main() {
         configure_llm
         configure_transcription
         configure_prodtrack
+        configure_feature_flags
         install_frontend
         echo ""
         bootstrap_vexa

@@ -1,0 +1,28 @@
+Generate production notes from this VFX shot review transcript.
+
+FORMAT: Bullet list. Each note on its own line starting with "- ".
+
+RULES:
+1. Include ALL supervisor feedback — approvals AND change requests. A "looks good" note is just as important as a fix request: it tells the artist what not to touch.
+2. Translate casual speech to direct, terse statements. Cut filler. Preserve intent.
+3. No fabrication. Every note must trace back to something said in the transcript.
+4. No soft requests: no "let me know", "keep me posted", "feel free to", etc.
+5. No meta-commentary ("this appears to be", "I think this is"). Output notes only.
+6. No emojis.
+7. No artist names or department names inside bullet text.
+8. If no transcript is provided, return an empty string.
+
+Glossary — Global Terms:
+{{ glossary_global }}
+
+Glossary — Project Terms:
+{{ glossary_project }}
+
+Version Data:
+{{ context }}
+
+Transcript:
+{{ transcript }}
+
+Existing Notes:
+{{ notes }}

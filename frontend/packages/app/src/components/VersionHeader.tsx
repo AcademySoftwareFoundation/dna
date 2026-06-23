@@ -12,6 +12,7 @@ import {
 import { UserAvatar } from './UserAvatar';
 import { useHotkeyConfig } from '../hotkeys';
 import { useVersionStatuses } from '../hooks';
+import { useFeatureFlags } from '../contexts';
 
 interface VersionHeaderProps {
   shotCode?: string;
@@ -209,8 +210,11 @@ const MainContent = styled.div`
 const ThumbnailWrapper = styled.div`
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   gap: 8px;
   flex-shrink: 0;
+  height: 224px;
 `;
 
 const Thumbnail = styled.div`
@@ -397,6 +401,7 @@ export function VersionHeader({
   isSettingInReview = false,
 }: VersionHeaderProps) {
   const { getLabel } = useHotkeyConfig();
+  const { inReviewEnabled } = useFeatureFlags();
   const { statuses, isLoading: isLoadingStatuses } = useVersionStatuses({ projectId });
   const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
   const displayCode = versionNumber || shotCode || 'Untitled Version';
@@ -411,10 +416,12 @@ export function VersionHeader({
           </BackButton>
         </Tooltip>
         <TopBarActions>
-          <InReviewButton onClick={onInReview} disabled={!hasInReview}>
-            <Eye size={14} />
-            In Review
-          </InReviewButton>
+          {inReviewEnabled && (
+            <InReviewButton onClick={onInReview} disabled={!hasInReview}>
+              <Eye size={14} />
+              In Review
+            </InReviewButton>
+          )}
           {prodtrackDetailUrl && prodtrackTabUsesExtension && onSyncProdtrackTab && (
             <Tooltip content={syncProdtrackTitle}>
               <SyncProdtrackButton
@@ -455,27 +462,29 @@ export function VersionHeader({
           <Thumbnail>
             {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
           </Thumbnail>
-          <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
-            <SetInReviewButton
-              $isInReview={isCurrentVersionInReview}
-              onClick={onSetInReview}
-              disabled={isCurrentVersionInReview || isSettingInReview}
-            >
-              {isSettingInReview ? (
-                <>Setting...</>
-              ) : isCurrentVersionInReview ? (
-                <>
-                  <Eye size={14} />
-                  In Review
-                </>
-              ) : (
-                <>
-                  <Target size={14} />
-                  Set In Review
-                </>
-              )}
-            </SetInReviewButton>
-          </Tooltip>
+          {inReviewEnabled && (
+            <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
+              <SetInReviewButton
+                $isInReview={isCurrentVersionInReview}
+                onClick={onSetInReview}
+                disabled={isCurrentVersionInReview || isSettingInReview}
+              >
+                {isSettingInReview ? (
+                  <>Setting...</>
+                ) : isCurrentVersionInReview ? (
+                  <>
+                    <Eye size={14} />
+                    In Review
+                  </>
+                ) : (
+                  <>
+                    <Target size={14} />
+                    Set In Review
+                  </>
+                )}
+              </SetInReviewButton>
+            </Tooltip>
+          )}
         </ThumbnailWrapper>
         <MetadataSection>
           <VersionTitle>
