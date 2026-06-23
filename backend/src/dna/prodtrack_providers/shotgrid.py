@@ -314,6 +314,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             base = (self.url or "").rstrip("/")
             if base:
                 version.prodtrack_detail_url = f"{base}/detail/Version/{version.id}"
+                if version.entity:
+                    version.prodtrack_entity_detail_url = (
+                        f"{base}/detail/{version.entity.type}/{version.entity.id}"
+                    )
         return entity
 
     def _resolve_linked_field(self, data):
@@ -785,6 +789,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             base = (self.url or "").rstrip("/")
             if base:
                 version.prodtrack_detail_url = f"{base}/detail/Version/{version.id}"
+                if version.entity:
+                    version.prodtrack_entity_detail_url = (
+                        f"{base}/detail/{version.entity.type}/{version.entity.id}"
+                    )
 
             versions.append(version)
 

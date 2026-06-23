@@ -104,4 +104,10 @@ export const lightTheme = {
 // backwards-compatible default export
 export const theme = darkTheme;
 
-export type Theme = typeof darkTheme;
+type DeepWiden<T> = T extends string
+  ? string
+  : T extends object
+    ? { [K in keyof T]: DeepWiden<T[K]> }
+    : T;
+
+export type Theme = DeepWiden<typeof darkTheme>;
