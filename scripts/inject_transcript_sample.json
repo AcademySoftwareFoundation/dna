@@ -1,0 +1,34 @@
+{
+  "375": {
+    "7056": {
+      "segments": [
+        {
+          "segment_id": "abc123:speaker-0:1",
+          "text": "Yeah, this shot is looking really really good. I am not a huge fan of that flare on the right that is intersecting the balloon. Lets see if we can get rid of it.",
+          "speaker": "James Spadafora",
+          "language": "en",
+          "start_time": 0.0,
+          "end_time": 30.2,
+          "absolute_start_time": "2026-06-22T10:00:00.000Z",
+          "absolute_end_time": "2026-06-22T10:00:30.200Z",
+          "completed": true
+        }
+      ]
+    },
+    "7057": {
+      "segments": [
+        {
+          "segment_id": "abc123:speaker-0:1",
+          "text": "The background on this shot is definitely way too dark. Let's see if we can add a little bit more lighting to the background while still keeping the moody feel. Also, let's let's go back to modeling and bump up that table a little bit, make it a bit bigger. Make sure you check in with Olga on the texturing. great next version.",
+          "speaker": "James Spadafora",
+          "language": "en",
+          "start_time": 0.0,
+          "end_time": 30.2,
+          "absolute_start_time": "2026-06-22T10:00:00.000Z",
+          "absolute_end_time": "2026-06-22T10:00:30.200Z",
+          "completed": true
+        }
+      ]
+    }
+  }
+}
