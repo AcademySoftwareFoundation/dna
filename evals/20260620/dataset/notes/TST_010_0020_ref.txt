@@ -1,0 +1,3 @@
+- Visibility of surroundings is good. Want to read items in room, but not see where room ends.
+- Digi-doubles are looking static. Need movement. Have them walk into their current position.
+- Lose highlights on top of throne, should look like alien material, not reflective.

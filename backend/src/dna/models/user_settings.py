@@ -28,6 +28,10 @@ class UserSettingsUpdate(BaseModel):
         description="When true, DNA tells the browser extension to open the PT "
         "version page whenever the selected version changes",
     )
+    prodtrack_page_type: Optional[str] = Field(
+        default=None,
+        description="Which PT page to sync: 'version' for Version Detail, 'entity' for Shot/Asset Detail",
+    )
 
 
 class UserSettings(BaseModel):
@@ -41,5 +45,6 @@ class UserSettings(BaseModel):
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True
+    prodtrack_page_type: str = "version"
     updated_at: datetime
     created_at: datetime
