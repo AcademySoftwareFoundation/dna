@@ -26,6 +26,10 @@ from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
+from dna.glossary_config import (
+    get_default_glossary_global,
+    inject_glossaries,
+)
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
     Asset,
@@ -47,6 +51,8 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    ProjectGlossary,
+    ProjectGlossaryUpdate,
     PublishedTranscriptUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
@@ -816,6 +822,54 @@ async def get_playlists_for_project(
         return provider.get_playlists_for_project(project_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get(
+    "/projects/{project_id}/glossary",
+    tags=["Projects"],
+    summary="Get a project's glossary",
+    description=(
+        "Retrieve the production-specific glossary for a project. Returns an "
+        "empty glossary when none has been saved yet."
+    ),
+    response_model=ProjectGlossary,
+)
+async def get_project_glossary(
+    project_id: int,
+    provider: StorageProviderDep,
+    _: CurrentUserDep,
+) -> ProjectGlossary:
+    """Get a project's glossary (empty when not yet configured)."""
+    from datetime import datetime, timezone
+
+    stored = await provider.get_project_glossary(project_id)
+    if stored is None:
+        now = datetime.now(timezone.utc)
+        return ProjectGlossary(
+            _id="",
+            project_id=project_id,
+            content="",
+            updated_at=now,
+            created_at=now,
+        )
+    return stored
+
+
+@app.put(
+    "/projects/{project_id}/glossary",
+    tags=["Projects"],
+    summary="Create or update a project's glossary",
+    description="Save the production-specific glossary for a project.",
+    response_model=ProjectGlossary,
+)
+async def upsert_project_glossary(
+    project_id: int,
+    data: ProjectGlossaryUpdate,
+    provider: StorageProviderDep,
+    _: CurrentUserDep,
+) -> ProjectGlossary:
+    """Create or update a project's glossary."""
+    return await provider.upsert_project_glossary(project_id, data)
 
 
 @app.get(
@@ -1794,6 +1848,8 @@ def _build_full_prompt(
     context: str,
     existing_notes: str,
     additional_instructions: str | None = None,
+    glossary_global: str = "",
+    glossary_project: str = "",
 ) -> str:
     """Build the full prompt with template values substituted."""
     result = prompt
@@ -1803,6 +1859,7 @@ def _build_full_prompt(
     result = result.replace("{{context}}", context)
     result = result.replace("{{ notes }}", existing_notes)
     result = result.replace("{{notes}}", existing_notes)
+    result = inject_glossaries(result, glossary_global, glossary_project)
     if additional_instructions:
         result += f"\n\nAdditional Instructions: {additional_instructions}"
     return result
@@ -1830,6 +1887,8 @@ async def generate_note(
             if user_settings and user_settings.note_prompt
             else get_default_note_prompt()
         )
+        # Global glossary is the shared, repo-sourced file (read-only at runtime).
+        glossary_global = get_default_glossary_global()
 
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
@@ -1844,13 +1903,30 @@ async def generate_note(
         )
         context = ProdtrackProviderBase.build_version_context(version)
 
+        # Project glossary is production-specific: look it up by the version's
+        # ShotGrid project id. Version.project is a dict {type, id, name}.
+        project_ref = getattr(version, "project", None)
+        project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
+        project_glossary = (
+            await storage_provider.get_project_glossary(project_id)
+            if project_id is not None
+            else None
+        )
+        glossary_project = project_glossary.content if project_glossary else ""
+
         draft_note = await storage_provider.get_draft_note(
             request.user_email, request.playlist_id, request.version_id
         )
         existing_notes = draft_note.content if draft_note else ""
 
         full_prompt = _build_full_prompt(
-            prompt, transcript, context, existing_notes, request.additional_instructions
+            prompt,
+            transcript,
+            context,
+            existing_notes,
+            request.additional_instructions,
+            glossary_global,
+            glossary_project,
         )
 
         suggestion = await llm_provider.generate_note(
@@ -1859,6 +1935,8 @@ async def generate_note(
             context=context,
             existing_notes=existing_notes,
             additional_instructions=request.additional_instructions,
+            glossary_global=glossary_global,
+            glossary_project=glossary_project,
         )
 
         return GenerateNoteResponse(

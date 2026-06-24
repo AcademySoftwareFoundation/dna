@@ -29,6 +29,7 @@ interface SidebarProps {
   onCollapsedChange: (collapsed: boolean) => void;
   onReplacePlaylist?: () => void;
   playlistId: number | null;
+  projectId: number | null;
   selectedVersionId?: number | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
@@ -239,6 +240,7 @@ export function Sidebar({
   onCollapsedChange,
   onReplacePlaylist,
   playlistId,
+  projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
@@ -471,6 +473,7 @@ export function Sidebar({
           </Tooltip>
           <SettingsModal
             userEmail={userEmail}
+            projectId={projectId}
             open={isSettingsOpen}
             onOpenChange={setIsSettingsOpen}
           />
@@ -486,6 +489,7 @@ export function Sidebar({
           </Tooltip>
           <SettingsModal
             userEmail={userEmail}
+            projectId={projectId}
             open={isSettingsOpen}
             onOpenChange={setIsSettingsOpen}
           />
