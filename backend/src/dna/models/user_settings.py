@@ -15,14 +15,6 @@ class UserSettingsUpdate(BaseModel):
     note_prompt: Optional[str] = Field(
         default=None, description="Custom prompt for generating notes"
     )
-    glossary_global: Optional[str] = Field(
-        default=None,
-        description="Custom global VFX glossary injected as note-generation context",
-    )
-    glossary_project: Optional[str] = Field(
-        default=None,
-        description="Custom project glossary injected as note-generation context",
-    )
     regenerate_on_version_change: Optional[bool] = Field(
         default=None,
         description="Regenerate AI note when switching review versions",
@@ -50,8 +42,6 @@ class UserSettings(BaseModel):
     id: str = Field(alias="_id")
     user_email: str
     note_prompt: str = ""
-    glossary_global: str = ""
-    glossary_project: str = ""
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True

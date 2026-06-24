@@ -7,6 +7,7 @@ interface LayoutProps {
   children: ReactNode;
   onReplacePlaylist?: () => void;
   playlistId: number | null;
+  projectId: number | null;
   selectedVersionId?: number | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
@@ -45,6 +46,7 @@ export function Layout({
   children,
   onReplacePlaylist,
   playlistId,
+  projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
@@ -72,6 +74,7 @@ export function Layout({
         onCollapsedChange={setSidebarCollapsed}
         onReplacePlaylist={onReplacePlaylist}
         playlistId={playlistId}
+        projectId={projectId}
         selectedVersionId={selectedVersionId}
         onVersionSelect={onVersionSelect}
         userEmail={userEmail}

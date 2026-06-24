@@ -1,13 +1,14 @@
-"""Load the studio-editable glossary YAML files used as note-generation context.
+"""Load the repo-sourced global glossary used as note-generation context.
 
-Two glossaries are supported:
+The *global* glossary (``glossary_global.yaml``) is shared across every
+production and ships in the open-source repo — it is read-only at runtime and
+contributors change it via a pull request. The *project* glossary is
+production-specific and is stored per ShotGrid project in the database (see
+``dna.models.project_glossary``), not as a file here.
 
-* ``glossary_global``  — industry-wide VFX terms and shorthand.
-* ``glossary_project`` — terms unique to the current production.
-
-Each file's raw text is injected verbatim into the note prompt (via the
-``{{ glossary_global }}`` / ``{{ glossary_project }}`` placeholders), so the
-files are kept human-readable rather than parsed into structured data.
+The global file's raw text is injected verbatim into the note prompt (via the
+``{{ glossary_global }}`` placeholder), so it is kept human-readable rather than
+parsed into structured data.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from pathlib import Path
 
 _CONFIG_DIR = Path(__file__).resolve().parent / "config"
 _DEFAULT_GLOBAL = _CONFIG_DIR / "glossary_global.yaml"
-_DEFAULT_PROJECT = _CONFIG_DIR / "glossary_project.yaml"
 
 
 def default_glossary_global_path() -> Path:
@@ -27,14 +27,6 @@ def default_glossary_global_path() -> Path:
     if override:
         return Path(override).expanduser().resolve()
     return _DEFAULT_GLOBAL.resolve()
-
-
-def default_glossary_project_path() -> Path:
-    """Path to the project glossary (override with DNA_GLOSSARY_PROJECT_PATH)."""
-    override = os.environ.get("DNA_GLOSSARY_PROJECT_PATH")
-    if override:
-        return Path(override).expanduser().resolve()
-    return _DEFAULT_PROJECT.resolve()
 
 
 @lru_cache(maxsize=16)
@@ -49,13 +41,8 @@ def _read_glossary(path: Path) -> str:
 
 
 def get_default_glossary_global() -> str:
-    """Return the configured default global glossary text (file changes picked up)."""
+    """Return the configured global glossary text (file changes picked up)."""
     return _read_glossary(default_glossary_global_path())
-
-
-def get_default_glossary_project() -> str:
-    """Return the configured default project glossary text (file changes picked up)."""
-    return _read_glossary(default_glossary_project_path())
 
 
 def clear_glossary_cache() -> None:

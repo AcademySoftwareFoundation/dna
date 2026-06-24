@@ -15,17 +15,25 @@ import * as RadioGroup from '@radix-ui/react-radio-group';
 import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
-import type { UserSettings, UserSettingsUpdate } from '@dna/core';
+import type {
+  ProjectGlossary,
+  UserSettings,
+  UserSettingsUpdate,
+} from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
-import glossaryGlobalSeed from '../config/glossary_global.yaml?raw';
-import glossaryProjectSeed from '../config/glossary_project.yaml?raw';
+
+/** The global glossary is a shared repo file — contributors edit it via PR. */
+const GLOBAL_GLOSSARY_GITHUB_URL =
+  'https://github.com/AcademySoftwareFoundation/dna/blob/main/backend/src/dna/config/glossary_global.yaml';
 
 interface SettingsModalProps {
   userEmail: string;
+  /** Current ShotGrid project id — scopes the editable project glossary. */
+  projectId: number | null;
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -593,83 +601,84 @@ function TranscriptionTab() {
   );
 }
 
-// --- Glossary Editor ---
+// --- Glossary editors ---
 
-interface GlossaryEditorButtonProps {
-  label: string;
-  description: string;
-  value: string;
-  defaultValue: string;
-  isPending: boolean;
-  onChange: (value: string) => void;
-}
-
-function GlossaryEditorButton({
-  label,
-  description,
-  value,
-  defaultValue,
-  isPending,
-  onChange,
-}: GlossaryEditorButtonProps) {
+// The project glossary is stored per ShotGrid project (not in user settings),
+// so it loads/saves itself against the current projectId and is independent of
+// the surrounding settings save-on-close flow.
+function ProjectGlossaryEditor({ projectId }: { projectId: number | null }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState('');
+
+  const { data, isLoading } = useQuery<ProjectGlossary>({
+    queryKey: ['projectGlossary', projectId],
+    queryFn: () => apiHandler.getProjectGlossary({ projectId: projectId! }),
+    enabled: projectId != null,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (content: string) =>
+      apiHandler.upsertProjectGlossary({ projectId: projectId!, content }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['projectGlossary', projectId], saved);
+      setOpen(false);
+    },
+  });
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
-      if (isOpen) setDraft(value);
+      if (isOpen) setDraft(data?.content ?? '');
       setOpen(isOpen);
     },
-    [value]
+    [data?.content]
   );
-
-  const handleSave = useCallback(() => {
-    onChange(draft);
-    setOpen(false);
-  }, [draft, onChange]);
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <GlossaryRow>
         <GlossaryRowText>
-          <CheckboxLabel>{label}</CheckboxLabel>
-          <CheckboxDescription>{description}</CheckboxDescription>
+          <CheckboxLabel>Project glossary</CheckboxLabel>
+          <CheckboxDescription>
+            Terms specific to the current production. Saved to this ShotGrid
+            project.
+          </CheckboxDescription>
         </GlossaryRowText>
         <Dialog.Trigger>
-          <Button variant="soft" size="2" disabled={isPending}>
+          <Button
+            variant="soft"
+            size="2"
+            disabled={projectId == null || isLoading}
+          >
             Edit
           </Button>
         </Dialog.Trigger>
       </GlossaryRow>
       <Dialog.Content maxWidth="560px">
-        <Dialog.Title>{label}</Dialog.Title>
+        <Dialog.Title>Project glossary</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="3">
-          {description} One term per line, in <code>term: definition</code>{' '}
-          format.
+          Terms unique to this production. One term per line, in{' '}
+          <code>term: definition</code> format.
         </Dialog.Description>
         <TextAreaWrapper>
           <GlossaryTextArea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            disabled={isPending}
+            disabled={mutation.isPending}
+            placeholder="Carryall: Large transport aircraft used to airlift Harvesters."
           />
         </TextAreaWrapper>
         <Footer>
-          <Button
-            variant="soft"
-            color="gray"
-            onClick={() => setDraft(defaultValue)}
-            disabled={isPending || draft === defaultValue}
-          >
-            Reset to default
-          </Button>
           <Dialog.Close>
             <Button variant="soft" color="gray">
               Cancel
             </Button>
           </Dialog.Close>
-          <Button onClick={handleSave} disabled={isPending}>
-            Save
+          <Button
+            onClick={() => mutation.mutate(draft)}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? 'Saving...' : 'Save'}
           </Button>
         </Footer>
       </Dialog.Content>
@@ -682,17 +691,12 @@ function GlossaryEditorButton({
 interface AITabProps {
   isLoading: boolean;
   notePrompt: string;
-  glossaryGlobal: string;
-  glossaryProject: string;
-  defaultGlossaryGlobal: string;
-  defaultGlossaryProject: string;
+  projectId: number | null;
   regenerateOnVersionChange: boolean;
   regenerateOnTranscriptUpdate: boolean;
   isPending: boolean;
   userEmail: string;
   onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  onGlossaryGlobalChange: (value: string) => void;
-  onGlossaryProjectChange: (value: string) => void;
   onRegenerateOnVersionChange: (checked: boolean) => void;
   onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
 }
@@ -700,17 +704,12 @@ interface AITabProps {
 function AITab({
   isLoading,
   notePrompt,
-  glossaryGlobal,
-  glossaryProject,
-  defaultGlossaryGlobal,
-  defaultGlossaryProject,
+  projectId,
   regenerateOnVersionChange,
   regenerateOnTranscriptUpdate,
   isPending,
   userEmail,
   onNotePromptChange,
-  onGlossaryGlobalChange,
-  onGlossaryProjectChange,
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
 }: AITabProps) {
@@ -843,22 +842,29 @@ function AITab({
         <SectionDescription>
           Terms supplied to the AI as context when generating notes.
         </SectionDescription>
-        <GlossaryEditorButton
-          label="Global glossary"
-          description="Industry-wide VFX terms and shorthand."
-          value={glossaryGlobal}
-          defaultValue={defaultGlossaryGlobal}
-          isPending={isPending}
-          onChange={onGlossaryGlobalChange}
-        />
-        <GlossaryEditorButton
-          label="Project glossary"
-          description="Terms unique to this production."
-          value={glossaryProject}
-          defaultValue={defaultGlossaryProject}
-          isPending={isPending}
-          onChange={onGlossaryProjectChange}
-        />
+        <GlossaryRow>
+          <GlossaryRowText>
+            <CheckboxLabel>Global glossary</CheckboxLabel>
+            <CheckboxDescription>
+              Industry-wide VFX terms, shared across all productions. Maintained
+              in the open-source repo — open a PR to contribute.
+            </CheckboxDescription>
+          </GlossaryRowText>
+          <Button
+            asChild
+            variant="soft"
+            size="2"
+          >
+            <a
+              href={GLOBAL_GLOSSARY_GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Contribute
+            </a>
+          </Button>
+        </GlossaryRow>
+        <ProjectGlossaryEditor projectId={projectId} />
       </Section>
 
       <Section>
@@ -959,6 +965,7 @@ function KeybindingRecorder({
 
 export function SettingsModal({
   userEmail,
+  projectId,
   trigger,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -967,8 +974,6 @@ export function SettingsModal({
   const open = controlledOpen ?? internalOpen;
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [notePrompt, setNotePrompt] = useState('');
-  const [glossaryGlobal, setGlossaryGlobal] = useState('');
-  const [glossaryProject, setGlossaryProject] = useState('');
   const [regenerateOnVersionChange, setRegenerateOnVersionChange] =
     useState(false);
   const [regenerateOnTranscriptUpdate, setRegenerateOnTranscriptUpdate] =
@@ -1007,16 +1012,6 @@ export function SettingsModal({
           ? settings.note_prompt
           : settings.default_note_prompt;
       setNotePrompt(displayPrompt);
-      setGlossaryGlobal(
-        settings.glossary_global.trim() !== ''
-          ? settings.glossary_global
-          : settings.default_glossary_global || glossaryGlobalSeed
-      );
-      setGlossaryProject(
-        settings.glossary_project.trim() !== ''
-          ? settings.glossary_project
-          : settings.default_glossary_project || glossaryProjectSeed
-      );
       setRegenerateOnVersionChange(settings.regenerate_on_version_change);
       setRegenerateOnTranscriptUpdate(settings.regenerate_on_transcript_update);
       setSyncProdtrackTabOnVersionChange(
@@ -1026,8 +1021,6 @@ export function SettingsModal({
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
-      setGlossaryGlobal(glossaryGlobalSeed);
-      setGlossaryProject(glossaryProjectSeed);
       setRegenerateOnVersionChange(false);
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
@@ -1043,16 +1036,6 @@ export function SettingsModal({
     },
     []
   );
-
-  const handleGlossaryGlobalChange = useCallback((value: string) => {
-    setGlossaryGlobal(value);
-    setIsDirty(true);
-  }, []);
-
-  const handleGlossaryProjectChange = useCallback((value: string) => {
-    setGlossaryProject(value);
-    setIsDirty(true);
-  }, []);
 
   const handleRegenerateOnVersionChange = useCallback((checked: boolean) => {
     setRegenerateOnVersionChange(checked);
@@ -1089,14 +1072,6 @@ export function SettingsModal({
     };
     mutation.mutate({
       note_prompt: toPersisted(notePrompt, settings?.default_note_prompt ?? ''),
-      glossary_global: toPersisted(
-        glossaryGlobal,
-        settings?.default_glossary_global ?? ''
-      ),
-      glossary_project: toPersisted(
-        glossaryProject,
-        settings?.default_glossary_project ?? ''
-      ),
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
@@ -1105,11 +1080,7 @@ export function SettingsModal({
   }, [
     mutation,
     notePrompt,
-    glossaryGlobal,
-    glossaryProject,
     settings?.default_note_prompt,
-    settings?.default_glossary_global,
-    settings?.default_glossary_project,
     regenerateOnVersionChange,
     regenerateOnTranscriptUpdate,
     syncProdtrackTabOnVersionChange,
@@ -1194,21 +1165,12 @@ export function SettingsModal({
               <AITab
                 isLoading={isLoading}
                 notePrompt={notePrompt}
-                glossaryGlobal={glossaryGlobal}
-                glossaryProject={glossaryProject}
-                defaultGlossaryGlobal={
-                  settings?.default_glossary_global || glossaryGlobalSeed
-                }
-                defaultGlossaryProject={
-                  settings?.default_glossary_project || glossaryProjectSeed
-                }
+                projectId={projectId}
                 regenerateOnVersionChange={regenerateOnVersionChange}
                 regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
                 isPending={mutation.isPending}
                 userEmail={userEmail}
                 onNotePromptChange={handleNotePromptChange}
-                onGlossaryGlobalChange={handleGlossaryGlobalChange}
-                onGlossaryProjectChange={handleGlossaryProjectChange}
                 onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
                 onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
               />

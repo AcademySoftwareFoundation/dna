@@ -13,6 +13,7 @@ if TYPE_CHECKING:
         PublishedTranscript,
         PublishedTranscriptUpdate,
     )
+    from dna.models.project_glossary import ProjectGlossary, ProjectGlossaryUpdate
     from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCCheckUpdate
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
     from dna.models.user_settings import UserSettings, UserSettingsUpdate
@@ -113,6 +114,18 @@ class StorageProviderBase:
 
     async def delete_user_settings(self, user_email: str) -> bool:
         """Delete user settings. Returns True if deleted."""
+        raise NotImplementedError()
+
+    async def get_project_glossary(
+        self, project_id: int
+    ) -> Optional["ProjectGlossary"]:
+        """Get the glossary for a project by id."""
+        raise NotImplementedError()
+
+    async def upsert_project_glossary(
+        self, project_id: int, data: "ProjectGlossaryUpdate"
+    ) -> "ProjectGlossary":
+        """Create or update the glossary for a project."""
         raise NotImplementedError()
 
     async def get_published_transcript(

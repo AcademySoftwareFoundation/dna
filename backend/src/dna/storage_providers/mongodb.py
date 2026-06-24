@@ -12,6 +12,7 @@ from pymongo import AsyncMongoClient, ReturnDocument
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
 from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+from dna.models.project_glossary import ProjectGlossary, ProjectGlossaryUpdate
 from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
@@ -57,6 +58,11 @@ class MongoDBStorageProvider(StorageProviderBase):
             [("user_email", 1)],
             name="qc_checks_by_user",
         )
+        await self.project_glossaries_collection.create_index(
+            [("project_id", 1)],
+            unique=True,
+            name="project_glossary_by_project",
+        )
         self._indexes_ensured = True
 
     @property
@@ -93,6 +99,10 @@ class MongoDBStorageProvider(StorageProviderBase):
     @property
     def qc_checks_collection(self) -> Any:
         return self.db.qc_checks
+
+    @property
+    def project_glossaries_collection(self) -> Any:
+        return self.db.project_glossaries
 
     def _build_query(
         self, user_email: str, playlist_id: int, version_id: int
@@ -339,8 +349,6 @@ class MongoDBStorageProvider(StorageProviderBase):
         }
         defaults = {
             "note_prompt": "",
-            "glossary_global": "",
-            "glossary_project": "",
             "regenerate_on_version_change": False,
             "regenerate_on_transcript_update": False,
             "sync_prodtrack_tab_on_version_change": True,
@@ -368,6 +376,36 @@ class MongoDBStorageProvider(StorageProviderBase):
         query = {"user_email": user_email}
         result = await self.user_settings_collection.delete_one(query)
         return result.deleted_count > 0
+
+    async def get_project_glossary(
+        self, project_id: int
+    ) -> Optional[ProjectGlossary]:
+        """Get the glossary for a project by id."""
+        doc = await self.project_glossaries_collection.find_one(
+            {"project_id": project_id}
+        )
+        if doc:
+            doc["_id"] = str(doc["_id"])
+            return ProjectGlossary(**doc)
+        return None
+
+    async def upsert_project_glossary(
+        self, project_id: int, data: ProjectGlossaryUpdate
+    ) -> ProjectGlossary:
+        """Create or update the glossary for a project."""
+        now = datetime.now(timezone.utc)
+        update: dict[str, Any] = {
+            "$set": {"content": data.content, "updated_at": now},
+            "$setOnInsert": {"project_id": project_id, "created_at": now},
+        }
+        result = await self.project_glossaries_collection.find_one_and_update(
+            {"project_id": project_id},
+            update,
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        result["_id"] = str(result["_id"])
+        return ProjectGlossary(**result)
 
     async def get_published_transcript(
         self, playlist_id: int, version_id: int, meeting_id: str

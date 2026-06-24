@@ -56,6 +56,8 @@ from dna.models import (
     RunQCChecksResponse,
     SearchRequest,
     SearchResult,
+    ProjectGlossary,
+    ProjectGlossaryUpdate,
     Shot,
     StatusOption,
     StoredSegment,
@@ -70,7 +72,6 @@ from dna.models import (
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.glossary_config import (
     get_default_glossary_global,
-    get_default_glossary_project,
     inject_glossaries,
 )
 from dna.note_prompt_config import get_default_note_prompt
@@ -824,6 +825,54 @@ async def get_playlists_for_project(
 
 
 @app.get(
+    "/projects/{project_id}/glossary",
+    tags=["Projects"],
+    summary="Get a project's glossary",
+    description=(
+        "Retrieve the production-specific glossary for a project. Returns an "
+        "empty glossary when none has been saved yet."
+    ),
+    response_model=ProjectGlossary,
+)
+async def get_project_glossary(
+    project_id: int,
+    provider: StorageProviderDep,
+    _: CurrentUserDep,
+) -> ProjectGlossary:
+    """Get a project's glossary (empty when not yet configured)."""
+    from datetime import datetime, timezone
+
+    stored = await provider.get_project_glossary(project_id)
+    if stored is None:
+        now = datetime.now(timezone.utc)
+        return ProjectGlossary(
+            _id="",
+            project_id=project_id,
+            content="",
+            updated_at=now,
+            created_at=now,
+        )
+    return stored
+
+
+@app.put(
+    "/projects/{project_id}/glossary",
+    tags=["Projects"],
+    summary="Create or update a project's glossary",
+    description="Save the production-specific glossary for a project.",
+    response_model=ProjectGlossary,
+)
+async def upsert_project_glossary(
+    project_id: int,
+    data: ProjectGlossaryUpdate,
+    provider: StorageProviderDep,
+    _: CurrentUserDep,
+) -> ProjectGlossary:
+    """Create or update a project's glossary."""
+    return await provider.upsert_project_glossary(project_id, data)
+
+
+@app.get(
     "/playlists/{playlist_id}/versions",
     tags=["Versions"],
     summary="Get versions for a playlist",
@@ -1424,10 +1473,6 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
         user_email=settings.user_email,
         note_prompt=settings.note_prompt,
         default_note_prompt=get_default_note_prompt(),
-        glossary_global=settings.glossary_global,
-        glossary_project=settings.glossary_project,
-        default_glossary_global=get_default_glossary_global(),
-        default_glossary_project=get_default_glossary_project(),
         regenerate_on_version_change=settings.regenerate_on_version_change,
         regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
         sync_prodtrack_tab_on_version_change=(
@@ -1449,10 +1494,6 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         user_email=user_email,
         note_prompt="",
         default_note_prompt=default,
-        glossary_global="",
-        glossary_project="",
-        default_glossary_global=get_default_glossary_global(),
-        default_glossary_project=get_default_glossary_project(),
         regenerate_on_version_change=False,
         regenerate_on_transcript_update=False,
         sync_prodtrack_tab_on_version_change=True,
@@ -1846,16 +1887,8 @@ async def generate_note(
             if user_settings and user_settings.note_prompt
             else get_default_note_prompt()
         )
-        glossary_global = (
-            user_settings.glossary_global
-            if user_settings and user_settings.glossary_global
-            else get_default_glossary_global()
-        )
-        glossary_project = (
-            user_settings.glossary_project
-            if user_settings and user_settings.glossary_project
-            else get_default_glossary_project()
-        )
+        # Global glossary is the shared, repo-sourced file (read-only at runtime).
+        glossary_global = get_default_glossary_global()
 
         segments = await storage_provider.get_segments_for_version(
             request.playlist_id, request.version_id
@@ -1869,6 +1902,19 @@ async def generate_note(
             ),
         )
         context = ProdtrackProviderBase.build_version_context(version)
+
+        # Project glossary is production-specific: look it up by the version's
+        # ShotGrid project id. Version.project is a dict {type, id, name}.
+        project_ref = getattr(version, "project", None)
+        project_id = (
+            project_ref.get("id") if isinstance(project_ref, dict) else None
+        )
+        project_glossary = (
+            await storage_provider.get_project_glossary(project_id)
+            if project_id is not None
+            else None
+        )
+        glossary_project = project_glossary.content if project_glossary else ""
 
         draft_note = await storage_provider.get_draft_note(
             request.user_email, request.playlist_id, request.version_id

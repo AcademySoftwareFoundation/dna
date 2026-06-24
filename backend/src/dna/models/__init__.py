@@ -27,6 +27,10 @@ from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
 )
+from dna.models.project_glossary import (
+    ProjectGlossary,
+    ProjectGlossaryUpdate,
+)
 from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
@@ -112,6 +116,8 @@ __all__ = [
     "DraftNoteUpdate",
     "PlaylistMetadata",
     "PlaylistMetadataUpdate",
+    "ProjectGlossary",
+    "ProjectGlossaryUpdate",
     "PublishedTranscript",
     "PublishedTranscriptUpdate",
     "StoredSegment",
