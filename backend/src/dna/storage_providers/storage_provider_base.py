@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+    from dna.models.project_glossary import ProjectGlossary, ProjectGlossaryUpdate
     from dna.models.published_transcript import (
         PublishedTranscript,
         PublishedTranscriptUpdate,
     )
-    from dna.models.project_glossary import ProjectGlossary, ProjectGlossaryUpdate
     from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCCheckUpdate
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
     from dna.models.user_settings import UserSettings, UserSettingsUpdate

@@ -26,6 +26,10 @@ from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
+from dna.glossary_config import (
+    get_default_glossary_global,
+    inject_glossaries,
+)
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
     Asset,
@@ -47,6 +51,8 @@ from dna.models import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
     Project,
+    ProjectGlossary,
+    ProjectGlossaryUpdate,
     PublishedTranscriptUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
@@ -56,8 +62,6 @@ from dna.models import (
     RunQCChecksResponse,
     SearchRequest,
     SearchResult,
-    ProjectGlossary,
-    ProjectGlossaryUpdate,
     Shot,
     StatusOption,
     StoredSegment,
@@ -70,10 +74,6 @@ from dna.models import (
     Version,
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
-from dna.glossary_config import (
-    get_default_glossary_global,
-    inject_glossaries,
-)
 from dna.note_prompt_config import get_default_note_prompt
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
@@ -1906,9 +1906,7 @@ async def generate_note(
         # Project glossary is production-specific: look it up by the version's
         # ShotGrid project id. Version.project is a dict {type, id, name}.
         project_ref = getattr(version, "project", None)
-        project_id = (
-            project_ref.get("id") if isinstance(project_ref, dict) else None
-        )
+        project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
         project_glossary = (
             await storage_provider.get_project_glossary(project_id)
             if project_id is not None

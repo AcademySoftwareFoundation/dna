@@ -377,9 +377,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         result = await self.user_settings_collection.delete_one(query)
         return result.deleted_count > 0
 
-    async def get_project_glossary(
-        self, project_id: int
-    ) -> Optional[ProjectGlossary]:
+    async def get_project_glossary(self, project_id: int) -> Optional[ProjectGlossary]:
         """Get the glossary for a project by id."""
         doc = await self.project_glossaries_collection.find_one(
             {"project_id": project_id}
