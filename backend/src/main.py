@@ -1425,6 +1425,7 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
         sync_prodtrack_tab_on_version_change=(
             settings.sync_prodtrack_tab_on_version_change
         ),
+        prodtrack_page_type=settings.prodtrack_page_type,
         updated_at=settings.updated_at,
         created_at=settings.created_at,
     )

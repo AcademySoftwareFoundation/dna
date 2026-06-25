@@ -7,6 +7,7 @@ import { TranscriptPanel } from './TranscriptPanel';
 import { PromptDebugPanel } from './PromptDebugPanel';
 import { useAISuggestion } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
+import { useFeatureFlags } from '../contexts';
 
 const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 // To re-enable the Other Pending Notes tab, set this to true
@@ -64,12 +65,13 @@ const StyledTabsContent = styled(Tabs.Content)`
 `;
 
 export function AssistantPanel({
-  activeTab = 'assistant',
   playlistId,
   versionId,
   userEmail,
   onInsertNote,
 }: AssistantPanelProps) {
+  const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
+
   const { suggestion, prompt, context, isLoading, error, regenerate } =
     useAISuggestion({
       playlistId: playlistId ?? null,
@@ -92,12 +94,22 @@ export function AssistantPanel({
     enabled: !isLoading,
   });
 
+  if (!transcriptionEnabled && !aiEnabled) {
+    return null;
+  }
+
+  const defaultTab = aiEnabled ? 'assistant' : 'transcript';
+
   return (
     <PanelWrapper>
-      <StyledTabsRoot defaultValue={activeTab}>
+      <StyledTabsRoot defaultValue={defaultTab}>
         <StyledTabsList>
-          <StyledTabsTrigger value="assistant">AI Assistant</StyledTabsTrigger>
-          <StyledTabsTrigger value="transcript">Transcript</StyledTabsTrigger>
+          {aiEnabled && (
+            <StyledTabsTrigger value="assistant">AI Assistant</StyledTabsTrigger>
+          )}
+          {transcriptionEnabled && (
+            <StyledTabsTrigger value="transcript">Transcript</StyledTabsTrigger>
+          )}
           {SHOW_OTHER_NOTES_TAB && (
             <StyledTabsTrigger value="other">
               Other Pending Notes
@@ -108,22 +120,26 @@ export function AssistantPanel({
           )}
         </StyledTabsList>
 
-        <StyledTabsContent value="assistant">
-          <AssistantNote
-            suggestion={suggestion}
-            isLoading={isLoading}
-            error={error}
-            onRegenerate={regenerate}
-            onInsertNote={onInsertNote}
-          />
-        </StyledTabsContent>
+        {aiEnabled && (
+          <StyledTabsContent value="assistant">
+            <AssistantNote
+              suggestion={suggestion}
+              isLoading={isLoading}
+              error={error}
+              onRegenerate={regenerate}
+              onInsertNote={onInsertNote}
+            />
+          </StyledTabsContent>
+        )}
 
-        <StyledTabsContent value="transcript">
-          <TranscriptPanel
-            playlistId={playlistId ?? null}
-            versionId={versionId ?? null}
-          />
-        </StyledTabsContent>
+        {transcriptionEnabled && (
+          <StyledTabsContent value="transcript">
+            <TranscriptPanel
+              playlistId={playlistId ?? null}
+              versionId={versionId ?? null}
+            />
+          </StyledTabsContent>
+        )}
 
         {SHOW_OTHER_NOTES_TAB && (
           <StyledTabsContent value="other">
