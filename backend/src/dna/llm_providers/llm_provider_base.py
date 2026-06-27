@@ -14,8 +14,6 @@ from pydantic import BaseModel
 
 from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 
-MODEL_CACHE_TTL = 3600  # 1 hour
-
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)

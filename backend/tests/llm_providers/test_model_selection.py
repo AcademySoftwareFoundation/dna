@@ -39,25 +39,6 @@ class TestOpenAIGetAvailableModels:
         assert result["default"] == "gpt-4o-mini"
 
     @pytest.mark.asyncio
-    async def test_caches_result(self):
-        """Should cache the result and not call API again."""
-        provider = OpenAIProvider(api_key="test-key")
-
-        mock_model = MagicMock()
-        mock_model.id = "gpt-4o"
-        mock_response = MagicMock()
-        mock_response.data = [mock_model]
-
-        mock_client = AsyncMock()
-        mock_client.models.list = AsyncMock(return_value=mock_response)
-        provider._client = mock_client
-
-        await provider.get_available_models()
-        await provider.get_available_models()
-
-        assert mock_client.models.list.call_count == 1
-
-    @pytest.mark.asyncio
     async def test_falls_back_on_api_error(self):
         """Should return default model when API call fails."""
         provider = OpenAIProvider(api_key="test-key")
@@ -99,25 +80,6 @@ class TestGeminiGetAvailableModels:
         assert "gemini-2.5-flash" in result["models"]
         assert "gemini-2.5-pro" in result["models"]
         assert result["default"] == "gemini-2.5-flash"
-
-    @pytest.mark.asyncio
-    async def test_caches_result(self):
-        """Should cache the result and not call API again."""
-        provider = GeminiProvider(api_key="test-key")
-
-        mock_model = MagicMock()
-        mock_model.id = "gemini-2.5-flash"
-        mock_response = MagicMock()
-        mock_response.data = [mock_model]
-
-        mock_client = AsyncMock()
-        mock_client.models.list = AsyncMock(return_value=mock_response)
-        provider._client = mock_client
-
-        await provider.get_available_models()
-        await provider.get_available_models()
-
-        assert mock_client.models.list.call_count == 1
 
     @pytest.mark.asyncio
     async def test_falls_back_on_api_error(self):

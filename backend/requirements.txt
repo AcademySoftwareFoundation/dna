@@ -15,4 +15,3 @@ google-auth==2.0.0
 requests==2.32.3
 python-multipart==0.0.9
 PyYAML==6.0.1
-cachetools==5.5.0
