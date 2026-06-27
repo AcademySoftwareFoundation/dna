@@ -161,6 +161,18 @@ class LLMProviderBase:
             await self._client.close()
             self._client = None
 
+    async def get_available_models(self) -> dict[str, Any]:
+        """Return available models for this provider.
+
+        Returns a dict with keys: provider, models, default.
+        Subclasses should override to provide dynamic discovery with caching.
+        """
+        return {
+            "provider": (self.LLM_PROVIDER_NAME or "").lower(),
+            "models": [self.model],
+            "default": self.model,
+        }
+
     async def generate_note(
         self,
         prompt: str,
@@ -168,6 +180,7 @@ class LLMProviderBase:
         context: str,
         existing_notes: str,
         additional_instructions: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> str:
         """Generate a note suggestion from the given inputs.
 
@@ -177,10 +190,13 @@ class LLMProviderBase:
             context: Version context (entity name, task, status, etc.).
             existing_notes: Any notes the user has already written.
             additional_instructions: Optional additional instructions to append.
+            model: Optional model override; falls back to self.model.
 
         Returns:
             The generated note suggestion.
         """
+        use_model = model or self.model
+
         user_message = self._substitute_template(
             prompt, transcript, context, existing_notes
         )
@@ -189,7 +205,7 @@ class LLMProviderBase:
             user_message += f"\n\nAdditional Instructions: {additional_instructions}"
 
         response = await self.client.chat.completions.create(
-            model=self.model,
+            model=use_model,
             messages=[
                 {"role": "system", "content": GENERATE_NOTE_PROMPT},
                 {"role": "user", "content": user_message},

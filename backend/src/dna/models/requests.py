@@ -54,6 +54,10 @@ class GenerateNoteRequest(BaseModel):
         default=None,
         description="Optional additional instructions to append to the prompt",
     )
+    model: Optional[str] = Field(
+        default=None,
+        description="Optional LLM model override; omit to use server default",
+    )
 
 
 class GenerateNoteResponse(BaseModel):

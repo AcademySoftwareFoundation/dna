@@ -1418,6 +1418,7 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
         _id=settings.id,
         user_email=settings.user_email,
         note_prompt=settings.note_prompt,
+        preferred_model=settings.preferred_model,
         default_note_prompt=get_default_note_prompt(),
         regenerate_on_version_change=settings.regenerate_on_version_change,
         regenerate_on_transcript_update=settings.regenerate_on_transcript_update,
@@ -1439,6 +1440,7 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         _id="",
         user_email=user_email,
         note_prompt="",
+        preferred_model="",
         default_note_prompt=default,
         regenerate_on_version_change=False,
         regenerate_on_transcript_update=False,
@@ -1788,6 +1790,20 @@ async def get_segments_for_version(
 # -----------------------------------------------------------------------------
 
 
+@app.get(
+    "/models",
+    tags=["LLM"],
+    summary="Get available LLM models",
+    description="Returns the list of models available from the active LLM provider.",
+)
+async def get_available_models(
+    llm_provider: LLMProviderDep,
+    _: CurrentUserDep,
+) -> dict:
+    """Get available models from the active LLM provider."""
+    return await llm_provider.get_available_models()
+
+
 def _build_full_prompt(
     prompt: str,
     transcript: str,
@@ -1853,12 +1869,17 @@ async def generate_note(
             prompt, transcript, context, existing_notes, request.additional_instructions
         )
 
+        model_override = request.model
+        if not model_override and user_settings:
+            model_override = user_settings.preferred_model or None
+
         suggestion = await llm_provider.generate_note(
             prompt=prompt,
             transcript=transcript,
             context=context,
             existing_notes=existing_notes,
             additional_instructions=request.additional_instructions,
+            model=model_override,
         )
 
         return GenerateNoteResponse(
