@@ -15,8 +15,8 @@ class CustomProvider(LLMProviderBase):
 
     LLM_PROVIDER_NAME = "CUSTOM_LLM"
 
-    DEFAULT_MODEL = "gpt-oss-20b"
-    DEFAULT_URL = "http://localhost:11434/v1"
+    DEFAULT_MODEL = "llama3.2:latest"
+    DEFAULT_URL = "http://host.docker.internal:11434/v1"
 
     def _get_provider_client(self):
         """Construct an instance of the LLM provider's client."""
