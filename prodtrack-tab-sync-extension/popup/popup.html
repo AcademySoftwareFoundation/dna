@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>DNA Transcription</title>
+  </head>
+  <body>
+    <header class="header">
+      <img class="logo" src="../icons/icon32.png" alt="DNA" />
+      <div class="header-text">
+        <div class="title">DNA Transcription</div>
+        <div class="status-line">
+          <span id="statusDot" class="dot dot-disconnected"></span>
+          <span id="statusLabel">Disconnected</span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab tab-active" data-tab="status">Status</button>
+      <button class="tab" data-tab="debug">Debug</button>
+    </nav>
+
+    <main>
+      <section id="tab-status" class="panel panel-active">
+        <div class="row">
+          <label for="meetTab">Google Meet tab</label>
+          <select id="meetTab">
+            <option value="">No Meet tabs found</option>
+          </select>
+          <button id="refreshTabs" class="btn btn-ghost" title="Refresh">
+            &#x21bb;
+          </button>
+        </div>
+
+        <button id="grantBtn" class="btn btn-primary">
+          Grant permission &amp; start
+        </button>
+
+        <p id="hint" class="hint"></p>
+      </section>
+
+      <section id="tab-debug" class="panel">
+        <div class="subhead">Server info</div>
+        <pre id="serverInfo" class="code">No activation received yet.</pre>
+
+        <div class="subhead">
+          Logs
+          <button id="clearLogs" class="btn btn-ghost btn-inline">clear</button>
+        </div>
+        <div id="logs" class="logs"></div>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

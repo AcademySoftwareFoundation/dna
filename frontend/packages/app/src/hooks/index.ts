@@ -24,6 +24,12 @@ export type {
   UseTranscriptionReturn,
 } from './useTranscription';
 
+export { useTranscriptionExtension } from './useTranscriptionExtension';
+export type {
+  ExtensionInstallState,
+  UseTranscriptionExtensionResult,
+} from './useTranscriptionExtension';
+
 export {
   useEventSubscription,
   useMultipleEventSubscriptions,

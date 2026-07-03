@@ -569,6 +569,14 @@ print_summary() {
     echo "  To follow backend logs:"
     echo "    cd backend && make logs-local"
     echo ""
+    echo "  Optional — browser-extension transcription route (instead of the Vexa bot):"
+    echo "    1. Load prodtrack-tab-sync-extension/ unpacked in Chrome; copy its ID"
+    echo "    2. Set VITE_TRANSCRIPTION_EXTENSION_ID + VITE_WHISPERLIVE_URL in frontend/packages/app/.env"
+    echo "    3. Set DNA_ENABLE_EXTENSION_TRANSCRIPTION=true in backend/docker-compose.local.yml"
+    echo "    4. Start WhisperLive:"
+    echo "       cd backend && docker compose -f docker-compose.yml -f docker-compose.whisperlive.yml up whisperlive"
+    echo "    Details: backend/docs/TRANSCRIPTION_PIPELINE.md"
+    echo ""
     local needs_attention=false
     if grep -q 'your-openai-api-key\|GEMINI_API_KEY=\*\*\|OPENAI_API_KEY=\*\*' \
             "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then

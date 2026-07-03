@@ -1,13 +1,42 @@
 {
   "manifest_version": 3,
   "name": "DNA Production Tracking Tab Sync",
-  "version": "0.1.0",
-  "description": "Keeps a controlled ShotGrid / production-tracking tab in sync with DNA version selection.",
+  "version": "0.2.0",
+  "description": "Syncs a ShotGrid tab with DNA and (optionally) transcribes Google Meet calls straight into DNA.",
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["tabs"],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "DNA",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab",
+    "offscreen",
+    "tabCapture"
+  ],
   "host_permissions": ["https://*/*", "http://*/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["content/meetSpeaker.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "externally_connectable": {
     "ids": ["*"],
     "matches": [

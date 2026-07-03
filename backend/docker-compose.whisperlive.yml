@@ -1,0 +1,16 @@
+# Optional WhisperLive service for the browser-extension transcription route.
+#
+# This is an overlay compose file — it is intentionally NOT part of the base
+# `make start-local` stack. Start it only when using extension transcription:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.whisperlive.yml up whisperlive
+#
+# The DNA browser extension connects to WhisperLive directly from the browser
+# (ws://localhost:9090), so only the port needs to be reachable from the host.
+services:
+  whisperlive:
+    image: ghcr.io/collabora/whisperlive-cpu:latest
+    container_name: dna-whisperlive
+    ports:
+      - "9090:9090"
+    restart: unless-stopped

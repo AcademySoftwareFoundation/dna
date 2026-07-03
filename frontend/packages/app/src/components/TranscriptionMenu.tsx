@@ -17,7 +17,9 @@ import {
   parseMeetingUrl,
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
+  useTranscriptionExtension,
 } from '../hooks';
+import type { ExtensionConnectionStatus } from '../transcriptionExtension/sendTranscriptionExtension';
 import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
@@ -104,6 +106,61 @@ const ButtonRow = styled.div`
   display: flex;
   gap: 8px;
 `;
+
+const Divider = styled.div`
+  height: 1px;
+  background: ${({ theme }) => theme.colors.border.default};
+  margin: 2px 0;
+`;
+
+const ExtensionSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const InstallLink = styled.a`
+  color: ${({ theme }) => theme.colors.status.error};
+  text-decoration: underline;
+  margin-left: 4px;
+`;
+
+const ConnectionDot = styled.div<{ $connection: ExtensionConnectionStatus }>`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${({ theme, $connection }) => {
+    switch ($connection) {
+      case 'connected':
+        return theme.colors.status.success;
+      case 'connecting':
+      case 'needs_permission':
+        return theme.colors.status.warning;
+      case 'disconnected':
+      default:
+        return theme.colors.status.error;
+    }
+  }};
+  animation: ${({ $connection }) =>
+      $connection === 'connecting' || $connection === 'needs_permission'
+        ? pulse
+        : 'none'}
+    1.5s ease-in-out infinite;
+`;
+
+function getExtensionStatusLabel(connection: ExtensionConnectionStatus): string {
+  switch (connection) {
+    case 'connected':
+      return 'Connected — sending transcripts';
+    case 'connecting':
+      return 'Connecting...';
+    case 'needs_permission':
+      return 'Waiting for Meet-tab permission';
+    case 'disconnected':
+    default:
+      return 'Disconnected';
+  }
+}
 
 type PhoneStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -299,6 +356,22 @@ export function TranscriptionMenu({
 
   const { data: metadata } = usePlaylistMetadata(playlistId);
   const { mutate: upsertMetadata } = useUpsertPlaylistMetadata(playlistId);
+
+  const {
+    available: extAvailable,
+    installState: extInstallState,
+    connection: extConnection,
+    installUrl: extInstallUrl,
+    isActivating: extActivating,
+    error: extError,
+    activate: activateExtension,
+  } = useTranscriptionExtension(playlistId, metadata?.in_review ?? null);
+  const [extPromptPermission, setExtPromptPermission] = useState(false);
+
+  const handleActivateExtension = useCallback(async () => {
+    const ok = await activateExtension();
+    setExtPromptPermission(ok);
+  }, [activateExtension]);
 
   const currentStatus = status?.status ?? session?.status ?? 'idle';
   const isActive = [
@@ -501,6 +574,68 @@ export function TranscriptionMenu({
               </Button>
             )}
           </ButtonRow>
+
+          {extAvailable && (
+            <ExtensionSection>
+              <Divider />
+              <Text size="1" weight="medium">
+                Browser Extension
+              </Text>
+              <StatusRow>
+                <ConnectionDot $connection={extConnection} />
+                <StatusText>{getExtensionStatusLabel(extConnection)}</StatusText>
+              </StatusRow>
+
+              {extInstallState === 'not_installed' && (
+                <ErrorMessage>
+                  <AlertCircle size={14} />
+                  DNA extension not detected.
+                  {extInstallUrl && (
+                    <InstallLink
+                      href={extInstallUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Install
+                    </InstallLink>
+                  )}
+                </ErrorMessage>
+              )}
+
+              {extError && (
+                <ErrorMessage>
+                  <AlertCircle size={14} />
+                  {extError}
+                </ErrorMessage>
+              )}
+
+              <Button
+                variant="soft"
+                onClick={handleActivateExtension}
+                disabled={extActivating || !playlistId}
+              >
+                {extActivating ? (
+                  <>
+                    <SpinnerIcon size={14} />
+                    Activating...
+                  </>
+                ) : (
+                  <>
+                    <Radio size={14} />
+                    Transcribe via Extension
+                  </>
+                )}
+              </Button>
+
+              {(extConnection === 'needs_permission' ||
+                (extPromptPermission && extConnection !== 'connected')) && (
+                <Text size="1" color="amber">
+                  Switch to your Google Meet tab and allow the extension to
+                  access it.
+                </Text>
+              )}
+            </ExtensionSection>
+          )}
 
           {!playlistId && (
             <Text size="1" color="gray">

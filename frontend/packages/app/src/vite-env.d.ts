@@ -7,6 +7,10 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?: string;
   readonly VITE_PRODTRACK_TAB_SYNC_INSTALL_URL?: string;
+  readonly VITE_TRANSCRIPTION_EXTENSION_ID?: string;
+  readonly VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL?: string;
+  readonly VITE_WHISPERLIVE_URL?: string;
+  readonly VITE_FEATURE_EXTENSION_TRANSCRIPTION?: string;
 }
 
 interface ImportMeta {
