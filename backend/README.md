@@ -36,10 +36,10 @@ Configure the backend LLM with the `LLM_PROVIDER` environment variable. The back
 |-------|----------|--------------------------------|--------------------------------|
 | `openai` | OpenAI (default) | `OPENAI_API_KEY` | `OPENAI_MODEL` (default: `gpt-4o-mini`), `OPENAI_TIMEOUT` (default: `30.0`) |
 | `gemini` | Google Gemini via the OpenAI-compatible endpoint | `GEMINI_API_KEY` | `GEMINI_MODEL` (default: `gemini-2.5-flash`), `GEMINI_TIMEOUT` (default: `30.0`), `GEMINI_URL` (default: `https://generativelanguage.googleapis.com/v1beta/openai/`) |
+| `custom` | Custom OpenAI Compatible LLM Provider | `CUSTOM_LLM_URL` (if not using ollama), `CUSTOM_LLM_MODEL` (default: `llama3.2:latest`) | `CUSTOM_LLM_API_KEY` |
 
 - **Local development:** If you do not set `LLM_PROVIDER`, the backend uses `openai`.
 - **Switching providers:** Set `LLM_PROVIDER` and only the matching provider variables for the provider you want to use.
-- **Missing credentials:** The backend will raise an error at startup/use time if the selected provider's `*_API_KEY` variable is not set.
 
 ### Transcription
 
@@ -66,6 +66,8 @@ To setup the backend, you need to have the following:
 - A production tracking system (ShotGrid, etc.)
 - An LLM provider (OpenAI, Anthropic, Google, etc.)
 - A transcription provider (Vexa, etc.)
+
+link to [page](../QUICKSTART.md)
 
 ### ShotGrid and local overrides
 
@@ -100,6 +102,20 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
            # Optional if you need to override the default OpenAI-compatible Gemini endpoint
            - GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/openai/
      ```
+
+     ```yaml
+     services:
+       api:
+         environment:
+           - LLM_PROVIDER=custom
+           - CUSTOM_LLM_URL=http://host.docker.internal:11434/v1
+           - CUSTOM_LLM_MODEL=llama3.2:latest
+
+         # Unnecessary on Docker Desktop (macOS/Windows)
+         extra_hosts:
+           - "host.docker.internal:host-gateway"
+     ```
+   - **Note regarding local LLM provider hostname:** <a id="local-llm-host"></a>If running DNA in a docker container and your LLM provider on your local host (e.g. ollama), using `localhost` in the URL won't work. Adding the `host.docker.internal` mapping to `extra_hosts:` provides an address to connect to your docker host from within the container. Note, that on Docker Desktop (on macOS or Windows), the mapping is created automatically, and this `extra_hosts:` entry is not necessary. Alternatively, you could use the hostname visible to your local network, or run your LLM provider in its own docker container, and refer to the container's name as the hostname.
 
 3. The `docker-compose.local.yml` file is gitignored, so your credentials will not be committed to the repository.
 
