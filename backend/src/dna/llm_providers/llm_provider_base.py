@@ -114,10 +114,6 @@ class LLMProviderBase:
 
         api_env = f"{self.LLM_PROVIDER_NAME }_API_KEY"
         self.api_key = api_key or os.getenv(api_env)
-        if not self.api_key:
-            raise ValueError(
-                f"API key not provided. Set {api_env} environment variable."
-            )
 
         self.model = model or os.getenv(
             f"{self.LLM_PROVIDER_NAME }_MODEL", self.DEFAULT_MODEL
