@@ -30,6 +30,12 @@ export type {
   UseTranscriptionExtensionResult,
 } from './useTranscriptionExtension';
 
+export { useProdtrackTabSync } from './useProdtrackTabSync';
+export type {
+  UseProdtrackTabSyncParams,
+  UseProdtrackTabSyncResult,
+} from './useProdtrackTabSync';
+
 export {
   useEventSubscription,
   useMultipleEventSubscriptions,

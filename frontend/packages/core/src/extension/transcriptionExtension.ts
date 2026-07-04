@@ -1,5 +1,5 @@
 /**
- * Messaging bridge between the DNA web app and the DNA browser extension for
+ * Messaging bridge between a DNA client and the DNA browser extension for
  * the transcription route. Mirrors the prodtrack tab-sync bridge but for the
  * transcription handshake/activation protocol:
  *
@@ -7,9 +7,11 @@
  *   - ACTIVATE_TRANSCRIPTION   -> hand the extension the server info + playlist
  *   - GET_STATUS               -> current extension connection status
  *
- * All React-specific orchestration lives in `useTranscriptionExtension`; these
- * are pure functions so they can be unit-tested without a browser.
+ * These are pure functions with no framework dependency; React orchestration
+ * lives in the `useTranscriptionExtension` hook in the app package.
  */
+
+import { getChromeRuntime, sendExternalMessage } from './chromeMessaging';
 
 export type TranscriptionExtensionReason =
   | 'no_chrome'
@@ -49,53 +51,6 @@ export interface ExtensionStatus {
   detail?: string;
 }
 
-type ChromeRuntime = {
-  sendMessage: (
-    extensionId: string,
-    message: object,
-    responseCallback?: (response: unknown) => void
-  ) => void;
-  lastError?: { message?: string };
-};
-
-function getChromeRuntime(): ChromeRuntime | undefined {
-  if (typeof globalThis === 'undefined') return undefined;
-  const chromeApi = (
-    globalThis as {
-      chrome?: { runtime?: ChromeRuntime };
-    }
-  ).chrome;
-  return chromeApi?.runtime;
-}
-
-function sendExternalMessage(
-  extensionId: string,
-  message: object,
-  timeoutMs: number
-): Promise<unknown> {
-  const runtime = getChromeRuntime();
-  if (!runtime?.sendMessage) {
-    return Promise.resolve(undefined);
-  }
-
-  return new Promise((resolve) => {
-    const timer = window.setTimeout(() => resolve(undefined), timeoutMs);
-    try {
-      runtime.sendMessage(extensionId, message, (response: unknown) => {
-        window.clearTimeout(timer);
-        if (runtime.lastError?.message) {
-          resolve({ __error: runtime.lastError.message });
-          return;
-        }
-        resolve(response);
-      });
-    } catch (e) {
-      window.clearTimeout(timer);
-      resolve({ __error: e instanceof Error ? e.message : String(e) });
-    }
-  });
-}
-
 function isOkResponse(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false;
   return (raw as { ok?: unknown }).ok === true;
@@ -133,12 +88,21 @@ export async function pingTranscriptionExtension(
   return { ok: true };
 }
 
-function validateActivationPayload(payload: ExtensionActivationPayload): boolean {
+function validateActivationPayload(
+  payload: ExtensionActivationPayload
+): boolean {
   if (!payload) return false;
-  if (typeof payload.playlistId !== 'number' || !Number.isFinite(payload.playlistId)) {
+  if (
+    typeof payload.playlistId !== 'number' ||
+    !Number.isFinite(payload.playlistId)
+  ) {
     return false;
   }
-  if (!payload.dnaApiUrl || !payload.dnaIngestWsUrl || !payload.whisperLiveUrl) {
+  if (
+    !payload.dnaApiUrl ||
+    !payload.dnaIngestWsUrl ||
+    !payload.whisperLiveUrl
+  ) {
     return false;
   }
   return true;
@@ -191,7 +155,10 @@ function parseStatusResponse(raw: unknown): ExtensionStatus | null {
     'needs_permission',
     'connected',
   ];
-  if (typeof connection !== 'string' || !valid.includes(connection as ExtensionConnectionStatus)) {
+  if (
+    typeof connection !== 'string' ||
+    !valid.includes(connection as ExtensionConnectionStatus)
+  ) {
     return null;
   }
   const status: ExtensionStatus = {
@@ -216,7 +183,11 @@ export async function getTranscriptionExtensionStatus(
   const runtime = getChromeRuntime();
   if (!runtime?.sendMessage) return null;
 
-  const raw = await sendExternalMessage(trimmed, { type: 'GET_STATUS' }, timeoutMs);
+  const raw = await sendExternalMessage(
+    trimmed,
+    { type: 'GET_STATUS' },
+    timeoutMs
+  );
   return parseStatusResponse(raw);
 }
 

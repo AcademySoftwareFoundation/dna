@@ -7,10 +7,11 @@ import {
   pingTranscriptionExtension,
   type ExtensionConnectionStatus,
   type ExtensionStatus,
-} from '../transcriptionExtension/sendTranscriptionExtension';
+} from '@dna/core';
 
 const EXTENSION_ID = import.meta.env.VITE_TRANSCRIPTION_EXTENSION_ID ?? '';
-const INSTALL_URL = import.meta.env.VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL ?? '';
+const INSTALL_URL =
+  import.meta.env.VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL ?? '';
 const WHISPERLIVE_URL = import.meta.env.VITE_WHISPERLIVE_URL ?? '';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 

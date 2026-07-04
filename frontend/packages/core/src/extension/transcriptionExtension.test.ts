@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   pingTranscriptionExtension,
@@ -5,15 +6,14 @@ import {
   getTranscriptionExtensionStatus,
   deriveIngestWsUrl,
   type ExtensionActivationPayload,
-} from './sendTranscriptionExtension';
+} from './transcriptionExtension';
 
-type SendMessage = (
-  id: string,
-  msg: object,
-  cb: (r: unknown) => void
-) => void;
+type SendMessage = (id: string, msg: object, cb: (r: unknown) => void) => void;
 
-function installChrome(sendMessage: SendMessage, lastError?: { message?: string }) {
+function installChrome(
+  sendMessage: SendMessage,
+  lastError?: { message?: string }
+) {
   (
     globalThis as {
       chrome?: {
@@ -171,7 +171,9 @@ describe('getTranscriptionExtensionStatus', () => {
   });
 
   it('returns null when response is not ok', async () => {
-    installChrome((_id, _msg, cb) => cb({ ok: false, connection: 'connected' }));
+    installChrome((_id, _msg, cb) =>
+      cb({ ok: false, connection: 'connected' })
+    );
     expect(await getTranscriptionExtensionStatus(EXT_ID)).toBeNull();
   });
 });

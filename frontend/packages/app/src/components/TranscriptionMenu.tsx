@@ -11,7 +11,7 @@ import {
   Play,
 } from 'lucide-react';
 import { Button, TextField, Popover, Text } from '@radix-ui/themes';
-import type { BotStatusEnum } from '@dna/core';
+import type { BotStatusEnum, ExtensionConnectionStatus } from '@dna/core';
 import {
   useTranscription,
   parseMeetingUrl,
@@ -19,7 +19,6 @@ import {
   useUpsertPlaylistMetadata,
   useTranscriptionExtension,
 } from '../hooks';
-import type { ExtensionConnectionStatus } from '../transcriptionExtension/sendTranscriptionExtension';
 import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
