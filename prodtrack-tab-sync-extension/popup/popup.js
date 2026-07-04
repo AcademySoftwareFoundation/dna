@@ -37,16 +37,24 @@ document.querySelectorAll('.tab').forEach((tab) => {
 
 // --- Rendering --------------------------------------------------------------
 
+let currentServerInfo = null;
+
 function renderStatus(status) {
   const connection = status?.connection || 'disconnected';
   els.statusDot.className = `dot dot-${connection}`;
   els.statusLabel.textContent = CONNECTION_LABELS[connection] || connection;
 
   if (connection === 'disconnected') {
-    els.hint.textContent = status?.detail || 'Activate transcription from DNA.';
+    if (!currentServerInfo) {
+      els.hint.textContent =
+        'To start, open the DNA app and click "Transcribe via Extension".';
+    } else {
+      els.hint.textContent = status?.detail || 'Stopped — activate again from DNA.';
+    }
   } else if (connection === 'needs_permission') {
     els.hint.textContent =
-      status?.detail || 'Pick your Meet tab and grant permission.';
+      status?.detail ||
+      'Select your Meet tab below, then click "Grant permission & start".';
   } else if (connection === 'connecting') {
     els.hint.textContent = status?.detail || 'Connecting…';
   } else {
@@ -65,8 +73,10 @@ function renderStatus(status) {
 }
 
 function renderServerInfo(serverInfo) {
+  currentServerInfo = serverInfo ?? null;
   if (!serverInfo) {
-    els.serverInfo.textContent = 'No activation received yet.';
+    els.serverInfo.textContent =
+      'Waiting for DNA — click "Transcribe via Extension" in the app first.';
     return;
   }
   els.serverInfo.textContent = JSON.stringify(serverInfo, null, 2);
@@ -166,8 +176,8 @@ els.clearLogs.addEventListener('click', () => {
 const port = chrome.runtime.connect({ name: 'dna-logs' });
 port.onMessage.addListener((msg) => {
   if (msg.type === 'init') {
-    renderStatus(msg.status);
     renderServerInfo(msg.serverInfo);
+    renderStatus(msg.status);
     (msg.logs || []).forEach(appendLog);
   } else if (msg.type === 'status') {
     renderStatus(msg.status);
@@ -178,8 +188,8 @@ port.onMessage.addListener((msg) => {
 
 chrome.runtime.sendMessage({ type: 'POPUP_GET_STATE' }, (resp) => {
   if (resp?.ok) {
-    renderStatus(resp.status);
     renderServerInfo(resp.serverInfo);
+    renderStatus(resp.status);
   }
 });
 

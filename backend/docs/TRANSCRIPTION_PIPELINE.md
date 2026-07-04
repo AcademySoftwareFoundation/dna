@@ -1503,7 +1503,9 @@ healthy and streaming).
 | `VITE_FEATURE_EXTENSION_TRANSCRIPTION` | Optional lock for the extension UI. |
 
 **WhisperLive** runs as an optional overlay compose service (not in the base
-stack):
+stack). DNA builds a CPU-only Collabora WhisperLive image locally
+(`backend/docker/whisperlive/Dockerfile`) so Apple Silicon Macs work; the
+official Collabora registry image is amd64-only.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.whisperlive.yml up whisperlive

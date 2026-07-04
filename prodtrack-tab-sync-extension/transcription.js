@@ -143,6 +143,17 @@
     }
   }
 
+  let captureInFlight = false;
+
+  async function releaseCapturePipeline() {
+    if (typeof self.DNACapture?.stop !== 'function') return;
+    try {
+      await self.DNACapture.stop();
+    } catch {
+      /* best effort */
+    }
+  }
+
   /**
    * Phase 3 seam. Phase 4 replaces the body with the real capture pipeline
    * (tabCapture via an offscreen document -> WhisperLive -> DNA ingest WS).
@@ -152,6 +163,9 @@
       setConnection('disconnected', 'No server info yet — activate from DNA first');
       return { ok: false, error: 'not_activated' };
     }
+    if (captureInFlight) {
+      return { ok: false, error: 'capture_in_progress' };
+    }
     const tabs = await listMeetTabs();
     if (!tabs.length) {
       setConnection('needs_permission', 'No Google Meet tab found');
@@ -159,8 +173,10 @@
     }
     const chosen = typeof tabId === 'number' ? tabId : tabs[0].id;
     state.meetTabId = chosen;
+    captureInFlight = true;
     setConnection('connecting', 'Starting capture');
     if (typeof self.DNACapture?.start !== 'function') {
+      captureInFlight = false;
       setConnection('needs_permission', 'Capture module unavailable');
       return { ok: false, error: 'capture_unavailable' };
     }
@@ -171,21 +187,18 @@
         log,
       });
     } catch (e) {
+      await releaseCapturePipeline();
       setConnection('needs_permission', `Capture failed: ${e?.message || e}`);
       log('error', `Capture start failed: ${e?.message || e}`);
       return { ok: false, error: String(e) };
+    } finally {
+      captureInFlight = false;
     }
     return { ok: true, tabId: chosen };
   }
 
   async function stopCapture() {
-    if (typeof self.DNACapture?.stop === 'function') {
-      try {
-        await self.DNACapture.stop();
-      } catch {
-        /* best effort */
-      }
-    }
+    await releaseCapturePipeline();
     setConnection('disconnected', 'Stopped');
   }
 
@@ -203,20 +216,24 @@
         sendResponse({ ok: true, pong: true, capability: 'transcription' });
         return true;
       case 'ACTIVATE_TRANSCRIPTION': {
-        state.serverInfo = {
-          dnaApiUrl: message.dnaApiUrl,
-          dnaIngestWsUrl: message.dnaIngestWsUrl,
-          whisperLiveUrl: message.whisperLiveUrl,
-          playlistId: message.playlistId,
-          versionId: message.versionId ?? null,
-          token: message.token ?? null,
-        };
-        log('info', 'Activated by DNA', {
-          ...state.serverInfo,
-          token: state.serverInfo.token ? '***' : null,
-        });
-        setConnection('needs_permission', 'Awaiting Google Meet tab permission');
-        sendResponse({ ok: true });
+        releaseCapturePipeline()
+          .then(() => {
+            state.serverInfo = {
+              dnaApiUrl: message.dnaApiUrl,
+              dnaIngestWsUrl: message.dnaIngestWsUrl,
+              whisperLiveUrl: message.whisperLiveUrl,
+              playlistId: message.playlistId,
+              versionId: message.versionId ?? null,
+              token: message.token ?? null,
+            };
+            log('info', 'Activated by DNA', {
+              ...state.serverInfo,
+              token: state.serverInfo.token ? '***' : null,
+            });
+            setConnection('needs_permission', 'Open this extension and grant Meet tab permission');
+            sendResponse({ ok: true });
+          })
+          .catch((e) => sendResponse({ ok: false, error: String(e) }));
         return true;
       }
       case 'GET_STATUS':

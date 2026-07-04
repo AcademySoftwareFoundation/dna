@@ -284,36 +284,7 @@
 
   // --- Lifecycle --------------------------------------------------------------
 
-  async function start(streamId, info) {
-    serverInfo = info;
-    uid = `dna-${info.playlistId}-${Date.now()}`;
-    captureStartMs = Date.now();
-    whisperReady = false;
-    dnaReady = false;
-
-    try {
-      await startCapture(streamId, info.captureMic === true);
-    } catch (e) {
-      setConnection('needs_permission', `Capture failed: ${e?.message || e}`);
-      log('error', `getUserMedia failed: ${e?.message || e}`);
-      return { ok: false, error: String(e) };
-    }
-
-    setConnection('connecting', 'Connecting to WhisperLive and DNA');
-    try {
-      await Promise.all([openWhisper(), openDna()]);
-    } catch (e) {
-      setConnection('connecting', `Upstream connect failed: ${e?.message || e}`);
-      log('error', `Upstream connect failed: ${e?.message || e}`);
-      return { ok: false, error: String(e) };
-    }
-
-    setConnection('connected', 'Streaming transcripts');
-    log('info', 'Capture pipeline fully connected');
-    return { ok: true };
-  }
-
-  function stop() {
+  function releaseCaptureResources() {
     try {
       processorNode && processorNode.disconnect();
       mergerNode && mergerNode.disconnect();
@@ -330,6 +301,43 @@
     processorNode = mergerNode = sourceNode = micSourceNode = null;
     audioContext = mediaStream = micStream = null;
     whisperWs = dnaWs = null;
+    whisperReady = false;
+    dnaReady = false;
+  }
+
+  async function start(streamId, info) {
+    serverInfo = info;
+    uid = `dna-${info.playlistId}-${Date.now()}`;
+    captureStartMs = Date.now();
+    whisperReady = false;
+    dnaReady = false;
+
+    try {
+      await startCapture(streamId, info.captureMic === true);
+    } catch (e) {
+      releaseCaptureResources();
+      setConnection('needs_permission', `Capture failed: ${e?.message || e}`);
+      log('error', `getUserMedia failed: ${e?.message || e}`);
+      return { ok: false, error: String(e) };
+    }
+
+    setConnection('connecting', 'Connecting to WhisperLive and DNA');
+    try {
+      await Promise.all([openWhisper(), openDna()]);
+    } catch (e) {
+      releaseCaptureResources();
+      setConnection('needs_permission', `Upstream connect failed: ${e?.message || e}`);
+      log('error', `Upstream connect failed: ${e?.message || e}`);
+      return { ok: false, error: String(e) };
+    }
+
+    setConnection('connected', 'Streaming transcripts');
+    log('info', 'Capture pipeline fully connected');
+    return { ok: true };
+  }
+
+  function stop() {
+    releaseCaptureResources();
     setConnection('disconnected', 'Capture stopped');
     log('info', 'Capture stopped');
   }

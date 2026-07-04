@@ -58,8 +58,18 @@
     if (!chrome.tabCapture || !chrome.tabCapture.getMediaStreamId) {
       throw new Error('tabCapture API unavailable');
     }
+    // Chrome allows only one active tabCapture stream per tab. Tear down any
+    // prior offscreen pipeline (including failed attempts) before requesting a
+    // new stream id.
+    await stop();
     log('info', 'Handshake 2: requesting tab capture stream id', { meetTabId });
-    const streamId = await getMediaStreamId(meetTabId);
+    let streamId;
+    try {
+      streamId = await getMediaStreamId(meetTabId);
+    } catch (e) {
+      await stop();
+      throw e;
+    }
     await ensureOffscreen();
     const resp = await chrome.runtime.sendMessage({
       type: 'OFFSCREEN_START',
@@ -67,6 +77,7 @@
       serverInfo,
     });
     if (!resp || !resp.ok) {
+      await stop();
       throw new Error(resp?.error || 'offscreen_start_failed');
     }
     return resp;
@@ -83,6 +94,8 @@
     } catch {
       /* ignore */
     }
+    // Brief pause so Chrome releases the per-tab tabCapture lock before retry.
+    await new Promise((resolve) => setTimeout(resolve, 150));
   }
 
   self.DNACapture = { start, stop };
