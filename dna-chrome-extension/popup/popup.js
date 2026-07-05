@@ -10,6 +10,9 @@ const CONNECTION_LABELS = {
 const els = {
   statusDot: document.getElementById('statusDot'),
   statusLabel: document.getElementById('statusLabel'),
+  dnaKey: document.getElementById('dnaKey'),
+  saveKey: document.getElementById('saveKey'),
+  keyHint: document.getElementById('keyHint'),
   meetTab: document.getElementById('meetTab'),
   refreshTabs: document.getElementById('refreshTabs'),
   grantBtn: document.getElementById('grantBtn'),
@@ -18,6 +21,50 @@ const els = {
   logs: document.getElementById('logs'),
   clearLogs: document.getElementById('clearLogs'),
 };
+
+// Whether a DNA key has been saved in the extension. Until it is, the
+// extension can't be activated by any DNA app, so the grant button is gated.
+let hasKey = false;
+
+function applyKeyGate() {
+  if (els.grantBtn.dataset.mode === 'stop') return;
+  if (hasKey) {
+    els.keyHint.textContent = 'DNA key saved.';
+    els.grantBtn.disabled = false;
+  } else {
+    els.keyHint.textContent =
+      'Enter the DNA key from your DNA app to connect this extension to it.';
+    els.grantBtn.disabled = true;
+  }
+}
+
+// Turn a ws(s):// URL into a host-permission match pattern. Match patterns
+// can't carry a port, so the hostname (which matches any port) is used.
+function originForWsUrl(u) {
+  try {
+    const url = new URL(u);
+    const scheme =
+      url.protocol === 'wss:'
+        ? 'https:'
+        : url.protocol === 'ws:'
+          ? 'http:'
+          : url.protocol;
+    if (scheme !== 'http:' && scheme !== 'https:') return null;
+    return `${scheme}//${url.hostname}/*`;
+  } catch {
+    return null;
+  }
+}
+
+function originsForServerInfo(info) {
+  if (!info) return [];
+  const out = new Set();
+  for (const u of [info.dnaIngestWsUrl, info.whisperLiveUrl]) {
+    const origin = originForWsUrl(u);
+    if (origin) out.add(origin);
+  }
+  return [...out];
+}
 
 // --- Tabs -------------------------------------------------------------------
 
@@ -70,6 +117,7 @@ function renderStatus(status) {
     els.grantBtn.dataset.mode = 'start';
     els.grantBtn.disabled = false;
   }
+  applyKeyGate();
 }
 
 function renderServerInfo(serverInfo) {
@@ -145,6 +193,21 @@ els.meetTab.addEventListener('change', () => {
   }
 });
 
+els.saveKey.addEventListener('click', () => {
+  const key = els.dnaKey.value;
+  els.saveKey.disabled = true;
+  chrome.runtime.sendMessage({ type: 'POPUP_SET_KEY', key }, (resp) => {
+    els.saveKey.disabled = false;
+    if (resp?.ok) {
+      hasKey = !!resp.hasKey;
+      els.dnaKey.value = '';
+      applyKeyGate();
+    } else {
+      els.keyHint.textContent = `Could not save key: ${resp?.error || 'unknown'}`;
+    }
+  });
+});
+
 els.grantBtn.addEventListener('click', () => {
   if (els.grantBtn.dataset.mode === 'stop') {
     els.grantBtn.disabled = true;
@@ -153,18 +216,35 @@ els.grantBtn.addEventListener('click', () => {
     });
     return;
   }
-  const id = Number(els.meetTab.value);
-  const tabId = Number.isFinite(id) && id > 0 ? id : undefined;
+  if (!hasKey) {
+    els.keyHint.textContent = 'Enter and save your DNA key first.';
+    return;
+  }
   els.grantBtn.disabled = true;
-  chrome.runtime.sendMessage(
-    { type: 'POPUP_REQUEST_PERMISSION', tabId },
-    (resp) => {
+  const start = () => {
+    chrome.runtime.sendMessage({ type: 'POPUP_REQUEST_PERMISSION' }, (resp) => {
       if (!resp?.ok) {
         els.hint.textContent = `Could not start: ${resp?.error || 'unknown'}`;
         els.grantBtn.disabled = false;
       }
-    }
-  );
+    });
+  };
+  // Host access to the DNA backend + WhisperLive is requested on demand (it is
+  // an optional permission) so a fixed deployment URL never has to be baked in.
+  const origins = originsForServerInfo(currentServerInfo);
+  if (origins.length && chrome.permissions?.request) {
+    chrome.permissions.request({ origins }, (granted) => {
+      if (chrome.runtime.lastError || !granted) {
+        els.hint.textContent =
+          'Host access to WhisperLive and DNA is required to start.';
+        els.grantBtn.disabled = false;
+        return;
+      }
+      start();
+    });
+  } else {
+    start();
+  }
 });
 
 els.clearLogs.addEventListener('click', () => {
@@ -188,6 +268,7 @@ port.onMessage.addListener((msg) => {
 
 chrome.runtime.sendMessage({ type: 'POPUP_GET_STATE' }, (resp) => {
   if (resp?.ok) {
+    hasKey = !!resp.hasKey;
     renderServerInfo(resp.serverInfo);
     renderStatus(resp.status);
   }

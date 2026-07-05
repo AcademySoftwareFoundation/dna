@@ -26,6 +26,18 @@
     <main>
       <section id="tab-status" class="panel panel-active">
         <div class="row">
+          <label for="dnaKey">DNA key</label>
+          <input
+            id="dnaKey"
+            type="password"
+            autocomplete="off"
+            placeholder="Paste your DNA extension key"
+          />
+          <button id="saveKey" class="btn btn-ghost" title="Save key">Save</button>
+        </div>
+        <p id="keyHint" class="hint"></p>
+
+        <div class="row">
           <label for="meetTab">Google Meet tab</label>
           <select id="meetTab">
             <option value="">No Meet tabs found</option>

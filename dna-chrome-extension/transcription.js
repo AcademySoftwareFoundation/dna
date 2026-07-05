@@ -28,6 +28,33 @@
 
   const logPorts = new Set();
 
+  // Shared secret tying this extension to one DNA deployment. Entered once via
+  // the popup and persisted, so the extension only accepts activation from a
+  // DNA app that presents the same key (and forwards it to the backend, which
+  // validates it too). This is what keeps arbitrary websites — which can reach
+  // the extension via `externally_connectable` — from driving it.
+  const KEY_STORAGE = 'dnaExtensionKey';
+
+  async function getStoredKey() {
+    try {
+      const out = await chrome.storage.local.get(KEY_STORAGE);
+      const k = out?.[KEY_STORAGE];
+      return typeof k === 'string' && k.length > 0 ? k : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function setStoredKey(key) {
+    const trimmed = typeof key === 'string' ? key.trim() : '';
+    if (!trimmed) {
+      await chrome.storage.local.remove(KEY_STORAGE);
+      return null;
+    }
+    await chrome.storage.local.set({ [KEY_STORAGE]: trimmed });
+    return trimmed;
+  }
+
   function nowIso() {
     return new Date().toISOString();
   }
@@ -52,6 +79,7 @@
     return {
       ...state.serverInfo,
       token: state.serverInfo.token ? '***redacted***' : null,
+      key: state.serverInfo.key ? '***redacted***' : null,
     };
   }
 
@@ -242,21 +270,35 @@
         sendResponse({ ok: true, pong: true, capability: 'transcription' });
         return true;
       case 'ACTIVATE_TRANSCRIPTION': {
-        releaseCapturePipeline()
-          .then(() => {
-            state.serverInfo = {
-              dnaApiUrl: message.dnaApiUrl,
-              dnaIngestWsUrl: message.dnaIngestWsUrl,
-              whisperLiveUrl: message.whisperLiveUrl,
-              playlistId: message.playlistId,
-              token: message.token ?? null,
-            };
-            log('info', 'Activated by DNA', {
-              ...state.serverInfo,
-              token: state.serverInfo.token ? '***' : null,
+        getStoredKey()
+          .then((storedKey) => {
+            if (!storedKey) {
+              log('warn', 'Activation rejected: no DNA key configured in the extension');
+              sendResponse({ ok: false, error: 'extension_not_configured' });
+              return null;
+            }
+            if (message.key !== storedKey) {
+              log('warn', 'Activation rejected: DNA key mismatch');
+              sendResponse({ ok: false, error: 'key_mismatch' });
+              return null;
+            }
+            return releaseCapturePipeline().then(() => {
+              state.serverInfo = {
+                dnaApiUrl: message.dnaApiUrl,
+                dnaIngestWsUrl: message.dnaIngestWsUrl,
+                whisperLiveUrl: message.whisperLiveUrl,
+                playlistId: message.playlistId,
+                token: message.token ?? null,
+                key: storedKey,
+              };
+              log('info', 'Activated by DNA', {
+                ...state.serverInfo,
+                token: state.serverInfo.token ? '***' : null,
+                key: '***',
+              });
+              setConnection('needs_permission', 'Switch to your Google Meet tab, open this extension there, and click Grant');
+              sendResponse({ ok: true });
             });
-            setConnection('needs_permission', 'Switch to your Google Meet tab, open this extension there, and click Grant');
-            sendResponse({ ok: true });
           })
           .catch((e) => sendResponse({ ok: false, error: String(e) }));
         return true;
@@ -295,12 +337,30 @@
         log(message.level || 'info', message.message || '', message.data);
         return false;
       case 'POPUP_GET_STATE':
-        sendResponse({
-          ok: true,
-          status: statusPayload(),
-          serverInfo: redactServerInfo(),
-          logs: state.logs,
-        });
+        getStoredKey()
+          .then((k) =>
+            sendResponse({
+              ok: true,
+              status: statusPayload(),
+              serverInfo: redactServerInfo(),
+              logs: state.logs,
+              hasKey: !!k,
+            })
+          )
+          .catch(() =>
+            sendResponse({
+              ok: true,
+              status: statusPayload(),
+              serverInfo: redactServerInfo(),
+              logs: state.logs,
+              hasKey: false,
+            })
+          );
+        return true;
+      case 'POPUP_SET_KEY':
+        setStoredKey(message.key)
+          .then((k) => sendResponse({ ok: true, hasKey: !!k }))
+          .catch((e) => sendResponse({ ok: false, error: String(e) }));
         return true;
       case 'POPUP_LIST_MEET_TABS':
         listMeetTabs()

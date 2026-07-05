@@ -24,12 +24,12 @@
   },
   "permissions": [
     "tabs",
-    "scripting",
     "activeTab",
     "offscreen",
-    "tabCapture"
+    "tabCapture",
+    "storage"
   ],
-  "host_permissions": ["https://*/*", "http://*/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
@@ -38,11 +38,10 @@
     }
   ],
   "externally_connectable": {
-    "ids": ["*"],
     "matches": [
       "https://*/*",
-      "*://localhost/*",
-      "*://127.0.0.1/*"
+      "http://localhost/*",
+      "http://127.0.0.1/*"
     ]
   }
 }

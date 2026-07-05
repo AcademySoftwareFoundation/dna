@@ -14,6 +14,7 @@ const INSTALL_URL =
   import.meta.env.VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL ?? '';
 const WHISPERLIVE_URL = import.meta.env.VITE_WHISPERLIVE_URL ?? '';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+const EXTENSION_KEY = import.meta.env.VITE_TRANSCRIPTION_EXTENSION_KEY ?? '';
 
 export type ExtensionInstallState = 'unknown' | 'installed' | 'not_installed';
 
@@ -83,6 +84,7 @@ export function useTranscriptionExtension(
         whisperLiveUrl: WHISPERLIVE_URL,
         playlistId,
         token,
+        key: EXTENSION_KEY || null,
       });
       if (!result.ok) {
         setError(result.detail || `Activation failed (${result.reason}).`);

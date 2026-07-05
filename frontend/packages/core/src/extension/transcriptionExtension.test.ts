@@ -129,6 +129,19 @@ describe('activateTranscriptionExtension', () => {
     expect(sent.token).toBe('user@test.com');
   });
 
+  it('forwards the deployment key so the extension can validate it', async () => {
+    let sent: Record<string, unknown> = {};
+    installChrome((_id, msg, cb) => {
+      sent = msg as Record<string, unknown>;
+      cb({ ok: true });
+    });
+    await activateTranscriptionExtension(EXT_ID, {
+      ...validPayload,
+      key: 'shared-secret',
+    });
+    expect(sent.key).toBe('shared-secret');
+  });
+
   it('returns error with detail on lastError', async () => {
     installChrome((_id, _msg, cb) => cb(undefined), { message: 'boom' });
     const r = await activateTranscriptionExtension(EXT_ID, validPayload);

@@ -149,6 +149,39 @@ class TestExtensionIngestWebSocket:
                 ingest.send_text("not-json")
                 assert ingest.receive_json()["error"] == "invalid_json"
 
+    def test_missing_key_closes_when_key_required(self):
+        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        self._prepare_service(metadata)
+        client = TestClient(app)
+        with mock.patch.dict(os.environ, {**ENABLE, "DNA_EXTENSION_KEY": "secret"}):
+            with pytest.raises(WebSocketDisconnect):
+                with client.websocket_connect(
+                    "/transcription/extension/ingest?token=user@test.com"
+                ) as ingest:
+                    ingest.receive_json()
+
+    def test_wrong_key_closes_when_key_required(self):
+        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        self._prepare_service(metadata)
+        client = TestClient(app)
+        with mock.patch.dict(os.environ, {**ENABLE, "DNA_EXTENSION_KEY": "secret"}):
+            with pytest.raises(WebSocketDisconnect):
+                with client.websocket_connect(
+                    "/transcription/extension/ingest?token=user@test.com&key=nope"
+                ) as ingest:
+                    ingest.receive_json()
+
+    def test_correct_key_connects_when_key_required(self):
+        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        self._prepare_service(metadata)
+        client = TestClient(app)
+        with mock.patch.dict(os.environ, {**ENABLE, "DNA_EXTENSION_KEY": "secret"}):
+            with client.websocket_connect(
+                "/transcription/extension/ingest?token=user@test.com&key=secret"
+            ) as ingest:
+                hello = ingest.receive_json()
+                assert hello["type"] == "connected"
+
     def test_ingest_error_is_reported(self):
         metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
         svc, storage = self._prepare_service(metadata)
@@ -175,6 +208,18 @@ class TestExtensionHelpers:
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("DNA_ENABLE_EXTENSION_TRANSCRIPTION", None)
             assert main._extension_transcription_enabled() is False
+
+    def test_extension_key_valid_no_env_allows_any(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("DNA_EXTENSION_KEY", None)
+            assert main._extension_key_valid(None) is True
+            assert main._extension_key_valid("whatever") is True
+
+    def test_extension_key_valid_enforced_when_set(self):
+        with mock.patch.dict(os.environ, {"DNA_EXTENSION_KEY": "secret"}):
+            assert main._extension_key_valid("secret") is True
+            assert main._extension_key_valid("nope") is False
+            assert main._extension_key_valid(None) is False
 
     def test_auth_none_without_token_is_anonymous(self):
         with mock.patch.dict(os.environ, {"AUTH_PROVIDER": "none"}):

@@ -35,6 +35,12 @@ export interface ExtensionActivationPayload {
   playlistId: number;
   /** Logged-in user's auth token, forwarded to DNA as a bearer credential */
   token?: string | null;
+  /**
+   * Shared secret tying this DNA deployment to the extension. The extension
+   * rejects activation unless this matches the key its user saved, and the
+   * backend validates the same key on the ingest socket.
+   */
+  key?: string | null;
 }
 
 export type ExtensionConnectionStatus =

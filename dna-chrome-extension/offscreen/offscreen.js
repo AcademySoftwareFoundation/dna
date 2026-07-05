@@ -195,8 +195,17 @@
   function openDna() {
     return new Promise((resolve, reject) => {
       let url = serverInfo.dnaIngestWsUrl;
+      const params = [];
       if (serverInfo.token) {
-        url += (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(serverInfo.token);
+        params.push('token=' + encodeURIComponent(serverInfo.token));
+      }
+      // The DNA backend validates this shared key against its own env, so a
+      // foreign extension can't push transcripts even if it reaches the URL.
+      if (serverInfo.key) {
+        params.push('key=' + encodeURIComponent(serverInfo.key));
+      }
+      if (params.length) {
+        url += (url.includes('?') ? '&' : '?') + params.join('&');
       }
       let ws;
       try {

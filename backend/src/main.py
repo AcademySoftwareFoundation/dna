@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import hmac
 import logging
 import os
 import shutil
@@ -1795,6 +1796,20 @@ def _extension_transcription_enabled() -> bool:
     return os.getenv("DNA_ENABLE_EXTENSION_TRANSCRIPTION", "false").lower() == "true"
 
 
+def _extension_key_valid(key: Optional[str]) -> bool:
+    """Validate the extension's shared key against ``DNA_EXTENSION_KEY``.
+
+    The key ties a specific DNA deployment to its extension: the frontend hands
+    it to the extension, which forwards it here. When ``DNA_EXTENSION_KEY`` is
+    unset the gate is disabled (development / backward compatibility). The
+    comparison is constant-time to avoid leaking the key via timing.
+    """
+    expected = os.getenv("DNA_EXTENSION_KEY")
+    if not expected:
+        return True
+    return key is not None and hmac.compare_digest(key, expected)
+
+
 def _authenticate_ws_token(token: Optional[str]) -> Optional[str]:
     """Validate a token for a WebSocket connection and return the user email.
 
@@ -1853,11 +1868,16 @@ async def extension_transcription_ingest(websocket: WebSocket):
     transcript frame is acked with ``{"type":"ack","stored":n}``; ``ping`` is
     answered with ``pong``.
 
-    Auth: bearer-equivalent token passed as the ``token`` query parameter.
-    Gated by ``DNA_ENABLE_EXTENSION_TRANSCRIPTION``.
+    Auth: bearer-equivalent token passed as the ``token`` query parameter, plus
+    a shared ``key`` query parameter validated against ``DNA_EXTENSION_KEY``
+    (when that env var is set). Gated by ``DNA_ENABLE_EXTENSION_TRANSCRIPTION``.
     """
     if not _extension_transcription_enabled():
         await websocket.close(code=1008, reason="extension transcription disabled")
+        return
+
+    if not _extension_key_valid(websocket.query_params.get("key")):
+        await websocket.close(code=1008, reason="invalid extension key")
         return
 
     token = websocket.query_params.get("token")

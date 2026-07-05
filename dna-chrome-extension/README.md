@@ -19,11 +19,26 @@ bot. See [Transcription capability](#transcription-capability) below.
 The extension accepts external messages from:
 
 - **`https://*/*`** — any HTTPS origin (typical production deployments on arbitrary domains).
-- **`*://localhost/*`** and **`*://127.0.0.1/*`** — local dev on any port (`http` or `https`).
+- **`http://localhost/*`** and **`http://127.0.0.1/*`** — local dev on any port.
 
 [`externally_connectable`](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable) cannot use a catch‑all like `http://*/*` for every hostname; Chrome treats that pattern as invalid for web pages. So **HTTP deployments that are not** `localhost` / `127.0.0.1` (for example `http://dna.corp.local/`) must add an explicit entry to `matches` in [`manifest.json`](./manifest.json), then reload the extension in `chrome://extensions`.
 
-`"ids": ["*"]` allows other extensions to message this one; it does not change which **websites** can connect (still governed by `matches` only).
+Because `https://*/*` lets any HTTPS page reach the extension, activation is gated by a **DNA key** (see below): the extension refuses to start unless the calling app presents the same key the user saved.
+
+## DNA key (deployment binding)
+
+To tie the extension to one DNA deployment (and reject other sites), the extension asks for a **key** the first time it is used:
+
+1. Set the same secret in three places:
+   - Frontend: `VITE_TRANSCRIPTION_EXTENSION_KEY` in `frontend/packages/app/.env`.
+   - Backend: `DNA_EXTENSION_KEY` in the API environment.
+   - Extension: paste it into the **DNA key** field in the popup and click **Save** (stored in `chrome.storage.local`, entered once).
+2. On `ACTIVATE_TRANSCRIPTION`, the extension compares the key the DNA app sends against the saved key and refuses to start on a mismatch or when no key is saved.
+3. The extension forwards the saved key to the DNA backend on the ingest socket (`?key=…`), which validates it against `DNA_EXTENSION_KEY`. When `DNA_EXTENSION_KEY` is unset, the backend gate is disabled (dev only).
+
+## Host permissions
+
+Host access to the DNA backend and WhisperLive is declared as an **optional** permission (`optional_host_permissions`) and requested at runtime when you click **Grant permission & start**, so no fixed deployment URL is baked into the manifest. Chrome prompts for the specific origins derived from the activation payload (for example `https://dna.example.com/*` and the WhisperLive host).
 
 ## Chrome Web Store
 
@@ -47,7 +62,7 @@ This extension therefore:
 ### Transcription messages (DNA → extension)
 
 - `{ "type": "PING_TRANSCRIPTION" }` → `{ "ok": true, "pong": true, "capability": "transcription" }` (capability check).
-- `{ "type": "ACTIVATE_TRANSCRIPTION", "dnaApiUrl", "dnaIngestWsUrl", "whisperLiveUrl", "playlistId", "token"? }` → `{ "ok": true }`. Stores the server info and moves the status to *needs Meet permission*. The target version is resolved server-side (the playlist's in-review version), so no `versionId` is sent.
+- `{ "type": "ACTIVATE_TRANSCRIPTION", "dnaApiUrl", "dnaIngestWsUrl", "whisperLiveUrl", "playlistId", "token"?, "key"? }` → `{ "ok": true }`. Stores the server info and moves the status to *needs Meet permission*. `key` must match the key saved in the extension or activation is rejected (`{ "ok": false, "error": "key_mismatch" | "extension_not_configured" }`). The target version is resolved server-side (the playlist's in-review version), so no `versionId` is sent.
 - `{ "type": "GET_STATUS" }` → `{ "ok": true, "connection": "disconnected" | "connecting" | "needs_permission" | "connected", "meetTabId"?, "detail"? }`.
 
 ## Transcription capability
