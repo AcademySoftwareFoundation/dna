@@ -559,6 +559,12 @@ export function TranscriptionMenu({
         <StatusText>{getExtensionStatusLabel(extConnection)}</StatusText>
       </StatusRow>
 
+      {extInstallState === 'unknown' && (
+        <Text size="1" color="gray">
+          Looking for the DNA extension…
+        </Text>
+      )}
+
       {extInstallState === 'not_installed' && (
         <ErrorMessage>
           <AlertCircle size={14} />

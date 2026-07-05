@@ -63,7 +63,7 @@ function isOkResponse(raw: unknown): boolean {
 /** Probe whether the extension is installed and exposes the transcription capability. */
 export async function pingTranscriptionExtension(
   extensionId: string,
-  timeoutMs = 400
+  timeoutMs = 1500
 ): Promise<TranscriptionExtensionResult> {
   const trimmed = extensionId.trim();
   if (!trimmed) {
@@ -180,7 +180,7 @@ function parseStatusResponse(raw: unknown): ExtensionStatus | null {
 /** Ask the extension for its current transcription connection status. */
 export async function getTranscriptionExtensionStatus(
   extensionId: string,
-  timeoutMs = 400
+  timeoutMs = 1500
 ): Promise<ExtensionStatus | null> {
   const trimmed = extensionId.trim();
   if (!trimmed) return null;

@@ -66,9 +66,13 @@ export function useTranscriptionExtension(
       setError('Select a playlist first.');
       return false;
     }
-    const installed = await checkInstalled();
-    if (!installed) {
-      setError('The DNA extension is not installed.');
+    const ping = await pingTranscriptionExtension(EXTENSION_ID);
+    setInstallState(ping.ok ? 'installed' : 'not_installed');
+    if (!ping.ok) {
+      setError(
+        ping.detail ||
+          'The DNA extension is not installed or could not be reached. Reload the extension in chrome://extensions and try again.'
+      );
       return false;
     }
     if (!WHISPERLIVE_URL) {
@@ -97,7 +101,32 @@ export function useTranscriptionExtension(
     } finally {
       setIsActivating(false);
     }
-  }, [available, playlistId, token, checkInstalled]);
+  }, [available, playlistId, token]);
+
+  // Probe for the extension on mount and periodically so the UI reflects
+  // install state without requiring an activation attempt first. The key gate
+  // only applies to ACTIVATE_TRANSCRIPTION — PING_TRANSCRIPTION is always open.
+  useEffect(() => {
+    if (!available) {
+      setInstallState('not_installed');
+      return;
+    }
+    let cancelled = false;
+
+    const probeInstall = async () => {
+      const result = await pingTranscriptionExtension(EXTENSION_ID);
+      if (!cancelled) {
+        setInstallState(result.ok ? 'installed' : 'not_installed');
+      }
+    };
+
+    void probeInstall();
+    const installPoll = window.setInterval(probeInstall, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(installPoll);
+    };
+  }, [available]);
 
   // Poll extension status while it is configured so the UI reflects the live
   // connection state (disconnected -> connecting -> needs_permission -> connected).

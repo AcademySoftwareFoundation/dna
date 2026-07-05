@@ -20,6 +20,7 @@ The extension accepts external messages from:
 
 - **`https://*/*`** — any HTTPS origin (typical production deployments on arbitrary domains).
 - **`http://localhost/*`** and **`http://127.0.0.1/*`** — local dev on any port.
+- **`*://localhost/*`** and **`*://127.0.0.1/*`** — same hosts, any scheme (legacy/local tooling).
 
 [`externally_connectable`](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable) cannot use a catch‑all like `http://*/*` for every hostname; Chrome treats that pattern as invalid for web pages. So **HTTP deployments that are not** `localhost` / `127.0.0.1` (for example `http://dna.corp.local/`) must add an explicit entry to `matches` in [`manifest.json`](./manifest.json), then reload the extension in `chrome://extensions`.
 
