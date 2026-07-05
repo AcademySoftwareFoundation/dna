@@ -134,12 +134,28 @@
 
   // --- Meet tab helpers -------------------------------------------------------
 
+  function isMeetUrl(url) {
+    return typeof url === 'string' && url.startsWith('https://meet.google.com/');
+  }
+
   async function listMeetTabs() {
     try {
       const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
       return tabs.map((t) => ({ id: t.id, title: t.title, url: t.url }));
     } catch {
       return [];
+    }
+  }
+
+  async function getActiveTab() {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        lastFocusedWindow: true,
+      });
+      return tab || null;
+    } catch {
+      return null;
     }
   }
 
@@ -158,7 +174,7 @@
    * Phase 3 seam. Phase 4 replaces the body with the real capture pipeline
    * (tabCapture via an offscreen document -> WhisperLive -> DNA ingest WS).
    */
-  async function requestMeetPermission(tabId) {
+  async function requestMeetPermission() {
     if (!state.serverInfo) {
       setConnection('disconnected', 'No server info yet — activate from DNA first');
       return { ok: false, error: 'not_activated' };
@@ -166,12 +182,22 @@
     if (captureInFlight) {
       return { ok: false, error: 'capture_in_progress' };
     }
-    const tabs = await listMeetTabs();
-    if (!tabs.length) {
-      setConnection('needs_permission', 'No Google Meet tab found');
-      return { ok: false, error: 'no_meet_tab' };
+    // Chrome's tabCapture only grants access to the tab the extension was
+    // invoked on (activeTab), which is whichever tab was active when this
+    // popup was opened. Capturing a background Meet tab picked from a list is
+    // therefore impossible — it fails with the opaque "Extension has not been
+    // invoked for the current page" error. So the capture target must be the
+    // active tab, and it must be the Meet call itself.
+    const activeTab = await getActiveTab();
+    if (!activeTab || !isMeetUrl(activeTab.url)) {
+      setConnection(
+        'needs_permission',
+        'Open this extension while your Google Meet tab is active, then click ' +
+          'Grant — Chrome only lets it capture the tab it was opened on.'
+      );
+      return { ok: false, error: 'meet_tab_not_active' };
     }
-    const chosen = typeof tabId === 'number' ? tabId : tabs[0].id;
+    const chosen = activeTab.id;
     state.meetTabId = chosen;
     captureInFlight = true;
     setConnection('connecting', 'Starting capture');
@@ -223,14 +249,13 @@
               dnaIngestWsUrl: message.dnaIngestWsUrl,
               whisperLiveUrl: message.whisperLiveUrl,
               playlistId: message.playlistId,
-              versionId: message.versionId ?? null,
               token: message.token ?? null,
             };
             log('info', 'Activated by DNA', {
               ...state.serverInfo,
               token: state.serverInfo.token ? '***' : null,
             });
-            setConnection('needs_permission', 'Open this extension and grant Meet tab permission');
+            setConnection('needs_permission', 'Switch to your Google Meet tab, open this extension there, and click Grant');
             sendResponse({ ok: true });
           })
           .catch((e) => sendResponse({ ok: false, error: String(e) }));
@@ -288,7 +313,7 @@
         sendResponse({ ok: true });
         return true;
       case 'POPUP_REQUEST_PERMISSION':
-        requestMeetPermission(message.tabId)
+        requestMeetPermission()
           .then((r) => sendResponse(r))
           .catch((e) => sendResponse({ ok: false, error: String(e) }));
         return true;

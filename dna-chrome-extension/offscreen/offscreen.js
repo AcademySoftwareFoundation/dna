@@ -33,6 +33,13 @@
   let currentSpeaker = null;
   let whisperReady = false;
   let dnaReady = false;
+  // Latency instrumentation so the debug log makes the gap between "pipeline
+  // connected" and the first transcript visible, and attributes it to the
+  // right hop (audio out -> WhisperLive result -> DNA frame).
+  let whisperReadyAtMs = 0;
+  let audioStreamingLogged = false;
+  let firstWhisperResultLogged = false;
+  let firstFrameSentLogged = false;
 
   function log(level, message, data) {
     chrome.runtime.sendMessage({
@@ -51,8 +58,20 @@
     return new Date(captureStartMs + startSec * 1000).toISOString();
   }
 
-  function segmentId(startSec, index) {
-    return `${uid}:${Math.round(startSec * 1000)}:${index}`;
+  // Key a segment by its stream start time only (not its position in the
+  // WhisperLive array). WhisperLive resends a rolling window whose indices
+  // shift as older segments drop off, so an index-based id would churn and
+  // create duplicates. A time-based id lets the backend upsert refinements of
+  // the same utterance in place.
+  function segmentId(startSec) {
+    return `${uid}:${Math.round(startSec * 1000)}`;
+  }
+
+  // The renderer keys live (pending) text by speaker and discards it when the
+  // speaker is null, so fall back to a stable label when Meet hasn't reported
+  // an active speaker. This keeps in-progress transcription visible.
+  function speakerLabel() {
+    return currentSpeaker || 'Speaker';
   }
 
   // --- WhisperLive ------------------------------------------------------------
@@ -93,6 +112,7 @@
 
         if (msg.message === 'SERVER_READY') {
           whisperReady = true;
+          whisperReadyAtMs = Date.now();
           log('info', 'Handshake 3b: WhisperLive SERVER_READY', {
             backend: msg.backend,
           });
@@ -108,6 +128,16 @@
           return;
         }
         if (Array.isArray(msg.segments)) {
+          if (!firstWhisperResultLogged) {
+            firstWhisperResultLogged = true;
+            const waited = whisperReadyAtMs ? Date.now() - whisperReadyAtMs : 0;
+            log(
+              'info',
+              `First WhisperLive result ${waited}ms after SERVER_READY ` +
+                `(${msg.segments.length} segment(s)) — earlier delay is ` +
+                `WhisperLive transcription latency, not DNA`
+            );
+          }
           handleWhisperSegments(msg.segments);
         }
       };
@@ -127,18 +157,21 @@
   function handleWhisperSegments(segments) {
     const confirmed = [];
     const pending = [];
-    segments.forEach((seg, index) => {
+    // A non-last WhisperLive segment is still mutable, so treating it as
+    // confirmed used to freeze a partial phrase ("Hello") in the renderer's
+    // confirmed set; the growing pending text ("Hello world ...") then got
+    // dropped as a stale prefix, leaving only the first word. Trust only
+    // WhisperLive's explicit `completed` flag; everything else stays pending.
+    segments.forEach((seg) => {
       const start = typeof seg.start === 'number' ? seg.start : Number(seg.start) || 0;
       const end = typeof seg.end === 'number' ? seg.end : Number(seg.end) || start;
       const text = (seg.text || '').trim();
       if (!text) return;
-      const isCompleted =
-        seg.completed === true ||
-        (seg.completed === undefined && index < segments.length - 1);
+      const isCompleted = seg.completed === true;
       const base = {
-        segment_id: segmentId(start, index),
+        segment_id: segmentId(start),
         text,
-        speaker: currentSpeaker,
+        speaker: speakerLabel(),
         language: seg.language || null,
         start_time: start,
         end_time: end,
@@ -208,17 +241,26 @@
 
   function sendToDna(confirmed, pending) {
     if (!dnaWs || dnaWs.readyState !== WebSocket.OPEN) return;
+    // The target version is resolved server-side (the playlist's in-review
+    // version); the extension intentionally does not send a version_id.
     const frame = {
       type: 'transcript',
       playlist_id: serverInfo.playlistId,
-      version_id: serverInfo.versionId ?? undefined,
-      speaker: currentSpeaker,
+      speaker: speakerLabel(),
       confirmed,
       pending,
       ts: new Date().toISOString(),
     };
     try {
       dnaWs.send(JSON.stringify(frame));
+      if (!firstFrameSentLogged) {
+        firstFrameSentLogged = true;
+        log(
+          'info',
+          `First transcript frame sent to DNA ` +
+            `(confirmed=${confirmed.length}, pending=${pending.length})`
+        );
+      }
     } catch (e) {
       log('error', `Failed to send frame to DNA: ${e?.message || e}`);
     }
@@ -239,6 +281,18 @@
     log('info', 'Handshake 2: tab capture permission granted');
 
     audioContext = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
+    // An offscreen document has no user gesture, so Chrome starts the
+    // AudioContext suspended. A suspended context never fires
+    // `onaudioprocess`, so no audio would ever reach WhisperLive. Resume it
+    // explicitly (the live tab-capture stream keeps it running afterwards).
+    if (audioContext.state === 'suspended') {
+      try {
+        await audioContext.resume();
+      } catch (e) {
+        log('warn', `AudioContext resume failed: ${e?.message || e}`);
+      }
+    }
+    log('info', `AudioContext ${audioContext.state} @ ${audioContext.sampleRate}Hz`);
     sourceNode = audioContext.createMediaStreamSource(mediaStream);
 
     // Keep the call audible to the operator.
@@ -272,6 +326,10 @@
       chunk.set(input);
       try {
         whisperWs.send(chunk.buffer);
+        if (!audioStreamingLogged) {
+          audioStreamingLogged = true;
+          log('info', 'Streaming audio to WhisperLive; awaiting transcription');
+        }
       } catch {
         /* socket closing */
       }
@@ -311,6 +369,10 @@
     captureStartMs = Date.now();
     whisperReady = false;
     dnaReady = false;
+    whisperReadyAtMs = 0;
+    audioStreamingLogged = false;
+    firstWhisperResultLogged = false;
+    firstFrameSentLogged = false;
 
     try {
       await startCapture(streamId, info.captureMic === true);

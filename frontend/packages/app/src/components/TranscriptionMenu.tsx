@@ -373,7 +373,7 @@ export function TranscriptionMenu({
     isActivating: extActivating,
     error: extError,
     activate: activateExtension,
-  } = useTranscriptionExtension(playlistId, metadata?.in_review ?? null);
+  } = useTranscriptionExtension(playlistId);
   const [extPromptPermission, setExtPromptPermission] = useState(false);
 
   useEffect(() => {

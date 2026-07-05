@@ -33,8 +33,6 @@ export interface ExtensionActivationPayload {
   whisperLiveUrl: string;
   /** Playlist currently being viewed in DNA */
   playlistId: number;
-  /** Optional in-review version id (backend resolves it too) */
-  versionId?: number;
   /** Logged-in user's auth token, forwarded to DNA as a bearer credential */
   token?: string | null;
 }

@@ -54,7 +54,7 @@ function renderStatus(status) {
   } else if (connection === 'needs_permission') {
     els.hint.textContent =
       status?.detail ||
-      'Select your Meet tab below, then click "Grant permission & start".';
+      'Open this extension on your Google Meet tab, then click "Grant permission & start".';
   } else if (connection === 'connecting') {
     els.hint.textContent = status?.detail || 'Connecting…';
   } else {

@@ -33,8 +33,7 @@ export interface UseTranscriptionExtensionResult {
 }
 
 export function useTranscriptionExtension(
-  playlistId: number | null,
-  versionId?: number | null
+  playlistId: number | null
 ): UseTranscriptionExtensionResult {
   const { token } = useAuth();
   const available = EXTENSION_ID.trim().length > 0;
@@ -83,7 +82,6 @@ export function useTranscriptionExtension(
         dnaIngestWsUrl: deriveIngestWsUrl(API_BASE_URL),
         whisperLiveUrl: WHISPERLIVE_URL,
         playlistId,
-        versionId: versionId ?? undefined,
         token,
       });
       if (!result.ok) {
@@ -97,7 +95,7 @@ export function useTranscriptionExtension(
     } finally {
       setIsActivating(false);
     }
-  }, [available, playlistId, versionId, token, checkInstalled]);
+  }, [available, playlistId, token, checkInstalled]);
 
   // Poll extension status while it is configured so the UI reflects the live
   // connection state (disconnected -> connecting -> needs_permission -> connected).

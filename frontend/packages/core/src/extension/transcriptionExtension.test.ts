@@ -34,7 +34,6 @@ const validPayload: ExtensionActivationPayload = {
   dnaIngestWsUrl: 'ws://localhost:8000/transcription/extension/ingest',
   whisperLiveUrl: 'ws://localhost:9090',
   playlistId: 42,
-  versionId: 7,
   token: 'user@test.com',
 };
 

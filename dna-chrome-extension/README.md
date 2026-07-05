@@ -47,7 +47,7 @@ This extension therefore:
 ### Transcription messages (DNA → extension)
 
 - `{ "type": "PING_TRANSCRIPTION" }` → `{ "ok": true, "pong": true, "capability": "transcription" }` (capability check).
-- `{ "type": "ACTIVATE_TRANSCRIPTION", "dnaApiUrl", "dnaIngestWsUrl", "whisperLiveUrl", "playlistId", "versionId"?, "token"? }` → `{ "ok": true }`. Stores the server info and moves the status to *needs Meet permission*.
+- `{ "type": "ACTIVATE_TRANSCRIPTION", "dnaApiUrl", "dnaIngestWsUrl", "whisperLiveUrl", "playlistId", "token"? }` → `{ "ok": true }`. Stores the server info and moves the status to *needs Meet permission*. The target version is resolved server-side (the playlist's in-review version), so no `versionId` is sent.
 - `{ "type": "GET_STATUS" }` → `{ "ok": true, "connection": "disconnected" | "connecting" | "needs_permission" | "connected", "meetTabId"?, "detail"? }`.
 
 ## Transcription capability

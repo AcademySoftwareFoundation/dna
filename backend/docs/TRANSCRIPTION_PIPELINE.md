@@ -1455,12 +1455,12 @@ sequenceDiagram
   participant MEET as Google Meet Tab
   participant WL as WhisperLive
   participant BE as DNA Backend
-  FE->>EXT: PING_TRANSCRIPTION + ACTIVATE_TRANSCRIPTION {dnaApiUrl, dnaIngestWsUrl, whisperLiveUrl, playlistId, versionId, token}
+  FE->>EXT: PING_TRANSCRIPTION + ACTIVATE_TRANSCRIPTION {dnaApiUrl, dnaIngestWsUrl, whisperLiveUrl, playlistId, token}
   EXT-->>FE: ACK + status
   EXT->>MEET: tabCapture audio + scrape active speaker (DOM)
   EXT->>WL: audio chunks (WS), receive partial/final results
   EXT->>BE: WS ingest {type:"transcript", confirmed, pending, speaker, playlist_id, ts} + token
-  BE->>BE: ingest_extension_transcript -> upsert confirmed by in_review version
+  BE->>BE: ingest_extension_transcript -> upsert confirmed by in_review version (resolved server-side)
   BE-->>FE: /ws broadcast {type:"transcript", ...}
 ```
 
