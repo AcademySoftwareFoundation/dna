@@ -10,9 +10,19 @@ bot. See [Transcription capability](#transcription-capability) below.
 ## Install (development)
 
 1. Open Chrome → **Extensions** → enable **Developer mode**.
-2. **Load unpacked** → select this folder `prodtrack-tab-sync-extension/`.
+2. **Load unpacked** → select this folder `dna-chrome-extension/`.
 3. Copy the extension **ID** from the card (32-char string).
 4. In DNA frontend, set `VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID` to that ID in `frontend/packages/app/.env` and restart the dev server.
+
+## Package (distribution)
+
+From the repository root:
+
+```bash
+make package-extension
+```
+
+This writes `dist/dna-chrome-extension-<version>.zip` (version from `manifest.json`). Upload that zip to the Chrome Web Store, or unzip and load the folder unpacked for testing.
 
 ## Allow DNA origins
 
