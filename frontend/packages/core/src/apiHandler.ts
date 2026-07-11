@@ -19,6 +19,9 @@ import {
   GetUserSettingsParams,
   UpsertUserSettingsParams,
   DeleteUserSettingsParams,
+  GetProjectGlossaryParams,
+  UpsertProjectGlossaryParams,
+  ProjectGlossary,
   GenerateNoteParams,
   GenerateNoteResponse,
   GetVersionStatusesParams,
@@ -267,6 +270,22 @@ class ApiHandler {
     return this.delete<boolean>(
       `/users/${encodeURIComponent(params.userEmail)}/settings`
     );
+  }
+
+  async getProjectGlossary(
+    params: GetProjectGlossaryParams
+  ): Promise<ProjectGlossary> {
+    return this.get<ProjectGlossary>(
+      `/projects/${params.projectId}/glossary`
+    );
+  }
+
+  async upsertProjectGlossary(
+    params: UpsertProjectGlossaryParams
+  ): Promise<ProjectGlossary> {
+    return this.put<ProjectGlossary>(`/projects/${params.projectId}/glossary`, {
+      content: params.content,
+    });
   }
 
   async generateNote(

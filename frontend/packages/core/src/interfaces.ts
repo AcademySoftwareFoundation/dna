@@ -353,6 +353,24 @@ export interface UserSettingsUpdate {
   prodtrack_page_type?: 'version' | 'entity';
 }
 
+/** Production-specific glossary, keyed by ShotGrid project id. */
+export interface ProjectGlossary {
+  _id: string;
+  project_id: number;
+  content: string;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface GetProjectGlossaryParams {
+  projectId: number;
+}
+
+export interface UpsertProjectGlossaryParams {
+  projectId: number;
+  content: string;
+}
+
 export interface GetUserSettingsParams {
   userEmail: string;
 }
