@@ -15,15 +15,25 @@ import * as RadioGroup from '@radix-ui/react-radio-group';
 import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
-import type { UserSettings, UserSettingsUpdate } from '@dna/core';
+import type {
+  ProjectGlossary,
+  UserSettings,
+  UserSettingsUpdate,
+} from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
 
+/** The global glossary is a shared repo file — contributors edit it via PR. */
+const GLOBAL_GLOSSARY_GITHUB_URL =
+  'https://github.com/AcademySoftwareFoundation/dna/blob/main/backend/src/dna/config/glossary_global.yaml';
+
 interface SettingsModalProps {
   userEmail: string;
+  /** Current ShotGrid project id — scopes the editable project glossary. */
+  projectId: number | null;
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -62,6 +72,26 @@ const StyledTextArea = styled(TextArea)`
   min-height: 120px;
   resize: vertical;
   font-family: ${({ theme }) => theme.fonts.sans};
+`;
+
+const GlossaryTextArea = styled(TextArea)`
+  min-height: 320px;
+  resize: vertical;
+  font-family: ${({ theme }) => theme.fonts.mono};
+`;
+
+const GlossaryRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+`;
+
+const GlossaryRowText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 `;
 
 const CheckboxRow = styled.label`
@@ -571,11 +601,97 @@ function TranscriptionTab() {
   );
 }
 
+// --- Glossary editors ---
+
+// The project glossary is stored per ShotGrid project (not in user settings),
+// so it loads/saves itself against the current projectId and is independent of
+// the surrounding settings save-on-close flow.
+function ProjectGlossaryEditor({ projectId }: { projectId: number | null }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const { data, isLoading } = useQuery<ProjectGlossary>({
+    queryKey: ['projectGlossary', projectId],
+    queryFn: () => apiHandler.getProjectGlossary({ projectId: projectId! }),
+    enabled: projectId != null,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (content: string) =>
+      apiHandler.upsertProjectGlossary({ projectId: projectId!, content }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['projectGlossary', projectId], saved);
+      setOpen(false);
+    },
+  });
+
+  const handleOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (isOpen) setDraft(data?.content ?? '');
+      setOpen(isOpen);
+    },
+    [data?.content]
+  );
+
+  return (
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
+      <GlossaryRow>
+        <GlossaryRowText>
+          <CheckboxLabel>Project glossary</CheckboxLabel>
+          <CheckboxDescription>
+            Terms specific to the current production. Saved to this ShotGrid
+            project.
+          </CheckboxDescription>
+        </GlossaryRowText>
+        <Dialog.Trigger>
+          <Button
+            variant="soft"
+            size="2"
+            disabled={projectId == null || isLoading}
+          >
+            Edit
+          </Button>
+        </Dialog.Trigger>
+      </GlossaryRow>
+      <Dialog.Content maxWidth="560px">
+        <Dialog.Title>Project glossary</Dialog.Title>
+        <Dialog.Description size="2" color="gray" mb="3">
+          Terms unique to this production. One term per line, in{' '}
+          <code>term: definition</code> format.
+        </Dialog.Description>
+        <TextAreaWrapper>
+          <GlossaryTextArea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            disabled={mutation.isPending}
+            placeholder="Carryall: Large transport aircraft used to airlift Harvesters."
+          />
+        </TextAreaWrapper>
+        <Footer>
+          <Dialog.Close>
+            <Button variant="soft" color="gray">
+              Cancel
+            </Button>
+          </Dialog.Close>
+          <Button
+            onClick={() => mutation.mutate(draft)}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? 'Saving...' : 'Save'}
+          </Button>
+        </Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+  );
+}
+
 // --- AI Tab ---
 
 interface AITabProps {
   isLoading: boolean;
   notePrompt: string;
+  projectId: number | null;
   regenerateOnVersionChange: boolean;
   regenerateOnTranscriptUpdate: boolean;
   isPending: boolean;
@@ -588,6 +704,7 @@ interface AITabProps {
 function AITab({
   isLoading,
   notePrompt,
+  projectId,
   regenerateOnVersionChange,
   regenerateOnTranscriptUpdate,
   isPending,
@@ -644,6 +761,10 @@ function AITab({
                 <br />
                 {'{{ notes }}'} - Any notes you took on this version
                 already
+                <br />
+                {'{{ glossary_global }}'} - The global VFX glossary
+                <br />
+                {'{{ glossary_project }}'} - The project glossary
               </>
             }
           >
@@ -699,6 +820,51 @@ function AITab({
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
+      </Section>
+
+      <Section>
+        <SectionTitle>
+          Glossaries
+          <Tooltip
+            content={
+              <>
+                Glossaries are supplied to the AI as context whenever a
+                note is generated, helping it expand VFX shorthand and
+                production-specific terms correctly.
+              </>
+            }
+          >
+            <TooltipIcon>
+              <Info size={14} />
+            </TooltipIcon>
+          </Tooltip>
+        </SectionTitle>
+        <SectionDescription>
+          Terms supplied to the AI as context when generating notes.
+        </SectionDescription>
+        <GlossaryRow>
+          <GlossaryRowText>
+            <CheckboxLabel>Global glossary</CheckboxLabel>
+            <CheckboxDescription>
+              Industry-wide VFX terms, shared across all productions. Maintained
+              in the open-source repo — open a PR to contribute.
+            </CheckboxDescription>
+          </GlossaryRowText>
+          <Button
+            asChild
+            variant="soft"
+            size="2"
+          >
+            <a
+              href={GLOBAL_GLOSSARY_GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Contribute
+            </a>
+          </Button>
+        </GlossaryRow>
+        <ProjectGlossaryEditor projectId={projectId} />
       </Section>
 
       <Section>
@@ -799,6 +965,7 @@ function KeybindingRecorder({
 
 export function SettingsModal({
   userEmail,
+  projectId,
   trigger,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -897,12 +1064,14 @@ export function SettingsModal({
   );
 
   const handleSave = useCallback(() => {
-    const defaultTrimmed = (settings?.default_note_prompt ?? '').trim();
-    const currentTrimmed = notePrompt.trim();
-    const persistAsDefault =
-      currentTrimmed === '' || currentTrimmed === defaultTrimmed;
+    // Persist an empty string when the value matches the deployment default so
+    // the setting continues to track future changes to that default.
+    const toPersisted = (current: string, fallback: string): string => {
+      const trimmed = current.trim();
+      return trimmed === '' || trimmed === fallback.trim() ? '' : current;
+    };
     mutation.mutate({
-      note_prompt: persistAsDefault ? '' : notePrompt,
+      note_prompt: toPersisted(notePrompt, settings?.default_note_prompt ?? ''),
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
@@ -996,6 +1165,7 @@ export function SettingsModal({
               <AITab
                 isLoading={isLoading}
                 notePrompt={notePrompt}
+                projectId={projectId}
                 regenerateOnVersionChange={regenerateOnVersionChange}
                 regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
                 isPending={mutation.isPending}
