@@ -120,9 +120,7 @@ class AnthropicProvider(LLMProviderBase):
         When ``gathered`` is provided, assistant text and tool results are
         appended to it as plain strings for downstream structured extraction.
         """
-        messages: list[dict[str, Any]] = [
-            {"role": "user", "content": user_message}
-        ]
+        messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
         last_text = ""
         for _ in range(max_iterations):
             response = await self.client.messages.create(
@@ -219,7 +217,9 @@ class AnthropicProvider(LLMProviderBase):
             "Provide your final quality-check result for this draft and check. "
             "Fill every required field in the structured response schema."
         )
-        context_blob = "\n\n".join(gathered) if gathered else "(no tool calls were made)"
+        context_blob = (
+            "\n\n".join(gathered) if gathered else "(no tool calls were made)"
+        )
         extraction_message = (
             f"{user_message}\n\n"
             f"Context gathered while investigating:\n{context_blob}\n\n"
