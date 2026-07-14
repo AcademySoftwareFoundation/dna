@@ -31,9 +31,7 @@ class OpenAIProvider(LLMProviderBase):
         try:
             response = await self.client.models.list()
             model_ids = sorted(
-                m.id
-                for m in response.data
-                if m.id.startswith(OPENAI_CHAT_PREFIXES)
+                m.id for m in response.data if m.id.startswith(OPENAI_CHAT_PREFIXES)
             )
         except Exception:
             logger.warning("Failed to fetch models from OpenAI API, using default")
