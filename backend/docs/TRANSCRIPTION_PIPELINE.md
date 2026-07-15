@@ -1432,3 +1432,92 @@ endpoint, not in the ingest pipeline.
   become authoritative). Keeping the builder isolated means that change
   is one file here rather than a re-ingest.
 - The builder is pure and trivially testable, unlike the ingest loop.
+
+---
+
+## Browser Extension Transcription Route (Alternative to Vexa)
+
+An alternative to the Vexa bot: instead of dispatching a server-side bot, the
+**DNA browser extension** captures Google Meet **tab audio** in the user's own
+browser, transcribes it via a **WhisperLive** service, and streams segments
+directly into DNA. This avoids bot authentication and the Vexa infrastructure.
+
+Both routes coexist and reuse the same storage + `/ws` broadcast, so the
+frontend `TranscriptManager` consumes identical `{type:"transcript", ...}`
+frames regardless of source.
+
+### Data flow
+
+```mermaid
+sequenceDiagram
+  participant FE as DNA Frontend
+  participant EXT as Extension (SW + offscreen + content)
+  participant MEET as Google Meet Tab
+  participant WL as WhisperLive
+  participant BE as DNA Backend
+  FE->>EXT: PING_TRANSCRIPTION + ACTIVATE_TRANSCRIPTION {dnaApiUrl, dnaIngestWsUrl, whisperLiveUrl, playlistId, token}
+  EXT-->>FE: ACK + status
+  EXT->>MEET: tabCapture audio + scrape active speaker (DOM)
+  EXT->>WL: audio chunks (WS), receive partial/final results
+  EXT->>BE: WS ingest {type:"transcript", confirmed, pending, speaker, playlist_id, ts} + token
+  BE->>BE: ingest_extension_transcript -> upsert confirmed by in_review version (resolved server-side)
+  BE-->>FE: /ws broadcast {type:"transcript", ...}
+```
+
+### Handshake points (each observable in the extension Debug log)
+
+1. **FE ↔ EXT**: `PING_TRANSCRIPTION`/pong, `ACTIVATE_TRANSCRIPTION`/ack.
+2. **EXT ↔ Meet tab**: `getUserMedia` tab-capture permission granted.
+3. **EXT ↔ WhisperLive**: WS open + `SERVER_READY`.
+4. **EXT ↔ DNA**: WS connect + `connected` ack + per-frame `ack`.
+
+The toolbar status dot derives from the weakest link: **red** (no server info),
+**orange/blinking** (connecting or needs Meet permission), **green** (all hops
+healthy and streaming).
+
+### Backend components
+
+| Component | File | Role |
+|-----------|------|------|
+| `ExtensionTranscriptionProvider` | `transcription_providers/extension.py` | No-op bot lifecycle; selected via `TRANSCRIPTION_PROVIDER=browser_extension` (alias `extension`). |
+| `ingest_extension_transcript()` | `transcription_service.py` | Keys by `playlist_id` directly (extension already knows it), then shares `_store_and_broadcast` with the Vexa path. |
+| `GET /transcription/extension/health` | `main.py` | Handshake/availability probe. 404 when disabled. |
+| `WS /transcription/extension/ingest` | `main.py` | Inbound transcript stream. Auth via `?token=` (bearer-equivalent), acks every frame. |
+
+### Configuration
+
+**Backend**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DNA_ENABLE_EXTENSION_TRANSCRIPTION` | `false` | Gates the ingest WS + health endpoint. |
+| `TRANSCRIPTION_PROVIDER` | `vexa` | Set to `browser_extension` to use the extension provider for bot endpoints. |
+
+**Frontend**
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_TRANSCRIPTION_EXTENSION_ID` | Chrome extension ID (enables the extension UI). |
+| `VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL` | Install link shown when the extension is not detected. |
+| `VITE_WHISPERLIVE_URL` | WhisperLive WS URL the extension streams audio to (e.g. `ws://localhost:9090`). |
+| `VITE_FEATURE_EXTENSION_TRANSCRIPTION` | Optional lock for the extension UI. |
+
+**WhisperLive** runs as an optional overlay compose service (not in the base
+stack). DNA builds a CPU-only Collabora WhisperLive image locally
+(`backend/docker/whisperlive/Dockerfile`) so Apple Silicon Macs work; the
+official Collabora registry image is amd64-only.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.whisperlive.yml up whisperlive
+```
+
+### Verification
+
+1. Enable `DNA_ENABLE_EXTENSION_TRANSCRIPTION=true`; confirm `GET
+   /transcription/extension/health` returns `{"status":"ok"}` (404 when off).
+2. Push a frame with a WS client to `/transcription/extension/ingest?token=...`:
+   `{"type":"transcript","playlist_id":<id>,"confirmed":[<segment>],"pending":[]}`
+   → segment appears in Mongo and on `/ws`.
+3. Load the extension, click **Transcribe via Extension** in DNA, grant the Meet
+   tab permission from the popup, and watch the four handshakes turn the dot
+   green while live transcripts appear in the DNA `TranscriptPanel`.

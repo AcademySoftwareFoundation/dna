@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import hmac
 import logging
 import os
 import shutil
@@ -89,6 +90,8 @@ from dna.transcription_providers.transcription_provider_base import (
     get_transcription_provider,
 )
 from dna.transcription_service import TranscriptionService, get_transcription_service
+
+logger = logging.getLogger(__name__)
 
 # API metadata for Swagger documentation
 API_TITLE = "DNA Backend"
@@ -1835,6 +1838,145 @@ async def get_segments_for_version(
         return await storage_provider.get_segments_for_version(playlist_id, version_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# -----------------------------------------------------------------------------
+# Extension transcription (browser extension inbound path)
+# -----------------------------------------------------------------------------
+
+
+def _extension_transcription_enabled() -> bool:
+    """Whether the browser-extension transcription route is enabled."""
+    return os.getenv("DNA_ENABLE_EXTENSION_TRANSCRIPTION", "false").lower() == "true"
+
+
+def _extension_key_valid(key: Optional[str]) -> bool:
+    """Validate the extension's shared key against ``DNA_EXTENSION_KEY``.
+
+    The key ties a specific DNA deployment to its extension: the frontend hands
+    it to the extension, which forwards it here. When ``DNA_EXTENSION_KEY`` is
+    unset the gate is disabled (development / backward compatibility). The
+    comparison is constant-time to avoid leaking the key via timing.
+    """
+    expected = os.getenv("DNA_EXTENSION_KEY")
+    if not expected:
+        return True
+    return key is not None and hmac.compare_digest(key, expected)
+
+
+def _authenticate_ws_token(token: Optional[str]) -> Optional[str]:
+    """Validate a token for a WebSocket connection and return the user email.
+
+    Mirrors ``get_current_user`` but for WebSockets, which cannot use the
+    HTTPBearer/Depends flow. Returns ``None`` when authentication fails.
+    """
+    auth_provider = get_auth_provider_cached()
+    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
+
+    if auth_provider_type == "none":
+        if token and auth_provider is not None:
+            return auth_provider.get_user_email(token)
+        return "anonymous@localhost"
+
+    if not token or auth_provider is None:
+        return None
+
+    try:
+        claims = auth_provider.validate_token(token)
+        email = claims.get("email") if isinstance(claims, dict) else None
+        return email or None
+    except ValueError:
+        return None
+
+
+@app.get(
+    "/transcription/extension/health",
+    tags=["Transcription"],
+    summary="Extension transcription handshake",
+    description=(
+        "Handshake/availability probe for the DNA browser extension. Returns "
+        "404 when extension transcription is disabled."
+    ),
+)
+async def extension_transcription_health() -> dict:
+    """Lightweight handshake so the extension/frontend can confirm the inbound
+    transcription route is enabled on this backend."""
+    if not _extension_transcription_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"status": "ok", "enabled": True}
+
+
+@app.websocket("/transcription/extension/ingest")
+async def extension_transcription_ingest(websocket: WebSocket):
+    """Inbound WebSocket for the DNA browser extension to stream transcripts.
+
+    Frame shape (matches the Vexa passthrough envelope):
+        {"type": "transcript", "playlist_id": int, "speaker": str|None,
+         "confirmed": [...], "pending": [...], "ts": str}
+
+    Confirmed segments are upserted to the playlist's in-review version and the
+    same flat ``{type:"transcript", ...}`` envelope is broadcast to DNA ``/ws``
+    clients, so the frontend behaves identically to the Vexa path.
+
+    Handshakes: on connect the server sends ``{"type":"connected"}``; every
+    transcript frame is acked with ``{"type":"ack","stored":n}``; ``ping`` is
+    answered with ``pong``.
+
+    Auth: bearer-equivalent token passed as the ``token`` query parameter, plus
+    a shared ``key`` query parameter validated against ``DNA_EXTENSION_KEY``
+    (when that env var is set). Gated by ``DNA_ENABLE_EXTENSION_TRANSCRIPTION``.
+    """
+    if not _extension_transcription_enabled():
+        await websocket.close(code=1008, reason="extension transcription disabled")
+        return
+
+    if not _extension_key_valid(websocket.query_params.get("key")):
+        await websocket.close(code=1008, reason="invalid extension key")
+        return
+
+    token = websocket.query_params.get("token")
+    user_email = _authenticate_ws_token(token)
+    if user_email is None:
+        await websocket.close(code=1008, reason="unauthorized")
+        return
+
+    await websocket.accept()
+    service = get_transcription_service()
+    await websocket.send_json({"type": "connected", "user": user_email})
+
+    try:
+        while True:
+            try:
+                message = await websocket.receive_json()
+            except WebSocketDisconnect:
+                break
+            except Exception:
+                await websocket.send_json({"type": "error", "error": "invalid_json"})
+                continue
+
+            if not isinstance(message, dict):
+                await websocket.send_json({"type": "error", "error": "invalid_message"})
+                continue
+
+            msg_type = message.get("type")
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong", "ts": message.get("ts")})
+                continue
+
+            if msg_type in ("transcript", None):
+                try:
+                    stored = await service.ingest_extension_transcript(message)
+                    await websocket.send_json(
+                        {"type": "ack", "stored": stored, "ts": message.get("ts")}
+                    )
+                except Exception as e:
+                    logger.exception("Failed to ingest extension transcript")
+                    await websocket.send_json({"type": "error", "error": str(e)})
+                continue
+
+            await websocket.send_json({"type": "error", "error": "unknown_type"})
+    except WebSocketDisconnect:
+        pass
 
 
 # -----------------------------------------------------------------------------

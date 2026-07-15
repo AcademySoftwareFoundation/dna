@@ -238,23 +238,71 @@ class TranscriptionService:
             )
             return
 
+        await self._store_and_broadcast(playlist_id, speaker, confirmed, pending, ts)
+
+    async def ingest_extension_transcript(self, payload: dict[str, Any]) -> int:
+        """Ingest a transcript frame produced by the DNA browser extension.
+
+        Unlike Vexa (which routes by ``platform:meeting_id``), the extension
+        already knows which playlist it is transcribing, so the frame carries
+        ``playlist_id`` directly. Confirmed segments are upserted and the same
+        flat ``{type:"transcript", ...}`` envelope is broadcast to DNA WS
+        clients, so the frontend behaves identically to the Vexa path.
+
+        Returns the number of confirmed segments stored.
+        """
+        if self.storage_provider is None or self.event_publisher is None:
+            logger.error("Providers not initialized")
+            return 0
+
+        playlist_id = payload.get("playlist_id")
+        if playlist_id is None:
+            logger.warning("Extension transcript missing playlist_id, cannot save")
+            return 0
+
+        speaker = payload.get("speaker")
+        confirmed: list[dict[str, Any]] = payload.get("confirmed", []) or []
+        pending: list[dict[str, Any]] = payload.get("pending", []) or []
+        ts = payload.get("ts")
+
+        return await self._store_and_broadcast(
+            int(playlist_id), speaker, confirmed, pending, ts
+        )
+
+    async def _store_and_broadcast(
+        self,
+        playlist_id: int,
+        speaker: Any,
+        confirmed: list[dict[str, Any]],
+        pending: list[dict[str, Any]],
+        ts: Any,
+    ) -> int:
+        """Upsert confirmed segments for a playlist's in-review version and
+        broadcast the flat transcript envelope. Shared by the Vexa and
+        extension transcription paths. Returns the number of stored segments.
+        """
+        if self.storage_provider is None or self.event_publisher is None:
+            logger.error("Providers not initialized")
+            return 0
+
         metadata = await self.storage_provider.get_playlist_metadata(playlist_id)
         if metadata is None or metadata.in_review is None:
             logger.warning(
                 "No in_review version found for playlist %s, cannot save segments",
                 playlist_id,
             )
-            return
+            return 0
 
         if metadata.transcription_paused:
             logger.debug(
                 "Transcription paused for playlist %s, skipping segment storage",
                 playlist_id,
             )
-            return
+            return 0
 
         version_id = metadata.in_review
         resumed_at = metadata.transcription_resumed_at
+        stored = 0
 
         for seg in confirmed:
             segment_id = seg.get("segment_id")
@@ -298,6 +346,7 @@ class TranscriptionService:
                     segment_id=segment_id,
                     data=segment_create,
                 )
+                stored += 1
             except Exception:
                 logger.exception("Failed to upsert segment %s", segment_id)
 
@@ -314,6 +363,7 @@ class TranscriptionService:
                 "ts": ts,
             }
         )
+        return stored
 
     async def on_transcription_completed(self, payload: dict[str, Any]) -> None:
         """Handle transcription completion."""

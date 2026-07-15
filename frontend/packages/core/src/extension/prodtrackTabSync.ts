@@ -1,3 +1,16 @@
+/**
+ * Messaging bridge between a DNA client and the DNA browser extension for
+ * production-tracking tab sync (opening/steering a ShotGrid/Flow tab):
+ *
+ *   - PING          -> is the tab-sync capability installed?
+ *   - OPEN_VERSION  -> open/steer the controlled tab to a version URL
+ *
+ * These are pure functions with no framework dependency; React orchestration
+ * lives in the `useProdtrackTabSync` hook in the app package.
+ */
+
+import { getChromeRuntime, sendExternalMessage } from './chromeMessaging';
+
 export type ProdtrackTabSyncResult =
   | { ok: true; tabId?: number }
   | {
@@ -10,53 +23,6 @@ export type ProdtrackTabSyncResult =
         | 'error';
       detail?: string;
     };
-
-type ChromeRuntime = {
-  sendMessage: (
-    extensionId: string,
-    message: object,
-    responseCallback?: (response: unknown) => void
-  ) => void;
-  lastError?: { message?: string };
-};
-
-function getChromeRuntime(): ChromeRuntime | undefined {
-  if (typeof globalThis === 'undefined') return undefined;
-  const chromeApi = (
-    globalThis as {
-      chrome?: { runtime?: ChromeRuntime };
-    }
-  ).chrome;
-  return chromeApi?.runtime;
-}
-
-function sendExternalMessage(
-  extensionId: string,
-  message: object,
-  timeoutMs: number
-): Promise<unknown> {
-  const runtime = getChromeRuntime();
-  if (!runtime?.sendMessage) {
-    return Promise.resolve(undefined);
-  }
-
-  return new Promise((resolve) => {
-    const timer = window.setTimeout(() => resolve(undefined), timeoutMs);
-    try {
-      runtime.sendMessage(extensionId, message, (response: unknown) => {
-        window.clearTimeout(timer);
-        if (runtime.lastError?.message) {
-          resolve({ __error: runtime.lastError.message });
-          return;
-        }
-        resolve(response);
-      });
-    } catch (e) {
-      window.clearTimeout(timer);
-      resolve({ __error: e instanceof Error ? e.message : String(e) });
-    }
-  });
-}
 
 export type OpenVersionOptions = {
   /** Last known controlled tab id from a prior OPEN_VERSION; forwarded to the extension */
@@ -85,7 +51,8 @@ function parsePingResponse(raw: unknown): boolean {
 /** Opens the production-tracking URL in a normal new browser tab (not extension-controlled). */
 export function openProdtrackUrlInUncontrolledNewTab(url: string): void {
   if (!url.startsWith('http')) return;
-  if (typeof window === 'undefined' || typeof window.open !== 'function') return;
+  if (typeof window === 'undefined' || typeof window.open !== 'function')
+    return;
   const opened = window.open(url, '_blank');
   if (opened) {
     opened.opener = null;
@@ -141,7 +108,9 @@ export async function openProdtrackVersionInExtension(
   }
 
   const openOpts =
-    typeof timeoutOrOptions === 'number' ? { timeoutMs: timeoutOrOptions } : timeoutOrOptions;
+    typeof timeoutOrOptions === 'number'
+      ? { timeoutMs: timeoutOrOptions }
+      : timeoutOrOptions;
   const timeoutMs = openOpts.timeoutMs ?? 800;
   const lastKnownTabId = openOpts.tabId;
 
