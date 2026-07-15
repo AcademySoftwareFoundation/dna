@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+    from dna.models.project_glossary import ProjectGlossary, ProjectGlossaryUpdate
     from dna.models.published_transcript import (
         PublishedTranscript,
         PublishedTranscriptUpdate,
@@ -113,6 +114,18 @@ class StorageProviderBase:
 
     async def delete_user_settings(self, user_email: str) -> bool:
         """Delete user settings. Returns True if deleted."""
+        raise NotImplementedError()
+
+    async def get_project_glossary(
+        self, project_id: int
+    ) -> Optional["ProjectGlossary"]:
+        """Get the glossary for a project by id."""
+        raise NotImplementedError()
+
+    async def upsert_project_glossary(
+        self, project_id: int, data: "ProjectGlossaryUpdate"
+    ) -> "ProjectGlossary":
+        """Create or update the glossary for a project."""
         raise NotImplementedError()
 
     async def get_published_transcript(

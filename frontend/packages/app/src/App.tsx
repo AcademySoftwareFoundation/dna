@@ -93,6 +93,7 @@ function App() {
     <Layout
       onReplacePlaylist={handleReplacePlaylist}
       playlistId={selectedPlaylist.id}
+      projectId={selectedProject.id}
       selectedVersionId={selectedVersion?.id}
       onVersionSelect={handleVersionSelect}
       userEmail={userEmail}
