@@ -18,10 +18,9 @@ Collection ``dna_sessions``:
     expires_at   : datetime  ← TTL index on this field
     shotgrid     : sub-document
       user_id      : int
-      username     : str       (ShotGrid login name — never overwritten after login)
+      username     : str       (ShotGrid login name — used for sudo_as_login)
       access_token : str       (ShotGrid Bearer token — rotated on refresh)
       refresh_token: str | null
-      password     : str | null  (PAT path — Legacy Password, never sent to client)
 
 Collection ``dna_oauth_states``:
     _id          : state token (str)
@@ -49,7 +48,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-
 # ── Provider-specific credential models ──────────────────────────────────────
 #
 # Each auth provider that stores credentials in the session gets its own typed
@@ -68,25 +66,20 @@ class ShotGridCredentials:
     Fields
     ------
     user_id       : Integer primary key of the HumanUser record in ShotGrid.
-    username      : ShotGrid login name (email on cloud, login on on-prem sites).
-                    Used as the ``login`` argument to ``shotgun_api3.Shotgun``
-                    together with ``password``.  Never overwritten after creation.
+    username      : ShotGrid login name — passed as sudo_as_login on every
+                    prodtrack request.  Never overwritten after creation.
     access_token  : ShotGrid Bearer access token — returned by the ShotGrid OAuth
-                    endpoint and refreshed periodically.  Used when connecting via
-                    ``session_token=`` (pool path) rather than login+password.
+                    endpoint and refreshed periodically.
     refresh_token : ShotGrid refresh token — used to obtain a new access_token.
-    password      : Legacy Login password — stored because shotgun_api3 requires
-                    username+password, not a Bearer token.
     """
 
     user_id: int
-    username: str = ""     # ShotGrid login name — never overwritten after login.
-                           # Default "" for backward-compat with sessions stored
-                           # before this field was added (they deserialise safely
-                           # and are re-populated on the next login).
-    access_token: str = "" # ShotGrid Bearer token — rotated on refresh
+    username: str = ""  # ShotGrid login name — never overwritten after login.
+    # Default "" for backward-compat with sessions stored
+    # before this field was added (they deserialise safely
+    # and are re-populated on the next login).
+    access_token: str = ""  # ShotGrid Bearer token — rotated on refresh
     refresh_token: Optional[str] = None
-    password: Optional[str] = None
 
 
 # ── Core session model ────────────────────────────────────────────────────────
@@ -118,7 +111,7 @@ class UserSession:
     jti: str
     email: str
     name: str
-    auth_provider: str          # 'shotgrid_pat'
+    auth_provider: str  # 'shotgrid_pat'
     created_at: float = field(default_factory=time.time)
 
     # ── Provider credentials — add new providers here ─────────────────── #
@@ -190,10 +183,6 @@ class UserSession:
     @property
     def sg_user_id(self) -> int:
         return self.shotgrid.user_id if self.shotgrid else 0
-
-    @property
-    def sg_password(self) -> Optional[str]:
-        return self.shotgrid.password if self.shotgrid else None
 
     @property
     def refresh_token(self) -> Optional[str]:
@@ -294,14 +283,16 @@ class MongoSessionStore(AbstractSessionStore):
         state_ttl: Optional[int] = None,
     ) -> None:
         try:
-            from pymongo import MongoClient, ASCENDING
+            from pymongo import ASCENDING, MongoClient
         except ImportError:
             raise ImportError(
                 "pymongo is required for MongoDB session storage. "
                 "Install with: pip install pymongo"
             )
 
-        self._mongo_url = mongo_url or os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+        self._mongo_url = mongo_url or os.getenv(
+            "MONGODB_URL", "mongodb://localhost:27017"
+        )
         self._db_name = db_name or os.getenv("MONGODB_DB", "dna")
         self.session_ttl = session_ttl or int(os.getenv("SESSION_TTL_SECONDS", "28800"))
         self.state_ttl = state_ttl or int(os.getenv("OAUTH_STATE_TTL", "600"))
@@ -355,6 +346,7 @@ class MongoSessionStore(AbstractSessionStore):
             return UserSession.from_dict(doc)
         except (KeyError, TypeError) as exc:
             import warnings
+
             warnings.warn(
                 f"[session_store] Failed to deserialize session '{session_id}': {exc}. "
                 "The session document may be from an older schema — deleting it.",

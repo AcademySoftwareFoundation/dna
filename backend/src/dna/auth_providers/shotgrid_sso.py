@@ -49,7 +49,9 @@ class ShotGridSSOProvider(AuthProviderBase):
         session_store: Optional[SessionStore] = None,
         sg_auth_client: Optional[ShotGridAuthClient] = None,
     ) -> None:
-        self._secret = os.getenv("JWT_SECRET_KEY", "CHANGE_ME_USE_A_REAL_SECRET_32CHARS")
+        self._secret = os.getenv(
+            "JWT_SECRET_KEY", "CHANGE_ME_USE_A_REAL_SECRET_32CHARS"
+        )
         self._algorithm = os.getenv("JWT_ALGORITHM", "HS256")
         self._expire_seconds = int(os.getenv("JWT_EXPIRE_MINUTES", "480")) * 60
 
@@ -118,10 +120,10 @@ class ShotGridSSOProvider(AuthProviderBase):
             auth_provider="shotgrid_pat",
             shotgrid=ShotGridCredentials(
                 user_id=user_info.sg_user_id,
-                username=username,                  # ShotGrid login name — never overwritten
-                access_token=sg_token_set.access_token,   # Bearer token — rotated on refresh
+                username=username,  # ShotGrid login name — used for sudo_as_login
+                access_token=sg_token_set.access_token,  # Bearer token — rotated on refresh
                 refresh_token=sg_token_set.refresh_token,
-                password=password,                  # stored server-side, never sent to client
+                # password is verified once here to confirm identity, then discarded
             ),
         )
         self._sessions.create_session(session)
@@ -205,7 +207,9 @@ class ShotGridSSOProvider(AuthProviderBase):
         # Revoke old jti in blocklist
         if old_jti:
             remaining = max(0, exp - int(time.time()))
-            self._sessions.revoke_token(old_jti, remaining + self._REFRESH_GRACE_SECONDS)
+            self._sessions.revoke_token(
+                old_jti, remaining + self._REFRESH_GRACE_SECONDS
+            )
 
         # Release stale pool slot (new SG token → new connection on next request)
         _release_from_pool(session_id)
@@ -297,20 +301,27 @@ class ShotGridSSOProvider(AuthProviderBase):
 
 # ── Lazy singletons ───────────────────────────────────────────────────────────
 
+
 def _lazy_session_store():
     from dna.auth.session_store import get_session_store
+
     return get_session_store()
+
 
 def _lazy_sg_auth_client():
     from dna.auth.shotgrid_auth_client import get_sg_auth_client
+
     return get_sg_auth_client()
+
 
 def _release_from_pool(session_id: str) -> None:
     try:
         from dna.auth.connection_pool import get_connection_pool
+
         get_connection_pool().release(session_id)
     except Exception as exc:
         import warnings
+
         warnings.warn(
             f"[shotgrid_sso] Failed to release pool entry for session '{session_id}': {exc}",
             stacklevel=2,

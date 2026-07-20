@@ -68,14 +68,15 @@ def get_auth_provider() -> Optional[AuthProviderBase]:
 
     if provider == "none":
         from dna.auth_providers.noop_auth_provider import NoopAuthProvider
+
         return NoopAuthProvider()
 
     elif provider == "shotgrid":
         from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+
         return ShotGridSSOProvider()
 
     else:
         raise ValueError(
-            f"Unknown auth provider: '{provider}'. "
-            f"Valid values: none, shotgrid."
+            f"Unknown auth provider: '{provider}'. " f"Valid values: none, shotgrid."
         )

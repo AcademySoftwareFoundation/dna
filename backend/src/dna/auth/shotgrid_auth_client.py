@@ -39,27 +39,28 @@ from typing import Optional
 
 import requests
 
-
 # ── Data classes ──────────────────────────────────────────────────────────────
 
 
 @dataclass
 class SGTokenSet:
     """Tokens returned by ShotGrid's /api/v1/auth/access_token endpoint."""
+
     access_token: str
     refresh_token: Optional[str]
     token_type: str
-    expires_in: int       # seconds — default 3600 (1 hour), site-configurable
+    expires_in: int  # seconds — default 3600 (1 hour), site-configurable
     obtained_at: float = field(default_factory=time.time)
 
 
 @dataclass
 class SGUserInfo:
     """User info resolved from a ShotGrid access_token."""
+
     sg_user_id: int
     email: str
     name: str
-    login: str            # ShotGrid login (needed for sudo_as_login if used)
+    login: str  # ShotGrid login (needed for sudo_as_login if used)
 
 
 # ── Client ────────────────────────────────────────────────────────────────────
@@ -90,7 +91,9 @@ class ShotGridAuthClient:
         self._is_onprem = os.getenv("SG_SITE_TYPE", "cloud").lower() == "onprem"
         # Read at instantiation time so tests / runtime env changes take effect.
         self.TTL_BUFFER_SEC: int = int(
-            os.getenv("SG_ACCESS_TOKEN_TTL_BUFFER_SEC", str(self._DEFAULT_TTL_BUFFER_SEC))
+            os.getenv(
+                "SG_ACCESS_TOKEN_TTL_BUFFER_SEC", str(self._DEFAULT_TTL_BUFFER_SEC)
+            )
         )
 
     # ── Grant: session_token (AMI flow — primary, no PAT needed) ─────── #
@@ -124,10 +127,12 @@ class ShotGridAuthClient:
         Raises:
             ValueError: ShotGrid rejected the session_token or is unreachable.
         """
-        return self._call_token_endpoint({
-            "grant_type": "session_token",
-            "session_token": session_token,
-        })
+        return self._call_token_endpoint(
+            {
+                "grant_type": "session_token",
+                "session_token": session_token,
+            }
+        )
 
     # ── Grant: password (fallback for standalone access) ─────────────── #
 
@@ -157,11 +162,13 @@ class ShotGridAuthClient:
         Raises:
             ValueError: Authentication rejected or ShotGrid unreachable.
         """
-        return self._call_token_endpoint({
-            "grant_type": "password",
-            "username": username,
-            "password": password,
-        })
+        return self._call_token_endpoint(
+            {
+                "grant_type": "password",
+                "username": username,
+                "password": password,
+            }
+        )
 
     # ── Grant: refresh_token ──────────────────────────────────────────── #
 
@@ -183,10 +190,12 @@ class ShotGridAuthClient:
                         On 401: caller should require the user to re-login via
                         the AMI flow or password grant.
         """
-        return self._call_token_endpoint({
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-        })
+        return self._call_token_endpoint(
+            {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+            }
+        )
 
     # ── User info ─────────────────────────────────────────────────────── #
 
@@ -219,6 +228,7 @@ class ShotGridAuthClient:
             if sg_script and sg_key:
                 try:
                     from shotgun_api3 import Shotgun
+
                     sg = Shotgun(self.sg_url, script_name=sg_script, api_key=sg_key)
                     user = sg.find_one(
                         "HumanUser",
@@ -252,6 +262,7 @@ class ShotGridAuthClient:
         if user_id and sg_script and sg_key:
             try:
                 from shotgun_api3 import Shotgun
+
                 sg = Shotgun(self.sg_url, script_name=sg_script, api_key=sg_key)
                 user = sg.find_one(
                     "HumanUser",
@@ -391,7 +402,9 @@ class ShotGridAuthClient:
             elif grant == "session_token":
                 hint = "The ShotGrid session_token has expired or is invalid. User must re-launch from ShotGrid."
             elif grant == "refresh_token":
-                hint = "The ShotGrid refresh_token has expired. User must re-authenticate."
+                hint = (
+                    "The ShotGrid refresh_token has expired. User must re-authenticate."
+                )
             else:
                 hint = "Verify credentials."
             raise ValueError(f"ShotGrid authentication failed (HTTP 401). {hint}")

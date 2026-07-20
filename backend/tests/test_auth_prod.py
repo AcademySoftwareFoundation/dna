@@ -18,6 +18,7 @@ import pytest
 
 try:
     import fakeredis
+
     HAS_FAKEREDIS = True
 except ImportError:
     HAS_FAKEREDIS = False
@@ -29,6 +30,7 @@ except ImportError:
 
 def _make_session(**kwargs) -> "UserSession":
     from dna.auth.session_store import UserSession
+
     defaults = dict(
         session_id=str(uuid.uuid4()),
         jti=str(uuid.uuid4()),
@@ -45,6 +47,7 @@ def _make_session(**kwargs) -> "UserSession":
 def _make_store(ttl=3600) -> "SessionStore":
     """Return a SessionStore backed by fakeredis (in-memory)."""
     from dna.auth.session_store import SessionStore
+
     store = SessionStore.__new__(SessionStore)
     store.session_ttl = ttl
     store.state_ttl = 600
@@ -108,6 +111,7 @@ class TestSessionStore:
 
     def test_oauth_state_stored_and_consumed(self):
         from dna.auth.session_store import OAuthState
+
         store = _make_store()
         state = "random-state-abc"
         oauth_state = OAuthState(
@@ -121,11 +125,12 @@ class TestSessionStore:
 
     def test_oauth_state_one_time_use(self):
         from dna.auth.session_store import OAuthState
+
         store = _make_store()
         state = "one-time-state"
         store.store_oauth_state(state, OAuthState(code_verifier="v", redirect_uri="u"))
-        store.consume_oauth_state(state)   # First consume — should work
-        assert store.consume_oauth_state(state) is None   # Second — should be None
+        store.consume_oauth_state(state)  # First consume — should work
+        assert store.consume_oauth_state(state) is None  # Second — should be None
 
     def test_consume_missing_state_returns_none(self):
         store = _make_store()
@@ -143,6 +148,7 @@ class TestSessionStore:
         # (the JWT the client sees doesn't contain sg_token — tested in SSO tests)
         raw = store._client.get(f"dna:session:{session.session_id}")
         import json
+
         data = json.loads(raw)
         assert "sg_token" in data  # server has it
         # (The client JWT is minted separately without sg_token — see SSO tests)
@@ -157,6 +163,7 @@ class TestShotGridConnectionPool:
 
     def _make_pool(self, max_size=5, sg_url="https://test.shotgunstudio.com"):
         from dna.auth.connection_pool import ShotGridConnectionPool
+
         with patch.dict("os.environ", {"SHOTGRID_URL": sg_url}):
             pool = ShotGridConnectionPool(max_size=max_size)
         return pool
@@ -166,7 +173,9 @@ class TestShotGridConnectionPool:
         pool = self._make_pool()
         session_id = str(uuid.uuid4())
         conn = pool.get(session_id=session_id, sg_token="tok-1")
-        mock_sg.assert_called_once_with("https://test.shotgunstudio.com", session_token="tok-1")
+        mock_sg.assert_called_once_with(
+            "https://test.shotgunstudio.com", session_token="tok-1"
+        )
         assert pool.size == 1
 
     @patch("dna.auth.connection_pool.Shotgun")
@@ -185,9 +194,9 @@ class TestShotGridConnectionPool:
         pool = self._make_pool()
         sid = str(uuid.uuid4())
         pool.get(sid, "tok-old")
-        pool.get(sid, "tok-new")   # Different token — stale
+        pool.get(sid, "tok-new")  # Different token — stale
         assert mock_sg.call_count == 2  # Two connections created
-        assert pool.size == 1           # Only one entry (replaced, not added)
+        assert pool.size == 1  # Only one entry (replaced, not added)
 
     @patch("dna.auth.connection_pool.Shotgun")
     def test_lru_eviction_at_max_size(self, mock_sg):
@@ -224,17 +233,19 @@ class TestShotGridConnectionPool:
     def test_stats_hit_rate(self, mock_sg):
         pool = self._make_pool()
         sid = str(uuid.uuid4())
-        pool.get(sid, "tok")   # miss
-        pool.get(sid, "tok")   # hit
-        pool.get(sid, "tok")   # hit
+        pool.get(sid, "tok")  # miss
+        pool.get(sid, "tok")  # hit
+        pool.get(sid, "tok")  # hit
         stats = pool.stats
         assert stats["hits"] == 2
         assert stats["misses"] == 1
         assert stats["hit_rate"] == pytest.approx(2 / 3, rel=0.01)
 
     def test_missing_sg_url_raises(self):
-        from dna.auth.connection_pool import ShotGridConnectionPool
         import os
+
+        from dna.auth.connection_pool import ShotGridConnectionPool
+
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("SHOTGRID_URL", None)
             with pytest.raises(ValueError, match="SHOTGRID_URL"):
@@ -250,8 +261,9 @@ class TestSGTokenSet:
     """Tests for SGTokenSet token lifecycle helpers."""
 
     def test_should_refresh_when_near_expiry(self):
-        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
         import time
+
+        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
 
         token = SGTokenSet(
             access_token="tok",
@@ -264,8 +276,9 @@ class TestSGTokenSet:
         assert ShotGridAuthClient.should_refresh(token) is True
 
     def test_should_not_refresh_when_fresh(self):
-        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
         import time
+
+        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
 
         token = SGTokenSet(
             access_token="tok",
@@ -277,8 +290,9 @@ class TestSGTokenSet:
         assert ShotGridAuthClient.should_refresh(token) is False
 
     def test_is_expired_when_past_lifetime(self):
-        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
         import time
+
+        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
 
         token = SGTokenSet(
             access_token="tok",
@@ -290,8 +304,9 @@ class TestSGTokenSet:
         assert ShotGridAuthClient.is_expired(token) is True
 
     def test_is_not_expired_when_within_lifetime(self):
-        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
         import time
+
+        from dna.auth.shotgrid_auth_client import SGTokenSet, ShotGridAuthClient
 
         token = SGTokenSet(
             access_token="tok",
@@ -314,13 +329,18 @@ class TestShotGridSSOProvider:
     def _make_provider(self, secret="test-secret-key-32-chars-minimum!!"):
         import os
         from unittest.mock import MagicMock
-        with patch.dict(os.environ, {
-            "JWT_SECRET_KEY": secret,
-            "JWT_ALGORITHM": "HS256",
-            "JWT_EXPIRE_MINUTES": "60",
-            "SHOTGRID_URL": "https://test.shotgunstudio.com",
-        }):
+
+        with patch.dict(
+            os.environ,
+            {
+                "JWT_SECRET_KEY": secret,
+                "JWT_ALGORITHM": "HS256",
+                "JWT_EXPIRE_MINUTES": "60",
+                "SHOTGRID_URL": "https://test.shotgunstudio.com",
+            },
+        ):
             from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
+
             provider = ShotGridSSOProvider.__new__(ShotGridSSOProvider)
             provider._secret = secret
             provider._algorithm = "HS256"
@@ -344,12 +364,13 @@ class TestShotGridSSOProvider:
         provider._sessions.create_session(session)
 
         token = provider._mint_jwt(
-            jti=jti, session_id=session_id,
-            email="jane@studio.com", name="Jane", sg_user_id=42
+            jti=jti,
+            session_id=session_id,
+            email="jane@studio.com",
+            name="Jane",
+            sg_user_id=42,
         )
-        claims = pyjwt.decode(
-            token, provider._secret, algorithms=["HS256"]
-        )
+        claims = pyjwt.decode(token, provider._secret, algorithms=["HS256"])
 
         # Must have session_id (server lookup key)
         assert "session_id" in claims
@@ -365,8 +386,11 @@ class TestShotGridSSOProvider:
         session = _make_session(session_id=session_id, jti=jti)
         provider._sessions.create_session(session)
         token = provider._mint_jwt(
-            jti=jti, session_id=session_id,
-            email="jane@studio.com", name="Jane", sg_user_id=42
+            jti=jti,
+            session_id=session_id,
+            email="jane@studio.com",
+            name="Jane",
+            sg_user_id=42,
         )
         # Token should be valid before revocation
         claims = provider.validate_token(token)
@@ -384,8 +408,11 @@ class TestShotGridSSOProvider:
         session = _make_session(session_id=session_id, jti=jti)
         provider._sessions.create_session(session)
         token = provider._mint_jwt(
-            jti=jti, session_id=session_id,
-            email="jane@studio.com", name="Jane", sg_user_id=42
+            jti=jti,
+            session_id=session_id,
+            email="jane@studio.com",
+            name="Jane",
+            sg_user_id=42,
         )
         provider.revoke_token(token)
         assert provider._sessions.get_session(session_id) is None
@@ -393,14 +420,14 @@ class TestShotGridSSOProvider:
 
     def test_refresh_within_grace_period(self):
         import jwt as pyjwt
+
         from dna.auth.shotgrid_auth_client import SGTokenSet
 
         provider = self._make_provider()
         session_id = str(uuid.uuid4())
         old_jti = str(uuid.uuid4())
         session = _make_session(
-            session_id=session_id, jti=old_jti,
-            refresh_token="autodesk-refresh-tok"
+            session_id=session_id, jti=old_jti, refresh_token="autodesk-refresh-tok"
         )
         provider._sessions.create_session(session)
 
@@ -416,13 +443,13 @@ class TestShotGridSSOProvider:
         expired_token = pyjwt.encode(payload, provider._secret, algorithm="HS256")
 
         # Mock Autodesk refresh
-        
+
         provider._sg_auth.refresh_tokens.return_value = SGTokenSet(
-                access_token="new-sg-tok",
-                refresh_token="new-refresh-tok",
-                token_type="Bearer",
-                expires_in=3600,
-            )
+            access_token="new-sg-tok",
+            refresh_token="new-refresh-tok",
+            token_type="Bearer",
+            expires_in=3600,
+        )
 
         result = provider.refresh_access_token(expired_token)
         assert "access_token" in result
@@ -459,8 +486,11 @@ class TestShotGridSSOProvider:
         session = _make_session(session_id=session_id, jti=jti)
         provider._sessions.create_session(session)
         token = provider._mint_jwt(
-            jti=jti, session_id=session_id,
-            email="jane@studio.com", name="Jane", sg_user_id=42
+            jti=jti,
+            session_id=session_id,
+            email="jane@studio.com",
+            name="Jane",
+            sg_user_id=42,
         )
         retrieved_session = provider.get_session_for_request(token)
         assert retrieved_session.sg_token == "opaque-sg-token"
@@ -473,8 +503,11 @@ class TestShotGridSSOProvider:
         session = _make_session(session_id=session_id, jti=jti)
         provider._sessions.create_session(session)
         token = provider._mint_jwt(
-            jti=jti, session_id=session_id,
-            email="jane@studio.com", name="Jane", sg_user_id=42
+            jti=jti,
+            session_id=session_id,
+            email="jane@studio.com",
+            name="Jane",
+            sg_user_id=42,
         )
         provider._sessions.revoke_token(jti, 3600)
         with pytest.raises(ValueError, match="revoked"):
@@ -496,6 +529,7 @@ class TestShotgridProviderProductionMode:
 
         with _patch.dict(os.environ, {"SHOTGRID_URL": "https://sg.example.com"}):
             from dna.auth.connection_pool import ShotGridConnectionPool
+
             pool = ShotGridConnectionPool()
 
             session_id = str(uuid.uuid4())
@@ -510,11 +544,12 @@ class TestShotgridProviderProductionMode:
                 sg_token_hash=hashlib.sha256(sg_token.encode()).hexdigest(),
             )
 
-            with _patch("dna.auth.connection_pool.get_connection_pool", return_value=pool):
+            with _patch(
+                "dna.auth.connection_pool.get_connection_pool", return_value=pool
+            ):
                 from dna.prodtrack_providers.shotgrid import ShotgridProvider
-                provider = ShotgridProvider(
-                    user_token=sg_token, session_id=session_id
-                )
+
+                provider = ShotgridProvider(user_token=sg_token, session_id=session_id)
                 # Should get connection from pool, not create new Shotgun()
                 assert provider.sg is mock_conn
                 mock_sg_direct.assert_not_called()
@@ -522,8 +557,10 @@ class TestShotgridProviderProductionMode:
     @patch("dna.prodtrack_providers.shotgrid.Shotgun")
     def test_sudo_in_user_token_mode_is_noop(self, mock_sg):
         import os
+
         with patch.dict(os.environ, {"SHOTGRID_URL": "https://sg.example.com"}):
             from dna.prodtrack_providers.shotgrid import ShotgridProvider
+
             provider = ShotgridProvider(user_token="tok")
             original_conn = provider.sg
             with provider.sudo("some-user"):

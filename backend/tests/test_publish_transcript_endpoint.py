@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
+from main import app, get_storage_provider_cached, get_user_scoped_prodtrack_provider
 
 from dna.models.playlist_metadata import PlaylistMetadata
 from dna.models.published_transcript import PublishedTranscript
@@ -86,7 +86,9 @@ class TestPublishTranscriptEndpoint:
     @pytest.fixture
     def override_deps(self, mock_storage, mock_prodtrack):
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_user_scoped_prodtrack_provider] = (
+            lambda: mock_prodtrack
+        )
         yield
         app.dependency_overrides.clear()
 

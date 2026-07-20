@@ -42,7 +42,6 @@ from typing import Optional
 
 from shotgun_api3 import Shotgun
 
-
 # ── Pool entry ────────────────────────────────────────────────────────────────
 
 
@@ -50,7 +49,7 @@ from shotgun_api3 import Shotgun
 class _PoolEntry:
     conn: Shotgun
     session_id: str
-    sg_token_hash: str        # SHA-256 of sg_token — for staleness detection
+    sg_token_hash: str  # SHA-256 of sg_token — for staleness detection
     last_used: float = field(default_factory=time.monotonic)
     created_at: float = field(default_factory=time.monotonic)
 
@@ -88,13 +87,9 @@ class ShotGridConnectionPool:
         max_size: Optional[int] = None,
         max_idle_seconds: Optional[float] = None,
     ) -> None:
-        self.sg_url: str = (
-            sg_url or os.getenv("SHOTGRID_URL") or ""
-        ).rstrip("/")
+        self.sg_url: str = (sg_url or os.getenv("SHOTGRID_URL") or "").rstrip("/")
         if not self.sg_url:
-            raise ValueError(
-                "SHOTGRID_URL is required for ShotGridConnectionPool."
-            )
+            raise ValueError("SHOTGRID_URL is required for ShotGridConnectionPool.")
         self.max_size: int = max_size or int(os.getenv("SG_POOL_MAX_SIZE", "200"))
         self.max_idle_seconds: float = max_idle_seconds or float(
             os.getenv("SG_POOL_MAX_IDLE_SEC", "3600")

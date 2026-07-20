@@ -1,46 +1,41 @@
 # DNA Authentication — Code Changes Summary
 
-**Branch:** `dna/issue55-token-based-authentication-for-backend-API-endpoints`  
+**Branch:** `dna/issue55-Autodesk-PAT-based-authentication-for-backend-API-endpoints`  
 **Author:** Srijan Tripathi  
-**Date:** May 2026
+**Date:** July 2026
 
 ---
 
 ## 1. Overview
 
-This change replaces DNA's original single-method authentication (ShotGrid username + password only) with a **multi-provider authentication system** supporting three login methods:
+This change implements **PAT (Personal Access Token) based authentication** for DNA — specifically the legacy ShotGrid username + password flow — without ever storing the password in the session.
 
 | Method | Description |
 |--------|-------------|
-| **ShotGrid PAT** | Username + ShotGrid Legacy Password (original method, kept) |
-| **ShotGrid SSO (Autodesk APS)** | OAuth2 popup via Autodesk Platform Services |
-| **Google OAuth2** | Sign in with Google account |
+| **ShotGrid PAT** | Username + ShotGrid Legacy Password (verified once, password discarded) |
 
-All three methods produce the same result: a short-lived **DNA JWT** stored client-side, with the actual credentials (ShotGrid token, Google token) stored **server-side in MongoDB** (or optionally Redis) and never exposed to the browser.
+The core principle: after ShotGrid validates the user's password at login, the password is **thrown away**. All subsequent ShotGrid queries run via the server's script account with `sudo_as_login=<username>`, so ShotGrid still enforces the user's own native permission group — but without keeping any user credential alive in the session.
 
 ---
 
 ## 2. Problem Statement
 
-The original implementation had several gaps:
+The original implementation had several gaps addressed in this PR:
 
-- **Single auth method only** — only username + password (ShotGrid PAT) was supported
-- **No SSO** — users at studios using Autodesk cloud (ASWF) had no single sign-on option  
-- **No Google auth** — no alternative for users who don't have ShotGrid credentials  
-- **Insecure token handling** — the ShotGrid session token was stored in browser localStorage, exposing it to XSS attacks
-- **No session invalidation** — logging out did not revoke the token server-side
-- **Stale session bug** — after a backend restart, the browser would silently use an expired session and receive 401 errors on every API call with no clear indication to re-login
+- **Password stored in session** — ShotGrid username + password were kept in MongoDB sessions, which was flagged as a security risk. Stolen session data could expose ShotGrid credentials.
+- **No session backend abstraction** — only Redis was supported; MongoDB (already in the stack) couldn't be used as an alternative.
+- **`sudo_as_login` not used** — API calls to ShotGrid were either made with a script account (bypassing user permissions) or would have required a stored credential. This PR adds proper user-identity propagation via `sudo_as_login`.
+- **Authorization bypass in `/projects/user/{email}`** — any authenticated user could read any other user's project list by substituting a different email in the URL path.
+- **Inconsistent `self._sg` usage** — `search()` and `get_version_statuses()` called `self.sg.find()` directly (bypassing sudo), so the script account's permissions were used instead of the user's.
 
 ---
 
 ## 3. Architecture: How Authentication Works
 
-### 3.1 ShotGrid PAT Login Flow (fully satisfies Issue #55)
-
-The PAT flow is the primary path that satisfies the issue's core requirement: every ShotGrid query runs under the **user's own token**, so ShotGrid enforces its native permission model.
+### 3.1 Phase 1 — PAT Login (password verified then discarded)
 
 ```
-Browser              Backend (FastAPI)         ShotGrid API          Redis
+Browser              Backend (FastAPI)         ShotGrid API          MongoDB
   │                        │                        │                   │
   │  POST /auth/login      │                        │                   │
   │  { username, password }│                        │                   │
@@ -56,6 +51,9 @@ Browser              Backend (FastAPI)         ShotGrid API          Redis
   │                        │    refresh_token }     │  database         │
   │                        │ <──────────────────────│                   │
   │                        │                        │                   │
+  │                        │  *** PASSWORD          │                   │
+  │                        │      DISCARDED ***     │                   │
+  │                        │                        │                   │
   │                        │  find_one("HumanUser", │                   │
   │                        │   [["email","is",      │                   │
   │                        │     username]])        │                   │
@@ -66,121 +64,106 @@ Browser              Backend (FastAPI)         ShotGrid API          Redis
   │                        │ <─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                   │
   │                        │                        │                   │
   │                        │  UserSession {         │                   │
-  │                        │   session_id: uuid,    │                   │
-  │                        │   jti: uuid,           │                   │
-  │                        │   email: <from SG>,    │  SETEX (8hr TTL)  │
-  │                        │   name:  <from SG>,    │ ─────────────────>│
-  │                        │   sg_user_id: <from SG>│                   │
-  │                        │   sg_token: <SG token> │                   │
-  │                        │   auth_provider: "pat"}│                   │
+  │                        │   session_id: uuid,    │   insert_one      │
+  │                        │   jti: uuid,           │   (8hr TTL index) │
+  │                        │   email: <from SG>,    │ ─────────────────>│
+  │                        │   name:  <from SG>,    │                   │
+  │                        │   auth_provider: "pat",│                   │
+  │                        │   shotgrid: {          │  stored; NO       │
+  │                        │     user_id: <int>,    │  password field   │
+  │                        │     username: <login>, │                   │
+  │                        │     access_token: ..., │                   │
+  │                        │     refresh_token: ... │                   │
+  │                        │   }}                   │                   │
   │                        │                        │                   │
-  │  DNA JWT               │                        │                   │
+  │  DNA JWT (the "Key")   │                        │                   │
   │  { jti, session_id,    │                        │                   │
   │    email, exp }        │                        │                   │
-  │  ──────────────────────│  ← no credentials      │                   │
+  │ <──────────────────────│  ← no credentials      │                   │
   │  (stored in browser    │    inside the JWT      │                   │
   │   sessionStorage)      │                        │                   │
-  │                        │                        │                   │
-  │                        │                        │                   │
-  │  ══ Every subsequent API call ══════════════════════════════════════│
-  │                        │                        │                   │
-  │  GET /projects/user/.. │                        │                   │
-  │  Authorization:        │                        │                   │
-  │    Bearer <DNA JWT>    │                        │                   │
-  │ ──────────────────────>│                        │                   │
-  │                        │  1. verify JWT         │                   │
-  │                        │     signature + expiry │                   │
-  │                        │  2. check jti not in   │                   │
-  │                        │     blocklist          │                   │
-  │                        │  3. GET session        │                   │
-  │                        │     → fetch sg_token   │ ─────────────────>│
-  │                        │                        │  <────────────────│
-  │                        │  4. SG query with      │                   │
-  │                        │     USER'S OWN token   │                   │
-  │                        │  ─────────────────────>│                   │
-  │                        │                        │  ShotGrid enforces│
-  │                        │                        │  user's own       │
-  │                        │                        │  permissions      │
-  │                        │  project list          │                   │
-  │                        │ <──────────────────────│                   │
-  │  project list          │                        │                   │
-  │ <──────────────────────│                        │                   │
 ```
 
-**Why user identity is NOT hardcoded for PAT:**
-
-After ShotGrid validates the password and returns an `access_token`, the backend immediately makes a second call to ShotGrid to look up the real `HumanUser` record by email:
+**Code — how the password is discarded:**
 
 ```python
-# Step 1 — get user's ShotGrid access token
+# Step 1 — verify user's identity via ShotGrid
 sg_token_set = sg_auth.login_user(username, password)
-#   → calls POST /api/v1/auth/access_token with grant_type=password
-#   → ShotGrid validates credentials against its own user database
-#   → returns access_token + refresh_token
+# password validated by ShotGrid; access_token + refresh_token returned
 
-# Step 2 — look up real user identity from ShotGrid
+# Step 2 — look up canonical user record (id, real email, login name)
 user_info = sg_auth.get_user_info(sg_token_set.access_token, username=username)
-#   → queries ShotGrid HumanUser entity by email using script credentials
-#   → returns: sg_user_id (real integer SG ID), name, email, login
-#   → ALL VALUES come from ShotGrid — nothing is hardcoded
+# all values come from ShotGrid — nothing hardcoded
 
-# Step 3 — store in Redis
-session = UserSession(
-    email    = user_info.email,       # ← from ShotGrid, not from login form
-    name     = user_info.name,        # ← from ShotGrid
-    sg_user_id = user_info.sg_user_id,# ← real ShotGrid integer ID
-    sg_token = sg_token_set.access_token,  # ← user's personal SG token
-    ...
+# Step 3 — build session; password is simply NOT passed
+shotgrid = ShotGridCredentials(
+    user_id       = user_info.sg_user_id,       # ShotGrid integer PK
+    username      = username,                    # login name for sudo_as_login
+    access_token  = sg_token_set.access_token,   # stored for token refresh only
+    refresh_token = sg_token_set.refresh_token,
+    # password is verified once to confirm identity, then discarded
 )
 ```
 
-The `sg_user_id` in the Redis session is the actual integer primary key of the `HumanUser` record in ShotGrid's database — fetched live at login time, never hardcoded.
-
-**Fallback:** If `SHOTGRID_SCRIPT_NAME` and `SHOTGRID_API_KEY` are not configured, the backend trusts the authenticated email directly and sets `sg_user_id=0`. This is a degraded mode — the email-based identification still works for DNA, but the numeric ShotGrid user ID won't be available. For production the script credentials should always be set.
+`username` (the ShotGrid login name) is safe to store — it is the user's public identifier, not a credential.
 
 ---
 
-### 3.2 Request Lifecycle (all auth methods)
+### 3.2 Phase 2 — Per-Request ShotGrid Call (`sudo_as_login`)
 
 ```
-Browser                    Backend                       Redis
-  │                           │                             │
-  │  GET /projects            │                             │
-  │  Bearer: <DNA JWT>        │                             │
-  │ ─────────────────────────>│                             │
-  │                           │  decode + verify JWT sig    │
-  │                           │  check jti not in blocklist │──> GET dna:blocklist:{jti}
-  │                           │  extract session_id         │
-  │                           │  fetch full session         │──> GET dna:session:{id}
-  │                           │<────────────────────────────│
-  │                           │  use sg_token from session  │
-  │                           │  call ShotGrid API ────────>  (user's own perms)
-  │  response                 │<────────────────────────────
-  │<──────────────────────────│
+Browser                    Backend                          ShotGrid API       MongoDB
+  │                           │                                  │                │
+  │  GET /projects/user/{e}   │                                  │                │
+  │  Authorization: Bearer    │                                  │                │
+  │    <DNA JWT>              │                                  │                │
+  │ ─────────────────────────>│                                  │                │
+  │                           │  1. verify JWT sig + expiry      │                │
+  │                           │  2. check jti not revoked        │                │
+  │                           │  3. check path email matches     │                │
+  │                           │     JWT email (403 if not)       │                │
+  │                           │  4. get_session(session_id) ─────────────────────>│
+  │                           │<─────────────────────────────────────────────────│
+  │                           │     → session.sg_username                         │
+  │                           │                                  │                │
+  │                           │  ShotgridProvider(               │                │
+  │                           │    sudo_user=username)           │                │
+  │                           │                                  │                │
+  │                           │  self._sg.find(...)              │                │
+  │                           │  = script account +              │                │
+  │                           │    sudo_as_login=username ───────>                │
+  │                           │                                  │  enforces user's│
+  │                           │                                  │  permission     │
+  │                           │                                  │  group natively │
+  │                           │<─────────────────────────────────                │
+  │ <─────────────────────────│                                  │                │
 ```
 
-**Key security properties:**
-- The DNA JWT contains only: `jti` (unique ID), `session_id`, `email`, `exp` — **no credentials**
-- The real ShotGrid token lives only in Redis with an 8-hour TTL — never sent to the browser
-- Token revocation: logout adds `jti` to a Redis blocklist and deletes the session — the token cannot be replayed even if intercepted
-- Every request makes a live Redis lookup — if the session is gone (logout, expiry, restart), it fails immediately with 401
-- ShotGrid queries run under the user's own token → ShotGrid enforces their native project permissions
+**How `sudo_as_login` works:**
+
+`shotgun_api3` supports `sudo_as_login`, which instructs ShotGrid to execute the query *as if* the named user made it, while the script account provides authentication. ShotGrid enforces the sudo user's own native permission group — identical to if they had logged in directly. This is Autodesk's recommended identity-broker pattern for server-to-server integrations.
+
+```python
+# get_prodtrack_provider() — resolves the right ShotGrid connection per request
+if user_token:
+    store = get_session_store()
+    session = store.get_session(session_id) if session_id else None
+    sudo_login = session.sg_username if (session and session.sg_username) else user_token
+    return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
+```
+
+`user_token` is a presence signal (confirms authenticated PAT session), not a credential. The actual identity anchor is `session.sg_username` fetched from MongoDB.
 
 ---
 
-### 3.3 Limitations of Google Auth (outside Issue #55 scope)
+### 3.3 Key Security Properties
 
-Google authentication is an **addition** to this PR, not part of the original issue. Because a Google account has no inherent link to a ShotGrid account, Google users cannot have a personal ShotGrid token. Instead:
-
-```
-Google User request
-  → Redis session: { auth_provider: "google", sg_token: "" }
-  → Backend detects no sg_token
-  → Falls back to SHOTGRID_API_KEY (script/service account)
-  → ShotGrid query runs as service account, NOT the user
-```
-
-This means Google users see whatever the service account can see — **ShotGrid's per-user permission model is not enforced for Google sessions**. This is a known gap. Full implementation would require linking the Google account to a ShotGrid user record (email match or one-time confirmation step).
+- **No password stored anywhere** — password goes in, hits ShotGrid's API over HTTPS, and is immediately GC'd. Not in MongoDB, not in logs, not in the JWT.
+- **DNA JWT carries no credentials** — `{ jti, session_id, email, exp }` only.
+- **MongoDB is the source of truth** — a JWT is only valid if `session_id` resolves to a live MongoDB document (8h TTL); no session → 401 immediately.
+- **JWT revocation** — logout deletes the session document and adds `jti` to the blocklist, preventing replay for the token's remaining lifetime.
+- **User permissions enforced by ShotGrid** — `sudo_as_login` makes ShotGrid apply the user's own permission group; no custom permission logic in DNA.
+- **Authorization check on path parameter** — `GET /projects/user/{email}` returns 403 if the JWT email doesn't match the path email, preventing cross-user data access.
 
 ---
 
@@ -188,55 +171,38 @@ This means Google users see whatever the service account can see — **ShotGrid'
 
 ### 4.1 `backend/src/dna/auth/session_store.py`
 
-**What changed (three independent improvements):**
+Three independent improvements:
 
-#### A. MongoDB as the default session backend (replaces Redis)
+#### A. `ShotGridCredentials` — password field removed entirely
 
-Previously, sessions were stored in Redis — a separate service that had to run alongside the backend. The team noted that MongoDB is already in the DNA stack for storage, so adding Redis for sessions was an unnecessary extra dependency.
+The `password: Optional[str]` field has been **removed** — not made `None` by default, not made optional in a different way, but removed from the dataclass entirely. The password is now discarded at the point of ShotGrid verification and never reaches the session store.
 
-The file now ships two concrete implementations behind an `AbstractSessionStore` interface, and the backend env var `SESSION_BACKEND` selects which one to use:
+```python
+# Before — password field existed on the credentials dataclass
+@dataclass
+class ShotGridCredentials:
+    user_id: int
+    username: str = ""
+    access_token: str = ""
+    refresh_token: Optional[str] = None
+    password: Optional[str] = None   # ← REMOVED (security risk)
 
+# After — no password field
+@dataclass
+class ShotGridCredentials:
+    user_id: int
+    username: str = ""               # ShotGrid login name for sudo_as_login
+    access_token: str = ""           # ShotGrid Bearer token (for token refresh)
+    refresh_token: Optional[str] = None
 ```
-SESSION_BACKEND=mongo   ← default, uses existing MongoDB, no extra service
-SESSION_BACKEND=redis   ← opt-in, for deployments that already have Redis
-```
 
-MongoDB stores sessions in three collections with TTL indexes so expired documents are automatically cleaned up:
-
-```
-dna_sessions        ← user sessions (8-hour TTL)
-dna_oauth_states    ← CSRF state tokens (10-minute TTL)
-dna_token_blocklist ← revoked JWT jti values
-```
+The `username` field (ShotGrid login name) is the stable identity anchor enabling `sudo_as_login`. Safe to persist — it is the user's public ShotGrid username, not a secret.
 
 #### B. SOLID restructuring — `ShotGridCredentials` nested dataclass
 
-Previously, ShotGrid-specific fields (`sg_token`, `sg_user_id`, `sg_password`, `refresh_token`) were flat fields on `UserSession`. This made it hard for developers adding a new provider (Ftrack, Kitsu, etc.) to know which fields were generic vs ShotGrid-specific.
-
-Following the **Open/Closed Principle** — open for extension, closed for modification — provider-specific credentials are now nested in typed dataclasses:
+ShotGrid-specific fields are isolated in a nested dataclass instead of being flat on `UserSession`. Following the Open/Closed Principle — a new provider (Ftrack, Kitsu, etc.) adds its own dataclass and an `Optional` field on `UserSession` without touching existing ShotGrid code.
 
 ```python
-# Before — ShotGrid-specific fields mixed with generic identity
-@dataclass
-class UserSession:
-    session_id: str
-    jti: str
-    email: str
-    name: str
-    auth_provider: str
-    sg_user_id: int          # ← ShotGrid-specific
-    sg_token: str            # ← ShotGrid-specific
-    refresh_token: str       # ← ShotGrid-specific
-    sg_password: str         # ← ShotGrid-specific
-
-# After — generic identity at top level, ShotGrid fields isolated
-@dataclass
-class ShotGridCredentials:         # NEW: ShotGrid-specific credentials
-    user_id: int
-    access_token: str
-    refresh_token: Optional[str] = None
-    password: Optional[str] = None   # PAT path only
-
 @dataclass
 class UserSession:
     session_id: str
@@ -250,214 +216,82 @@ class UserSession:
     # future: ftrack: Optional[FtrackCredentials] = None
 ```
 
-A developer adding Ftrack support would:
-1. Create `FtrackCredentials` dataclass
-2. Add `ftrack: Optional[FtrackCredentials] = None` to `UserSession`
-3. **Never touch any existing ShotGrid code**
+Legacy property aliases (`sg_token`, `sg_user_id`, `sg_username`, `refresh_token`) remain on `UserSession` for backward compat.
 
-Legacy property aliases (`sg_token`, `sg_user_id`, `sg_password`, `refresh_token`) are kept on `UserSession` so all existing call-sites continue to work during the transition.
+#### C. MongoDB as the default session backend
 
-#### C. `AbstractSessionStore` ABC interface
+Sessions default to MongoDB (`SESSION_BACKEND=mongo`) — using the same instance already running for DNA data.
 
-The new abstract base class means any future storage backend (DynamoDB, Postgres, Redis Cluster) can be added by implementing 9 methods — without touching any application code.
+```
+dna_sessions        ← user sessions (8-hour TTL index on expires_at)
+dna_oauth_states    ← CSRF state tokens (10-minute TTL)
+dna_token_blocklist ← revoked JWT jti values
+```
+
+`AbstractSessionStore` ABC ensures any future backend (Redis, DynamoDB, Postgres) can be swapped in without touching application code.
 
 ---
 
 ### 4.2 `backend/src/dna/auth_providers/shotgrid_sso.py`
 
-This is the main auth provider class. Three significant additions:
-
-#### A. `get_login_info()` — multi-provider mode discovery
-
-The frontend calls `GET /auth/login` on startup to discover which login methods are available. Previously it returned a single `mode: "pat"` or `mode: "sso"`. Now it returns a structured object:
-
-```json
-{
-  "modes": {
-    "shotgrid_pat": { "enabled": true },
-    "shotgrid_sso": { "enabled": true, "redirect_url": "https://..." },
-    "google":       { "enabled": true }
-  }
-}
-```
-
-- `shotgrid_pat` is always enabled (no env vars required)
-- `shotgrid_sso` is enabled when `SHOTGRID_CLIENT_ID` is set in the environment
-- `google` is enabled when `GOOGLE_CLIENT_ID` is set in the environment
-- Legacy `mode` and `redirect_url` fields are still returned for backward compatibility
-
-#### B. `handle_google_login(google_token)` — new Google auth path
-
-```
-Browser                        Backend
-  │                               │
-  │── POST /auth/google/login ───>│
-  │   { token: <google_token> }   │── GoogleAuthProvider.validate_token()
-  │                               │       └── calls Google tokeninfo API
-  │                               │       └── calls Google userinfo API
-  │                               │── create UserSession (auth_provider="google")
-  │                               │── store in Redis
-  │<── DNA JWT ───────────────────│
-```
-
-The Google access token is validated server-side against Google's API — it is **never trusted blindly**. After validation, the session is tagged `auth_provider="google"` so downstream code knows not to use ShotGrid credentials.
-
-#### C. `_build_sg_oauth2_redirect()` — APS OAuth2 popup flow
-
-Builds the Autodesk Platform Services authorization URL for the ShotGrid SSO popup. Key fixes applied during development:
-- Removed unsupported `nonce` parameter (APS v2 rejects it)
-- Scopes set to `openid user-profile:read data:read`
-
----
-
-### 4.3 `backend/src/main.py`
-
-Three changes:
-
-#### A. `POST /auth/google/login` — new endpoint
+**`login()` method** — password is verified via `login_user(username, password)` to obtain the ShotGrid access token, but is not passed to `ShotGridCredentials`. The `username` is stored for `sudo_as_login`.
 
 ```python
-@app.post("/auth/google/login")
-async def auth_google_login(body: GoogleLoginRequest, auth_provider: AuthProviderDep):
-    return auth_provider.handle_google_login(body.token)
+shotgrid = ShotGridCredentials(
+    user_id       = user_info.sg_user_id,
+    username      = username,                    # used as sudo_as_login on every request
+    access_token  = sg_token_set.access_token,
+    refresh_token = sg_token_set.refresh_token,
+    # password is verified once here to confirm identity, then discarded
+)
 ```
 
-Accepts a Google OAuth2 access token from the browser and returns a DNA JWT. Errors produce HTTP 401 with a descriptive message.
+---
 
-#### B. `get_user_scoped_prodtrack_provider` — Google session support
+### 4.3 `backend/src/dna/prodtrack_providers/prodtrack_provider_base.py`
 
-Every API endpoint that needs ShotGrid data uses this FastAPI dependency. It was updated to skip ShotGrid token lookup for Google sessions and fall back to the service account (script credentials):
+**`get_prodtrack_provider()`** — removed the old login+password branch. Now always routes authenticated sessions through `ShotgridProvider(sudo_user=session.sg_username)`.
 
 ```python
-# Before: always tried to get user's SG token (fails for Google users)
-sg_token = session.sg_token
+# Before — had a branch attempting to authenticate with stored password
+if session.sg_password and session.sg_username:
+    return ShotgridProvider(login=..., password=...)   # ← REMOVED
 
-# After: only use user token for ShotGrid sessions
-if session.auth_provider != "google" and session.sg_token:
-    sg_token = session.sg_token
-# Google users → sg_token stays None → uses script credentials
+# After — always use script account + sudo_as_login
+if user_token:
+    store = get_session_store()
+    session = store.get_session(session_id) if session_id else None
+    sudo_login = session.sg_username if (session and session.sg_username) else user_token
+    return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
 ```
 
-#### C. `GET /auth/me` — proper session expiry handling
+---
 
-This endpoint is called by the frontend on every page load to validate the stored JWT. Previously it silently ignored a missing Redis session and returned HTTP 200 — so a backend restart (which wipes Redis) would let users reach the app with dead sessions that then got 401 on every API call.
+### 4.4 `backend/src/dna/prodtrack_providers/shotgrid.py`
+
+Two sudo-context propagation fixes:
+
+- **B-02** — `search()` (~line 507): `self.sg.find(` → `self._sg.find(`
+- **B-03** — `get_version_statuses()` (~line 669): `self.sg.schema_field_read(` → `self._sg.schema_field_read(`
+
+`self._sg` returns the active sudo connection (script account + `sudo_as_login`). `self.sg` is the raw script connection that bypasses sudo. These two methods were accidentally running under the script account's permissions rather than the user's.
+
+---
+
+### 4.5 `backend/src/main.py`
+
+**S-07 fix** — `GET /projects/user/{email}` now validates path email matches JWT email:
 
 ```python
-# Before
-except ValueError:
-    pass   # silently returns 200 even when session is gone
-
-# After
-except ValueError as exc:
-    raise HTTPException(status_code=401, detail=str(exc))
-    # Frontend sees 401 → clears token → shows login page
+async def get_projects_for_user(
+    user_email: str, provider: ProdtrackProviderDep, current_user: CurrentUserDep
+) -> list[Project]:
+    if os.getenv("AUTH_PROVIDER", "none") != "none" and not emails_match(current_user, user_email):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return provider.get_projects_for_user(user_email)
 ```
 
----
-
-### 4.4 `frontend/packages/app/src/contexts/ShotGridAuthContext.tsx`
-
-Complete rewrite. Key changes:
-
-#### A. New types for multi-provider support
-
-```typescript
-export interface LoginModes {
-  shotgrid_pat: { enabled: boolean };
-  shotgrid_sso: { enabled: boolean; redirect_url?: string };
-  google:       { enabled: boolean };
-}
-```
-
-#### B. New auth methods on the context
-
-| Method | Description |
-|--------|-------------|
-| `signIn(username, password)` | ShotGrid PAT login (unchanged) |
-| `signInWithSso('shotgrid_sso')` | Opens Autodesk SSO popup |
-| `signInWithGoogleToken(token)` | Sends Google token to backend, receives DNA JWT |
-
-#### C. Stale session fix — robust mount-time validation
-
-On every page load, the stored JWT is validated against `/auth/me`. The validation now handles **both** HTTP errors and network errors (backend restarting):
-
-```typescript
-// Before: network errors silently kept the stale token
-try {
-  const res = await fetch('/auth/me', ...);
-  if (!res.ok) clearToken();
-} catch { /* token NOT cleared */ }
-
-// After: any failure clears the token
-let tokenValid = false;
-try {
-  tokenValid = (await fetch('/auth/me', ...)).ok;
-} catch {
-  tokenValid = false;  // network error = treat as invalid
-}
-if (!tokenValid) clearToken();  // always clear on any failure
-```
-
-#### D. SSO popup relay via `window.postMessage`
-
-The OAuth2 SSO flow opens a popup window. After Autodesk/Google redirects back, the popup sends the auth code to the parent tab via `postMessage`, then closes itself. The parent tab completes the exchange with the backend. This avoids full-page navigation interrupting the user's context.
-
----
-
-### 4.5 `frontend/packages/app/src/components/ShotGridLoginPage.tsx`
-
-Complete rewrite with a unified multi-provider login UI:
-
-```
-┌─────────────────────────────────┐
-│         [DNA Logo]              │
-│      Sign in to DNA             │
-│   Choose how you'd like to      │
-│         sign in                 │
-│                                 │
-│  CONTINUE WITH                  │
-│  ┌─────────────────────────┐    │
-│  │  G  Sign in with Google │    │
-│  └─────────────────────────┘    │
-│                                 │
-│  ─────── or sign in with ───────│
-│           ShotGrid              │
-│                                 │
-│  [Autodesk SSO] [Password Login]│  ← tabs, shown only if both enabled
-│                                 │
-│  ┌─────────────────────────┐    │
-│  │  Sign in with Autodesk  │    │  ← SSO tab
-│  └─────────────────────────┘    │
-│                                 │
-│  [or]                           │
-│                                 │
-│  Email: ___________________     │  ← PAT tab
-│  Password: _______________      │
-│  [Sign in]                      │
-└─────────────────────────────────┘
-```
-
-Sections appear conditionally based on what the backend reports as enabled:
-- Google button: only if `GOOGLE_CLIENT_ID` is configured
-- Autodesk SSO: only if `SHOTGRID_CLIENT_ID` is configured  
-- Tab switcher: only if **both** SSO and PAT are enabled
-- PAT form: shown directly if SSO is disabled
-
----
-
-### 4.6 `frontend/packages/app/src/main.tsx`
-
-Added conditional `GoogleOAuthProvider` wrapping:
-
-```typescript
-// Only wrap with GoogleOAuthProvider when client ID is available
-// (GoogleOAuthProvider is required by useGoogleLogin hook)
-createRoot(document.getElementById('root')!).render(
-  googleClientId
-    ? <GoogleOAuthProvider clientId={googleClientId}>{app}</GoogleOAuthProvider>
-    : app
-);
-```
+`emails_match()` is case-insensitive. The guard is skipped when `AUTH_PROVIDER=none` (dev mode).
 
 ---
 
@@ -468,76 +302,81 @@ createRoot(document.getElementById('root')!).render(
 | Variable | Required For | Description |
 |----------|-------------|-------------|
 | `AUTH_PROVIDER` | All | Must be `shotgrid` to enable token auth |
+| `SHOTGRID_AUTH_MODE` | All | `pat` — shows username + legacy password login form |
 | `JWT_SECRET_KEY` | All | Secret key for signing DNA JWTs (min 32 chars) |
 | `JWT_EXPIRE_MINUTES` | All | JWT lifetime (default: 480 min = 8 hours) |
-| `SESSION_BACKEND` | All | `mongo` (default) or `redis` — selects session store backend |
-| `MONGODB_URL` | mongo backend | MongoDB connection string (default: `mongodb://localhost:27017`) |
+| `SESSION_BACKEND` | All | `mongo` (default) or `redis` |
+| `MONGODB_URL` | mongo backend | MongoDB connection string (e.g. `mongodb://mongo:27017`) |
 | `MONGODB_DB` | mongo backend | MongoDB database name (default: `dna`) |
-| `REDIS_URL` | redis backend | Redis connection string — only needed when `SESSION_BACKEND=redis` |
 | `SESSION_TTL_SECONDS` | All | Session lifetime (default: 28800 = 8 hours) |
-| `SHOTGRID_CLIENT_ID` | SSO only | APS OAuth2 app client ID — enables Autodesk SSO tab |
-| `SHOTGRID_CLIENT_SECRET` | SSO only | APS OAuth2 app client secret |
-| `AUTH_CALLBACK_URL` | SSO only | Redirect URI registered in APS app (e.g. `http://localhost:8080/auth/callback`) |
-| `GOOGLE_CLIENT_ID` | Google only | Google OAuth2 client ID — enables Google login button |
+| `SHOTGRID_URL` | PAT | ShotGrid instance URL |
+| `SHOTGRID_SCRIPT_NAME` | PAT | Script account name — used for `sudo_as_login` queries |
+| `SHOTGRID_API_KEY` | PAT | Script account API key — used with `sudo_as_login` |
 
-### Frontend (Docker build args)
+### Frontend (`.env` / Docker build args)
 
 | Variable | Description |
 |----------|-------------|
 | `VITE_AUTH_PROVIDER` | Must be `shotgrid` |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth2 client ID (same as backend `GOOGLE_CLIENT_ID`) |
 | `VITE_API_BASE_URL` | Backend API URL |
 
 ---
 
 ## 6. Production Deployment Considerations
 
-### Security
-- **JWTs are short-lived** (8 hours by default, configurable via `JWT_EXPIRE_MINUTES`)
-- **Redis is the source of truth** — a JWT is only valid if its `session_id` exists in Redis; logout immediately invalidates the session server-side
-- **Token revocation** — the `jti` claim is blocklisted in Redis on logout, preventing replay attacks for the token's remaining lifetime
-- **No credentials in JWTs** — ShotGrid tokens and Google tokens never leave the server
+### Password security
+- The user's ShotGrid password is **never persisted** — it exists in memory only for the single HTTPS call to ShotGrid's token endpoint, then is discarded.
+- A compromised MongoDB session exposes the ShotGrid `access_token` (which expires and can be rotated) but never the user's password.
 
-### Session Storage (MongoDB — default)
-- The default `SESSION_BACKEND=mongo` uses the same MongoDB instance already running for DNA's data storage — no extra service needed
-- Sessions are stored in `dna_sessions` with a TTL index; expired documents are cleaned automatically by MongoDB's background TTL thread (runs every ~60 seconds — the brief lag is fine and actually slightly more conservative/secure for blocklist entries)
-- For production, MongoDB should have persistence enabled (default for `mongo:7` with a named volume)
-- To switch to Redis: set `SESSION_BACKEND=redis` and `REDIS_URL` — the rest of the code is unchanged
+### `sudo_as_login` and script account
+- The script account (`SHOTGRID_SCRIPT_NAME` / `SHOTGRID_API_KEY`) must have sufficient ShotGrid permissions to proxy queries for all users. Script accounts are typically created with Admin-equivalent read access.
+- ShotGrid enforces the sudo user's native permission group on every query — DNA does not need to implement its own permission filtering.
 
-### Session Storage (Redis — opt-in)
-- Only needed when `SESSION_BACKEND=redis` is explicitly set
-- Redis must be persistent in production (enable AOF or RDB snapshots) — without persistence, a Redis restart logs out all users
-- The session TTL defaults to 8 hours — configurable via `SESSION_TTL_SECONDS`
+### Session storage (MongoDB — default)
+- Default `SESSION_BACKEND=mongo` reuses the same MongoDB instance as DNA's data storage — no extra service needed in production.
+- Sessions stored in `dna_sessions` with a TTL index; expired documents are cleaned by MongoDB's background TTL thread (runs every ~60 seconds).
+- For production, MongoDB should have persistence enabled (the default for `mongo:7` with a named volume).
 
-### Google OAuth
-- The Google OAuth2 Client ID must have the production domain added to **Authorized JavaScript Origins** in Google Cloud Console
-- The same client ID is used in both backend (`GOOGLE_CLIENT_ID`) and frontend (`VITE_GOOGLE_CLIENT_ID`)
-- Google users use the shared ShotGrid script account for production tracking queries (they don't have a personal ShotGrid token); access control is managed at the application level
-
-### ShotGrid SSO (Autodesk APS)
-- The APS OAuth2 application must be registered as a **Traditional Web App** (not a Hub App) at `aps.autodesk.com/myapps`
-- The `AUTH_CALLBACK_URL` must be registered as a redirect URI in the APS app settings
-- In production this would be `https://your-domain.com/auth/callback`
+### Token revocation
+- Logout deletes the MongoDB session and blocklists the `jti` — token replay is impossible even if the JWT was captured in transit.
+- Blocklist entries may linger up to ~60s past their TTL due to the MongoDB TTL thread cadence; this is strictly more conservative (safer).
 
 ---
 
 ## 7. What Was NOT Changed
 
-- The ShotGrid PAT (username + password) login flow is **fully backward compatible** — existing users are unaffected
-- All downstream API endpoints (`/projects`, `/playlists`, `/versions`, `/notes`, etc.) are unchanged — they continue to accept the same `Authorization: Bearer <jwt>` header
-- The AMI (Application Managed Interface) flow — launching DNA from within ShotGrid via session token — is unchanged
+- The ShotGrid legacy username + password login UX is **unchanged** from the user's perspective.
+- All downstream API endpoints (`/projects`, `/playlists`, `/versions`, `/notes`, etc.) are unchanged — they accept the same `Authorization: Bearer <jwt>` header.
+- The AMI (Application Managed Interface) flow — launching DNA from within ShotGrid via session token — is out of scope for this PR.
+- Autodesk SSO / Google OAuth — out of scope for this PR.
 
 ---
 
 ## 8. Summary of Files Modified
 
-| File | Type | Change |
-|------|------|--------|
-| `backend/src/dna/auth/session_store.py` | Backend | MongoDB session backend (default); `ShotGridCredentials` dataclass; `AbstractSessionStore` ABC; legacy property aliases for backward compat |
-| `backend/src/dna/auth_providers/shotgrid_sso.py` | Backend | All `UserSession` construction sites updated to use `shotgrid=ShotGridCredentials(...)`; imports `ShotGridCredentials` |
-| `backend/src/main.py` | Backend | New `/auth/google/login` endpoint, Google session support, `/auth/me` fix |
-| `backend/docker-compose.local.yml` | Config | Added `SESSION_BACKEND=mongo` and `MONGODB_URL`; Redis URL commented out |
-| `frontend/packages/app/src/contexts/ShotGridAuthContext.tsx` | Frontend | Multi-provider context, robust session validation |
-| `frontend/packages/app/src/components/ShotGridLoginPage.tsx` | Frontend | New multi-provider login UI |
-| `frontend/packages/app/src/main.tsx` | Frontend | Conditional `GoogleOAuthProvider` wrapper |
-| `frontend/packages/app/src/contexts/index.ts` | Frontend | Export new types |
+| File | Change |
+|------|--------|
+| `backend/src/dna/auth/session_store.py` | Removed `password` field from `ShotGridCredentials`; added `username` for `sudo_as_login`; MongoDB default backend; `AbstractSessionStore` ABC; `ShotGridCredentials` nested dataclass |
+| `backend/src/dna/auth_providers/shotgrid_sso.py` | `login()` — password discarded after SG verification; `username` stored; no `password=` in `ShotGridCredentials` constructor |
+| `backend/src/dna/prodtrack_providers/prodtrack_provider_base.py` | Removed login+password branch; always uses `ShotgridProvider(sudo_user=session.sg_username)` |
+| `backend/src/dna/prodtrack_providers/shotgrid.py` | `search()` and `get_version_statuses()` use `self._sg` (sudo-aware) instead of `self.sg` (bypasses sudo) |
+| `backend/src/main.py` | `get_projects_for_user` — 403 guard if JWT email ≠ path email (S-07) |
+| `backend/docker-compose.yml` | MongoDB service added; `SESSION_BACKEND=mongo` configured |
+| `backend/requirements.txt` | `pymongo` added |
+
+---
+
+## 9. Issues Deferred to Future PRs
+
+| ID | Category | Description |
+|----|----------|-------------|
+| S-05 | Security | ShotGrid `access_token` may appear in server logs on exceptions |
+| S-06 | Security | DNA JWT stored in `localStorage` — move to `sessionStorage` or `httpOnly` cookie |
+| S-08 | Security | No rate limiting on `POST /auth/login` — brute-force possible |
+| S-09 | Security | Deactivating a ShotGrid user does not invalidate their live DNA session |
+| O-04 | Security | Session sub-documents stored in plaintext in MongoDB — consider AES-256-GCM encryption at rest |
+| B-05 | Bug | `HumanUser.login` vs `HumanUser.email` field mismatch on cloud ShotGrid instances |
+| S-01/S-02 | AMI | HMAC signature on AMI session token not enforced; no timestamp validation |
+| B-01 | AMI | AMI sessions fall through to script mode — need dedicated session creation |
+| A-01 | Ops | No startup health check that verifies script account can authenticate to ShotGrid |
+| O-01 | Ops | No audit log for login / logout / token refresh events |

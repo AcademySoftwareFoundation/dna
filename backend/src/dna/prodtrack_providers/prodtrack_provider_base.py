@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import os
-from datetime import date
-from typing import TYPE_CHECKING, Any
-import os
 from abc import ABC, abstractmethod
+from datetime import date
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
@@ -13,6 +11,7 @@ if TYPE_CHECKING:
 
 class UserNotFoundError(Exception):
     """Raised when a user is not found in the production tracking system."""
+
     pass
 
 
@@ -49,10 +48,13 @@ class ProdtrackProviderBase(ABC):
 
     def _get_object_type(self, object_type: str) -> type["EntityBase"]:
         from dna.models.entity import ENTITY_MODELS, EntityBase
+
         return ENTITY_MODELS.get(object_type, EntityBase)
 
     @abstractmethod
-    def get_entity(self, entity_type: str, entity_id: int, resolve_links: bool = True) -> "EntityBase":
+    def get_entity(
+        self, entity_type: str, entity_id: int, resolve_links: bool = True
+    ) -> "EntityBase":
         """Fetch a single entity by type and ID."""
 
     @abstractmethod
@@ -60,11 +62,19 @@ class ProdtrackProviderBase(ABC):
         """Create a new entity and return the persisted version."""
 
     @abstractmethod
-    def find(self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0) -> list["EntityBase"]:
+    def find(
+        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+    ) -> list["EntityBase"]:
         """Return entities matching the given filters."""
 
     @abstractmethod
-    def search(self, query: str, entity_types: list[str], project_id: int | None = None, limit: int = 10) -> list[dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        entity_types: list[str],
+        project_id: int | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
         """Full-text search across one or more entity types."""
 
     @abstractmethod
@@ -84,11 +94,23 @@ class ProdtrackProviderBase(ABC):
         """Return all versions in the playlist."""
 
     @abstractmethod
-    def get_version_statuses(self, project_id: int | None = None) -> list[dict[str, str]]:
+    def get_version_statuses(
+        self, project_id: int | None = None
+    ) -> list[dict[str, str]]:
         """Return valid version status codes (optionally scoped to a project)."""
 
     @abstractmethod
-    def publish_note(self, version_id: int, content: str, subject: str, to_users: list[int], cc_users: list[int], links: list["EntityBase"], author_email: str | None = None, version_status: str | None = None) -> int:
+    def publish_note(
+        self,
+        version_id: int,
+        content: str,
+        subject: str,
+        to_users: list[int],
+        cc_users: list[int],
+        links: list["EntityBase"],
+        author_email: str | None = None,
+        version_status: str | None = None,
+    ) -> int:
         """Create and publish a note; return the new note ID."""
 
     @abstractmethod
@@ -96,7 +118,9 @@ class ProdtrackProviderBase(ABC):
         """Update the status of a version. Returns True on success."""
 
     @abstractmethod
-    def attach_file_to_note(self, note_id: int, file_path: str, display_name: str) -> bool:
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
         """Attach a local file to an existing note. Returns True on success."""
 
     def publish_transcript(
@@ -144,12 +168,12 @@ def get_prodtrack_provider(
     """Get the production tracking provider.
 
     Args:
-        user_token:  ShotGrid session token from the user's MongoDB session.
-                     When provided, queries run as this user and ShotGrid
-                     enforces their native permissions.
-        session_id:  The user's DNA session ID.  Used to retrieve a pooled
-                     SG connection from ShotGridConnectionPool, avoiding a
-                     new TCP handshake per request.
+        user_token:  Presence signal — any truthy value triggers user-scoped mode.
+                     The actual ShotGrid login name is always looked up from the
+                     session (session_id), never passed directly, so no credential
+                     is carried in this parameter.
+        session_id:  The user's DNA session ID.  Used to look up the stored
+                     ShotGrid login name for sudo_as_login.
 
     Returns:
         Configured ProdtrackProviderBase instance.
@@ -161,6 +185,7 @@ def get_prodtrack_provider(
 
     if provider_type == "mock":
         from dna.prodtrack_providers.mock_provider import MockProdtrackProvider
+
         return MockProdtrackProvider()
 
     if provider_type == "shotgrid":
@@ -172,20 +197,17 @@ def get_prodtrack_provider(
         from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
         if user_token:
-            # user_token is the ShotGrid Bearer token — used as a presence signal.
-            # For login+password auth (PAT path), we retrieve username and password
-            # from the session to build a shotgun_api3 connection.
+            # Resolve the ShotGrid login name from the session and use script + sudo_as_login.
+            # The user's password is never stored — identity is established at login time
+            # and the session carries only the ShotGrid login name (username field).
             from dna.auth.session_store import get_session_store
+
             store = get_session_store()
             session = store.get_session(session_id) if session_id else None
-            if session and session.sg_password and session.sg_username:
-                return ShotgridProvider(
-                    login=session.sg_username,     # ShotGrid login name (never Bearer token)
-                    password=session.sg_password,  # legacy password stored server-side
-                    session_id=session_id,
-                )
-            # Fallback: no stored password (e.g. future SSO path) — use sudo via script creds
-            return ShotgridProvider(sudo_user=user_token, session_id=session_id)
+            sudo_login = (
+                session.sg_username if (session and session.sg_username) else user_token
+            )
+            return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
         else:
             # Script-auth fallback: background jobs / non-SG-SSO auth providers.
             sg_script = os.getenv("SHOTGRID_SCRIPT_NAME")
@@ -197,4 +219,6 @@ def get_prodtrack_provider(
                 )
             return ShotgridProvider()
 
-    raise ValueError(f"Unknown PRODTRACK_PROVIDER: '{provider_type}'. Valid: mock, shotgrid.")
+    raise ValueError(
+        f"Unknown PRODTRACK_PROVIDER: '{provider_type}'. Valid: mock, shotgrid."
+    )

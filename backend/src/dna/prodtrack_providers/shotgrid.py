@@ -142,7 +142,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         user_token: Optional[str] = None,
         session_id: Optional[str] = None,
         login=None,
-        password=None, 
+        password=None,
     ):
         """Initialize the ShotGrid connection.
 
@@ -198,13 +198,12 @@ class ShotgridProvider(ProdtrackProviderBase):
         if connect:
             self.connect()
 
-    def _get_connection(
-        self, user_token: str, session_id: Optional[str]
-    ) -> Shotgun:
+    def _get_connection(self, user_token: str, session_id: Optional[str]) -> Shotgun:
         """Get a SG connection from the pool (if session_id given) or create fresh."""
         if session_id:
             try:
                 from dna.auth.connection_pool import get_connection_pool
+
                 return get_connection_pool().get(
                     session_id=session_id, sg_token=user_token
                 )
@@ -419,7 +418,9 @@ class ShotgridProvider(ProdtrackProviderBase):
             if value is not None:
                 sg_entity_data[sg_field_name] = value
         linked_fields_to_preserve = {}
-        for sg_field_name, dna_field_name in entity_mapping.get("linked_fields", {}).items():
+        for sg_field_name, dna_field_name in entity_mapping.get(
+            "linked_fields", {}
+        ).items():
             linked_entities = getattr(entity, dna_field_name, None)
             if linked_entities is None:
                 continue
@@ -451,7 +452,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         for f in filters:
             sg_field = dna_to_sg.get(f.get("field"))
             if sg_field is None:
-                raise ValueError(f"Unknown field '{f.get('field')}' for '{entity_type}'")
+                raise ValueError(
+                    f"Unknown field '{f.get('field')}' for '{entity_type}'"
+                )
             sg_filters.append([sg_field, f.get("operator"), f.get("value")])
         sg_fields = list(entity_mapping["fields"].keys()) + list(
             entity_mapping.get("linked_fields", {}).keys()
@@ -504,7 +507,7 @@ class ShotgridProvider(ProdtrackProviderBase):
                 sg_filters.append(
                     ["project", "is", {"type": "Project", "id": project_id}]
                 )
-            sg_results = self.sg.find(
+            sg_results = self._sg.find(
                 sg_entity_type, filters=sg_filters, fields=sg_fields, limit=limit
             )
             model_class = ENTITY_MODELS.get(entity_type)
@@ -617,8 +620,13 @@ class ShotgridProvider(ProdtrackProviderBase):
             "Note",
             filters=[["note_links", "is", {"type": "Playlist", "id": playlist_id}]],
             fields=[
-                "id", "subject", "content", "note_links",
-                "created_by", "created_by.HumanUser.email", "created_at",
+                "id",
+                "subject",
+                "content",
+                "note_links",
+                "created_by",
+                "created_by.HumanUser.email",
+                "created_at",
             ],
         )
         notes_by_version_id: dict[int, list] = {}
@@ -627,7 +635,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             dna_note = self._convert_sg_entity_to_dna_entity(
                 sg_note, note_mapping, "note", resolve_links=False
             )
-            if sg_note.get("created_by") and sg_note["created_by"].get("type") == "HumanUser":
+            if (
+                sg_note.get("created_by")
+                and sg_note["created_by"].get("type") == "HumanUser"
+            ):
                 email = sg_note.get("created_by.HumanUser.email")
                 if email and dna_note.author:
                     dna_note.author.email = email
@@ -635,7 +646,11 @@ class ShotgridProvider(ProdtrackProviderBase):
             linked_vids = (
                 [l["id"] for l in links if l["type"] == "Version"]
                 if isinstance(links, list)
-                else ([links["id"]] if isinstance(links, dict) and links["type"] == "Version" else [])
+                else (
+                    [links["id"]]
+                    if isinstance(links, dict) and links["type"] == "Version"
+                    else []
+                )
             )
             for vid in linked_vids:
                 if vid in version_ids:
@@ -650,7 +665,10 @@ class ShotgridProvider(ProdtrackProviderBase):
                 task_id = sg_version["sg_task"]["id"]
                 if task_id in tasks_by_id:
                     version.task = self._convert_sg_entity_to_dna_entity(
-                        tasks_by_id[task_id], FIELD_MAPPING["task"], "task", resolve_links=False
+                        tasks_by_id[task_id],
+                        FIELD_MAPPING["task"],
+                        "task",
+                        resolve_links=False,
                     )
             if version.id in notes_by_version_id:
                 version.notes = notes_by_version_id[version.id]
@@ -662,11 +680,13 @@ class ShotgridProvider(ProdtrackProviderBase):
             versions.append(version)
         return versions
 
-    def get_version_statuses(self, project_id: int | None = None) -> list[dict[str, str]]:
+    def get_version_statuses(
+        self, project_id: int | None = None
+    ) -> list[dict[str, str]]:
         if not self.sg:
             raise ValueError("Not connected to ShotGrid")
         project_entity = {"type": "Project", "id": project_id} if project_id else None
-        schema = self.sg.schema_field_read("Version", "sg_status_list", project_entity)
+        schema = self._sg.schema_field_read("Version", "sg_status_list", project_entity)
         if not schema or "sg_status_list" not in schema:
             return []
         props = schema["sg_status_list"].get("properties", {})
@@ -699,7 +719,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         try:
             self._sg.update("Note", note_id, data)
             if version_status and version_id:
-                self._sg.update("Version", version_id, {"sg_status_list": version_status})
+                self._sg.update(
+                    "Version", version_id, {"sg_status_list": version_status}
+                )
             return True
         except Exception as e:
             print(f"Error updating note {note_id}: {e}")
@@ -740,7 +762,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         )
         if existing:
             if version_status:
-                self._sg.update("Version", version_id, {"sg_status_list": version_status})
+                self._sg.update(
+                    "Version", version_id, {"sg_status_list": version_status}
+                )
             return existing["id"]
 
         note_links = [{"type": "Version", "id": version_id}]
@@ -771,7 +795,9 @@ class ShotgridProvider(ProdtrackProviderBase):
                     author_user = self.get_user_by_email(author_email)
                     author_login = author_user.login if author_user else None
                 except ValueError as e:
-                    raise UserNotFoundError(f"Author not found in ShotGrid: {author_email}") from e
+                    raise UserNotFoundError(
+                        f"Author not found in ShotGrid: {author_email}"
+                    ) from e
             if author_login:
                 with self.sudo(author_login):
                     result = self._sg.create("Note", note_data)
@@ -782,13 +808,18 @@ class ShotgridProvider(ProdtrackProviderBase):
             self._sg.update("Version", version_id, {"sg_status_list": version_status})
         return result["id"]
 
-    def attach_file_to_note(self, note_id: int, file_path: str, display_name: str) -> bool:
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
         if not self._sg:
             return False
         try:
             self._sg.upload(
-                "Note", note_id, file_path,
-                field_name="attachments", display_name=display_name
+                "Note",
+                note_id,
+                file_path,
+                field_name="attachments",
+                display_name=display_name,
             )
             return True
         except Exception:
