@@ -89,6 +89,7 @@ export function AssistantPanel({
     playlistId: playlistId ?? null,
     versionId: versionId ?? null,
     userEmail: userEmail ?? null,
+    enabled: aiEnabled,
   });
 
   const handleAiInsert = useCallback(() => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useQuery, useIsMutating } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { UserSettings, DNAEvent, TranscriptEventPayload } from '@dna/core';
 import { apiHandler, aiSuggestionManager } from '../api';
 import { useTranscriptEvents } from './useDNAEvents';
@@ -28,6 +28,31 @@ export interface UseAISuggestionResult {
 
 const MAX_NOTES_PER_VERSION = 100;
 
+const DEFAULT_REGENERATE_INSTRUCTIONS =
+  'Regenerate all notes from the transcript. Ignore any existing notes in the draft.';
+
+const NO_OP_SUGGESTION_PATTERN =
+  /^(?:there are )?no new notes?[\s.!]*$|^(?:there are )?no notes? (?:to add|generated|available)[\s.!]*$/i;
+
+function isNoOpSuggestion(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    !trimmed ||
+    NO_OP_SUGGESTION_PATTERN.test(trimmed) ||
+    /\bno new notes?\b/i.test(trimmed)
+  );
+}
+
+function isUsableSuggestion(
+  text: string | null | undefined
+): text is string {
+  return (
+    typeof text === 'string' &&
+    text.trim().length > 0 &&
+    !isNoOpSuggestion(text)
+  );
+}
+
 export function useAISuggestion({
   playlistId,
   versionId,
@@ -48,7 +73,7 @@ export function useAISuggestion({
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
   const [lastContext, setLastContext] = useState<string | null>(null);
 
-  const generateInFlightRef = useRef(false);
+  const prevVersionRef = useRef<number | null>(null);
 
   const { data: userSettings } = useQuery<UserSettings>({
     queryKey: ['userSettings', userEmail],
@@ -56,13 +81,6 @@ export function useAISuggestion({
     enabled: isEnabled,
     staleTime: 60000,
   });
-
-  const settingsUpsertInflight =
-    useIsMutating({
-      mutationKey: ['upsertUserSettings', userEmail ?? ''],
-    }) > 0 && userEmail != null;
-
-  const prevVersionRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isEnabled || playlistId == null || versionId == null) {
@@ -97,13 +115,12 @@ export function useAISuggestion({
           ) {
             return;
           }
+          if (!isUsableSuggestion(generatedNote.suggestion)) {
+            return;
+          }
+
           setNotesByVersionId((previousNotesByVersionId) => {
             const existing = previousNotesByVersionId[versionId] ?? [];
-            const tail = existing.length > 0 ? existing[existing.length - 1] : undefined;
-            if (tail === generatedNote.suggestion) {
-              return previousNotesByVersionId;
-            }
-
             let nextNotesForVersion = [...existing, generatedNote.suggestion];
             if (nextNotesForVersion.length > MAX_NOTES_PER_VERSION) {
               nextNotesForVersion = nextNotesForVersion.slice(
@@ -132,22 +149,21 @@ export function useAISuggestion({
   }, [playlistId, versionId, isEnabled]);
 
   const runGenerate = useCallback(
-    async (additionalInstructions?: string) => {
+    async (
+      additionalInstructions?: string,
+      options?: { requireFresh?: boolean }
+    ) => {
       if (!playlistId || !versionId || !userEmail) return;
-      if (generateInFlightRef.current) return;
-
-      generateInFlightRef.current = true;
 
       try {
         await aiSuggestionManager.generateSuggestion(
           playlistId,
           versionId,
           userEmail,
-          additionalInstructions
+          additionalInstructions,
+          options
         );
       } catch {
-      } finally {
-        generateInFlightRef.current = false;
       }
     },
     [playlistId, versionId, userEmail]
@@ -166,10 +182,12 @@ export function useAISuggestion({
 
   const regenerate = useCallback(
     (additionalInstructions?: string) => {
-      if (!isEnabled || settingsUpsertInflight) return;
-      runGenerate(additionalInstructions).catch(() => {});
+      if (!isEnabled) return;
+      const instructions =
+        additionalInstructions?.trim() || DEFAULT_REGENERATE_INSTRUCTIONS;
+      runGenerate(instructions, { requireFresh: true }).catch(() => {});
     },
-    [isEnabled, settingsUpsertInflight, runGenerate]
+    [isEnabled, runGenerate]
   );
 
   useEffect(() => {
@@ -269,7 +287,7 @@ export function useAISuggestion({
   const prompt = viewingLatest ? lastPrompt : null;
   const context = viewingLatest ? lastContext : null;
 
-  const isLoading = isGenerating || settingsUpsertInflight;
+  const isLoading = isGenerating;
 
   return useMemo(
     () => ({

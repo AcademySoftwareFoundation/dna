@@ -38,13 +38,10 @@ describe('AISuggestionManager', () => {
   });
 
   describe('generateSuggestion', () => {
-    it('calls API and notifies success listeners', async () => {
+    it('calls API and clears loading state on success', async () => {
       (
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValue(mockResponse);
-
-      const onSuccess = vi.fn();
-      manager.onGenerationSuccess(onSuccess);
 
       const result = await manager.generateSuggestion(1, 1, 'test@example.com');
 
@@ -54,7 +51,6 @@ describe('AISuggestionManager', () => {
         versionId: 1,
         userEmail: 'test@example.com',
       });
-      expect(onSuccess).toHaveBeenCalledWith(1, 1, mockResponse);
       expect(manager.getGenerationState(1, 1)).toEqual({
         isLoading: false,
         error: null,
@@ -90,7 +86,27 @@ describe('AISuggestionManager', () => {
       expect(stateChanges).toContain(false);
     });
 
-    it('captures error in generation state on API failure', async () => {
+    it('reuses the in-flight request for the same playlist/version/instructions key', async () => {
+      let resolvePromise: (value: GenerateNoteResponse) => void;
+      const promise = new Promise<GenerateNoteResponse>((resolve) => {
+        resolvePromise = resolve;
+      });
+
+      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockReturnValue(
+        promise
+      );
+
+      const first = manager.generateSuggestion(1, 1, 'test@example.com');
+      const second = manager.generateSuggestion(1, 1, 'test@example.com');
+
+      expect(mockApiHandler.generateNote).toHaveBeenCalledTimes(1);
+      expect(second).toBe(first);
+
+      resolvePromise!(mockResponse);
+      await expect(first).resolves.toEqual(mockResponse);
+    });
+
+    it('captures error in state on API failure', async () => {
       const apiError = new Error('API Error');
       (
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
@@ -103,6 +119,118 @@ describe('AISuggestionManager', () => {
       const state = manager.getGenerationState(1, 1);
       expect(state.error?.message).toBe('API Error');
       expect(state.isLoading).toBe(false);
+    });
+
+    it('sets error when response is empty and no prior suggestion exists', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        suggestion: '',
+        prompt: 'Test prompt',
+        context: 'Test context',
+      });
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      const state = manager.getGenerationState(1, 1);
+      expect(state.error?.message).toBe('Generated note was empty');
+      expect(state.isLoading).toBe(false);
+    });
+
+    it('sets error when response is a no-op and no prior suggestion exists', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        suggestion: 'No new notes.',
+        prompt: 'Test prompt',
+        context: 'Test context',
+      });
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      const state = manager.getGenerationState(1, 1);
+      expect(state.error?.message).toBe('The model had no new notes to add');
+    });
+
+    it('preserves prior suggestion when a no-op response is returned without requireFresh', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(mockResponse);
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce({
+        suggestion: 'There are no new notes',
+        prompt: 'Test prompt',
+        context: 'Test context',
+      });
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      const state = manager.getGenerationState(1, 1);
+      expect(state.error).toBeNull();
+      expect(state.isLoading).toBe(false);
+    });
+
+    it('clears prior suggestion and sets error when requireFresh gets a no-op response', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(mockResponse);
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce({
+        suggestion: 'There are no new notes',
+        prompt: 'Test prompt',
+        context: 'Test context',
+      });
+
+      await manager.generateSuggestion(1, 1, 'test@example.com', undefined, {
+        requireFresh: true,
+      });
+
+      const state = manager.getGenerationState(1, 1);
+      expect(state.error?.message).toBe('The model had no new notes to add');
+      expect(state.isLoading).toBe(false);
+    });
+
+    it('sets loading state when requireFresh generation starts', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(mockResponse);
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      let resolvePromise: (value: GenerateNoteResponse) => void;
+      const promise = new Promise<GenerateNoteResponse>((resolve) => {
+        resolvePromise = resolve;
+      });
+
+      (mockApiHandler.generateNote as ReturnType<typeof vi.fn>).mockReturnValue(
+        promise
+      );
+
+      const generatePromise = manager.generateSuggestion(
+        1,
+        1,
+        'test@example.com',
+        'Regenerate all notes',
+        { requireFresh: true }
+      );
+
+      expect(manager.getGenerationState(1, 1).isLoading).toBe(true);
+
+      resolvePromise!(mockResponse);
+      await generatePromise;
+
+      expect(manager.getGenerationState(1, 1)).toEqual({
+        isLoading: false,
+        error: null,
+      });
     });
   });
 
@@ -121,7 +249,10 @@ describe('AISuggestionManager', () => {
       expect(callback).toHaveBeenCalledWith(
         1,
         1,
-        expect.objectContaining({ isLoading: false, error: null })
+        expect.objectContaining({
+          isLoading: false,
+          error: null,
+        })
       );
 
       unsubscribe();
@@ -134,6 +265,38 @@ describe('AISuggestionManager', () => {
 
       const callback = vi.fn();
       const unsubscribe = manager.onGenerationStateChange(callback);
+
+      unsubscribe();
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onGenerationSuccess', () => {
+    it('notifies listeners with the raw API response on success', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(mockResponse);
+
+      const callback = vi.fn();
+      const unsubscribe = manager.onGenerationSuccess(callback);
+
+      await manager.generateSuggestion(1, 1, 'test@example.com');
+
+      expect(callback).toHaveBeenCalledWith(1, 1, mockResponse);
+
+      unsubscribe();
+    });
+
+    it('unsubscribes correctly', async () => {
+      (
+        mockApiHandler.generateNote as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(mockResponse);
+
+      const callback = vi.fn();
+      const unsubscribe = manager.onGenerationSuccess(callback);
 
       unsubscribe();
 
@@ -166,7 +329,7 @@ describe('AISuggestionManager', () => {
   });
 
   describe('destroy', () => {
-    it('clears generation state and listeners', async () => {
+    it('clears state and listeners', async () => {
       (
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValue(mockResponse);

@@ -15,24 +15,80 @@ export interface AISuggestionManagerOptions {
   debounceMs?: number;
 }
 
+export interface GenerateSuggestionOptions {
+  requireFresh?: boolean;
+}
+
 type GenerationMap = Map<string, AISuggestionGenerationState>;
+
+type LatestSuggestion = {
+  suggestion: string | null;
+  prompt: string | null;
+  context: string | null;
+};
+
+const NO_OP_SUGGESTION_PATTERN =
+  /^(?:there are )?no new notes?[\s.!]*$|^(?:there are )?no notes? (?:to add|generated|available)[\s.!]*$/i;
 
 function buildKey(playlistId: number, versionId: number): string {
   return `${playlistId}-${versionId}`;
+}
+
+function buildRequestKey(
+  playlistId: number,
+  versionId: number,
+  additionalInstructions?: string
+): string {
+  const instructionsKey = additionalInstructions?.trim() ?? '';
+  return `${buildKey(playlistId, versionId)}:${instructionsKey}`;
 }
 
 function idleGenerationState(): AISuggestionGenerationState {
   return { isLoading: false, error: null };
 }
 
+function idleLatestSuggestion(): LatestSuggestion {
+  return { suggestion: null, prompt: null, context: null };
+}
+
+function isNoOpSuggestion(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    !trimmed ||
+    NO_OP_SUGGESTION_PATTERN.test(trimmed) ||
+    /\bno new notes?\b/i.test(trimmed)
+  );
+}
+
+function isUsableSuggestion(
+  text: string | null | undefined
+): text is string {
+  return (
+    typeof text === 'string' &&
+    text.trim().length > 0 &&
+    !isNoOpSuggestion(text)
+  );
+}
+
+function getUnusableSuggestionError(text: string | null | undefined): Error {
+  const trimmed = (text ?? '').trim();
+  return new Error(
+    trimmed.length === 0
+      ? 'Generated note was empty'
+      : 'The model had no new notes to add'
+  );
+}
+
 export class AISuggestionManager {
   private apiHandler: ApiHandler;
   private generationByKey: GenerationMap = new Map();
+  private latestByKey = new Map<string, LatestSuggestion>();
   private generationListeners = new Set<
     AISuggestionGenerationStateChangeCallback
   >();
   private successListeners = new Set<AISuggestionGenerationSuccessCallback>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private inFlightByKey = new Map<string, Promise<GenerateNoteResponse>>();
   private debounceMs: number;
 
   constructor(
@@ -51,6 +107,21 @@ export class AISuggestionManager {
       this.generationByKey.set(key, state);
     }
     return state;
+  }
+
+  private getLatest(playlistId: number, versionId: number): LatestSuggestion {
+    return (
+      this.latestByKey.get(buildKey(playlistId, versionId)) ??
+      idleLatestSuggestion()
+    );
+  }
+
+  private setLatest(
+    playlistId: number,
+    versionId: number,
+    latest: LatestSuggestion
+  ): void {
+    this.latestByKey.set(buildKey(playlistId, versionId), latest);
   }
 
   private setGeneration(
@@ -117,45 +188,97 @@ export class AISuggestionManager {
     };
   }
 
-  async generateSuggestion(
+  generateSuggestion(
     playlistId: number,
     versionId: number,
     userEmail: string,
-    additionalInstructions?: string
+    additionalInstructions?: string,
+    options: GenerateSuggestionOptions = {}
   ): Promise<GenerateNoteResponse> {
-    const key = buildKey(playlistId, versionId);
+    const requestKey = buildRequestKey(
+      playlistId,
+      versionId,
+      additionalInstructions
+    );
 
-    const existingTimer = this.debounceTimers.get(key);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-      this.debounceTimers.delete(key);
+    const existingRequest = this.inFlightByKey.get(requestKey);
+    if (existingRequest) {
+      return existingRequest;
     }
 
-    this.setGeneration(playlistId, versionId, {
-      isLoading: true,
-      error: null,
+    const promise = (async (): Promise<GenerateNoteResponse> => {
+      const { requireFresh = false } = options;
+      const key = buildKey(playlistId, versionId);
+
+      const existingTimer = this.debounceTimers.get(key);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+        this.debounceTimers.delete(key);
+      }
+
+      if (requireFresh) {
+        this.setLatest(playlistId, versionId, idleLatestSuggestion());
+      }
+
+      this.setGeneration(playlistId, versionId, {
+        isLoading: true,
+        error: null,
+      });
+
+      try {
+        const response = await this.apiHandler.generateNote({
+          playlistId,
+          versionId,
+          userEmail,
+          additionalInstructions,
+        });
+
+        const current = this.getLatest(playlistId, versionId);
+
+        if (isUsableSuggestion(response.suggestion)) {
+          this.setLatest(playlistId, versionId, {
+            suggestion: response.suggestion,
+            prompt: response.prompt,
+            context: response.context,
+          });
+          this.setGeneration(playlistId, versionId, idleGenerationState());
+        } else if (!requireFresh && isUsableSuggestion(current.suggestion)) {
+          this.setGeneration(playlistId, versionId, idleGenerationState());
+        } else {
+          if (requireFresh) {
+            this.setLatest(playlistId, versionId, idleLatestSuggestion());
+          }
+          this.setGeneration(playlistId, versionId, {
+            isLoading: false,
+            error: getUnusableSuggestionError(response.suggestion),
+          });
+        }
+
+        this.notifySuccess(playlistId, versionId, response);
+
+        return response;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (requireFresh) {
+          this.setLatest(playlistId, versionId, idleLatestSuggestion());
+        }
+        this.setGeneration(playlistId, versionId, {
+          isLoading: false,
+          error,
+        });
+        throw error;
+      }
+    })();
+
+    let tracked: Promise<GenerateNoteResponse>;
+    tracked = promise.finally(() => {
+      if (this.inFlightByKey.get(requestKey) === tracked) {
+        this.inFlightByKey.delete(requestKey);
+      }
     });
 
-    try {
-      const response = await this.apiHandler.generateNote({
-        playlistId,
-        versionId,
-        userEmail,
-        additionalInstructions,
-      });
-
-      this.setGeneration(playlistId, versionId, idleGenerationState());
-      this.notifySuccess(playlistId, versionId, response);
-
-      return response;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.setGeneration(playlistId, versionId, {
-        isLoading: false,
-        error,
-      });
-      throw error;
-    }
+    this.inFlightByKey.set(requestKey, tracked);
+    return tracked;
   }
 
   scheduleRegeneration(
@@ -189,8 +312,10 @@ export class AISuggestionManager {
       clearTimeout(timer);
     }
     this.debounceTimers.clear();
+    this.inFlightByKey.clear();
     this.generationListeners.clear();
     this.successListeners.clear();
     this.generationByKey.clear();
+    this.latestByKey.clear();
   }
 }
