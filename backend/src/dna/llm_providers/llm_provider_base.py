@@ -365,6 +365,11 @@ def get_llm_provider() -> LLMProviderBase:
     """Factory function to get the configured LLM provider."""
     provider_type = os.getenv("LLM_PROVIDER", "openai").lower()
 
+    if provider_type == "anthropic":
+        from dna.llm_providers.anthropic_provider import AnthropicProvider
+
+        return AnthropicProvider()
+
     if provider_type == "gemini":
         from dna.llm_providers.gemini_provider import GeminiProvider
 

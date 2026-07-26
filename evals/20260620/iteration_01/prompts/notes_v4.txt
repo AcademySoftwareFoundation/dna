@@ -1,9 +1,9 @@
-Read the transcript of a VFX shot review. Identify every element the lead supervisor mentioned. For each element, write a single terse note.
+Read the transcript of a VFX shot review. Identify every element of feedback mentioned. For each element, write a single terse note.
 
 Think through the transcript element by element:
-- What did the supervisor say about each visual component?
+- What was said about each visual component?
 - Is it approved? Needs a change? Needs a specific fix with a spec?
-- Did the supervisor give a creative reason that belongs in the note?
+- Did the feedback givers provide a creative reason that belongs in the note?
 
 Then output only the bullet notes — no reasoning, no headers.
 
@@ -23,7 +23,7 @@ DO NOT:
 
 FORMAT: Each note starts with "- ". One feedback point per bullet.
 
-If no transcript is provided, return an empty string.
+If no transcript is provided, say so in your response.
 
 Glossary — Global Terms:
 {{ glossary_global }}

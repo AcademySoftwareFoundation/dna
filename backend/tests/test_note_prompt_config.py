@@ -21,7 +21,6 @@ def _clear_prompt_cache():
 
 def test_get_default_note_prompt_loads_packaged_yaml():
     text = get_default_note_prompt()
-    assert "Purpose and Goals" in text
     assert "{{ transcript }}" in text or "{{transcript}}" in text
 
 

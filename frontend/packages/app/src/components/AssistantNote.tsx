@@ -298,7 +298,8 @@ export function AssistantNote({
   };
 
   const handleRegenerate = () => {
-    onRegenerate?.();
+    const trimmedInstructions = instructions.trim();
+    onRegenerate?.(trimmedInstructions || undefined);
   };
 
   const handleRightClick = () => {
