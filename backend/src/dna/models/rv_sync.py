@@ -23,9 +23,14 @@ class RVSyncConnectRequest(BaseModel):
 
 
 class RVLaunchInfo(BaseModel):
-    """rvlink URL for opening RV with networking on and a playlist loaded."""
+    """rvlink URL pair for opening a playlist in RV."""
 
-    url: str = Field(description="rvlink://baked/… URL to open on the client")
+    url: str = Field(
+        description="rvlink://baked/… URL that brings RV up with networking"
+    )
+    load_url: str = Field(
+        description="rvlink://baked/… URL that loads the playlist; send once connected"
+    )
     port: int = Field(description="Network port the launched RV will listen on")
 
 

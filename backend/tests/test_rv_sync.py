@@ -131,11 +131,15 @@ class TestBuildLaunchUrl:
         info = await service.build_launch_url([7189, 7188])
 
         assert info["port"] == 45125  # 45124 is taken
-        assert info["url"].startswith("rvlink://baked/")
-        decoded = bytes.fromhex(info["url"][len("rvlink://baked/") :]).decode()
-        assert "-network -networkPort 45125" in decoded
-        assert "shotgrid.sessionFromVersionIDs(int[] {7189,7188});" in decoded
-        assert "-reuse 0" in decoded
+        launch = bytes.fromhex(info["url"][len("rvlink://baked/") :]).decode()
+        load = bytes.fromhex(info["load_url"][len("rvlink://baked/") :]).decode()
+        assert "-network -networkPort 45125" in launch
+        # No eval in the launch URL: a cold RV errors on it and loads nothing.
+        assert "-eval" not in launch
+        assert "shotgrid.sessionFromVersionIDs(int[] {7189,7188});" in load
+        # -reuse 1 on both: -reuse 0 makes a running RV spawn a second window.
+        assert "-reuse 1" in launch
+        assert "-reuse 1" in load
 
 
 class FakeRVServer:

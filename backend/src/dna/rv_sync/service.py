@@ -73,22 +73,29 @@ class RVSyncService:
         return await scan_for_rv(_rv_host(), _rv_ports())
 
     async def build_launch_url(self, version_ids: list[int]) -> dict[str, Any]:
-        """Baked rvlink URL that opens a new RV with networking on and the
-        playlist's versions loaded.
+        """Baked rvlink URL pair for opening a playlist in RV.
 
-        The -eval payload must contain sessionFromVersionIDs: rvlink -eval is
-        allowlisted to the ShotGrid entry points (RvApplication::parseURL),
-        which also bootstrap the tk engine so the load actually runs.
+        Two URLs because launch and load must be separate sends:
+        - `url` only brings RV up with networking (cold) or enables
+          networking in the running RV (warm). No -eval: a cold RV runs the
+          eval before its ShotGrid machinery exists — it errors and loads
+          nothing.
+        - `load_url` carries the sessionFromVersionIDs -eval and is sent
+          once DNA is connected, i.e. once RV is warm enough to honor it.
+          (rvlink -eval is allowlisted to the ShotGrid entry points in
+          RvApplication::parseURL and bootstraps the tk engine.)
+
+        Both use -reuse 1: a running RV that receives -reuse 0 spawns a
+        whole new RV process/window instead of handling the URL itself.
         """
         taken = {s["port"] for s in await self.scan()}
         port = next((p for p in _rv_ports() if p not in taken), _rv_ports().start)
         ids = ",".join(str(v) for v in version_ids)
-        cmd = (
-            f" -reuse 0 -network -networkPort {port}"
-            f" -eval 'shotgrid.sessionFromVersionIDs(int[] {{{ids}}});'"
-        )
+        launch = f" -reuse 1 -network -networkPort {port}"
+        load = f" -reuse 1 -eval 'shotgrid.sessionFromVersionIDs(int[] {{{ids}}});'"
         return {
-            "url": "rvlink://baked/" + cmd.encode("utf-8").hex(),
+            "url": "rvlink://baked/" + launch.encode("utf-8").hex(),
+            "load_url": "rvlink://baked/" + load.encode("utf-8").hex(),
             "port": port,
         }
 

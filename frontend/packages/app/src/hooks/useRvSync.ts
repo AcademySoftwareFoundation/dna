@@ -132,13 +132,17 @@ export function useRvSync(playlistId: number | null): UseRvSyncResult {
     setIsLaunching(true);
     setError(null);
     try {
-      const { url, port } = await apiHandler.rvSyncLaunchUrl(playlistId);
-      // Hand the rvlink URL to the OS; RV.app is its registered handler.
+      const { url, load_url, port } =
+        await apiHandler.rvSyncLaunchUrl(playlistId);
+      // Two-phase launch. Phase 1 only brings RV up with networking (or
+      // enables networking in a running RV) — a cold RV can't honor the
+      // playlist-load eval yet, and -reuse 1 keeps everything in one
+      // window. Hand the rvlink URL to the OS; RV.app is its handler.
       window.location.href = url;
-      // RV boot + tk-engine bootstrap takes a while; poll until a network
-      // port answers, then bind the sync session to it. An already-running
-      // RV consumes the rvlink itself and keeps its existing port, so accept
-      // any session if the requested port never appears.
+      // RV boot takes a while; poll until a network port answers, then
+      // bind the sync session to it. An already-running RV keeps its
+      // existing port, so accept any session if the requested port never
+      // appears.
       const deadline = Date.now() + 90_000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -147,11 +151,10 @@ export function useRvSync(playlistId: number | null): UseRvSyncResult {
           found.find((s) => s.port === port) ?? found[0];
         if (target) {
           const result = await connect(target.port);
-          if (result?.status === 'connected' && result.version_id == null) {
-            // Cold-started RV ignores the rvlink -eval (the SG machinery
-            // isn't up when it fires), so the session is empty. Resend the
-            // same URL — a *running* RV consumes it and loads reliably.
-            window.location.href = url;
+          if (result?.status === 'connected') {
+            // Phase 2: RV is warm and we're synced to it — now load the
+            // playlist in place.
+            window.location.href = load_url;
           }
           return;
         }

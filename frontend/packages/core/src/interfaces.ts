@@ -261,6 +261,7 @@ export interface RVSyncConnectParams {
 
 export interface RVLaunchInfo {
   url: string;
+  load_url: string;
   port: number;
 }
 
