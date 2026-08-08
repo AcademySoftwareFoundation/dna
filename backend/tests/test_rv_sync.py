@@ -141,11 +141,12 @@ class TestBuildLaunchUrl:
 class FakeRVServer:
     """Speaks just enough of RV's network protocol for client tests."""
 
-    def __init__(self):
+    def __init__(self, pyeval_response="evaluated"):
         self.server = None
         self.port = None
         self.received = []
         self._writer = None
+        self.pyeval_response = pyeval_response
 
     async def start(self):
         self.server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
@@ -188,7 +189,7 @@ class FakeRVServer:
                 text = payload.decode()
                 self.received.append((mtype, text))
                 if text.startswith("RETURNEVENT remote-pyeval"):
-                    ret = b"RETURN evaluated"
+                    ret = ("RETURN " + self.pyeval_response).encode()
                     writer.write(b"MESSAGE " + str(len(ret)).encode() + b" " + ret)
                     await writer.drain()
                 elif text == "DISCONNECT":
@@ -258,3 +259,87 @@ class TestRVNetworkClient:
         finally:
             slammer.close()
             await slammer.wait_closed()
+
+
+class TestServiceLifecycle:
+    """Service connect/disconnect against the fake RV server."""
+
+    def _service(self, monkeypatch, port):
+        monkeypatch.setenv("RV_SYNC_HOST", "127.0.0.1")
+        monkeypatch.setenv("RV_SYNC_PORT_START", str(port))
+        monkeypatch.setenv("RV_SYNC_PORT_COUNT", "1")
+        storage = mock.AsyncMock()
+        publisher = mock.AsyncMock()
+        return RVSyncService(storage_provider=storage, event_publisher=publisher)
+
+    @pytest.mark.asyncio
+    async def test_connect_apply_event_disconnect(self, monkeypatch):
+        server = FakeRVServer(pyeval_response=_state_payload())
+        await server.start()
+        service = self._service(monkeypatch, server.port)
+        try:
+            snapshot = await service.connect(42, server.port)
+            assert snapshot["status"] == "connected"
+            assert snapshot["version_id"] == 7190
+            assert service.status(42)["version_id"] == 7190
+
+            await server.push_event(
+                "dna-view-changed", _state_payload(version_id="7191", name="v2")
+            )
+            await asyncio.sleep(0.1)
+            assert service.status(42)["version_id"] == 7191
+
+            # Unrelated events are ignored.
+            await server.push_event("some-other-event", "{}")
+            await asyncio.sleep(0.1)
+            assert service.status(42)["version_id"] == 7191
+
+            assert await service.disconnect(42) is True
+            assert service.status(42) is None
+            assert await service.disconnect(42) is False
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_connect_failure_reports_error(self, monkeypatch):
+        service = self._service(monkeypatch, 1)  # nothing listens on port 1
+        snapshot = await service.connect(42, 1)
+        assert snapshot["status"] == "error"
+        assert snapshot["detail"]
+        service.storage_provider.upsert_playlist_metadata.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_rv_side_disconnect_removes_session(self, monkeypatch):
+        server = FakeRVServer(pyeval_response=_state_payload())
+        await server.start()
+        service = self._service(monkeypatch, server.port)
+        try:
+            await service.connect(42, server.port)
+            server._writer.close()  # RV goes away
+            await asyncio.sleep(0.2)
+            assert service.status(42) is None
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_close_tears_down_all_sessions(self, monkeypatch):
+        server = FakeRVServer(pyeval_response=_state_payload())
+        await server.start()
+        service = self._service(monkeypatch, server.port)
+        try:
+            await service.connect(42, server.port)
+            await service.close()
+            assert service.status(42) is None
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_scan_uses_env_config(self, monkeypatch):
+        server = FakeRVServer()
+        await server.start()
+        service = self._service(monkeypatch, server.port)
+        try:
+            found = await service.scan()
+            assert found == [{"port": server.port, "greeting": "fake-rv rv"}]
+        finally:
+            await server.stop()
