@@ -67,6 +67,18 @@ def dna_frame_changed(event):
         dna_push_now()
     event.reject()
 
+def dna_graph_state_changed(event):
+    # During a playlist load the frame/media events fire BEFORE the SG
+    # integration's async query stamps tracking.info onto the sources, so
+    # those pushes carry no version. Re-push when the metadata itself
+    # lands; the backend dedupes by version so the extra pushes are cheap.
+    try:
+        if "tracking.info" in (event.contents() or ""):
+            dna_push_now()
+    except Exception:
+        pass
+    event.reject()
+
 def dna_install_bindings():
     # rvc.bind() replaces any previous binding for the event, so installing
     # on every connect is idempotent AND self-healing — never guard this
@@ -75,6 +87,8 @@ def dna_install_bindings():
     from rv import commands as rvc
     rvc.bind("default", "global", "frame-changed", dna_frame_changed,
              "DNA in-review sync")
+    rvc.bind("default", "global", "graph-state-change",
+             dna_graph_state_changed, "DNA in-review sync")
     for ev in ("after-graph-view-change", "source-media-set"):
         rvc.bind("default", "global", ev, dna_push, "DNA in-review sync")
     return "bindings installed"
