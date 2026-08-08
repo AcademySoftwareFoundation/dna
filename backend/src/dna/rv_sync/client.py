@@ -11,6 +11,7 @@ length of the payload. remote-pyeval round-trips are:
 
 import asyncio
 import logging
+import os
 from typing import Awaitable, Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,16 @@ class RVNetworkClient:
         self,
         host: str,
         port: int,
-        contact: str = "dna",
+        contact: Optional[str] = None,
         app: str = "dna_backend",
     ):
         self.host = host
         self.port = port
-        self.contact = contact
+        # RV keys contacts by name@machine and routes remoteSendEvent by that
+        # key. Reusing a contact name across connections (reconnects, scan
+        # probes) makes RV route events to whichever socket first claimed the
+        # name — often a dead one. Every connection must greet uniquely.
+        self.contact = contact or f"dna-{os.urandom(3).hex()}"
         self.app = app
         self.greeting: Optional[str] = None
         self.on_event: Optional[EventCallback] = None
@@ -52,15 +57,21 @@ class RVNetworkClient:
         self._reader, self._writer = await asyncio.wait_for(
             asyncio.open_connection(self.host, self.port), timeout
         )
-        greeting = f"{self.contact} {self.app}".encode("utf-8")
-        await self._send_raw(
-            b"NEWGREETING " + str(len(greeting)).encode() + b" " + greeting
-        )
-        mtype, payload = await asyncio.wait_for(self._read_frame(), timeout)
-        if mtype not in ("GREETING", "NEWGREETING"):
-            raise RVProtocolError(
-                f"unexpected handshake reply: {mtype} {payload[:80]!r}"
+        try:
+            greeting = f"{self.contact} {self.app}".encode("utf-8")
+            await self._send_raw(
+                b"NEWGREETING " + str(len(greeting)).encode() + b" " + greeting
             )
+            mtype, payload = await asyncio.wait_for(self._read_frame(), timeout)
+            if mtype not in ("GREETING", "NEWGREETING"):
+                raise RVProtocolError(
+                    f"unexpected handshake reply: {mtype} {payload[:80]!r}"
+                )
+        except BaseException:
+            self._writer.close()
+            self._writer = None
+            self._reader = None
+            raise
         self.greeting = payload.decode("utf-8", "replace")
         self._read_task = asyncio.create_task(self._read_loop())
         return self.greeting
@@ -117,7 +128,17 @@ class RVNetworkClient:
         try:
             while True:
                 mtype, payload = await self._read_frame()
-                await self._handle_frame(mtype, payload)
+                try:
+                    await self._handle_frame(mtype, payload)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # One bad frame/handler must not kill the read loop —
+                    # a dead loop looks "connected" but processes nothing.
+                    logger.exception(
+                        "rv_sync: error handling %s frame from %s:%s",
+                        mtype, self.host, self.port,
+                    )
         except asyncio.CancelledError:
             raise
         except (asyncio.IncompleteReadError, ConnectionError, OSError) as e:
@@ -166,16 +187,26 @@ class RVNetworkClient:
 
 
 async def scan_for_rv(
-    host: str, ports: range, connect_timeout: float = 0.5
+    host: str, ports: range, connect_timeout: float = 1.0
 ) -> list[dict]:
-    """Probe ports for RV sessions; returns [{port, greeting}, ...]."""
-    found = []
-    for port in ports:
+    """Probe ports for RV sessions; returns [{port, greeting}, ...].
+
+    Any per-port failure just means "no RV there": ports can be closed,
+    accept-then-EOF (Docker's host proxy, RV mid-boot), or held by another
+    service entirely — none of that may abort the rest of the scan.
+    """
+
+    async def probe(port: int) -> dict | None:
         client = RVNetworkClient(host, port)
         try:
             greeting = await client.connect(timeout=connect_timeout)
-        except (OSError, asyncio.TimeoutError, RVProtocolError):
-            continue
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug("rv scan: no RV on %s:%s (%s)", host, port, e)
+            return None
         await client.close()
-        found.append({"port": port, "greeting": greeting})
-    return found
+        return {"port": port, "greeting": greeting}
+
+    results = await asyncio.gather(*(probe(p) for p in ports))
+    return [r for r in results if r is not None]

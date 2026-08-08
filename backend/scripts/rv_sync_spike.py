@@ -213,10 +213,8 @@ def dna_frame_changed(event):
     event.reject()
 
 def dna_install_bindings():
+    # bind() replaces per event -- always reinstall, never flag-guard.
     from rv import commands as rvc
-    if globals().get("_dna_bound"):
-        return "already bound"
-    globals()["_dna_bound"] = True
     rvc.bind("default", "global", "frame-changed", dna_frame_changed,
              "DNA rv_sync spike")
     for ev in ("after-graph-view-change", "source-media-set"):

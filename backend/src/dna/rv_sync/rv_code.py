@@ -68,10 +68,11 @@ def dna_frame_changed(event):
     event.reject()
 
 def dna_install_bindings():
+    # rvc.bind() replaces any previous binding for the event, so installing
+    # on every connect is idempotent AND self-healing — never guard this
+    # with a been-here flag: stale flags in a long-lived RV leave dead
+    # bindings in place and no events ever arrive.
     from rv import commands as rvc
-    if globals().get("_dna_bound"):
-        return "already bound"
-    globals()["_dna_bound"] = True
     rvc.bind("default", "global", "frame-changed", dna_frame_changed,
              "DNA in-review sync")
     for ev in ("after-graph-view-change", "source-media-set"):

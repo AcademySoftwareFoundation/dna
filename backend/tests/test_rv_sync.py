@@ -252,3 +252,21 @@ class TestRVNetworkClient:
         # Port 1 is unbindable/unused on any sane dev box.
         found = await scan_for_rv("127.0.0.1", range(1, 2))
         assert found == []
+
+    @pytest.mark.asyncio
+    async def test_scan_survives_accept_then_close_port(self):
+        # Docker's host proxy (and RV mid-boot) can accept the TCP
+        # connection and close it without a greeting; that must read as
+        # "no RV here", not abort the scan (regression: IncompleteReadError
+        # is an EOFError, which the original catch tuple missed).
+        async def slam(reader, writer):
+            writer.close()
+
+        slammer = await asyncio.start_server(slam, "127.0.0.1", 0)
+        port = slammer.sockets[0].getsockname()[1]
+        try:
+            found = await scan_for_rv("127.0.0.1", range(port, port + 1))
+            assert found == []
+        finally:
+            slammer.close()
+            await slammer.wait_closed()
