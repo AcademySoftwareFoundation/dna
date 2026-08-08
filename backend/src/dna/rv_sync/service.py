@@ -123,7 +123,10 @@ class RVSyncService:
         session.detail = f"RV contact: {greeting} ({install})"
         logger.info(
             "rv_sync connected playlist=%s port=%s greeting=%s install=%s",
-            playlist_id, port, greeting, install,
+            playlist_id,
+            port,
+            greeting,
+            install,
         )
         await self._apply_state(session, initial)
         await self._broadcast(session)
@@ -144,9 +147,7 @@ class RVSyncService:
 
     # ------------------------------------------------------------ internals
 
-    async def _on_rv_event(
-        self, session: RVSession, name: str, contents: str
-    ) -> None:
+    async def _on_rv_event(self, session: RVSession, name: str, contents: str) -> None:
         if name != DNA_EVENT_NAME:
             return
         await self._apply_state(session, contents)
@@ -163,8 +164,7 @@ class RVSyncService:
         try:
             state = json.loads(state_json)
         except (ValueError, TypeError):
-            logger.warning("rv_sync: unparseable state payload: %.120s",
-                           state_json)
+            logger.warning("rv_sync: unparseable state payload: %.120s", state_json)
             return
 
         version_id: Optional[int] = None
@@ -197,7 +197,9 @@ class RVSyncService:
             )
             logger.info(
                 "rv_sync: playlist %s in_review -> version %s (%s)",
-                session.playlist_id, version_id, version_name,
+                session.playlist_id,
+                version_id,
+                version_name,
             )
         await self._broadcast(session)
 

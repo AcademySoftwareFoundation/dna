@@ -35,12 +35,6 @@ from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
 )
-from dna.models.rv_sync import (
-    RVLaunchInfo,
-    RVScanResult,
-    RVSyncConnectRequest,
-    RVSyncStatus,
-)
 from dna.models.qc_check import (
     DEFAULT_ACTION_ITEM_CHECK,
     NoteQCAttributeSuggestion,
@@ -68,6 +62,12 @@ from dna.models.requests import (
     SearchRequest,
     SearchResult,
     StatusOption,
+)
+from dna.models.rv_sync import (
+    RVLaunchInfo,
+    RVScanResult,
+    RVSyncConnectRequest,
+    RVSyncStatus,
 )
 from dna.models.stored_segment import (
     StoredSegment,

@@ -52,9 +52,7 @@ class TestApplyState:
     def _service(self):
         storage = mock.AsyncMock()
         publisher = mock.AsyncMock()
-        service = RVSyncService(
-            storage_provider=storage, event_publisher=publisher
-        )
+        service = RVSyncService(storage_provider=storage, event_publisher=publisher)
         return service, storage, publisher
 
     async def _connect_session(self, service):
@@ -97,9 +95,7 @@ class TestApplyState:
         service, storage, _ = self._service()
         session = await self._connect_session(service)
 
-        await service._apply_state(
-            session, _state_payload(info_status="")
-        )
+        await service._apply_state(session, _state_payload(info_status=""))
 
         assert session.version_id is None
         assert "no SG version metadata" in session.detail
@@ -136,7 +132,7 @@ class TestBuildLaunchUrl:
 
         assert info["port"] == 45125  # 45124 is taken
         assert info["url"].startswith("rvlink://baked/")
-        decoded = bytes.fromhex(info["url"][len("rvlink://baked/"):]).decode()
+        decoded = bytes.fromhex(info["url"][len("rvlink://baked/") :]).decode()
         assert "-network -networkPort 45125" in decoded
         assert "shotgrid.sessionFromVersionIDs(int[] {7189,7188});" in decoded
         assert "-reuse 0" in decoded
@@ -164,9 +160,7 @@ class FakeRVServer:
 
     async def push_event(self, name, contents):
         payload = f"EVENT {name} * {contents}".encode()
-        self._writer.write(
-            b"MESSAGE " + str(len(payload)).encode() + b" " + payload
-        )
+        self._writer.write(b"MESSAGE " + str(len(payload)).encode() + b" " + payload)
         await self._writer.drain()
 
     async def _read_frame(self, reader):
@@ -186,9 +180,7 @@ class FakeRVServer:
         mtype, payload = await self._read_frame(reader)
         assert mtype == "NEWGREETING"
         greeting = b"fake-rv rv"
-        writer.write(
-            b"GREETING " + str(len(greeting)).encode() + b" " + greeting
-        )
+        writer.write(b"GREETING " + str(len(greeting)).encode() + b" " + greeting)
         await writer.drain()
         try:
             while True:
@@ -197,9 +189,7 @@ class FakeRVServer:
                 self.received.append((mtype, text))
                 if text.startswith("RETURNEVENT remote-pyeval"):
                     ret = b"RETURN evaluated"
-                    writer.write(
-                        b"MESSAGE " + str(len(ret)).encode() + b" " + ret
-                    )
+                    writer.write(b"MESSAGE " + str(len(ret)).encode() + b" " + ret)
                     await writer.drain()
                 elif text == "DISCONNECT":
                     break
@@ -240,9 +230,7 @@ class TestRVNetworkClient:
         server = FakeRVServer()
         await server.start()
         try:
-            found = await scan_for_rv(
-                "127.0.0.1", range(server.port, server.port + 1)
-            )
+            found = await scan_for_rv("127.0.0.1", range(server.port, server.port + 1))
             assert found == [{"port": server.port, "greeting": "fake-rv rv"}]
         finally:
             await server.stop()

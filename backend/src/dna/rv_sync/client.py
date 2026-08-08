@@ -137,14 +137,17 @@ class RVNetworkClient:
                     # a dead loop looks "connected" but processes nothing.
                     logger.exception(
                         "rv_sync: error handling %s frame from %s:%s",
-                        mtype, self.host, self.port,
+                        mtype,
+                        self.host,
+                        self.port,
                     )
         except asyncio.CancelledError:
             raise
         except (asyncio.IncompleteReadError, ConnectionError, OSError) as e:
             if not self._closing:
-                logger.warning("RV connection lost (%s:%s): %s",
-                               self.host, self.port, e)
+                logger.warning(
+                    "RV connection lost (%s:%s): %s", self.host, self.port, e
+                )
                 if self._pending_return and not self._pending_return.done():
                     self._pending_return.set_exception(
                         ConnectionError("RV connection lost")
@@ -163,7 +166,7 @@ class RVNetworkClient:
             return
         text = payload.decode("utf-8", "replace")
         if text.startswith("RETURN"):
-            value = text[len("RETURN "):] if text.startswith("RETURN ") else ""
+            value = text[len("RETURN ") :] if text.startswith("RETURN ") else ""
             if self._pending_return and not self._pending_return.done():
                 self._pending_return.set_result(value)
             return

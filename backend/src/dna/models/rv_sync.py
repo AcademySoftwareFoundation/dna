@@ -34,9 +34,7 @@ class RVSyncStatus(BaseModel):
 
     playlist_id: int
     port: int
-    status: str = Field(
-        description="connecting | connected | disconnected | error"
-    )
+    status: str = Field(description="connecting | connected | disconnected | error")
     version_id: Optional[int] = Field(
         default=None, description="SG Version ID currently under the playhead"
     )
