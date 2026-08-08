@@ -22,6 +22,7 @@ export {
   StyledSelectContent,
 } from './FormInputs';
 export { TranscriptionMenu } from './TranscriptionMenu';
+export { RvSyncMenu } from './RvSyncMenu';
 export { TranscriptPanel } from './TranscriptPanel';
 export { SettingsModal } from './SettingsModal';
 export { EntityPill } from './EntityPill/EntityPill';

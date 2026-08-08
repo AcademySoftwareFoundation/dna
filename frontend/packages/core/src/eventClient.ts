@@ -2,7 +2,8 @@ export type EventType =
   | 'transcript'
   | 'bot.status_changed'
   | 'transcription.completed'
-  | 'transcription.error';
+  | 'transcription.error'
+  | 'rv_sync.status_changed';
 
 export interface DNAEvent<T = unknown> {
   type: EventType;

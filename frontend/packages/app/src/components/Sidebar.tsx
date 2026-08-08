@@ -17,6 +17,7 @@ import { ExpandableSearch, type ExpandableSearchHandle } from './ExpandableSearc
 import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
+import { RvSyncMenu } from './RvSyncMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
@@ -427,6 +428,7 @@ export function Sidebar({
       {collapsed ? (
         <CollapsedToolbar>
           {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
+          {inReviewEnabled && <RvSyncMenu playlistId={playlistId} collapsed />}
         </CollapsedToolbar>
       ) : (
         <Toolbar>
@@ -481,6 +483,7 @@ export function Sidebar({
       ) : (
         <Footer $collapsed={collapsed}>
           {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
+          {inReviewEnabled && <RvSyncMenu playlistId={playlistId} />}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />

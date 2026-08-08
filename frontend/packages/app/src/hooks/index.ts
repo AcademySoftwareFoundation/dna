@@ -17,6 +17,9 @@ export {
   useSetInReview,
 } from './usePlaylistMetadata';
 
+export { useRvSync } from './useRvSync';
+export type { UseRvSyncResult } from './useRvSync';
+
 export { useTranscription, parseMeetingUrl } from './useTranscription';
 export type {
   ParsedMeetingUrl,

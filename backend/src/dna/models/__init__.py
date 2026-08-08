@@ -35,6 +35,12 @@ from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
 )
+from dna.models.rv_sync import (
+    RVLaunchInfo,
+    RVScanResult,
+    RVSyncConnectRequest,
+    RVSyncStatus,
+)
 from dna.models.qc_check import (
     DEFAULT_ACTION_ITEM_CHECK,
     NoteQCAttributeSuggestion,
@@ -120,6 +126,10 @@ __all__ = [
     "ProjectGlossaryUpdate",
     "PublishedTranscript",
     "PublishedTranscriptUpdate",
+    "RVLaunchInfo",
+    "RVScanResult",
+    "RVSyncConnectRequest",
+    "RVSyncStatus",
     "StoredSegment",
     "StoredSegmentCreate",
     "BotSession",

@@ -54,6 +54,10 @@ import {
   UpdateQCCheckParams,
   DeleteQCCheckParams,
   RunQCChecksParams,
+  RVLaunchInfo,
+  RVScanResult,
+  RVSyncConnectParams,
+  RVSyncStatus,
 } from './interfaces';
 
 export interface User {
@@ -219,6 +223,29 @@ class ApiHandler {
     params: DeletePlaylistMetadataParams
   ): Promise<boolean> {
     return this.delete<boolean>(`/playlists/${params.playlistId}/metadata`);
+  }
+
+  async rvSyncScan(): Promise<RVScanResult[]> {
+    return this.post<RVScanResult[]>('/rv-sync/scan');
+  }
+
+  async rvSyncConnect(params: RVSyncConnectParams): Promise<RVSyncStatus> {
+    return this.post<RVSyncStatus>('/rv-sync/connect', {
+      playlist_id: params.playlistId,
+      port: params.port,
+    });
+  }
+
+  async rvSyncStatus(playlistId: number): Promise<RVSyncStatus | null> {
+    return this.get<RVSyncStatus | null>(`/rv-sync/${playlistId}/status`);
+  }
+
+  async rvSyncDisconnect(playlistId: number): Promise<boolean> {
+    return this.delete<boolean>(`/rv-sync/${playlistId}`);
+  }
+
+  async rvSyncLaunchUrl(playlistId: number): Promise<RVLaunchInfo> {
+    return this.get<RVLaunchInfo>(`/rv-sync/${playlistId}/launch-url`);
   }
 
   async dispatchBot(params: DispatchBotParams): Promise<BotSession> {

@@ -234,6 +234,36 @@ export interface DeletePlaylistMetadataParams {
 
 export type Platform = 'google_meet' | 'teams';
 
+export interface RVScanResult {
+  port: number;
+  greeting: string;
+}
+
+export type RVSyncStatusEnum =
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'error';
+
+export interface RVSyncStatus {
+  playlist_id: number;
+  port: number;
+  status: RVSyncStatusEnum;
+  version_id: number | null;
+  version_name: string | null;
+  detail: string | null;
+}
+
+export interface RVSyncConnectParams {
+  playlistId: number;
+  port: number;
+}
+
+export interface RVLaunchInfo {
+  url: string;
+  port: number;
+}
+
 export type BotStatusEnum =
   | 'idle'
   | 'joining'

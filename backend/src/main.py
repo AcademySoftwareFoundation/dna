@@ -60,6 +60,10 @@ from dna.models import (
     PublishTranscriptResponse,
     RunQCChecksRequest,
     RunQCChecksResponse,
+    RVLaunchInfo,
+    RVScanResult,
+    RVSyncConnectRequest,
+    RVSyncStatus,
     SearchRequest,
     SearchResult,
     Shot,
@@ -80,6 +84,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     get_prodtrack_provider,
 )
 from dna.qc.qc_runner import run_qc_checks_for_draft
+from dna.rv_sync import get_rv_sync_service
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -168,6 +173,10 @@ tags_metadata = [
     {
         "name": "Playlist Metadata",
         "description": "Operations for managing playlist metadata (in-review version and meeting ID)",
+    },
+    {
+        "name": "RV Sync",
+        "description": "Sync in-review version from a local RV session",
     },
     {
         "name": "User Settings",
@@ -356,6 +365,7 @@ async def shutdown_event():
     """Clean up services on shutdown."""
     service = get_transcription_service()
     await service.close()
+    await get_rv_sync_service().close()
 
 
 # -----------------------------------------------------------------------------
@@ -1459,6 +1469,99 @@ async def delete_playlist_metadata(
     if not deleted:
         raise HTTPException(status_code=404, detail="Playlist metadata not found")
     return True
+
+
+# -----------------------------------------------------------------------------
+# RV Sync endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/rv-sync/scan",
+    tags=["RV Sync"],
+    summary="Scan for networked RV sessions",
+    description="Probe the configured host for RV sessions with networking on.",
+    response_model=list[RVScanResult],
+)
+async def rv_sync_scan(_: CurrentUserDep) -> list[RVScanResult]:
+    """Scan for running RV sessions that have networking enabled."""
+    results = await get_rv_sync_service().scan()
+    return [RVScanResult(**r) for r in results]
+
+
+@app.post(
+    "/rv-sync/connect",
+    tags=["RV Sync"],
+    summary="Connect a playlist to an RV session",
+    description=(
+        "Connect to the RV session on the given port and keep the playlist's "
+        "in-review version synced to the version under RV's playhead."
+    ),
+    response_model=RVSyncStatus,
+)
+async def rv_sync_connect(
+    request: RVSyncConnectRequest,
+    storage_provider: StorageProviderDep,
+    _: CurrentUserDep,
+) -> RVSyncStatus:
+    """Bind a playlist's in_review to a running RV session."""
+    service = get_rv_sync_service()
+    service.storage_provider = storage_provider
+    snapshot = await service.connect(request.playlist_id, request.port)
+    return RVSyncStatus(**snapshot)
+
+
+@app.get(
+    "/rv-sync/{playlist_id}/launch-url",
+    tags=["RV Sync"],
+    summary="Get an rvlink URL to open the playlist in RV",
+    description=(
+        "Returns a baked rvlink:// URL that opens a new RV instance with "
+        "networking enabled and the playlist's versions loaded. Open it on "
+        "the client, then connect to the returned port."
+    ),
+    response_model=RVLaunchInfo,
+)
+async def rv_sync_launch_url(
+    playlist_id: int,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> RVLaunchInfo:
+    """Build the rvlink launch URL for a playlist."""
+    versions = provider.get_versions_for_playlist(playlist_id)
+    if not versions:
+        raise HTTPException(status_code=404, detail="Playlist has no versions")
+    info = await get_rv_sync_service().build_launch_url([v.id for v in versions])
+    return RVLaunchInfo(**info)
+
+
+@app.get(
+    "/rv-sync/{playlist_id}/status",
+    tags=["RV Sync"],
+    summary="Get RV sync status for a playlist",
+    response_model=Optional[RVSyncStatus],
+)
+async def rv_sync_status(
+    playlist_id: int,
+    _: CurrentUserDep,
+) -> Optional[RVSyncStatus]:
+    """Return the sync session state, or null when none exists."""
+    snapshot = get_rv_sync_service().status(playlist_id)
+    return RVSyncStatus(**snapshot) if snapshot else None
+
+
+@app.delete(
+    "/rv-sync/{playlist_id}",
+    tags=["RV Sync"],
+    summary="Disconnect a playlist from RV",
+    response_model=bool,
+)
+async def rv_sync_disconnect(
+    playlist_id: int,
+    _: CurrentUserDep,
+) -> bool:
+    """Tear down the playlist's RV sync session."""
+    return await get_rv_sync_service().disconnect(playlist_id)
 
 
 # -----------------------------------------------------------------------------
