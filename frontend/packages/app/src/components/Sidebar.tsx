@@ -164,7 +164,9 @@ const SettingsButton = styled.button`
 
 const CollapsedToolbar = styled.div`
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   padding: 12px 8px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
 `;
@@ -255,7 +257,8 @@ export function Sidebar({
   const searchRef = useRef<ExpandableSearchHandle>(null);
 
   const { getLabel } = useHotkeyConfig();
-  const { transcriptionEnabled, inReviewEnabled } = useFeatureFlags();
+  const { transcriptionEnabled, inReviewEnabled, rvSyncEnabled } =
+    useFeatureFlags();
 
   const toggleSettings = useCallback(() => {
     setIsSettingsOpen((prev) => !prev);
@@ -428,7 +431,7 @@ export function Sidebar({
       {collapsed ? (
         <CollapsedToolbar>
           {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
-          {inReviewEnabled && <RvSyncMenu playlistId={playlistId} collapsed />}
+          {rvSyncEnabled && <RvSyncMenu playlistId={playlistId} collapsed />}
         </CollapsedToolbar>
       ) : (
         <Toolbar>
@@ -483,7 +486,7 @@ export function Sidebar({
       ) : (
         <Footer $collapsed={collapsed}>
           {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
-          {inReviewEnabled && <RvSyncMenu playlistId={playlistId} />}
+          {rvSyncEnabled && <RvSyncMenu playlistId={playlistId} />}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />

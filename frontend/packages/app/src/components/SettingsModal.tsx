@@ -394,8 +394,25 @@ function GeneralTab({
   onProdtrackPageTypeChange,
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
-  const { inReviewEnabled, setInReviewEnabled, inReviewLocked, inReviewLockReason } =
-    useFeatureFlags();
+  const {
+    inReviewEnabled,
+    setInReviewEnabled,
+    inReviewLocked,
+    inReviewLockReason,
+    rvSyncEnabled,
+    setRvSyncEnabled,
+    rvSyncLocked,
+    transcriptionEnabled,
+  } = useFeatureFlags();
+
+  // In Review can be pinned on by several dependents at once; the tooltip
+  // must name all of them or its "disable X" advice is wrong.
+  const inReviewRequiredBy = [
+    transcriptionEnabled ? 'Transcription' : null,
+    rvSyncEnabled ? 'RV Sync' : null,
+  ]
+    .filter(Boolean)
+    .join(' and ');
 
   if (isLoading) {
     return (
@@ -433,11 +450,27 @@ function GeneralTab({
             onCheckedChange={setInReviewEnabled}
             locked={inReviewLocked}
             tooltip={
-              inReviewLockReason === 'transcription'
-                ? 'Required by Transcription — disable Transcription to change this'
-                : inReviewLocked
-                  ? `${inReviewEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration`
+              inReviewLockReason === 'pipeline'
+                ? `${inReviewEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration`
+                : inReviewLocked && inReviewRequiredBy
+                  ? `Required by ${inReviewRequiredBy} — disable ${inReviewRequiredBy} to change this`
                   : undefined
+            }
+          />
+        </AppearanceRow>
+        <AppearanceRow>
+          <KeybindingLabel>
+            <KeybindingName>Enable RV Sync</KeybindingName>
+            <KeybindingDesc>Show the RV Sync button to mirror the in-review version from a local RV session</KeybindingDesc>
+          </KeybindingLabel>
+          <LockableSwitch
+            checked={rvSyncEnabled}
+            onCheckedChange={setRvSyncEnabled}
+            locked={rvSyncLocked}
+            tooltip={
+              rvSyncLocked
+                ? `${rvSyncEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration`
+                : undefined
             }
           />
         </AppearanceRow>

@@ -10,6 +10,7 @@ import {
 const TRANSCRIPTION_KEY = 'dna-transcription-enabled';
 const AI_KEY = 'dna-ai-enabled';
 const IN_REVIEW_KEY = 'dna-in-review-enabled';
+const RV_SYNC_KEY = 'dna-rv-sync-enabled';
 
 function readEnvOverride(envValue: string | undefined): boolean | null {
   if (envValue === 'true') return true;
@@ -20,19 +21,23 @@ function readEnvOverride(envValue: string | undefined): boolean | null {
 const ENV_TRANSCRIPTION = readEnvOverride(import.meta.env.VITE_FEATURE_TRANSCRIPTION);
 const ENV_IN_REVIEW = readEnvOverride(import.meta.env.VITE_FEATURE_IN_REVIEW);
 const ENV_AI = readEnvOverride(import.meta.env.VITE_FEATURE_AI);
+const ENV_RV_SYNC = readEnvOverride(import.meta.env.VITE_FEATURE_RV_SYNC);
 
 interface FeatureFlagsContextValue {
   transcriptionEnabled: boolean;
   aiEnabled: boolean;
   inReviewEnabled: boolean;
+  rvSyncEnabled: boolean;
   transcriptionLocked: boolean;
   aiLocked: boolean;
   inReviewLocked: boolean;
+  rvSyncLocked: boolean;
   transcriptionLockReason: string | null;
   inReviewLockReason: string | null;
   setTranscriptionEnabled: (enabled: boolean) => void;
   setAiEnabled: (enabled: boolean) => void;
   setInReviewEnabled: (enabled: boolean) => void;
+  setRvSyncEnabled: (enabled: boolean) => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | null>(null);
@@ -56,11 +61,17 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     return stored === null ? true : stored === 'true';
   });
 
-  // Russian-doll dependency: AI ⊆ Transcription ⊆ In Review.
-  // AI requires Transcription, and Transcription requires In Review, so
-  // enabling a parent (via UI toggle or env override) forces its children on.
+  const [rvSyncEnabled, setRvSyncState] = useState(() => {
+    if (ENV_RV_SYNC !== null) return ENV_RV_SYNC;
+    const stored = localStorage.getItem(RV_SYNC_KEY);
+    return stored === null ? true : stored === 'true';
+  });
+
+  // Russian-doll dependency: AI ⊆ Transcription ⊆ In Review, and
+  // RV Sync ⊆ In Review. Enabling a dependent feature (via UI toggle or
+  // env override) forces what it requires on.
   const transcriptionEnabled = transcriptionBase || aiEnabled;
-  const inReviewEnabled = inReviewBase || transcriptionEnabled;
+  const inReviewEnabled = inReviewBase || transcriptionEnabled || rvSyncEnabled;
 
   const setTranscriptionEnabled = useCallback((enabled: boolean) => {
     if (ENV_TRANSCRIPTION !== null) return;
@@ -80,15 +91,24 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setInReviewState(enabled);
   }, []);
 
+  const setRvSyncEnabled = useCallback((enabled: boolean) => {
+    if (ENV_RV_SYNC !== null) return;
+    localStorage.setItem(RV_SYNC_KEY, String(enabled));
+    setRvSyncState(enabled);
+  }, []);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
         transcriptionEnabled,
         aiEnabled,
         inReviewEnabled,
+        rvSyncEnabled,
         transcriptionLocked: ENV_TRANSCRIPTION !== null || aiEnabled,
         aiLocked: ENV_AI !== null,
-        inReviewLocked: ENV_IN_REVIEW !== null || transcriptionEnabled,
+        inReviewLocked:
+          ENV_IN_REVIEW !== null || transcriptionEnabled || rvSyncEnabled,
+        rvSyncLocked: ENV_RV_SYNC !== null,
         transcriptionLockReason:
           ENV_TRANSCRIPTION !== null
             ? 'pipeline'
@@ -100,10 +120,13 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
             ? 'pipeline'
             : transcriptionEnabled
               ? 'transcription'
-              : null,
+              : rvSyncEnabled
+                ? 'rv-sync'
+                : null,
         setTranscriptionEnabled,
         setAiEnabled,
         setInReviewEnabled,
+        setRvSyncEnabled,
       }}
     >
       {children}
