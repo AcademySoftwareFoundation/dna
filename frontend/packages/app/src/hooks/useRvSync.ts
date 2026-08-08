@@ -11,7 +11,7 @@ export interface UseRvSyncResult {
   isLaunching: boolean;
   error: Error | null;
   scanAndConnect: () => Promise<void>;
-  connect: (port: number) => Promise<void>;
+  connect: (port: number) => Promise<RVSyncStatus | null>;
   disconnect: () => Promise<void>;
   openInRv: () => Promise<void>;
 }
@@ -66,8 +66,8 @@ export function useRvSync(playlistId: number | null): UseRvSyncResult {
   });
 
   const connect = useCallback(
-    async (port: number) => {
-      if (playlistId == null) return;
+    async (port: number): Promise<RVSyncStatus | null> => {
+      if (playlistId == null) return null;
       setIsBusy(true);
       setError(null);
       setScanResults(null);
@@ -77,8 +77,10 @@ export function useRvSync(playlistId: number | null): UseRvSyncResult {
         if (result.status === 'error') {
           setError(new Error(result.detail ?? 'Failed to connect to RV'));
         }
+        return result;
       } catch (e) {
         setError(e instanceof Error ? e : new Error(String(e)));
+        return null;
       } finally {
         setIsBusy(false);
       }
@@ -144,7 +146,13 @@ export function useRvSync(playlistId: number | null): UseRvSyncResult {
         const target =
           found.find((s) => s.port === port) ?? found[0];
         if (target) {
-          await connect(target.port);
+          const result = await connect(target.port);
+          if (result?.status === 'connected' && result.version_id == null) {
+            // Cold-started RV ignores the rvlink -eval (the SG machinery
+            // isn't up when it fires), so the session is empty. Resend the
+            // same URL — a *running* RV consumes it and loads reliably.
+            window.location.href = url;
+          }
           return;
         }
       }
