@@ -615,7 +615,6 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     republishedCount: number;
     failedCount: number;
     imageCount: number;
-    statusCount: number;
     transcriptPublishedCount: number;
     transcriptSkippedCount: number;
   } | null>(null);
@@ -746,13 +745,6 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   const countImages = (notes: DraftNote[]) =>
     notes.reduce((sum, n) => sum + (n.attachment_ids?.length ?? 0), 0);
 
-  const countStatuses = (notes: DraftNote[]) =>
-    notes.filter((n) => {
-      if (!n.version_status) return false;
-      const version = versions.find((v) => v.id === n.version_id);
-      return n.version_status !== version?.status;
-    }).length;
-
   const handleBatchSelect = useCallback(
     (mode: 'all' | 'none' | 'mine' | 'others') => {
       setSelected(() => {
@@ -830,7 +822,6 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       republishedCount: notesResult.republished_count,
       failedCount: notesResult.failed_count,
       imageCount: countImages(toPublish),
-      statusCount: countStatuses(toPublish),
       transcriptPublishedCount,
       transcriptSkippedCount,
     });
@@ -867,9 +858,6 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               )}
               {successSummary.imageCount > 0 && (
                 <li>Images Attached: {successSummary.imageCount}</li>
-              )}
-              {successSummary.statusCount > 0 && (
-                <li>Statuses Updated: {successSummary.statusCount}</li>
               )}
               {successSummary.transcriptPublishedCount > 0 && (
                 <li>

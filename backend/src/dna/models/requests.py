@@ -112,6 +112,12 @@ class AddVersionToPlaylistRequest(BaseModel):
     )
 
 
+class UpdateVersionStatusRequest(BaseModel):
+    """Request model for updating a version's status."""
+
+    status: str = Field(description="Status code to set (e.g., 'rev', 'apr')")
+
+
 class CreatePlaylistRequest(BaseModel):
     """Request model for creating a new playlist in a project."""
 

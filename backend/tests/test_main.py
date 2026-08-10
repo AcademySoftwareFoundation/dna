@@ -1364,3 +1364,54 @@ class TestCreatePlaylistEndpoint:
             assert response.status_code == 404
         finally:
             app.dependency_overrides.clear()
+
+
+class TestUpdateVersionStatusEndpoint:
+    """Tests for PUT /versions/{version_id}/status."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        return mock.MagicMock()
+
+    def _override(self, mock_provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+    def test_update_status(self, mock_provider):
+        mock_provider.update_version_status.return_value = True
+        self._override(mock_provider)
+        try:
+            response = client.put("/versions/300/status", json={"status": "apr"})
+            assert response.status_code == 200
+            assert response.json() == {"success": True}
+            mock_provider.update_version_status.assert_called_once_with(300, "apr")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_blank_status_returns_400(self, mock_provider):
+        self._override(mock_provider)
+        try:
+            response = client.put("/versions/300/status", json={"status": "  "})
+            assert response.status_code == 400
+            mock_provider.update_version_status.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_provider_failure_returns_502(self, mock_provider):
+        mock_provider.update_version_status.return_value = False
+        self._override(mock_provider)
+        try:
+            response = client.put("/versions/300/status", json={"status": "apr"})
+            assert response.status_code == 502
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_provider_value_error_returns_404(self, mock_provider):
+        mock_provider.update_version_status.side_effect = ValueError(
+            "Version 999 not found"
+        )
+        self._override(mock_provider)
+        try:
+            response = client.put("/versions/999/status", json={"status": "apr"})
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides.clear()

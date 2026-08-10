@@ -73,6 +73,7 @@ from dna.models import (
     StoredSegment,
     Task,
     Transcript,
+    UpdateVersionStatusRequest,
     User,
     UserSettings,
     UserSettingsResponse,
@@ -775,6 +776,33 @@ async def get_version_statuses(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.put(
+    "/versions/{version_id}/status",
+    tags=["Versions"],
+    summary="Update version status",
+    description=(
+        "Immediately update a version's status in the production tracking system."
+    ),
+)
+async def update_version_status(
+    version_id: int,
+    request: UpdateVersionStatusRequest,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> dict:
+    """Update a version's status in the production tracking system."""
+    status = request.status.strip()
+    if not status:
+        raise HTTPException(status_code=400, detail="Status is required")
+    try:
+        success = provider.update_version_status(version_id, status)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    if not success:
+        raise HTTPException(status_code=502, detail="Failed to update version status")
+    return {"success": True}
+
+
 # -----------------------------------------------------------------------------
 # User endpoints
 # -----------------------------------------------------------------------------
@@ -1053,24 +1081,14 @@ async def publish_notes(
             has_body = (note.content and note.content.strip()) or (
                 note.subject and note.subject.strip()
             )
-            if not has_body and not note.attachment_ids and not note.version_status:
-                skipped_count += 1
-                continue
-
-            # Status-only change with no note body: update version status without
-            # creating or publishing a note, and do not mark the draft as published.
-            if not has_body and not note.attachment_ids and note.version_status:
-                prodtrack.update_version_status(note.version_id, note.version_status)
+            # Version status changes are applied live via
+            # PUT /versions/{version_id}/status, not at publish time.
+            if not has_body and not note.attachment_ids:
                 skipped_count += 1
                 continue
 
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
-                    # Still apply any pending version status change
-                    if note.version_status:
-                        prodtrack.update_version_status(
-                            note.version_id, note.version_status
-                        )
                     skipped_count += 1
                     continue
 
@@ -1080,7 +1098,6 @@ async def publish_notes(
                         content=note.content,
                         subject=note.subject,
                         version_id=note.version_id,
-                        version_status=note.version_status or None,
                     )
                     if not success:
                         failed_count += 1
@@ -1139,7 +1156,6 @@ async def publish_notes(
                 cc_users=[],
                 links=links,
                 author_email=note.user_email,
-                version_status=note.version_status or None,
             )
 
             if note.attachment_ids:

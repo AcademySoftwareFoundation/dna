@@ -46,6 +46,7 @@ import {
   StatusOption,
   AddVersionToPlaylistParams,
   CreatePlaylistParams,
+  UpdateVersionStatusParams,
   NoteQCCheck,
   NoteQCCheckCreate,
   NoteQCCheckUpdate,
@@ -355,6 +356,15 @@ class ApiHandler {
       limit: params.limit ?? 10,
     });
     return response.results;
+  }
+
+  async updateVersionStatus(
+    params: UpdateVersionStatusParams
+  ): Promise<{ success: boolean }> {
+    return this.put<{ success: boolean }>(
+      `/versions/${params.versionId}/status`,
+      { status: params.status }
+    );
   }
 
   async getVersionStatuses(

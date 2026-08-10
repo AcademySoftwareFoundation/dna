@@ -1,6 +1,6 @@
 import { useRef, useCallback, useMemo, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
@@ -97,16 +97,42 @@ export function ContentArea({
     submitter: versionSubmitter,
   });
 
-  const selectedVersionStatus = draftNote?.versionStatus || (version?.status ?? '');
+  // Version status changes are applied to the production tracking system
+  // immediately. pendingStatus holds the optimistic value; the `version`
+  // prop is a snapshot that only updates on navigation/refresh, so the
+  // pending value is kept until the version changes (or the update fails).
+  const queryClient = useQueryClient();
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
-  const handleVersionStatusChange = useCallback((code: string) => {
-    updateDraftNote({ versionStatus: code });
-  }, [updateDraftNote]);
+  useEffect(() => {
+    setPendingStatus(null);
+  }, [version?.id]);
+
+  const { mutate: mutateVersionStatus } = useMutation({
+    mutationFn: (input: { versionId: number; status: string }) =>
+      apiHandler.updateVersionStatus(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['versions', playlistId] });
+    },
+    onError: () => {
+      setPendingStatus(null);
+    },
+  });
+
+  const selectedVersionStatus = pendingStatus ?? version?.status ?? '';
+
+  const handleVersionStatusChange = useCallback(
+    (code: string) => {
+      if (!version) return;
+      setPendingStatus(code);
+      mutateVersionStatus({ versionId: version.id, status: code });
+    },
+    [version, mutateVersionStatus]
+  );
 
   const handleRefreshClick = useCallback(() => {
-    updateDraftNote({ versionStatus: version?.status ?? '' });
     onRefresh?.();
-  }, [version?.status, onRefresh, updateDraftNote]);
+  }, [onRefresh]);
 
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)

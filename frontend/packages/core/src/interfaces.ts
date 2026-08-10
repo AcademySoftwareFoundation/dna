@@ -512,6 +512,11 @@ export interface GetVersionStatusesParams {
   projectId?: number;
 }
 
+export interface UpdateVersionStatusParams {
+  versionId: number;
+  status: string;
+}
+
 export interface PublishNoteTarget {
   user_email: string;
   version_id: number;
