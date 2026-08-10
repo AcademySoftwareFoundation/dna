@@ -48,7 +48,9 @@ from dna.models.qc_check import (
     RunQCChecksResponse,
 )
 from dna.models.requests import (
+    AddVersionToPlaylistRequest,
     CreateNoteRequest,
+    CreatePlaylistRequest,
     EntityLink,
     FilterCondition,
     FindRequest,
@@ -83,6 +85,7 @@ from dna.models.user_settings import (
 from dna.models.user_settings_response import UserSettingsResponse
 
 __all__ = [
+    "AddVersionToPlaylistRequest",
     "EntityBase",
     "Project",
     "Shot",
@@ -97,6 +100,7 @@ __all__ = [
     "ENTITY_MODELS",
     "EntityLink",
     "CreateNoteRequest",
+    "CreatePlaylistRequest",
     "FilterCondition",
     "FindRequest",
     "GenerateNoteRequest",
