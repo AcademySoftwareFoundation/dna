@@ -80,6 +80,44 @@ class SearchRequest(BaseModel):
     )
 
 
+class AddVersionToPlaylistRequest(BaseModel):
+    """Request model for adding a version to a playlist.
+
+    Provide version_id to add an existing version, or version_name and
+    project_id to create a new version and add it. When creating, the new
+    version can be linked to an entity: pass link_entity_type with
+    link_entity_id (existing entity) or link_entity_name (create the entity
+    first, then link).
+    """
+
+    version_id: Optional[int] = Field(
+        default=None, description="ID of an existing version to add"
+    )
+    version_name: Optional[str] = Field(
+        default=None, description="Name for a new version to create and add"
+    )
+    project_id: Optional[int] = Field(
+        default=None, description="Project ID (required when creating a new version)"
+    )
+    link_entity_type: Optional[str] = Field(
+        default=None,
+        description="Entity type to link the new version to (e.g., 'shot', 'asset')",
+    )
+    link_entity_id: Optional[int] = Field(
+        default=None, description="ID of an existing entity to link the new version to"
+    )
+    link_entity_name: Optional[str] = Field(
+        default=None,
+        description="Name for a new entity to create and link the new version to",
+    )
+
+
+class CreatePlaylistRequest(BaseModel):
+    """Request model for creating a new playlist in a project."""
+
+    name: str = Field(description="Playlist name/code")
+
+
 class SearchResult(BaseModel):
     """Lightweight entity representation for search results."""
 

@@ -651,6 +651,32 @@ class ShotgridProvider(ProdtrackProviderBase):
             for sg_playlist in sg_playlists
         ]
 
+    def create_playlist(self, project_id: int, name: str) -> Playlist:
+        """Create a new playlist in ShotGrid.
+
+        Args:
+            project_id: The ID of the project the playlist belongs to
+            name: The playlist name/code
+
+        Returns:
+            The created Playlist entity
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_playlist = self._sg.create(
+            "Playlist",
+            {
+                "code": name,
+                "project": {"type": "Project", "id": project_id},
+            },
+        )
+
+        entity_mapping = FIELD_MAPPING["playlist"]
+        return self._convert_sg_entity_to_dna_entity(
+            sg_playlist, entity_mapping, "playlist", resolve_links=False
+        )
+
     def get_versions_for_playlist(self, playlist_id: int) -> list[Version]:
         """Get versions for a playlist.
 
@@ -797,6 +823,121 @@ class ShotgridProvider(ProdtrackProviderBase):
             versions.append(version)
 
         return versions
+
+    def create_version(
+        self,
+        project_id: int,
+        name: str,
+        entity_type: str | None = None,
+        entity_id: int | None = None,
+    ) -> Version:
+        """Create a new version in ShotGrid.
+
+        Args:
+            project_id: The ID of the project the version belongs to
+            name: The version name/code
+            entity_type: Optional DNA entity type ('shot' or 'asset') to link to
+            entity_id: Optional ID of the entity to link to
+
+        Returns:
+            The created Version entity
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_data: dict[str, Any] = {
+            "code": name,
+            "project": {"type": "Project", "id": project_id},
+        }
+        if entity_type and entity_id:
+            link_mapping = FIELD_MAPPING.get(entity_type.lower())
+            if link_mapping is None:
+                raise ValueError(f"Unknown entity type: {entity_type}")
+            sg_data["entity"] = {
+                "type": link_mapping["entity_id"],
+                "id": entity_id,
+            }
+
+        sg_version = self._sg.create("Version", sg_data)
+
+        entity_mapping = FIELD_MAPPING["version"]
+        version = self._convert_sg_entity_to_dna_entity(
+            sg_version, entity_mapping, "version", resolve_links=False
+        )
+        if entity_type and entity_id:
+            version.entity = self.get_entity(
+                entity_type.lower(), entity_id, resolve_links=False
+            )
+        base = (self.url or "").rstrip("/")
+        if base:
+            version.prodtrack_detail_url = f"{base}/detail/Version/{version.id}"
+            if version.entity:
+                version.prodtrack_entity_detail_url = (
+                    f"{base}/detail/{version.entity.type}/{version.entity.id}"
+                )
+        return version
+
+    def create_entity(self, project_id: int, entity_type: str, name: str) -> EntityBase:
+        """Create a new entity (shot or asset) in ShotGrid.
+
+        Args:
+            project_id: The ID of the project the entity belongs to
+            entity_type: DNA entity type to create ('shot' or 'asset')
+            name: The entity name/code
+
+        Returns:
+            The created entity
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        entity_type = entity_type.lower()
+        if entity_type not in ("shot", "asset"):
+            raise ValueError(
+                f"Unsupported entity type for creation: '{entity_type}'. "
+                "Supported types: shot, asset"
+            )
+
+        entity_mapping = FIELD_MAPPING[entity_type]
+        sg_entity = self._sg.create(
+            entity_mapping["entity_id"],
+            {
+                "code": name,
+                "project": {"type": "Project", "id": project_id},
+            },
+        )
+        return self._convert_sg_entity_to_dna_entity(
+            sg_entity, entity_mapping, entity_type, resolve_links=False
+        )
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+        """Add an existing version to a ShotGrid playlist.
+
+        Args:
+            playlist_id: The ID of the playlist
+            version_id: The ID of the version to add
+
+        Returns:
+            True on success (including when the version was already present)
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_playlist = self._sg.find_one(
+            "Playlist",
+            filters=[["id", "is", playlist_id]],
+            fields=["versions"],
+        )
+        if not sg_playlist:
+            raise ValueError(f"Playlist {playlist_id} not found")
+
+        versions = sg_playlist.get("versions") or []
+        if any(v.get("id") == version_id for v in versions):
+            return True
+
+        versions.append({"type": "Version", "id": version_id})
+        self._sg.update("Playlist", playlist_id, {"versions": versions})
+        return True
 
     def get_version_statuses(
         self, project_id: int | None = None
