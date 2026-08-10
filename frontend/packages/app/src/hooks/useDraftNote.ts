@@ -262,7 +262,9 @@ export function useDraftNote({
       }
     } else {
       // Same context: only update system fields to avoid overwriting user input
-      // (entity names in pills are only in local state, not on the server)
+      // (entity names in pills are only in local state, not on the server).
+      // versionStatus counts as a system field: publishing clears it on the
+      // server, and the local dropdown must follow.
       if (serverDraft) {
         setLocalDraft((prev) => {
           if (!prev) return backendToLocal(serverDraft);
@@ -270,7 +272,8 @@ export function useDraftNote({
           if (
             prev.published === serverDraft.published &&
             prev.edited === serverDraft.edited &&
-            prev.publishedNoteId === (serverDraft.published_note_id ?? null)
+            prev.publishedNoteId === (serverDraft.published_note_id ?? null) &&
+            prev.versionStatus === (serverDraft.version_status ?? '')
           ) {
             return prev;
           }
@@ -280,6 +283,7 @@ export function useDraftNote({
             published: serverDraft.published,
             edited: serverDraft.edited,
             publishedNoteId: serverDraft.published_note_id ?? null,
+            versionStatus: serverDraft.version_status ?? '',
           };
         });
       } else if (!isLoading) {
