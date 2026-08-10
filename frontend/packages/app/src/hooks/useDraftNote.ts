@@ -261,30 +261,46 @@ export function useDraftNote({
         setLocalDraft(null);
       }
     } else {
-      // Same context: only update system fields to avoid overwriting user input
-      // (entity names in pills are only in local state, not on the server).
-      // versionStatus counts as a system field: publishing clears it on the
-      // server, and the local dropdown must follow.
+      // Same context: update system fields, and body fields when this
+      // instance has no unsaved edits, so changes saved elsewhere (e.g. the
+      // publish dialog's editor for the same draft) are reflected here.
+      // to/cc/links stay local-only: entity names in pills may not round-trip
+      // through the server. versionStatus counts as a system field: publishing
+      // clears it on the server, and the local dropdown must follow.
       if (serverDraft) {
         setLocalDraft((prev) => {
           if (!prev) return backendToLocal(serverDraft);
 
-          if (
-            prev.published === serverDraft.published &&
-            prev.edited === serverDraft.edited &&
-            prev.publishedNoteId === (serverDraft.published_note_id ?? null) &&
-            prev.versionStatus === (serverDraft.version_status ?? '')
-          ) {
-            return prev;
-          }
+          // Never clobber edits that are pending debounce or mid-save
+          const hasUnsavedEdits =
+            pendingDataRef.current !== null || upsertMutation.isPending;
 
-          return {
+          const next: LocalDraftNote = {
             ...prev,
             published: serverDraft.published,
             edited: serverDraft.edited,
             publishedNoteId: serverDraft.published_note_id ?? null,
             versionStatus: serverDraft.version_status ?? '',
+            ...(hasUnsavedEdits
+              ? {}
+              : {
+                  content: serverDraft.content ?? '',
+                  subject: serverDraft.subject ?? '',
+                }),
           };
+
+          if (
+            next.published === prev.published &&
+            next.edited === prev.edited &&
+            next.publishedNoteId === prev.publishedNoteId &&
+            next.versionStatus === prev.versionStatus &&
+            next.content === prev.content &&
+            next.subject === prev.subject
+          ) {
+            return prev;
+          }
+
+          return next;
         });
       } else if (!isLoading) {
         // Loading finished with no server draft — initialise empty if still null
