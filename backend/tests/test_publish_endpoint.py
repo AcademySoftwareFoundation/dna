@@ -420,12 +420,19 @@ class TestUpdateVersionStatusEndpoint:
         return mock.Mock()
 
     @pytest.fixture
-    def override_deps(self, mock_prodtrack):
+    def mock_storage(self):
+        return mock.AsyncMock()
+
+    @pytest.fixture
+    def override_deps(self, mock_prodtrack, mock_storage):
         app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
         yield
         app.dependency_overrides.clear()
 
-    def test_update_version_status_success(self, client, mock_prodtrack, override_deps):
+    def test_update_version_status_success(
+        self, client, mock_prodtrack, mock_storage, override_deps
+    ):
         mock_prodtrack.update_version_status.return_value = True
 
         response = client.patch("/versions/101/status", json={"status": "rev"})
@@ -433,15 +440,34 @@ class TestUpdateVersionStatusEndpoint:
         assert response.status_code == 200
         assert response.json() == {"success": True}
         mock_prodtrack.update_version_status.assert_called_once_with(101, "rev")
+        mock_storage.clear_draft_version_status.assert_not_called()
 
-    def test_update_version_status_failure(self, client, mock_prodtrack, override_deps):
+    def test_update_version_status_clears_draft_intents(
+        self, client, mock_prodtrack, mock_storage, override_deps
+    ):
+        """With playlist_id, fulfilled draft status intents are cleared."""
+        mock_prodtrack.update_version_status.return_value = True
+
+        response = client.patch(
+            "/versions/101/status", json={"status": "rev", "playlist_id": 100}
+        )
+
+        assert response.status_code == 200
+        mock_storage.clear_draft_version_status.assert_awaited_once_with(100, 101)
+
+    def test_update_version_status_failure(
+        self, client, mock_prodtrack, mock_storage, override_deps
+    ):
         mock_prodtrack.update_version_status.return_value = False
 
         response = client.patch("/versions/101/status", json={"status": "rev"})
 
         assert response.status_code == 502
+        mock_storage.clear_draft_version_status.assert_not_called()
 
-    def test_update_version_status_invalid(self, client, mock_prodtrack, override_deps):
+    def test_update_version_status_invalid(
+        self, client, mock_prodtrack, mock_storage, override_deps
+    ):
         mock_prodtrack.update_version_status.side_effect = ValueError("bad status")
 
         response = client.patch("/versions/101/status", json={"status": "nope"})

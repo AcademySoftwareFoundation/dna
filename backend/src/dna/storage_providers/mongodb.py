@@ -176,6 +176,20 @@ class MongoDBStorageProvider(StorageProviderBase):
         result["_id"] = str(result["_id"])
         return DraftNote(**result)
 
+    async def clear_draft_version_status(
+        self, playlist_id: int, version_id: int
+    ) -> int:
+        now = datetime.now(timezone.utc)
+        result = await self.draft_notes.update_many(
+            {
+                "playlist_id": playlist_id,
+                "version_id": version_id,
+                "version_status": {"$nin": [None, ""]},
+            },
+            {"$set": {"version_status": "", "updated_at": now}},
+        )
+        return result.modified_count
+
     async def upsert_published_note(
         self, user_email: str, playlist_id: int, version_id: int, data: DraftNoteUpdate
     ) -> DraftNote:
