@@ -38,6 +38,16 @@ class StorageProviderBase:
         """Get a draft note by composite key (user_email, playlist_id, version_id)."""
         raise NotImplementedError()
 
+    async def clear_draft_version_status(
+        self, playlist_id: int, version_id: int
+    ) -> int:
+        """Clear pending version_status on all draft notes for a version.
+
+        Must not modify publish/edited state. Returns the number of drafts
+        updated.
+        """
+        raise NotImplementedError()
+
     async def upsert_draft_note(
         self,
         user_email: str,

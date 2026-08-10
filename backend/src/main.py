@@ -788,6 +788,7 @@ async def update_version_status(
     version_id: int,
     request: UpdateVersionStatusRequest,
     provider: ProdtrackProviderDep,
+    storage: StorageProviderDep,
     _: CurrentUserDep,
 ) -> UpdateVersionStatusResponse:
     """Update the status of a version without publishing a note."""
@@ -797,6 +798,10 @@ async def update_version_status(
         raise HTTPException(status_code=400, detail=str(e))
     if not success:
         raise HTTPException(status_code=502, detail="Failed to update version status")
+    if request.playlist_id is not None:
+        # Pending draft status intents for this version are fulfilled or
+        # obsolete now; clear them without touching note publish state.
+        await storage.clear_draft_version_status(request.playlist_id, version_id)
     return UpdateVersionStatusResponse(success=True)
 
 

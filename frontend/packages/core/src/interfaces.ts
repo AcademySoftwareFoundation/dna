@@ -544,6 +544,11 @@ export interface PublishNotesParams {
 export interface UpdateVersionStatusParams {
   versionId: number;
   status: string;
+  /**
+   * When set, pending version_status values on this playlist's draft notes
+   * for the version are cleared server-side after the update.
+   */
+  playlistId?: number;
 }
 
 export interface UpdateVersionStatusResponse {

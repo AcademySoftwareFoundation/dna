@@ -399,7 +399,7 @@ class ApiHandler {
   ): Promise<UpdateVersionStatusResponse> {
     return this.patch<UpdateVersionStatusResponse>(
       `/versions/${params.versionId}/status`,
-      { status: params.status }
+      { status: params.status, playlist_id: params.playlistId ?? null }
     );
   }
 

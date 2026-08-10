@@ -167,6 +167,14 @@ class UpdateVersionStatusRequest(BaseModel):
     """Request model for updating a version's status."""
 
     status: str = Field(description="Status code to set on the version")
+    playlist_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "If provided, pending version_status values on this playlist's "
+            "draft notes for the version are cleared after the update, "
+            "without touching note publish state."
+        ),
+    )
 
 
 class UpdateVersionStatusResponse(BaseModel):
