@@ -73,6 +73,8 @@ from dna.models import (
     StoredSegment,
     Task,
     Transcript,
+    UpdateVersionStatusRequest,
+    UpdateVersionStatusResponse,
     User,
     UserSettings,
     UserSettingsResponse,
@@ -775,6 +777,29 @@ async def get_version_statuses(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.patch(
+    "/versions/{version_id}/status",
+    tags=["Versions"],
+    summary="Update a version's status",
+    description="Set the status of a version in the production tracking system.",
+    response_model=UpdateVersionStatusResponse,
+)
+async def update_version_status(
+    version_id: int,
+    request: UpdateVersionStatusRequest,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> UpdateVersionStatusResponse:
+    """Update the status of a version without publishing a note."""
+    try:
+        success = provider.update_version_status(version_id, request.status)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not success:
+        raise HTTPException(status_code=502, detail="Failed to update version status")
+    return UpdateVersionStatusResponse(success=True)
+
+
 # -----------------------------------------------------------------------------
 # User endpoints
 # -----------------------------------------------------------------------------
@@ -1028,6 +1053,17 @@ async def publish_notes(
     failed_count = 0
     skipped_count = 0
 
+    def _status_to_apply(note) -> Optional[str]:
+        """Version status to apply for this note, honoring the allowlist."""
+        if not note.version_status:
+            return None
+        if (
+            request.status_version_ids is not None
+            and note.version_id not in request.status_version_ids
+        ):
+            return None
+        return note.version_status
+
     from datetime import datetime, timezone
 
     def _upload_attachments(sg_note_id: int, attachment_ids: list[str]) -> None:
@@ -1049,27 +1085,29 @@ async def publish_notes(
 
     for note in notes_to_publish:
         try:
+            status_to_apply = _status_to_apply(note)
+
             # Skip notes with no meaningful content to publish
             has_body = (note.content and note.content.strip()) or (
                 note.subject and note.subject.strip()
             )
-            if not has_body and not note.attachment_ids and not note.version_status:
+            if not has_body and not note.attachment_ids and not status_to_apply:
                 skipped_count += 1
                 continue
 
             # Status-only change with no note body: update version status without
             # creating or publishing a note, and do not mark the draft as published.
-            if not has_body and not note.attachment_ids and note.version_status:
-                prodtrack.update_version_status(note.version_id, note.version_status)
+            if not has_body and not note.attachment_ids and status_to_apply:
+                prodtrack.update_version_status(note.version_id, status_to_apply)
                 skipped_count += 1
                 continue
 
             if note.published_note_id:
                 if note.published and not note.edited and not note.attachment_ids:
                     # Still apply any pending version status change
-                    if note.version_status:
+                    if status_to_apply:
                         prodtrack.update_version_status(
-                            note.version_id, note.version_status
+                            note.version_id, status_to_apply
                         )
                     skipped_count += 1
                     continue
@@ -1080,7 +1118,7 @@ async def publish_notes(
                         content=note.content,
                         subject=note.subject,
                         version_id=note.version_id,
-                        version_status=note.version_status or None,
+                        version_status=status_to_apply,
                     )
                     if not success:
                         failed_count += 1
@@ -1139,7 +1177,7 @@ async def publish_notes(
                 cc_users=[],
                 links=links,
                 author_email=note.user_email,
-                version_status=note.version_status or None,
+                version_status=status_to_apply,
             )
 
             if note.attachment_ids:

@@ -64,6 +64,8 @@ from dna.models.requests import (
     SearchRequest,
     SearchResult,
     StatusOption,
+    UpdateVersionStatusRequest,
+    UpdateVersionStatusResponse,
 )
 from dna.models.rv_sync import (
     RVLaunchInfo,
@@ -119,6 +121,8 @@ __all__ = [
     "PublishNotesResponse",
     "PublishTranscriptRequest",
     "PublishTranscriptResponse",
+    "UpdateVersionStatusRequest",
+    "UpdateVersionStatusResponse",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",

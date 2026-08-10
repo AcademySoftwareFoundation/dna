@@ -29,6 +29,8 @@ import {
   PublishNotesResponse,
   PublishTranscriptParams,
   PublishTranscriptResponse,
+  UpdateVersionStatusParams,
+  UpdateVersionStatusResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -140,6 +142,19 @@ class ApiHandler {
     config?: AxiosRequestConfig
   ): Promise<T> {
     const response: AxiosResponse<T> = await this.axiosInstance.put(
+      url,
+      data,
+      config
+    );
+    return response.data;
+  }
+
+  async patch<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
+    const response: AxiosResponse<T> = await this.axiosInstance.patch(
       url,
       data,
       config
@@ -376,6 +391,15 @@ class ApiHandler {
     return this.post<PublishNotesResponse>(
       `/playlists/${params.playlistId}/publish-notes`,
       params.request
+    );
+  }
+
+  async updateVersionStatus(
+    params: UpdateVersionStatusParams
+  ): Promise<UpdateVersionStatusResponse> {
+    return this.patch<UpdateVersionStatusResponse>(
+      `/versions/${params.versionId}/status`,
+      { status: params.status }
     );
   }
 

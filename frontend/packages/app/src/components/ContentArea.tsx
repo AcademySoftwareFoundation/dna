@@ -104,9 +104,11 @@ export function ContentArea({
   }, [updateDraftNote]);
 
   const handleRefreshClick = useCallback(() => {
-    updateDraftNote({ versionStatus: version?.status ?? '' });
+    // Clear the draft's status override so the display falls back to the
+    // version's actual status once fresh playlist data arrives.
+    updateDraftNote({ versionStatus: '' });
     onRefresh?.();
-  }, [version?.status, onRefresh, updateDraftNote]);
+  }, [onRefresh, updateDraftNote]);
 
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)
