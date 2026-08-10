@@ -261,11 +261,10 @@ export function useDraftNote({
         setLocalDraft(null);
       }
     } else {
-      // Same context: update system fields, and body fields when this
-      // instance has no unsaved edits, so changes saved elsewhere (e.g. the
-      // publish dialog's editor for the same draft) are reflected here.
-      // to/cc/links stay local-only: entity names in pills may not round-trip
-      // through the server. versionStatus counts as a system field: publishing
+      // Same context: update system fields, and note fields (body, subject,
+      // to/cc, links) when this instance has no unsaved edits, so changes
+      // saved elsewhere (e.g. the publish dialog's editor for the same draft)
+      // are reflected here. versionStatus counts as a system field: publishing
       // clears it on the server, and the local dropdown must follow.
       if (serverDraft) {
         setLocalDraft((prev) => {
@@ -275,19 +274,35 @@ export function useDraftNote({
           const hasUnsavedEdits =
             pendingDataRef.current !== null || upsertMutation.isPending;
 
+          const server = backendToLocal(serverDraft);
           const next: LocalDraftNote = {
             ...prev,
-            published: serverDraft.published,
-            edited: serverDraft.edited,
-            publishedNoteId: serverDraft.published_note_id ?? null,
-            versionStatus: serverDraft.version_status ?? '',
+            published: server.published,
+            edited: server.edited,
+            publishedNoteId: server.publishedNoteId,
+            versionStatus: server.versionStatus,
             ...(hasUnsavedEdits
               ? {}
               : {
-                  content: serverDraft.content ?? '',
-                  subject: serverDraft.subject ?? '',
+                  content: server.content,
+                  subject: server.subject,
+                  to: server.to,
+                  cc: server.cc,
+                  links: server.links,
                 }),
           };
+
+          // Keep previous references for deep-equal entity lists so
+          // downstream memos don't churn
+          const sameEntities =
+            JSON.stringify(next.to) === JSON.stringify(prev.to) &&
+            JSON.stringify(next.cc) === JSON.stringify(prev.cc) &&
+            JSON.stringify(next.links) === JSON.stringify(prev.links);
+          if (sameEntities) {
+            next.to = prev.to;
+            next.cc = prev.cc;
+            next.links = prev.links;
+          }
 
           if (
             next.published === prev.published &&
@@ -295,7 +310,8 @@ export function useDraftNote({
             next.publishedNoteId === prev.publishedNoteId &&
             next.versionStatus === prev.versionStatus &&
             next.content === prev.content &&
-            next.subject === prev.subject
+            next.subject === prev.subject &&
+            sameEntities
           ) {
             return prev;
           }
