@@ -436,6 +436,20 @@ ATTACHMENT_STORE_DIR = Path(os.getenv("ATTACHMENT_STORE_DIR", "/tmp/dna_attachme
 ATTACHMENT_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _attachment_dir(attachment_id: str) -> Path:
+    """Resolve the store directory for an attachment ID.
+
+    ``attachment_id`` reaches the filesystem, so it must be a UUID we issued —
+    never a caller-supplied path. Rejecting anything that isn't a valid UUID
+    stops path traversal (``../``, absolute paths) before it hits the store.
+    """
+    try:
+        canonical = str(uuid.UUID(attachment_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    return ATTACHMENT_STORE_DIR / canonical
+
+
 @app.post("/api/attachments", tags=["Attachments"])
 async def upload_attachment(
     _: CurrentUserDep,
@@ -445,7 +459,9 @@ async def upload_attachment(
     attachment_id = str(uuid.uuid4())
     dest_dir = ATTACHMENT_STORE_DIR / attachment_id
     dest_dir.mkdir(parents=True)
-    filename = file.filename or "attachment"
+    # file.filename is attacker-controlled; keep only the basename so it can't
+    # escape dest_dir via ``../`` segments or an absolute path.
+    filename = Path(file.filename or "attachment").name or "attachment"
     dest_path = dest_dir / filename
     with dest_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -460,7 +476,7 @@ async def upload_attachment(
 )
 async def get_attachment(attachment_id: str, _: CurrentUserDep) -> FileResponse:
     """Return the image file for a staged attachment by ID."""
-    attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
+    attachment_dir = _attachment_dir(attachment_id)
     if not attachment_dir.exists():
         raise HTTPException(status_code=404, detail="Attachment not found")
     files = list(attachment_dir.iterdir())
@@ -475,7 +491,7 @@ async def get_attachment(attachment_id: str, _: CurrentUserDep) -> FileResponse:
 @app.delete("/api/attachments/{attachment_id}", tags=["Attachments"])
 async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
     """Delete a staged attachment by ID."""
-    attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
+    attachment_dir = _attachment_dir(attachment_id)
     if not attachment_dir.exists():
         raise HTTPException(status_code=404, detail="Attachment not found")
     shutil.rmtree(attachment_dir)
