@@ -289,11 +289,12 @@ export function useDraftNote({
                   to: server.to,
                   cc: server.cc,
                   links: server.links,
+                  attachmentIds: server.attachmentIds,
                 }),
           };
 
-          // Keep previous references for deep-equal entity lists so
-          // downstream memos don't churn
+          // Keep previous references for deep-equal lists so downstream
+          // memos don't churn
           const sameEntities =
             JSON.stringify(next.to) === JSON.stringify(prev.to) &&
             JSON.stringify(next.cc) === JSON.stringify(prev.cc) &&
@@ -303,6 +304,11 @@ export function useDraftNote({
             next.cc = prev.cc;
             next.links = prev.links;
           }
+          const sameAttachments =
+            next.attachmentIds.join(',') === prev.attachmentIds.join(',');
+          if (sameAttachments) {
+            next.attachmentIds = prev.attachmentIds;
+          }
 
           if (
             next.published === prev.published &&
@@ -311,7 +317,8 @@ export function useDraftNote({
             next.versionStatus === prev.versionStatus &&
             next.content === prev.content &&
             next.subject === prev.subject &&
-            sameEntities
+            sameEntities &&
+            sameAttachments
           ) {
             return prev;
           }
