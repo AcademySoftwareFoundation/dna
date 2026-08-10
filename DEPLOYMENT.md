@@ -355,6 +355,8 @@ The following secrets must be configured in GitHub repository settings:
 | `LLM_PROVIDER` | openai |
 | `AUTH_PROVIDER` | `none` (noop) for local dev; `google` for production |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins |
+| `ATTACHMENT_STORE_DIR` | Directory for staged attachment uploads (default `/tmp/dna_attachments`) |
+| `MAX_ATTACHMENT_BYTES` | Max attachment upload size in bytes (default `26214400`, i.e. 25 MB) |
 
 ### Frontend (Build-time)
 

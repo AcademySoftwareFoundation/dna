@@ -435,6 +435,9 @@ THUMBNAIL_MEDIA_TYPES = {
 ATTACHMENT_STORE_DIR = Path(os.getenv("ATTACHMENT_STORE_DIR", "/tmp/dna_attachments"))
 ATTACHMENT_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Cap upload size so a single request can't fill the store volume.
+MAX_ATTACHMENT_BYTES = int(os.getenv("MAX_ATTACHMENT_BYTES", str(25 * 1024 * 1024)))
+
 
 def _attachment_dir(attachment_id: str) -> Path:
     """Resolve the store directory for an attachment ID.
@@ -463,8 +466,22 @@ async def upload_attachment(
     # escape dest_dir via ``../`` segments or an absolute path.
     filename = Path(file.filename or "attachment").name or "attachment"
     dest_path = dest_dir / filename
-    with dest_path.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    # Stream in chunks and stop at the cap rather than trusting Content-Length,
+    # so an oversized (or lying) upload can't run the disk out from under us.
+    written = 0
+    try:
+        with dest_path.open("wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                written += len(chunk)
+                if written > MAX_ATTACHMENT_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Attachment exceeds {MAX_ATTACHMENT_BYTES} bytes",
+                    )
+                f.write(chunk)
+    except BaseException:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        raise
     return {"id": attachment_id, "filename": filename}
 
 
