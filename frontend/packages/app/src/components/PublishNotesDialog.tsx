@@ -1049,9 +1049,36 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       (r) => r.status === 'fulfilled'
     ).length;
 
-    if (statusUpdates.length > 0) {
-      // Refresh version data so the new statuses show up in the app
+    const publishedStatusVersionIds = statusUpdates
+      .filter((_, idx) => statusResults[idx].status === 'fulfilled')
+      .map((u) => u.versionId);
+
+    if (publishedStatusVersionIds.length > 0) {
+      // Clear draft status overrides for published versions so the UI falls
+      // back to the freshly published version status instead of a stale
+      // pending value.
+      await Promise.allSettled(
+        allDraftNotes
+          .filter(
+            (d) =>
+              publishedStatusVersionIds.includes(d.version_id) &&
+              d.version_status
+          )
+          .map((d) =>
+            apiHandler.upsertDraftNote({
+              playlistId,
+              versionId: d.version_id,
+              userEmail: d.user_email,
+              data: { version_status: '' },
+            })
+          )
+      );
+      // Refresh version and draft data so the new statuses show up in the app
       void queryClient.invalidateQueries({ queryKey: ['versions'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['draftNotes', playlistId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ['draftNote'] });
     }
 
     setSuccessSummary({
