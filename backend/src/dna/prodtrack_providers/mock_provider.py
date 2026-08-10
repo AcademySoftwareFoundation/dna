@@ -597,9 +597,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
     ) -> Version:
         sg_entity_type = None
         if entity_type and entity_id:
-            sg_entity_type = {"shot": "Shot", "asset": "Asset"}.get(
-                entity_type.lower()
-            )
+            sg_entity_type = {"shot": "Shot", "asset": "Asset"}.get(entity_type.lower())
             if sg_entity_type is None:
                 raise ValueError(f"Unknown entity type: {entity_type}")
         now = datetime.now(timezone.utc).isoformat()
