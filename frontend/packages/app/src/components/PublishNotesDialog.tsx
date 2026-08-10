@@ -18,10 +18,16 @@ import {
   IconButton,
   DropdownMenu,
 } from '@radix-ui/themes';
-import { Loader2, Info, MoreVertical } from 'lucide-react';
+import { Loader2, Info, MoreVertical, ChevronDown } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePublishNotes } from '../hooks/usePublishNotes';
 import { usePublishTranscript } from '../hooks/usePublishTranscript';
-import { useSegments } from '../hooks';
+import {
+  useSegments,
+  usePlaylistDraftNotes,
+  useVersionStatuses,
+} from '../hooks';
+import { apiHandler } from '../api';
 import {
   useDraftNote,
   backendToLocal,
@@ -144,6 +150,55 @@ const TranscriptRow = styled.div`
   display: flex;
   align-items: center;
   padding: 10px 0 4px;
+`;
+
+const StatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+`;
+
+const StatusSelectWrapper = styled.div`
+  position: relative;
+`;
+
+const StatusSelect = styled.select`
+  appearance: none;
+  padding: 4px 28px 4px 10px;
+  height: 26px;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.primary};
+  background: ${({ theme }) => theme.colors.bg.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  outline: none;
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.accent.main};
+    box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.accent.subtle};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const StatusSelectIcon = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: ${({ theme }) => theme.colors.text.muted};
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const TranscriptExpanded = styled.div`
@@ -490,6 +545,67 @@ function VersionTranscriptRow({
   );
 }
 
+function VersionStatusRow({
+  projectId,
+  currentStatus,
+  value,
+  checked,
+  onValueChange,
+  onCheckedChange,
+}: {
+  projectId?: number;
+  currentStatus?: string;
+  value: string;
+  checked: boolean;
+  onValueChange: (value: string) => void;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const { statuses, isLoading } = useVersionStatuses({ projectId });
+  const hasChange = Boolean(value) && value !== (currentStatus ?? '');
+  const currentStatusName =
+    statuses.find((s) => s.code === currentStatus)?.name ?? currentStatus;
+
+  return (
+    <StatusRow>
+      <Flex align="center" gap="2">
+        <Checkbox
+          checked={hasChange && checked}
+          disabled={!hasChange}
+          onCheckedChange={(c) => onCheckedChange(c === true)}
+        />
+        <Text size="2" weight="medium" color={hasChange ? undefined : 'gray'}>
+          Version Status
+        </Text>
+        <StatusSelectWrapper>
+          <StatusSelect
+            value={value}
+            disabled={isLoading}
+            onChange={(e) => onValueChange(e.target.value)}
+          >
+            {isLoading && <option value="">Loading...</option>}
+            {!isLoading && !value && <option value="">Select status</option>}
+            {statuses.map((status) => (
+              <option key={status.code} value={status.code}>
+                {status.name}
+              </option>
+            ))}
+          </StatusSelect>
+          <StatusSelectIcon>
+            <ChevronDown size={12} />
+          </StatusSelectIcon>
+        </StatusSelectWrapper>
+        <Text size="1" color="gray">
+          {hasChange
+            ? currentStatusName
+              ? `was ${currentStatusName}`
+              : 'will be updated'
+            : 'No change'}
+        </Text>
+      </Flex>
+    </StatusRow>
+  );
+}
+
 interface VersionPublishCardProps {
   playlistId: number;
   version: Version;
@@ -499,6 +615,10 @@ interface VersionPublishCardProps {
   onToggle: (key: string, checked: boolean) => void;
   transcriptChecked: boolean;
   onTranscriptToggle: (checked: boolean) => void;
+  statusValue: string;
+  statusChecked: boolean;
+  onStatusValueChange: (value: string) => void;
+  onStatusToggle: (checked: boolean) => void;
   qcLoading: boolean;
   qcRefreshingDraftKey: string | null;
   qcResults: Record<string, NoteQCResult[]>;
@@ -516,6 +636,10 @@ function VersionPublishCard({
   onToggle,
   transcriptChecked,
   onTranscriptToggle,
+  statusValue,
+  statusChecked,
+  onStatusValueChange,
+  onStatusToggle,
   qcLoading,
   qcRefreshingDraftKey,
   qcResults,
@@ -565,6 +689,14 @@ function VersionPublishCard({
         </Flex>
       </VersionCardHeader>
       <Flex direction="column" gap="3" p="3">
+        <VersionStatusRow
+          projectId={version.project?.id}
+          currentStatus={version.status}
+          value={statusValue}
+          checked={statusChecked}
+          onValueChange={onStatusValueChange}
+          onCheckedChange={onStatusToggle}
+        />
         {sortedDrafts.map((d) => (
           <PublishNoteRow
             key={draftRowKey(d)}
@@ -606,16 +738,24 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   showTitle = true,
 }) => {
   const { aiEnabled } = useFeatureFlags();
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [transcriptSelected, setTranscriptSelected] = useState<
     Record<number, boolean>
   >({});
+  // Explicit user overrides for the per-version status rows; effective values
+  // fall back to the pending status from draft notes, then the version itself.
+  const [statusSelected, setStatusSelected] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [statusValues, setStatusValues] = useState<Record<number, string>>({});
   const [successSummary, setSuccessSummary] = useState<{
     publishedCount: number;
     republishedCount: number;
     failedCount: number;
     imageCount: number;
     statusCount: number;
+    statusFailedCount: number;
     transcriptPublishedCount: number;
     transcriptSkippedCount: number;
   } | null>(null);
@@ -658,8 +798,52 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     if (open) {
       reset();
       setSuccessSummary(null);
+      setStatusSelected({});
+      setStatusValues({});
     }
   }, [open, reset]);
+
+  // All draft notes for the playlist (not just the publishable ones passed in),
+  // so pending status changes made in the main UI surface here even when the
+  // draft has no note body.
+  const { data: allDraftNotes = [] } = usePlaylistDraftNotes(
+    open ? playlistId : null
+  );
+
+  const pendingStatusByVersion = useMemo(() => {
+    const map = new Map<number, string>();
+    const drafts = [...allDraftNotes].sort((a, b) => {
+      const aMine = a.user_email === userEmail;
+      const bMine = b.user_email === userEmail;
+      if (aMine !== bMine) return aMine ? -1 : 1;
+      return (b.updated_at ?? '').localeCompare(a.updated_at ?? '');
+    });
+    for (const d of drafts) {
+      if (!d.version_status || map.has(d.version_id)) continue;
+      const version = versions.find((v) => v.id === d.version_id);
+      if (version && d.version_status === version.status) continue;
+      map.set(d.version_id, d.version_status);
+    }
+    return map;
+  }, [allDraftNotes, versions, userEmail]);
+
+  const effectiveStatusValue = useCallback(
+    (version: Version) =>
+      statusValues[version.id] ??
+      pendingStatusByVersion.get(version.id) ??
+      version.status ??
+      '',
+    [statusValues, pendingStatusByVersion]
+  );
+
+  const isStatusChecked = useCallback(
+    (version: Version) => {
+      const value = effectiveStatusValue(version);
+      const hasChange = Boolean(value) && value !== (version.status ?? '');
+      return hasChange && (statusSelected[version.id] ?? true);
+    },
+    [effectiveStatusValue, statusSelected]
+  );
 
   const notesFingerprint = useMemo(
     () => notes.map(draftRowKey).sort().join('\0'),
@@ -694,6 +878,10 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       if (drafts?.length) {
         ordered.push({ version: v, drafts });
         seen.add(v.id);
+      } else if (pendingStatusByVersion.has(v.id)) {
+        // Status-only change: show a card with just the status/transcript rows
+        ordered.push({ version: v, drafts: [] });
+        seen.add(v.id);
       }
     }
 
@@ -704,7 +892,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     }
 
     return ordered;
-  }, [notes, versions]);
+  }, [notes, versions, pendingStatusByVersion]);
 
   useEffect(() => {
     if (!open) return;
@@ -746,12 +934,10 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   const countImages = (notes: DraftNote[]) =>
     notes.reduce((sum, n) => sum + (n.attachment_ids?.length ?? 0), 0);
 
-  const countStatuses = (notes: DraftNote[]) =>
-    notes.filter((n) => {
-      if (!n.version_status) return false;
-      const version = versions.find((v) => v.id === n.version_id);
-      return n.version_status !== version?.status;
-    }).length;
+  const selectedStatusCount = useMemo(
+    () => versionCards.filter(({ version }) => isStatusChecked(version)).length,
+    [versionCards, isStatusChecked]
+  );
 
   const handleBatchSelect = useCallback(
     (mode: 'all' | 'none' | 'mine' | 'others') => {
@@ -781,6 +967,21 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     []
   );
 
+  const handleStatusValueChange = useCallback(
+    (versionId: number, value: string) => {
+      setStatusValues((prev) => ({ ...prev, [versionId]: value }));
+      setStatusSelected((prev) => ({ ...prev, [versionId]: true }));
+    },
+    []
+  );
+
+  const handleStatusToggle = useCallback(
+    (versionId: number, checked: boolean) => {
+      setStatusSelected((prev) => ({ ...prev, [versionId]: checked }));
+    },
+    []
+  );
+
   const handleBatchTranscriptSelect = useCallback(() => {
     const next: Record<number, boolean> = {};
     for (const { version } of versionCards) {
@@ -791,7 +992,13 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
 
   const handlePublishSelected = async () => {
     const toPublish = notes.filter((d) => selected[draftRowKey(d)]);
-    if (toPublish.length === 0) return;
+    const statusUpdates = versionCards
+      .filter(({ version }) => isStatusChecked(version))
+      .map(({ version }) => ({
+        versionId: version.id,
+        status: effectiveStatusValue(version),
+      }));
+    if (toPublish.length === 0 && statusUpdates.length === 0) return;
 
     await flushAllDrafts();
 
@@ -804,8 +1011,19 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       .filter(({ version }) => transcriptSelected[version.id] ?? true)
       .map(({ version }) => version.id);
 
-    const [notesResult, transcriptResults] = await Promise.all([
-      publishNotes({ playlistId, request: { user_email: userEmail, targets } }),
+    const [notesResult, transcriptResults, statusResults] = await Promise.all([
+      toPublish.length > 0
+        ? publishNotes({
+            playlistId,
+            request: {
+              user_email: userEmail,
+              targets,
+              // Status changes are published explicitly below, gated by the
+              // per-version checkboxes — suppress the implicit note-side path.
+              status_version_ids: [],
+            },
+          })
+        : Promise.resolve(null),
       Promise.allSettled(
         selectedTranscriptVersionIds.map((versionId) =>
           publishTranscriptAsync({
@@ -813,6 +1031,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
             request: { version_id: versionId },
           })
         )
+      ),
+      Promise.allSettled(
+        statusUpdates.map((u) => apiHandler.updateVersionStatus(u))
       ),
     ]);
 
@@ -824,13 +1045,22 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     const transcriptSkippedCount = transcriptResults.filter(
       (r) => r.status === 'fulfilled' && r.value.outcome === 'skipped'
     ).length;
+    const statusCount = statusResults.filter(
+      (r) => r.status === 'fulfilled'
+    ).length;
+
+    if (statusUpdates.length > 0) {
+      // Refresh version data so the new statuses show up in the app
+      void queryClient.invalidateQueries({ queryKey: ['versions'] });
+    }
 
     setSuccessSummary({
-      publishedCount: notesResult.published_count,
-      republishedCount: notesResult.republished_count,
-      failedCount: notesResult.failed_count,
+      publishedCount: notesResult?.published_count ?? 0,
+      republishedCount: notesResult?.republished_count ?? 0,
+      failedCount: notesResult?.failed_count ?? 0,
       imageCount: countImages(toPublish),
-      statusCount: countStatuses(toPublish),
+      statusCount,
+      statusFailedCount: statusUpdates.length - statusCount,
       transcriptPublishedCount,
       transcriptSkippedCount,
     });
@@ -870,6 +1100,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               )}
               {successSummary.statusCount > 0 && (
                 <li>Statuses Updated: {successSummary.statusCount}</li>
+              )}
+              {successSummary.statusFailedCount > 0 && (
+                <li>Statuses Failed: {successSummary.statusFailedCount}</li>
               )}
               {successSummary.transcriptPublishedCount > 0 && (
                 <li>
@@ -946,7 +1179,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
           </Flex>
 
           <ScrollBody>
-            {notes.length === 0 ? (
+            {versionCards.length === 0 ? (
               <Text size="2" color="gray">
                 No notes to publish.
               </Text>
@@ -963,6 +1196,14 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                   transcriptChecked={transcriptSelected[version.id] ?? true}
                   onTranscriptToggle={(checked) =>
                     handleTranscriptToggle(version.id, checked)
+                  }
+                  statusValue={effectiveStatusValue(version)}
+                  statusChecked={isStatusChecked(version)}
+                  onStatusValueChange={(value) =>
+                    handleStatusValueChange(version.id, value)
+                  }
+                  onStatusToggle={(checked) =>
+                    handleStatusToggle(version.id, checked)
                   }
                   qcLoading={qcLoading}
                   qcRefreshingDraftKey={qcRefreshingDraftKey}
@@ -998,8 +1239,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               <Button
                 disabled={
                   isPending ||
-                  notes.length === 0 ||
-                  selectedCount === 0 ||
+                  (selectedCount === 0 && selectedStatusCount === 0) ||
                   publishBlockedByQc
                 }
                 onClick={() => void handlePublishSelected()}
@@ -1007,7 +1247,11 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                 {isPending && <SpinnerIcon size={14} />}
                 {isPending
                   ? 'Publishing...'
-                  : `Publish selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+                  : `Publish selected${
+                      selectedCount + selectedStatusCount > 0
+                        ? ` (${selectedCount + selectedStatusCount})`
+                        : ''
+                    }`}
               </Button>
             </Flex>
           </FooterBar>

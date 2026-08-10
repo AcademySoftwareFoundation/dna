@@ -64,6 +64,8 @@ from dna.models.requests import (
     SearchRequest,
     SearchResult,
     StatusOption,
+    UpdateVersionStatusRequest,
+    UpdateVersionStatusResponse,
 )
 from dna.models.stored_segment import (
     StoredSegment,
@@ -113,6 +115,8 @@ __all__ = [
     "PublishNotesResponse",
     "PublishTranscriptRequest",
     "PublishTranscriptResponse",
+    "UpdateVersionStatusRequest",
+    "UpdateVersionStatusResponse",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",

@@ -277,6 +277,107 @@ class TestPublishNotesEndpoint:
         mock_prodtrack.update_note.assert_not_called()
         mock_prodtrack.update_version_status.assert_called_once_with(106, "cmpt")
 
+    def test_publish_notes_status_allowlist_suppresses_status(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """With status_version_ids=[], no version status changes are applied
+        even when drafts carry a version_status."""
+        now = datetime.now(timezone.utc)
+        note_with_status = DraftNote(
+            _id="note7",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=107,
+            content="Body",
+            subject="Sub",
+            version_status="rev",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        status_only = DraftNote(
+            _id="note8",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=108,
+            content="",
+            subject="",
+            version_status="rev",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [
+            note_with_status,
+            status_only,
+        ]
+        mock_prodtrack.publish_note.return_value = 800
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "targets": _targets(
+                    ("user@example.com", 107), ("user@example.com", 108)
+                ),
+                "status_version_ids": [],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["published_count"] == 1
+        assert data["skipped_count"] == 1
+        mock_prodtrack.update_version_status.assert_not_called()
+        args = mock_prodtrack.publish_note.call_args[1]
+        assert args["version_status"] is None
+
+    def test_publish_notes_status_allowlist_applies_listed(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Only versions listed in status_version_ids get their status applied."""
+        now = datetime.now(timezone.utc)
+        listed = DraftNote(
+            _id="note9",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=109,
+            content="",
+            subject="",
+            version_status="rev",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        unlisted = DraftNote(
+            _id="note10",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=110,
+            content="",
+            subject="",
+            version_status="cmpt",
+            created_at=now,
+            updated_at=now,
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [listed, unlisted]
+        mock_prodtrack.update_version_status.return_value = True
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "targets": _targets(
+                    ("user@example.com", 109), ("user@example.com", 110)
+                ),
+                "status_version_ids": [109],
+            },
+        )
+
+        assert response.status_code == 200
+        mock_prodtrack.update_version_status.assert_called_once_with(109, "rev")
+
     def test_publish_notes_targets_empty_publishes_nothing(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
@@ -305,3 +406,44 @@ class TestPublishNotesEndpoint:
         assert data["total"] == 0
         assert data["published_count"] == 0
         mock_prodtrack.publish_note.assert_not_called()
+
+
+class TestUpdateVersionStatusEndpoint:
+    """Tests for the direct version status update endpoint."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    @pytest.fixture
+    def mock_prodtrack(self):
+        return mock.Mock()
+
+    @pytest.fixture
+    def override_deps(self, mock_prodtrack):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        yield
+        app.dependency_overrides.clear()
+
+    def test_update_version_status_success(self, client, mock_prodtrack, override_deps):
+        mock_prodtrack.update_version_status.return_value = True
+
+        response = client.patch("/versions/101/status", json={"status": "rev"})
+
+        assert response.status_code == 200
+        assert response.json() == {"success": True}
+        mock_prodtrack.update_version_status.assert_called_once_with(101, "rev")
+
+    def test_update_version_status_failure(self, client, mock_prodtrack, override_deps):
+        mock_prodtrack.update_version_status.return_value = False
+
+        response = client.patch("/versions/101/status", json={"status": "rev"})
+
+        assert response.status_code == 502
+
+    def test_update_version_status_invalid(self, client, mock_prodtrack, override_deps):
+        mock_prodtrack.update_version_status.side_effect = ValueError("bad status")
+
+        response = client.patch("/versions/101/status", json={"status": "nope"})
+
+        assert response.status_code == 400
