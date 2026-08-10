@@ -1240,7 +1240,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
             <Flex justify="end" gap="3">
               <Dialog.Close>
                 <Button variant="soft" color="gray" disabled={isPending}>
-                  Cancel
+                  Close
                 </Button>
               </Dialog.Close>
               <Button
