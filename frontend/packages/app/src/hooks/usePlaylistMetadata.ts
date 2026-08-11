@@ -31,8 +31,35 @@ export function useSetInReview(playlistId: number | null) {
     return mutation.mutateAsync({ in_review: versionId });
   };
 
+  /**
+   * Set in review without pinning, clearing any pin left over from an earlier
+   * RV session. For picking a version while nothing is driving in review.
+   */
+  const selectInReview = (versionId: number) => {
+    return mutation.mutateAsync({
+      in_review: versionId,
+      in_review_pinned: false,
+    });
+  };
+
+  /** Hold in review on this version, ignoring RV's playhead until unpinned. */
+  const pinInReview = (versionId: number) => {
+    return mutation.mutateAsync({
+      in_review: versionId,
+      in_review_pinned: true,
+    });
+  };
+
+  /** Release the pin; the backend snaps in_review back to RV if it's synced. */
+  const unpinInReview = () => {
+    return mutation.mutateAsync({ in_review_pinned: false });
+  };
+
   return {
     setInReview,
+    selectInReview,
+    pinInReview,
+    unpinInReview,
     isLoading: mutation.isPending,
     error: mutation.error,
   };

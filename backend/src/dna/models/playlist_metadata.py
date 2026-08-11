@@ -15,6 +15,11 @@ class PlaylistMetadataUpdate(BaseModel):
     in_review: Optional[int] = Field(
         default=None, description="Version ID currently in review"
     )
+    in_review_pinned: Optional[bool] = Field(
+        default=None,
+        description="If True, in_review is held to the pinned version and RV sync "
+        "will not move it. Setting False resumes syncing from RV.",
+    )
     meeting_id: Optional[str] = Field(default=None, description="Associated meeting ID")
     platform: Optional[str] = Field(default=None, description="Meeting platform")
     vexa_meeting_id: Optional[int] = Field(
@@ -38,6 +43,7 @@ class PlaylistMetadata(BaseModel):
     id: str = Field(alias="_id")
     playlist_id: int
     in_review: Optional[int] = None
+    in_review_pinned: bool = False
     meeting_id: Optional[str] = None
     platform: Optional[str] = None
     vexa_meeting_id: Optional[int] = None

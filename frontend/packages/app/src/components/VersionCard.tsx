@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { type DefaultTheme } from 'styled-components';
 import { Eye } from 'lucide-react';
+import { Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
 
@@ -14,15 +15,26 @@ interface VersionCardProps {
   thumbnailUrl?: string;
   selected?: boolean;
   inReview?: boolean;
+  /** In review because the user pinned it, rather than because RV moved here. */
+  pinned?: boolean;
+  /**
+   * Whether pinning means anything — i.e. RV is connected and would otherwise
+   * drive in review. Without it the eye is just a picker: no pin label, no
+   * pinned highlight, and the version already in review isn't clickable.
+   */
+  canPin?: boolean;
   noteStatus?: NoteStatus | null;
   onClick?: () => void;
+  /** Omit to render the in-review eye as a non-interactive indicator. */
+  onTogglePin?: () => void;
 }
 
-const Card = styled.div<{ $selected?: boolean }>`
+const Card = styled.div<{ $selected?: boolean; $pinned?: boolean }>`
   display: flex;
   gap: 12px;
   padding: 12px;
-  background: ${({ theme }) => theme.colors.bg.surface};
+  background: ${({ theme, $pinned }) =>
+    $pinned ? theme.colors.accent.subtle : theme.colors.bg.surface};
   border-radius: ${({ theme }) => theme.radii.lg};
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
@@ -71,11 +83,26 @@ const Title = styled.span`
 
 const IconsContainer = styled.div`
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 6px;
-  align-self: flex-start;
+  align-self: stretch;
   margin-left: auto;
   flex-shrink: 0;
+`;
+
+const InReviewRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+`;
+
+const PinnedLabel = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: ${({ theme }) => theme.colors.accent.main};
 `;
 
 const InReviewIcon = styled.span`
@@ -83,6 +110,51 @@ const InReviewIcon = styled.span`
   align-items: center;
   justify-content: center;
   color: ${({ theme }) => theme.colors.accent.main};
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+/**
+ * Visible whenever the version is in review; otherwise a muted affordance that
+ * only surfaces while the card is hovered.
+ */
+const EyeToggle = styled.button<{ $active?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: ${({ theme, $active }) =>
+    $active ? theme.colors.accent.main : theme.colors.text.muted};
+  opacity: ${({ $active }) => ($active ? 1 : 0)};
+  transition: opacity ${({ theme }) => theme.transitions.fast},
+    color ${({ theme }) => theme.transitions.fast};
+
+  /* Nested so these keep winning over the card-hover reveal above. */
+  ${Card}:hover & {
+    opacity: ${({ $active }) => ($active ? 1 : 0.5)};
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.accent.main};
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid ${({ theme }) => theme.colors.accent.main};
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 
   svg {
     width: 16px;
@@ -198,8 +270,11 @@ export function VersionCard({
   thumbnailUrl,
   selected = false,
   inReview = false,
+  pinned = false,
+  canPin = false,
   noteStatus = null,
   onClick,
+  onTogglePin,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
 
@@ -219,8 +294,48 @@ export function VersionCard({
     }
   };
 
+  const isPinned = pinned && canPin;
+  const pinTooltip = isPinned
+    ? 'Unpin — resume sync with RV'
+    : canPin && inReview
+      ? 'Pin in review'
+      : 'Set in review';
+
+  const renderEye = () => {
+    // Nothing to toggle: either pinning is unavailable entirely, or RV isn't
+    // driving in review and this version already holds it.
+    if (!onTogglePin || (!canPin && inReview)) {
+      return inReview ? (
+        <InReviewIcon>
+          <Eye />
+        </InReviewIcon>
+      ) : null;
+    }
+
+    return (
+      <InReviewRow>
+        {isPinned && <PinnedLabel>Pinned</PinnedLabel>}
+        <Tooltip content={pinTooltip}>
+          <EyeToggle
+            type="button"
+            $active={inReview}
+            aria-label={pinTooltip}
+            aria-pressed={isPinned}
+            onClick={(e) => {
+              // Pinning shouldn't drag the selection along with it.
+              e.stopPropagation();
+              onTogglePin();
+            }}
+          >
+            <Eye />
+          </EyeToggle>
+        </Tooltip>
+      </InReviewRow>
+    );
+  };
+
   return (
-    <Card $selected={selected} onClick={onClick}>
+    <Card $selected={selected} $pinned={isPinned} onClick={onClick}>
       <Thumbnail>
         {thumbnailUrl && <img src={thumbnailUrl} alt={displayName} />}
       </Thumbnail>
@@ -235,18 +350,16 @@ export function VersionCard({
         {department && <Department>{department}</Department>}
       </Content>
       <IconsContainer>
-        {noteStatus && (
+        {noteStatus ? (
           <StatusBadge
             status={noteStatus}
             label={getStatusLabel(noteStatus)}
             letter={getStatusLetter(noteStatus)}
           />
+        ) : (
+          <span />
         )}
-        {inReview && (
-          <InReviewIcon>
-            <Eye />
-          </InReviewIcon>
-        )}
+        {renderEye()}
       </IconsContainer>
     </Card>
   );

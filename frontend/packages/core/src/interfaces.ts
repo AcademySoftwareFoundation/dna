@@ -207,6 +207,7 @@ export interface PlaylistMetadata {
   _id: string;
   playlist_id: number;
   in_review: number | null;
+  in_review_pinned: boolean;
   meeting_id: string | null;
   platform: Platform | null;
   transcription_paused: boolean;
@@ -214,6 +215,7 @@ export interface PlaylistMetadata {
 
 export interface PlaylistMetadataUpdate {
   in_review?: number | null;
+  in_review_pinned?: boolean;
   meeting_id?: string | null;
   platform?: Platform | null;
   transcription_paused?: boolean;

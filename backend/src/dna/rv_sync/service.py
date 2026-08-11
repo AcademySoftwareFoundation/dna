@@ -139,6 +139,28 @@ class RVSyncService:
         await self._broadcast(session)
         return session.snapshot()
 
+    async def resume_sync(self, playlist_id: int) -> Optional[int]:
+        """Snap in_review back to RV's playhead after an unpin.
+
+        RV only pushes state when its playhead moves, so a session that hasn't
+        moved since the pin would otherwise leave in_review stuck on the
+        formerly pinned version. Returns the version now in review, if any.
+        """
+        session = self._sessions.get(playlist_id)
+        if session is None or session.version_id is None or not self.storage_provider:
+            return None
+        await self.storage_provider.upsert_playlist_metadata(
+            playlist_id,
+            PlaylistMetadataUpdate(in_review=session.version_id),
+        )
+        logger.info(
+            "rv_sync: playlist %s resumed sync, in_review -> version %s",
+            playlist_id,
+            session.version_id,
+        )
+        await self._broadcast(session)
+        return session.version_id
+
     async def disconnect(self, playlist_id: int) -> bool:
         session = self._sessions.pop(playlist_id, None)
         if session is None:
@@ -198,17 +220,33 @@ class RVSyncService:
         session.detail = detail
 
         if changed and version_id is not None and self.storage_provider:
-            await self.storage_provider.upsert_playlist_metadata(
-                session.playlist_id,
-                PlaylistMetadataUpdate(in_review=version_id),
-            )
-            logger.info(
-                "rv_sync: playlist %s in_review -> version %s (%s)",
-                session.playlist_id,
-                version_id,
-                version_name,
-            )
+            if await self._is_pinned(session.playlist_id):
+                # The user has pinned a version in review; RV keeps reporting its
+                # playhead but must not move in_review until they unpin.
+                session.detail = detail or "in review is pinned"
+                logger.debug(
+                    "rv_sync: playlist %s pinned, not moving in_review to %s",
+                    session.playlist_id,
+                    version_id,
+                )
+            else:
+                await self.storage_provider.upsert_playlist_metadata(
+                    session.playlist_id,
+                    PlaylistMetadataUpdate(in_review=version_id),
+                )
+                logger.info(
+                    "rv_sync: playlist %s in_review -> version %s (%s)",
+                    session.playlist_id,
+                    version_id,
+                    version_name,
+                )
         await self._broadcast(session)
+
+    async def _is_pinned(self, playlist_id: int) -> bool:
+        if not self.storage_provider:
+            return False
+        metadata = await self.storage_provider.get_playlist_metadata(playlist_id)
+        return bool(metadata and metadata.in_review_pinned)
 
     async def _broadcast(self, session: RVSession) -> None:
         await self._publisher().publish(

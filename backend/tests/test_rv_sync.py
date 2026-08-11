@@ -49,8 +49,11 @@ class TestParseTrackingInfo:
 
 
 class TestApplyState:
-    def _service(self):
+    def _service(self, pinned=False):
         storage = mock.AsyncMock()
+        storage.get_playlist_metadata.return_value = (
+            mock.Mock(in_review_pinned=True) if pinned else None
+        )
         publisher = mock.AsyncMock()
         service = RVSyncService(storage_provider=storage, event_publisher=publisher)
         return service, storage, publisher
@@ -119,6 +122,51 @@ class TestApplyState:
 
         await service._apply_state(session, "not json")
 
+        storage.upsert_playlist_metadata.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_pinned_in_review_is_not_moved(self):
+        service, storage, publisher = self._service(pinned=True)
+        session = await self._connect_session(service)
+
+        await service._apply_state(session, _state_payload())
+
+        # RV's playhead is still tracked and broadcast, but in_review stays put.
+        assert session.version_id == 7190
+        storage.upsert_playlist_metadata.assert_not_awaited()
+        publisher.publish.assert_awaited()
+
+
+class TestResumeSync:
+    @pytest.mark.asyncio
+    async def test_resume_pushes_current_rv_version(self):
+        from dna.rv_sync.service import RVSession
+
+        storage = mock.AsyncMock()
+        service = RVSyncService(
+            storage_provider=storage, event_publisher=mock.AsyncMock()
+        )
+        service._sessions[42] = RVSession(
+            playlist_id=42,
+            port=45124,
+            client=mock.AsyncMock(),
+            status="connected",
+            version_id=7190,
+        )
+
+        assert await service.resume_sync(42) == 7190
+        playlist_id, update = storage.upsert_playlist_metadata.await_args.args
+        assert playlist_id == 42
+        assert update.in_review == 7190
+
+    @pytest.mark.asyncio
+    async def test_resume_without_session_is_a_noop(self):
+        storage = mock.AsyncMock()
+        service = RVSyncService(
+            storage_provider=storage, event_publisher=mock.AsyncMock()
+        )
+
+        assert await service.resume_sync(42) is None
         storage.upsert_playlist_metadata.assert_not_awaited()
 
 

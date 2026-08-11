@@ -1609,7 +1609,14 @@ async def upsert_playlist_metadata(
     _: CurrentUserDep,
 ) -> PlaylistMetadata:
     """Create or update playlist metadata."""
-    return await provider.upsert_playlist_metadata(playlist_id, data)
+    metadata = await provider.upsert_playlist_metadata(playlist_id, data)
+    if data.in_review_pinned is False:
+        # Unpinning hands in_review back to RV: catch up to its playhead now
+        # rather than waiting for RV's next move.
+        resumed = await get_rv_sync_service().resume_sync(playlist_id)
+        if resumed is not None and resumed != metadata.in_review:
+            metadata = await provider.get_playlist_metadata(playlist_id) or metadata
+    return metadata
 
 
 @app.delete(

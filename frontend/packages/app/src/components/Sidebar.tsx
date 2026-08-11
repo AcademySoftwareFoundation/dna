@@ -23,7 +23,12 @@ import { RvSyncMenu } from './RvSyncMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
-import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
+import {
+  usePlaylistMetadata,
+  usePlaylistDraftNotes,
+  useRvSync,
+  useSetInReview,
+} from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
 import { useFeatureFlags } from '../contexts';
 
@@ -299,6 +304,26 @@ export function Sidebar({
   );
 
   const inReviewVersionId = playlistMetadata?.in_review;
+  const { pinInReview, unpinInReview, selectInReview } =
+    useSetInReview(playlistId);
+
+  // Pinning only means something while RV is driving in review; otherwise the
+  // eye is simply how you pick the version in review.
+  const { status: rvStatus } = useRvSync(rvSyncEnabled ? playlistId : null);
+  const canPinInReview = rvStatus?.status === 'connected';
+  const isInReviewPinned =
+    canPinInReview && !!playlistMetadata?.in_review_pinned;
+
+  const handleTogglePin = (versionId: number) => {
+    if (!canPinInReview) {
+      void selectInReview(versionId);
+    } else if (isInReviewPinned && inReviewVersionId === versionId) {
+      // Hand in review back to RV.
+      void unpinInReview();
+    } else {
+      void pinInReview(versionId);
+    }
+  };
 
   const playlistMenuItems = [
     {
@@ -385,6 +410,17 @@ export function Sidebar({
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
                 inReview={inReviewEnabled && inReviewVersionId === version.id}
+                pinned={
+                  inReviewEnabled &&
+                  isInReviewPinned &&
+                  inReviewVersionId === version.id
+                }
+                canPin={inReviewEnabled && canPinInReview}
+                onTogglePin={
+                  inReviewEnabled
+                    ? () => handleTogglePin(version.id)
+                    : undefined
+                }
                 noteStatus={((): NoteStatus | null => {
                   const note = draftNotes?.find(
                     (n) => n.version_id === version.id
