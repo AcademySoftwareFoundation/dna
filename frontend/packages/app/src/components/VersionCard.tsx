@@ -296,7 +296,7 @@ export function VersionCard({
 
   const isPinned = pinned && canPin;
   const pinTooltip = isPinned
-    ? 'Unpin — resume sync with RV'
+    ? 'Unpin to resume sync with RV'
     : canPin && inReview
       ? 'Pin in review'
       : 'Set in review';

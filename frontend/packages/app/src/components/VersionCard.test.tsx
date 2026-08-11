@@ -39,7 +39,7 @@ describe('VersionCard in-review pin', () => {
 
     expect(screen.getByText('Pinned')).toBeInTheDocument();
     const toggle = screen.getByRole('button', {
-      name: 'Unpin — resume sync with RV',
+      name: 'Unpin to resume sync with RV',
     });
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
 
