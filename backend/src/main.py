@@ -32,6 +32,7 @@ from dna.glossary_config import (
 )
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
+    SCRATCH_VERSION_ID,
     AddVersionToPlaylistRequest,
     Asset,
     BotSession,
@@ -66,7 +67,6 @@ from dna.models import (
     RVScanResult,
     RVSyncConnectRequest,
     RVSyncStatus,
-    SCRATCH_VERSION_ID,
     SearchRequest,
     SearchResult,
     Shot,
