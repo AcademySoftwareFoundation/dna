@@ -245,6 +245,33 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def publish_playlist_note(
+        self,
+        playlist_id: int,
+        content: str,
+        subject: str,
+        to_users: list[int],
+        cc_users: list[int],
+        links: list["EntityBase"],
+        author_email: str | None = None,
+    ) -> int:
+        """Publish a note linked to a playlist rather than a version.
+
+        Args:
+            playlist_id: The ID of the playlist to link to
+            content: Note content
+            subject: Note subject
+            to_users: List of user IDs to address
+            cc_users: List of user IDs to CC
+            links: List of additional entities to link
+            author_email: Optional email of the author. If provided, the note
+                should be created on behalf of this user.
+
+        Returns:
+            The ID of the created note
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def update_version_status(self, version_id: int, status: str) -> bool:
         """Update the status of a version without publishing a note.
 

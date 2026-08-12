@@ -28,6 +28,11 @@ class PlaylistMetadataUpdate(BaseModel):
     transcription_paused: Optional[bool] = Field(
         default=None, description="Whether transcription storage is paused"
     )
+    has_scratch: Optional[bool] = Field(
+        default=None,
+        description="Whether the playlist has a scratch tile — a placeholder "
+        "for a note on the playlist entity rather than on a version.",
+    )
     clear_resumed_at: bool = Field(
         default=False,
         description="If True, clears transcription_resumed_at. "
@@ -48,6 +53,7 @@ class PlaylistMetadata(BaseModel):
     platform: Optional[str] = None
     vexa_meeting_id: Optional[int] = None
     transcription_paused: bool = False
+    has_scratch: bool = False
     transcription_resumed_at: Optional[datetime] = Field(
         default=None,
         description="Timestamp when transcription was last resumed. "

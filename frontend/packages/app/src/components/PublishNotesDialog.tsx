@@ -34,7 +34,13 @@ import {
   type LocalDraftNote,
 } from '../hooks/useDraftNote';
 import { useNoteQCChecks } from '../hooks/useNoteQCChecks';
-import { DraftNote, Version, SearchResult, NoteQCResult } from '@dna/core';
+import {
+  DraftNote,
+  Version,
+  SearchResult,
+  NoteQCResult,
+  SCRATCH_VERSION_ID,
+} from '@dna/core';
 import { NoteEditor, NoteDraftStatusBadges } from './NoteEditor';
 import { UserAvatar } from './UserAvatar';
 import { NoteQCResultPill } from './NoteQCResultPill';
@@ -281,7 +287,10 @@ function fallbackVersion(versionId: number): Version {
   return {
     type: 'Version',
     id: versionId,
-    name: `Version ${versionId}`,
+    name:
+      versionId === SCRATCH_VERSION_ID
+        ? 'SCRATCH PAD'
+        : `Version ${versionId}`,
     notes: [],
   };
 }
@@ -325,13 +334,20 @@ function PublishNoteRow({
   const [fixResult, setFixResult] = useState<NoteQCResult | null>(null);
   const draftKey = draftRowKey(rowDraft);
 
-  const currentVersionAsSearchResult: SearchResult = useMemo(
-    () => ({
-      type: 'Version',
-      id: version.id,
-      name: version.name || `Version ${version.id}`,
-    }),
-    [version.id, version.name]
+  const isScratch = version.id === SCRATCH_VERSION_ID;
+
+  const currentVersionAsSearchResult: SearchResult | undefined = useMemo(
+    () =>
+      // Scratch notes link to the playlist (added on publish), never to the
+      // scratch pseudo-version.
+      isScratch
+        ? undefined
+        : {
+            type: 'Version',
+            id: version.id,
+            name: version.name || `Version ${version.id}`,
+          },
+    [isScratch, version.id, version.name]
   );
 
   const versionSubmitter: SearchResult | undefined = useMemo(() => {
@@ -443,7 +459,7 @@ function PublishNoteRow({
       </Flex>
       <NoteEditor
         projectId={version.project?.id ?? null}
-        currentVersion={version}
+        currentVersion={isScratch ? null : version}
         draftNote={draftNote}
         updateDraftNote={updateDraftNote}
         saveAttachmentIds={saveAttachmentIds}
@@ -658,6 +674,10 @@ function VersionPublishCard({
     [drafts, currentUserEmail]
   );
 
+  // The scratch card publishes a note on the playlist entity: no submitter,
+  // version status, or transcript.
+  const isScratch = version.id === SCRATCH_VERSION_ID;
+
   return (
     <VersionCard>
       <VersionCardHeader>
@@ -672,31 +692,35 @@ function VersionPublishCard({
           >
             {version.name || `Version ${version.id}`}
           </Text>
-          <Flex align="center" gap="2">
-            {version.user ? (
-              <>
-                <UserAvatar name={version.user.name} size="1" />
+          {!isScratch && (
+            <Flex align="center" gap="2">
+              {version.user ? (
+                <>
+                  <UserAvatar name={version.user.name} size="1" />
+                  <Text size="1" color="gray">
+                    {version.user.name}
+                  </Text>
+                </>
+              ) : (
                 <Text size="1" color="gray">
-                  {version.user.name}
+                  Unknown submitter
                 </Text>
-              </>
-            ) : (
-              <Text size="1" color="gray">
-                Unknown submitter
-              </Text>
-            )}
-          </Flex>
+              )}
+            </Flex>
+          )}
         </Flex>
       </VersionCardHeader>
       <Flex direction="column" gap="3" p="3">
-        <VersionStatusRow
-          projectId={version.project?.id}
-          currentStatus={version.status}
-          value={statusValue}
-          checked={statusChecked}
-          onValueChange={onStatusValueChange}
-          onCheckedChange={onStatusToggle}
-        />
+        {!isScratch && (
+          <VersionStatusRow
+            projectId={version.project?.id}
+            currentStatus={version.status}
+            value={statusValue}
+            checked={statusChecked}
+            onValueChange={onStatusValueChange}
+            onCheckedChange={onStatusToggle}
+          />
+        )}
         {sortedDrafts.map((d) => (
           <PublishNoteRow
             key={draftRowKey(d)}
@@ -716,12 +740,14 @@ function VersionPublishCard({
             onQcRefreshDraft={() => onQcRefreshDraft(d)}
           />
         ))}
-        <VersionTranscriptRow
-          playlistId={playlistId}
-          versionId={version.id}
-          checked={transcriptChecked}
-          onCheckedChange={onTranscriptToggle}
-        />
+        {!isScratch && (
+          <VersionTranscriptRow
+            playlistId={playlistId}
+            versionId={version.id}
+            checked={transcriptChecked}
+            onCheckedChange={onTranscriptToggle}
+          />
+        )}
       </Flex>
     </VersionCard>
   );
@@ -891,6 +917,14 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       }
     }
 
+    // The scratch card leads, mirroring its position in the sidebar
+    const scratchIndex = ordered.findIndex(
+      (o) => o.version.id === SCRATCH_VERSION_ID
+    );
+    if (scratchIndex > 0) {
+      ordered.unshift(...ordered.splice(scratchIndex, 1));
+    }
+
     return ordered;
   }, [notes, versions, pendingStatusByVersion]);
 
@@ -1011,7 +1045,11 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     }));
 
     const selectedTranscriptVersionIds = versionCards
-      .filter(({ version }) => transcriptSelected[version.id] ?? true)
+      .filter(
+        ({ version }) =>
+          version.id !== SCRATCH_VERSION_ID &&
+          (transcriptSelected[version.id] ?? true)
+      )
       .map(({ version }) => version.id);
 
     const [notesResult, transcriptResults, statusResults] = await Promise.all([

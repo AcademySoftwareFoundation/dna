@@ -4,6 +4,7 @@ Pydantic models for DNA entities.
 """
 
 from dna.models.draft_note import (
+    SCRATCH_VERSION_ID,
     DraftNote,
     DraftNoteBase,
     DraftNoteCreate,
@@ -123,6 +124,7 @@ __all__ = [
     "PublishTranscriptResponse",
     "UpdateVersionStatusRequest",
     "UpdateVersionStatusResponse",
+    "SCRATCH_VERSION_ID",
     "DraftNote",
     "DraftNoteBase",
     "DraftNoteCreate",

@@ -76,3 +76,26 @@ describe('VersionCard in-review pin', () => {
     });
   });
 });
+
+describe('VersionCard scratch removal', () => {
+  it('renders the remove X in place of the in-review eye', () => {
+    renderCard({ onRemove: vi.fn(), onTogglePin: vi.fn(), canPin: true });
+
+    expect(
+      screen.getByRole('button', { name: 'Remove scratch pad' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Set in review' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('removes without selecting the tile', () => {
+    const onClick = vi.fn();
+    const onRemove = vi.fn();
+    renderCard({ onClick, onRemove });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove scratch pad' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});

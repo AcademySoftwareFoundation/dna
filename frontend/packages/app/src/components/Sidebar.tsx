@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import styled from 'styled-components';
 import {
   PanelLeftClose,
@@ -9,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button, Tooltip } from '@radix-ui/themes';
+import { SCRATCH_VERSION_ID } from '@dna/core';
 import type { Version, DraftNote, Playlist } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
@@ -22,9 +24,10 @@ import { TranscriptionMenu } from './TranscriptionMenu';
 import { RvSyncMenu } from './RvSyncMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
-import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
+import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
+  useUpsertPlaylistMetadata,
   usePlaylistDraftNotes,
   useRvSync,
   useSetInReview,
@@ -325,13 +328,77 @@ export function Sidebar({
     }
   };
 
+  const queryClient = useQueryClient();
+  const upsertPlaylistMetadata = useUpsertPlaylistMetadata(playlistId);
+  const hasScratch = !!playlistMetadata?.has_scratch;
+
+  // Placeholder tile for a note on the playlist entity itself. Not a real
+  // version: excluded from RV sync, in-review, search, and the versions query.
+  const scratchVersion = useMemo<Version>(
+    () => ({
+      type: 'Version',
+      id: SCRATCH_VERSION_ID,
+      name: 'SCRATCH PAD',
+      notes: [],
+      ...(projectId != null
+        ? { project: { type: 'Project', id: projectId } }
+        : {}),
+    }),
+    [projectId]
+  );
+
+  const handleAddScratch = () => {
+    if (!playlistId) return;
+    if (!hasScratch) {
+      void upsertPlaylistMetadata.mutateAsync({ has_scratch: true });
+    }
+    // One scratch per playlist: adding again just selects the existing one.
+    onVersionSelect?.(scratchVersion);
+  };
+
+  const handleRemoveScratch = () => {
+    if (!playlistId) return;
+    void upsertPlaylistMetadata.mutateAsync({ has_scratch: false });
+    void apiHandler
+      .deleteDraftNote({
+        playlistId,
+        versionId: SCRATCH_VERSION_ID,
+        userEmail,
+      })
+      .catch(() => {
+        // No draft to delete is fine.
+      })
+      .finally(() => {
+        queryClient.setQueryData(
+          ['draftNote', playlistId, SCRATCH_VERSION_ID, userEmail],
+          null
+        );
+        void queryClient.invalidateQueries({
+          queryKey: ['draftNotes', playlistId],
+        });
+      });
+    if (selectedVersionId === SCRATCH_VERSION_ID && versions?.length) {
+      onVersionSelect?.(versions[0]);
+    }
+  };
+
   const playlistMenuItems = [
     {
       label: 'Change Playlist',
       onSelect: () => setToolbarInput('change-playlist'),
     },
     { label: 'Add Version', onSelect: () => setToolbarInput('add-version') },
+    { label: 'Add Scratch Pad', onSelect: handleAddScratch },
   ];
+
+  const noteStatusFor = (versionId: number): NoteStatus | null => {
+    const note = draftNotes?.find((n) => n.version_id === versionId);
+    if (!note) return null;
+    if (note.published) return 'published';
+    if (note.published_note_id) return 'edited';
+    if (note.content || note.subject) return 'draft';
+    return null;
+  };
 
   const handleSearchVersionSelect = (version: Version) => {
     onVersionSelect?.(version);
@@ -374,7 +441,7 @@ export function Sidebar({
       );
     }
 
-    if (!versions || versions.length === 0) {
+    if ((!versions || versions.length === 0) && !hasScratch) {
       return (
         <StateContainer>
           <StateText>No versions in this playlist</StateText>
@@ -392,7 +459,26 @@ export function Sidebar({
           </RefetchOverlay>
         )}
         <VersionCardList>
-          {versions.map((version) => (
+          {hasScratch && (
+            <div
+              ref={(el) => {
+                if (el) {
+                  versionRefs.current.set(SCRATCH_VERSION_ID, el);
+                } else {
+                  versionRefs.current.delete(SCRATCH_VERSION_ID);
+                }
+              }}
+            >
+              <VersionCard
+                version={scratchVersion}
+                selected={selectedVersionId === SCRATCH_VERSION_ID}
+                noteStatus={noteStatusFor(SCRATCH_VERSION_ID)}
+                onClick={() => onVersionSelect?.(scratchVersion)}
+                onRemove={handleRemoveScratch}
+              />
+            </div>
+          )}
+          {(versions ?? []).map((version) => (
             <div
               key={version.id}
               ref={(el) => {
@@ -421,16 +507,7 @@ export function Sidebar({
                     ? () => handleTogglePin(version.id)
                     : undefined
                 }
-                noteStatus={((): NoteStatus | null => {
-                  const note = draftNotes?.find(
-                    (n) => n.version_id === version.id
-                  );
-                  if (!note) return null;
-                  if (note.published) return 'published';
-                  if (note.published_note_id) return 'edited';
-                  if (note.content || note.subject) return 'draft';
-                  return null;
-                })()}
+                noteStatus={noteStatusFor(version.id)}
                 onClick={() => onVersionSelect?.(version)}
               />
             </div>

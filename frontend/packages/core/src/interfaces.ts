@@ -143,6 +143,13 @@ export interface GetUserByEmailParams {
   userEmail: string;
 }
 
+/**
+ * Sentinel version_id for a playlist-level "scratch" note: the draft belongs
+ * to the playlist itself rather than any version, and publishes as a note
+ * linked only to the Playlist entity.
+ */
+export const SCRATCH_VERSION_ID = -1;
+
 export interface DraftNoteLink {
   entity_type: string;
   entity_id: number;
@@ -211,6 +218,7 @@ export interface PlaylistMetadata {
   meeting_id: string | null;
   platform: Platform | null;
   transcription_paused: boolean;
+  has_scratch: boolean;
 }
 
 export interface PlaylistMetadataUpdate {
@@ -219,6 +227,7 @@ export interface PlaylistMetadataUpdate {
   meeting_id?: string | null;
   platform?: Platform | null;
   transcription_paused?: boolean;
+  has_scratch?: boolean;
 }
 
 export interface GetPlaylistMetadataParams {

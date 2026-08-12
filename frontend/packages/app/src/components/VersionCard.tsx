@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { type DefaultTheme } from 'styled-components';
-import { Eye } from 'lucide-react';
+import { Eye, NotebookPen, X } from 'lucide-react';
 import { Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
@@ -27,6 +27,12 @@ interface VersionCardProps {
   onClick?: () => void;
   /** Omit to render the in-review eye as a non-interactive indicator. */
   onTogglePin?: () => void;
+  /**
+   * Renders an X where the in-review eye would sit, for tiles that can be
+   * removed instead of reviewed (scratch tiles). Mutually exclusive with the
+   * eye: when set, onTogglePin/inReview are ignored.
+   */
+  onRemove?: () => void;
 }
 
 const Card = styled.div<{ $selected?: boolean; $pinned?: boolean }>`
@@ -60,6 +66,20 @@ const Thumbnail = styled.div`
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+`;
+
+const ScratchThumb = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.text.muted};
+
+  svg {
+    width: 24px;
+    height: 24px;
   }
 `;
 
@@ -152,6 +172,53 @@ const EyeToggle = styled.button<{ $active?: boolean }>`
   &:focus-visible {
     opacity: 1;
     outline: 2px solid ${({ theme }) => theme.colors.accent.main};
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+/**
+ * Hidden until the card is hovered, then a muted gray; glows red while the
+ * button itself is hovered or focused.
+ */
+const RemoveToggle = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.text.muted};
+  opacity: 0;
+  transition: opacity ${({ theme }) => theme.transitions.fast},
+    color ${({ theme }) => theme.transitions.fast},
+    filter ${({ theme }) => theme.transitions.fast};
+
+  /* Nested so these keep winning over the card-hover reveal above. */
+  ${Card}:hover & {
+    opacity: 0.5;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.status.error};
+    filter: drop-shadow(0 0 4px ${({ theme }) => theme.colors.status.error});
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid ${({ theme }) => theme.colors.status.error};
     outline-offset: 2px;
     border-radius: 3px;
   }
@@ -275,6 +342,7 @@ export function VersionCard({
   noteStatus = null,
   onClick,
   onTogglePin,
+  onRemove,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
 
@@ -300,6 +368,22 @@ export function VersionCard({
     : canPin && inReview
       ? 'Pin in review'
       : 'Set in review';
+
+  const renderRemove = () => (
+    <Tooltip content="Remove scratch pad">
+      <RemoveToggle
+        type="button"
+        aria-label="Remove scratch pad"
+        onClick={(e) => {
+          // Removing shouldn't drag the selection along with it.
+          e.stopPropagation();
+          onRemove?.();
+        }}
+      >
+        <X />
+      </RemoveToggle>
+    </Tooltip>
+  );
 
   const renderEye = () => {
     // Nothing to toggle: either pinning is unavailable entirely, or RV isn't
@@ -337,7 +421,13 @@ export function VersionCard({
   return (
     <Card $selected={selected} $pinned={isPinned} onClick={onClick}>
       <Thumbnail>
-        {thumbnailUrl && <img src={thumbnailUrl} alt={displayName} />}
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt={displayName} />
+        ) : onRemove ? (
+          <ScratchThumb>
+            <NotebookPen aria-label="Scratch pad" />
+          </ScratchThumb>
+        ) : null}
       </Thumbnail>
       <Content>
         <Title>{displayName}</Title>
@@ -359,7 +449,7 @@ export function VersionCard({
         ) : (
           <span />
         )}
-        {renderEye()}
+        {onRemove ? renderRemove() : renderEye()}
       </IconsContainer>
     </Card>
   );

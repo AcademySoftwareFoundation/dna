@@ -1134,6 +1134,101 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return result["id"]
 
+    def publish_playlist_note(
+        self,
+        playlist_id: int,
+        content: str,
+        subject: str,
+        to_users: list[int],
+        cc_users: list[int],
+        links: list[EntityBase],
+        author_email: Optional[str] = None,
+    ) -> int:
+        """Publish a note linked to a playlist (no version) in ShotGrid.
+
+        Args:
+            playlist_id: The ID of the playlist to link to.
+            content: Note content.
+            subject: Note subject.
+            to_users: List of user IDs to address.
+            cc_users: List of user IDs to CC.
+            links: List of additional entities to link.
+            author_email: Optional email of the author.
+
+        Returns:
+            The ID of the created (or existing) note.
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        # 1. Fetch playlist to get Project and ensure playlist exists
+        playlist_data = self._sg.find_one(
+            "Playlist",
+            filters=[["id", "is", playlist_id]],
+            fields=["project"],
+        )
+        if not playlist_data:
+            raise ValueError(f"Playlist {playlist_id} not found")
+
+        project = playlist_data.get("project")
+        if not project:
+            raise ValueError(f"Playlist {playlist_id} has no project assigned")
+
+        # 2. Check for duplicates: same playlist link, subject, and content
+        duplicate_filters = [
+            ["project", "is", project],
+            ["note_links", "is", {"type": "Playlist", "id": playlist_id}],
+            ["subject", "is", subject],
+            ["content", "is", content],
+        ]
+        existing_note = self._sg.find_one(
+            "Note", filters=duplicate_filters, fields=["id"]
+        )
+        if existing_note:
+            return existing_note["id"]
+
+        # 3. Prepare Note Data
+        note_links = [{"type": "Playlist", "id": playlist_id}]
+        if links:
+            extra_links = self._convert_entities_to_sg_links(links)
+            if extra_links:
+                if isinstance(extra_links, dict):
+                    note_links.append(extra_links)
+                elif isinstance(extra_links, list):
+                    note_links.extend(extra_links)
+
+        recipient_links = [{"type": "HumanUser", "id": uid} for uid in to_users]
+        cc_links = [{"type": "HumanUser", "id": uid} for uid in cc_users]
+
+        note_data = {
+            "project": project,
+            "subject": subject,
+            "content": content,
+            "note_links": note_links,
+            "addressings_to": recipient_links,
+            "addressings_cc": cc_links,
+        }
+
+        # 4. Handle Author / Sudo
+        author_login = None
+        if author_email:
+            try:
+                author_user = self.get_user_by_email(author_email)
+                if author_user and author_user.login:
+                    author_login = author_user.login
+            except ValueError as e:
+                raise UserNotFoundError(
+                    f"Author not found in ShotGrid: {author_email}"
+                ) from e
+
+        if author_login:
+            with self.sudo(author_login):
+                result = self._sg.create("Note", note_data)
+        else:
+            result = self._sg.create("Note", note_data)
+
+        return result["id"]
+
     def attach_file_to_note(
         self, note_id: int, file_path: str, display_name: str
     ) -> bool:

@@ -8,6 +8,11 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Sentinel version_id for a playlist-level "scratch" note: the draft belongs to
+# the playlist itself rather than any version, and publishes as a note linked
+# only to the Playlist entity.
+SCRATCH_VERSION_ID = -1
+
 
 class DraftNoteLink(BaseModel):
     """Reference to a DNA entity to link to the note."""
