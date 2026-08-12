@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
-from dna.models.draft_note import DraftNote
+from dna.models.draft_note import SCRATCH_VERSION_ID, DraftNote, DraftNoteLink
 
 
 def _targets(*pairs: tuple[str, int]) -> list[dict[str, str | int]]:
@@ -80,6 +80,60 @@ class TestPublishNotesEndpoint:
         assert call_args[1]["user_email"] == "user@example.com"
         assert call_args[1]["data"].published is True
         assert call_args[1]["data"].published_note_id == 500
+
+    def test_publish_scratch_note_links_playlist(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """A scratch draft publishes as a playlist note, never touching a version."""
+        draft_note = DraftNote(
+            _id="scratch1",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=SCRATCH_VERSION_ID,
+            content="Playlist-wide observation",
+            subject="Scratch",
+            version_status="rev",  # must be ignored: there is no version
+            links=[
+                DraftNoteLink(
+                    entity_type="version", entity_id=SCRATCH_VERSION_ID
+                ),
+                DraftNoteLink(entity_type="shot", entity_id=42),
+            ],
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [draft_note]
+        mock_prodtrack.publish_playlist_note.return_value = 600
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "targets": _targets(("user@example.com", SCRATCH_VERSION_ID)),
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["published_count"] == 1
+
+        mock_prodtrack.publish_note.assert_not_called()
+        mock_prodtrack.update_version_status.assert_not_called()
+        mock_prodtrack.get_entity.assert_not_called()
+
+        mock_prodtrack.publish_playlist_note.assert_called_once()
+        args = mock_prodtrack.publish_playlist_note.call_args[1]
+        assert args["playlist_id"] == 100
+        assert args["content"] == "Playlist-wide observation"
+        assert args["author_email"] == "user@example.com"
+        # The scratch pseudo-version link is dropped; real links pass through
+        assert [(l.type, l.id) for l in args["links"]] == [("Shot", 42)]
+
+        call_args = mock_storage.upsert_draft_note.call_args
+        assert call_args[1]["version_id"] == SCRATCH_VERSION_ID
+        assert call_args[1]["data"].published is True
+        assert call_args[1]["data"].published_note_id == 600
 
     def test_publish_notes_skips_published(
         self, client, mock_storage, mock_prodtrack, override_deps
