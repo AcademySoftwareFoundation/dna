@@ -94,9 +94,7 @@ class TestPublishNotesEndpoint:
             subject="Scratch",
             version_status="rev",  # must be ignored: there is no version
             links=[
-                DraftNoteLink(
-                    entity_type="version", entity_id=SCRATCH_VERSION_ID
-                ),
+                DraftNoteLink(entity_type="version", entity_id=SCRATCH_VERSION_ID),
                 DraftNoteLink(entity_type="shot", entity_id=42),
             ],
             created_at=datetime.now(timezone.utc),
