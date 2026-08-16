@@ -380,24 +380,18 @@ function LockableSwitch({
 
 interface GeneralTabProps {
   isLoading: boolean;
-  preferredModel: string;
-  availableModels: AvailableModelsResponse | null;
   syncProdtrackTabOnVersionChange: boolean;
   prodtrackPageType: 'version' | 'entity';
   isPending: boolean;
-  onPreferredModelChange: (value: string) => void;
   onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
   onProdtrackPageTypeChange: (value: 'version' | 'entity') => void;
 }
 
 function GeneralTab({
   isLoading,
-  preferredModel,
-  availableModels,
   syncProdtrackTabOnVersionChange,
   prodtrackPageType,
   isPending,
-  onPreferredModelChange,
   onSyncProdtrackTabOnVersionChange,
   onProdtrackPageTypeChange,
 }: GeneralTabProps) {
@@ -450,40 +444,6 @@ function GeneralTab({
           />
         </AppearanceRow>
       </Section>
-
-      {availableModels && (
-        <Section>
-          <SectionTitle>AI Model</SectionTitle>
-          <SectionDescription>
-            Select which model to use for note generation.
-          </SectionDescription>
-          <Select.Root
-            value={
-              preferredModel && availableModels.models.includes(preferredModel)
-                ? preferredModel
-                : '__default__'
-            }
-            onValueChange={(value) =>
-              onPreferredModelChange(value === '__default__' ? '' : value)
-            }
-            disabled={isPending}
-          >
-            <Select.Trigger />
-            <Select.Content>
-              <Select.Item value="__default__">
-                {availableModels.default} (default)
-              </Select.Item>
-              {availableModels.models
-                .filter((m) => m !== availableModels.default)
-                .map((model) => (
-                  <Select.Item key={model} value={model}>
-                    {model}
-                  </Select.Item>
-                ))}
-            </Select.Content>
-          </Select.Root>
-        </Section>
-      )}
 
       <Section>
         <SectionTitle>Production tracking (browser)</SectionTitle>
@@ -734,11 +694,14 @@ interface AITabProps {
   isLoading: boolean;
   notePrompt: string;
   projectId: number | null;
+  preferredModel: string;
+  availableModels: AvailableModelsResponse | null;
   regenerateOnVersionChange: boolean;
   regenerateOnTranscriptUpdate: boolean;
   isPending: boolean;
   userEmail: string;
   onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onPreferredModelChange: (value: string) => void;
   onRegenerateOnVersionChange: (checked: boolean) => void;
   onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
 }
@@ -747,11 +710,14 @@ function AITab({
   isLoading,
   notePrompt,
   projectId,
+  preferredModel,
+  availableModels,
   regenerateOnVersionChange,
   regenerateOnTranscriptUpdate,
   isPending,
   userEmail,
   onNotePromptChange,
+  onPreferredModelChange,
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
 }: AITabProps) {
@@ -785,6 +751,40 @@ function AITab({
           }
         />
       </FeatureEnableRow>
+
+      {availableModels && (
+        <Section>
+          <SectionTitle>AI Model</SectionTitle>
+          <SectionDescription>
+            Select which model to use for note generation.
+          </SectionDescription>
+          <Select.Root
+            value={
+              preferredModel && availableModels.models.includes(preferredModel)
+                ? preferredModel
+                : '__default__'
+            }
+            onValueChange={(value) =>
+              onPreferredModelChange(value === '__default__' ? '' : value)
+            }
+            disabled={isPending || !aiEnabled}
+          >
+            <Select.Trigger />
+            <Select.Content>
+              <Select.Item value="__default__">
+                {availableModels.default} (default)
+              </Select.Item>
+              {availableModels.models
+                .filter((m) => m !== availableModels.default)
+                .map((model) => (
+                  <Select.Item key={model} value={model}>
+                    {model}
+                  </Select.Item>
+                ))}
+            </Select.Content>
+          </Select.Root>
+        </Section>
+      )}
 
       <Section>
         <SectionTitle>
@@ -1191,12 +1191,9 @@ export function SettingsModal({
             <TabsContentWrapper>
               <GeneralTab
                 isLoading={isLoading}
-                preferredModel={preferredModel}
-                availableModels={availableModels ?? null}
                 syncProdtrackTabOnVersionChange={syncProdtrackTabOnVersionChange}
                 prodtrackPageType={prodtrackPageType}
                 isPending={mutation.isPending}
-                onPreferredModelChange={handlePreferredModelChange}
                 onSyncProdtrackTabOnVersionChange={
                   handleSyncProdtrackTabOnVersionChange
                 }
@@ -1228,11 +1225,14 @@ export function SettingsModal({
                 isLoading={isLoading}
                 notePrompt={notePrompt}
                 projectId={projectId}
+                preferredModel={preferredModel}
+                availableModels={availableModels ?? null}
                 regenerateOnVersionChange={regenerateOnVersionChange}
                 regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
                 isPending={mutation.isPending}
                 userEmail={userEmail}
                 onNotePromptChange={handleNotePromptChange}
+                onPreferredModelChange={handlePreferredModelChange}
                 onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
                 onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
               />
