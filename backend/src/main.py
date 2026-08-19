@@ -156,6 +156,10 @@ tags_metadata = [
         "description": "Operations for managing notes",
     },
     {
+        "name": "Attachments",
+        "description": "Operations for staging file attachments for notes",
+    },
+    {
         "name": "Projects",
         "description": "Operations for managing projects",
     },
@@ -1873,6 +1877,7 @@ async def list_qc_checks(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> list[NoteQCCheck]:
+    """Return the QC checks a user has defined for their draft notes."""
     if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.get_qc_checks(user_email)
@@ -1891,6 +1896,7 @@ async def create_qc_check(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> NoteQCCheck:
+    """Create a QC check that runs against the user's draft notes at publish time."""
     if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.create_qc_check(user_email, data)
@@ -1909,6 +1915,7 @@ async def update_qc_check(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> NoteQCCheck:
+    """Update an existing QC check. Returns 404 if the check does not exist."""
     if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     updated = await storage_provider.update_qc_check(user_email, check_id, data)
@@ -1929,6 +1936,7 @@ async def delete_qc_check(
     storage_provider: StorageProviderDep,
     current_user: CurrentUserDep,
 ) -> None:
+    """Delete a QC check. Returns 404 if the check does not exist."""
     if not emails_match(user_email, current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await storage_provider.delete_qc_check(user_email, check_id)
@@ -1951,6 +1959,10 @@ async def run_qc_checks(
     llm_provider: LLMProviderDep,
     current_user: CurrentUserDep,
 ) -> RunQCChecksResponse:
+    """Run the draft owner's QC checks against their draft note for this version.
+
+    Returns an empty result set if the draft does not exist.
+    """
     # Authenticated callers may QC any draft in the playlist (same as publish-notes).
     # body.user_email identifies the draft owner, not the caller.
     draft = await storage_provider.get_draft_note(

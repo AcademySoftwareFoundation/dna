@@ -41,6 +41,21 @@ test-cov-html:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
 	@echo "Coverage report available at htmlcov/index.html"
 
+# Regenerate docs/openapi.json from the FastAPI app. Run after changing any
+# route, request/response model, or the API metadata in src/main.py.
+openapi:
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm --no-deps \
+		-v "$(abspath scripts):/app/scripts:ro" \
+		-v "$(abspath docs):/app/docs" \
+		api python /app/scripts/export_openapi.py
+
+# Fail if docs/openapi.json is stale (same check the test suite runs).
+openapi-check:
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm --no-deps \
+		-v "$(abspath scripts):/app/scripts:ro" \
+		-v "$(abspath docs):/app/docs:ro" \
+		api python /app/scripts/export_openapi.py --check
+
 venv-lint:
 	@if [ ! -d ".venv-lint" ]; then \
 		echo "Creating virtual environment for linting..."; \

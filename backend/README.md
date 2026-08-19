@@ -181,3 +181,30 @@ This creates a virtual environment at `.venv-lint` and installs Black and isort.
 ## Documentation
 
 - pydoc for documentation
+
+### OpenAPI spec
+
+FastAPI generates the API spec from the route definitions and Pydantic models. With the backend running it is served live at:
+
+| URL | Format |
+|-----|--------|
+| `http://localhost:8000/docs` | Swagger UI |
+| `http://localhost:8000/redoc` | ReDoc |
+| `http://localhost:8000/openapi.json` | Raw OpenAPI 3.1 JSON |
+
+(All three are disabled when `DISABLE_DOCS=true`.)
+
+A checked-in copy lives at [`docs/openapi.json`](docs/openapi.json) so the API surface shows up in code review and can be fed to client codegen or spec linters without running the server. It is generated, not hand-edited — regenerate it after changing any route, request/response model, or the API metadata in `src/main.py`:
+
+```bash
+make openapi          # rewrite docs/openapi.json
+make openapi-check    # fail if it is stale
+```
+
+Without Docker, run the exporter directly (requires `requirements.txt` installed):
+
+```bash
+python3 scripts/export_openapi.py
+```
+
+`tests/test_openapi_spec.py` fails the build if the committed spec drifts from the app, or if an endpoint is missing a tag, summary, description, or security requirement. New public (unauthenticated) endpoints must be added to `UNAUTHENTICATED_PATHS` in that test, and every tag used on a route must be declared in `tags_metadata` in `src/main.py`.
