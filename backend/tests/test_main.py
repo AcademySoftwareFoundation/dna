@@ -908,6 +908,35 @@ class TestGetVersionsForPlaylistEndpoint:
             app.dependency_overrides.clear()
 
 
+class TestGetModelsEndpoint:
+    """Tests for GET /models endpoint."""
+
+    @pytest.fixture
+    def mock_llm_provider(self):
+        """Create a mock LLM provider."""
+        return mock.AsyncMock()
+
+    def test_get_models_returns_200(self, mock_llm_provider):
+        """Test that GET /models returns available models."""
+        mock_llm_provider.get_available_models.return_value = {
+            "provider": "openai",
+            "models": ["gpt-4o", "gpt-4o-mini"],
+            "default": "gpt-4o-mini",
+        }
+
+        app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
+
+        try:
+            response = client.get("/models")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["provider"] == "openai"
+            assert "gpt-4o" in data["models"]
+            assert data["default"] == "gpt-4o-mini"
+        finally:
+            app.dependency_overrides.clear()
+
+
 class TestGenerateNoteEndpoint:
     """Tests for POST /generate-note endpoint."""
 

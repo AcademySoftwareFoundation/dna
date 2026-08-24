@@ -15,6 +15,10 @@ class UserSettingsUpdate(BaseModel):
     note_prompt: Optional[str] = Field(
         default=None, description="Custom prompt for generating notes"
     )
+    preferred_model: Optional[str] = Field(
+        default=None,
+        description="Preferred LLM model for note generation; empty means use server default",
+    )
     regenerate_on_version_change: Optional[bool] = Field(
         default=None,
         description="Regenerate AI note when switching review versions",
@@ -42,6 +46,7 @@ class UserSettings(BaseModel):
     id: str = Field(alias="_id")
     user_email: str
     note_prompt: str = ""
+    preferred_model: str = ""
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True
