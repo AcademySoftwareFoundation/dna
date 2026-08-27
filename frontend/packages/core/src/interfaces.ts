@@ -368,6 +368,7 @@ export interface UserSettings {
   note_prompt: string;
   /** Configured default prompt template (for display when note_prompt is empty). */
   default_note_prompt: string;
+  preferred_model: string;
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;
@@ -378,6 +379,7 @@ export interface UserSettings {
 
 export interface UserSettingsUpdate {
   note_prompt?: string;
+  preferred_model?: string;
   regenerate_on_version_change?: boolean;
   regenerate_on_transcript_update?: boolean;
   sync_prodtrack_tab_on_version_change?: boolean;
@@ -420,6 +422,13 @@ export interface GenerateNoteParams {
   versionId: number;
   userEmail: string;
   additionalInstructions?: string;
+  model?: string;
+}
+
+export interface AvailableModelsResponse {
+  provider: string;
+  models: string[];
+  default: string;
 }
 
 export interface GenerateNoteResponse {
