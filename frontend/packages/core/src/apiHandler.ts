@@ -24,6 +24,7 @@ import {
   ProjectGlossary,
   GenerateNoteParams,
   GenerateNoteResponse,
+  AvailableModelsResponse,
   GetVersionStatusesParams,
   PublishNotesParams,
   PublishNotesResponse,
@@ -359,7 +360,12 @@ class ApiHandler {
       version_id: params.versionId,
       user_email: params.userEmail,
       additional_instructions: params.additionalInstructions,
+      model: params.model,
     });
+  }
+
+  async getAvailableModels(): Promise<AvailableModelsResponse> {
+    return this.get<AvailableModelsResponse>('/models');
   }
 
   async searchEntities(params: SearchEntitiesParams): Promise<SearchResult[]> {
