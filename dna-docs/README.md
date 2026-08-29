@@ -22,21 +22,20 @@ npm start
 
 ## Backend API reference
 
-Upstream does not commit an OpenAPI document — the FastAPI app builds it at
-runtime — so the schema is extracted by importing the app and serializing
-`app.openapi()`. No server or database is started.
+The backend commits its OpenAPI document at `backend/docs/openapi.json`
+(regenerated with `make openapi` and guarded by a drift test), so refreshing the
+docs is just a copy plus a `servers` injection for the API demo panel:
 
 ```bash
 ./scripts/fetch-openapi.sh     # refresh openapi/backend.json
 npm run regen-api-docs         # rebuild MDX under api/reference/
 ```
 
-`scripts/fetch-openapi.sh` requires [uv](https://docs.astral.sh/uv/) and git. It
-clones the backend on demand, or reuses a local checkout:
+`scripts/fetch-openapi.sh` reads the sibling checkout by default; both inputs
+can be overridden:
 
 ```bash
-DNA_SRC=~/src/dna ./scripts/fetch-openapi.sh
-DNA_REF=some-branch ./scripts/fetch-openapi.sh
+DNA_SPEC=/path/to/openapi.json ./scripts/fetch-openapi.sh
 DNA_SERVER_URL=https://dna.example.com ./scripts/fetch-openapi.sh
 ```
 
@@ -60,7 +59,7 @@ checkout must run `gen-api-docs` before `build`. `build:full` chains them.
 | `npm start` | Dev server |
 | `npm run build` | Production build |
 | `npm run build:full` | Generate API docs, then build |
-| `npm run fetch-openapi` | Re-extract the schema from upstream |
+| `npm run fetch-openapi` | Copy the backend's committed spec |
 | `npm run gen-api-docs` | Spec → `api/reference/` |
 | `npm run clean-api-docs` | Remove generated MDX |
 | `npm run regen-api-docs` | Clean, then generate |
