@@ -1,0 +1,5039 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DNA Backend",
+    "description": "\n## DNA Backend API\n\nBackend API for the DNA (Dailies Notes Assistant) application.\n\n### Features\n- \ud83c\udfac Production tracking integration (ShotGrid)\n- \ud83c\udfa4 Transcription services\n- \ud83e\udd16 LLM-powered note generation\n- \ud83d\udccb Playlist and version management\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
+    "contact": {
+      "name": "DNA Project",
+      "url": "https://github.com/AcademySoftwareFoundation/dna"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Root endpoint",
+        "description": "Returns basic API information and version.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "API information with name and version",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check",
+        "description": "Check if the API is running and healthy.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Health status of the API",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/attachments": {
+      "post": {
+        "tags": [
+          "Attachments"
+        ],
+        "summary": "Upload Attachment",
+        "description": "Save an uploaded file and return its attachment ID.",
+        "operationId": "upload_attachment_api_attachments_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_attachment_api_attachments_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Upload Attachment Api Attachments Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/attachments/{attachment_id}": {
+      "get": {
+        "tags": [
+          "Attachments"
+        ],
+        "summary": "Retrieve a staged attachment",
+        "description": "Return the image file for a staged attachment by ID.",
+        "operationId": "get_attachment_api_attachments__attachment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Attachment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Attachments"
+        ],
+        "summary": "Delete Attachment",
+        "description": "Delete a staged attachment by ID.",
+        "operationId": "delete_attachment_api_attachments__attachment_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Attachment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Attachment Api Attachments  Attachment Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mock-thumbnails/{version_id}": {
+      "get": {
+        "tags": [
+          "Versions"
+        ],
+        "summary": "Serve mock thumbnail image",
+        "description": "Returns a thumbnail image for a version from the mock dataset (when using mock prodtrack provider).",
+        "operationId": "get_mock_thumbnail_api_mock_thumbnails__version_id__get",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version/{version_id}": {
+      "get": {
+        "tags": [
+          "Versions"
+        ],
+        "summary": "Get a version by ID",
+        "description": "Retrieve version information from the production tracking system.",
+        "operationId": "get_version_version__version_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlist/{playlist_id}": {
+      "get": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Get a playlist by ID",
+        "description": "Retrieve playlist information including linked versions.",
+        "operationId": "get_playlist_playlist__playlist_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playlist"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shot/{shot_id}": {
+      "get": {
+        "tags": [
+          "Shots"
+        ],
+        "summary": "Get a shot by ID",
+        "description": "Retrieve shot information from the production tracking system.",
+        "operationId": "get_shot_shot__shot_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "shot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/asset/{asset_id}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Get an asset by ID",
+        "description": "Retrieve asset information from the production tracking system.",
+        "operationId": "get_asset_asset__asset_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/task/{task_id}": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a task by ID",
+        "description": "Retrieve task information from the production tracking system.",
+        "operationId": "get_task_task__task_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}": {
+      "get": {
+        "tags": [
+          "Notes"
+        ],
+        "summary": "Get a note by ID",
+        "description": "Retrieve note information from the production tracking system.",
+        "operationId": "get_note_note__note_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note": {
+      "post": {
+        "tags": [
+          "Notes"
+        ],
+        "summary": "Create a new note",
+        "description": "Create a new note in the production tracking system.",
+        "operationId": "create_note_note_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/find": {
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Find entities",
+        "description": "Search for entities matching the given filters.",
+        "operationId": "find_entities_find_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntityBase"
+                  },
+                  "type": "array",
+                  "title": "Response Find Entities Find Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/search": {
+      "post": {
+        "tags": [
+          "Entities"
+        ],
+        "summary": "Search entities across multiple types",
+        "description": "Unified search endpoint for @mentions and entity linking.",
+        "operationId": "search_entities_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "$ref": "#/components/schemas/SearchResult"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object",
+                  "title": "Response Search Entities Search Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/version-statuses": {
+      "get": {
+        "tags": [
+          "Versions"
+        ],
+        "summary": "Get valid version statuses",
+        "description": "Get valid status options for versions from the production tracking system.",
+        "operationId": "get_version_statuses_version_statuses_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatusOption"
+                  },
+                  "title": "Response Get Version Statuses Version Statuses Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_email}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get user by email",
+        "description": "Retrieve user information by their email address.",
+        "operationId": "get_user_by_email_users__user_email__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/user/{user_email}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get projects for a user",
+        "description": "Retrieve all projects accessible by the specified user email.",
+        "operationId": "get_projects_for_user_projects_user__user_email__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Project"
+                  },
+                  "title": "Response Get Projects For User Projects User  User Email  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/playlists": {
+      "get": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Get playlists for a project",
+        "description": "Retrieve all playlists for the specified project.",
+        "operationId": "get_playlists_for_project_projects__project_id__playlists_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Playlist"
+                  },
+                  "title": "Response Get Playlists For Project Projects  Project Id  Playlists Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/glossary": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get a project's glossary",
+        "description": "Retrieve the production-specific glossary for a project. Returns an empty glossary when none has been saved yet.",
+        "operationId": "get_project_glossary_projects__project_id__glossary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectGlossary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create or update a project's glossary",
+        "description": "Save the production-specific glossary for a project.",
+        "operationId": "upsert_project_glossary_projects__project_id__glossary_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectGlossaryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectGlossary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/versions": {
+      "get": {
+        "tags": [
+          "Versions"
+        ],
+        "summary": "Get versions for a playlist",
+        "description": "Retrieve all versions in the specified playlist.",
+        "operationId": "get_versions_for_playlist_playlists__playlist_id__versions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Version"
+                  },
+                  "title": "Response Get Versions For Playlist Playlists  Playlist Id  Versions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/publish-notes": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "summary": "Publish draft notes",
+        "description": "Publish draft notes to the production tracking system.",
+        "operationId": "publish_notes_playlists__playlist_id__publish_notes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishNotesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishNotesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/publish-transcript": {
+      "post": {
+        "tags": [
+          "Playlists",
+          "Transcription"
+        ],
+        "summary": "Publish a version's captured transcript",
+        "description": "Push the stored transcript for a version to the production tracking system as a single custom-entity row. Idempotent via body_hash.",
+        "operationId": "publish_transcript_playlists__playlist_id__publish_transcript_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishTranscriptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishTranscriptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/draft-notes": {
+      "get": {
+        "tags": [
+          "Draft Notes"
+        ],
+        "summary": "Get all draft notes for a playlist",
+        "description": "Retrieve all users' draft notes for the specified playlist.",
+        "operationId": "get_playlist_draft_notes_playlists__playlist_id__draft_notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DraftNote"
+                  },
+                  "title": "Response Get Playlist Draft Notes Playlists  Playlist Id  Draft Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/versions/{version_id}/draft-notes": {
+      "get": {
+        "tags": [
+          "Draft Notes"
+        ],
+        "summary": "Get all draft notes for a version",
+        "description": "Retrieve all users' draft notes for the specified playlist/version.",
+        "operationId": "get_all_draft_notes_playlists__playlist_id__versions__version_id__draft_notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DraftNote"
+                  },
+                  "title": "Response Get All Draft Notes Playlists  Playlist Id  Versions  Version Id  Draft Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}": {
+      "get": {
+        "tags": [
+          "Draft Notes"
+        ],
+        "summary": "Get draft note for a user",
+        "description": "Retrieve a specific user's draft note for the playlist/version.",
+        "operationId": "get_draft_note_playlists__playlist_id__versions__version_id__draft_notes__user_email__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DraftNote"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Draft Note Playlists  Playlist Id  Versions  Version Id  Draft Notes  User Email  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Draft Notes"
+        ],
+        "summary": "Create or update a draft note",
+        "description": "Create or update a user's draft note for the playlist/version.",
+        "operationId": "upsert_draft_note_playlists__playlist_id__versions__version_id__draft_notes__user_email__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftNoteUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftNote"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Draft Notes"
+        ],
+        "summary": "Delete a draft note",
+        "description": "Delete a user's draft note for the playlist/version.",
+        "operationId": "delete_draft_note_playlists__playlist_id__versions__version_id__draft_notes__user_email__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "title": "Response Delete Draft Note Playlists  Playlist Id  Versions  Version Id  Draft Notes  User Email  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/metadata": {
+      "get": {
+        "tags": [
+          "Playlist Metadata"
+        ],
+        "summary": "Get playlist metadata",
+        "description": "Retrieve metadata for a playlist including in-review version and meeting ID.",
+        "operationId": "get_playlist_metadata_playlists__playlist_id__metadata_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PlaylistMetadata"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Playlist Metadata Playlists  Playlist Id  Metadata Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Playlist Metadata"
+        ],
+        "summary": "Create or update playlist metadata",
+        "description": "Create or update metadata for a playlist (in-review version and meeting ID).",
+        "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistMetadataUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistMetadata"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Playlist Metadata"
+        ],
+        "summary": "Delete playlist metadata",
+        "description": "Delete metadata for a playlist.",
+        "operationId": "delete_playlist_metadata_playlists__playlist_id__metadata_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "title": "Response Delete Playlist Metadata Playlists  Playlist Id  Metadata Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_email}/settings": {
+      "get": {
+        "tags": [
+          "User Settings"
+        ],
+        "summary": "Get user settings",
+        "description": "Retrieve settings for a user. When the user has no saved document, returns default toggles and the configured default note prompt in `default_note_prompt`; `note_prompt` is empty until the user saves a custom prompt.",
+        "operationId": "get_user_settings_users__user_email__settings_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "User Settings"
+        ],
+        "summary": "Create or update user settings",
+        "description": "Create or update settings for a user.",
+        "operationId": "upsert_user_settings_users__user_email__settings_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "User Settings"
+        ],
+        "summary": "Delete user settings",
+        "description": "Delete settings for a user.",
+        "operationId": "delete_user_settings_users__user_email__settings_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "title": "Response Delete User Settings Users  User Email  Settings Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_email}/qc-checks": {
+      "get": {
+        "tags": [
+          "Note QC"
+        ],
+        "summary": "List note QC checks",
+        "operationId": "list_qc_checks_users__user_email__qc_checks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoteQCCheck"
+                  },
+                  "title": "Response List Qc Checks Users  User Email  Qc Checks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Note QC"
+        ],
+        "summary": "Create a note QC check",
+        "operationId": "create_qc_check_users__user_email__qc_checks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteQCCheckCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteQCCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_email}/qc-checks/{check_id}": {
+      "put": {
+        "tags": [
+          "Note QC"
+        ],
+        "summary": "Update a note QC check",
+        "operationId": "update_qc_check_users__user_email__qc_checks__check_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          },
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteQCCheckUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteQCCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Note QC"
+        ],
+        "summary": "Delete a note QC check",
+        "operationId": "delete_qc_check_users__user_email__qc_checks__check_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Email"
+            }
+          },
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks": {
+      "post": {
+        "tags": [
+          "Note QC"
+        ],
+        "summary": "Run note QC checks for a draft",
+        "operationId": "run_qc_checks_playlists__playlist_id__versions__version_id__run_qc_checks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunQCChecksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunQCChecksResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcription/bot": {
+      "post": {
+        "tags": [
+          "Transcription"
+        ],
+        "summary": "Dispatch a bot to a meeting",
+        "description": "Start a transcription bot that joins the specified meeting.",
+        "operationId": "dispatch_bot_transcription_bot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchBotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotSession"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/transcription/bot/{platform}/{meeting_id}": {
+      "delete": {
+        "tags": [
+          "Transcription"
+        ],
+        "summary": "Stop a transcription bot",
+        "description": "Stop a transcription bot that is currently in a meeting.",
+        "operationId": "stop_bot_transcription_bot__platform___meeting_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          },
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean",
+                  "title": "Response Stop Bot Transcription Bot  Platform   Meeting Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcription/bot/{platform}/{meeting_id}/status": {
+      "get": {
+        "tags": [
+          "Transcription"
+        ],
+        "summary": "Get bot status",
+        "description": "Get the current status of a transcription bot.",
+        "operationId": "get_bot_status_transcription_bot__platform___meeting_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          },
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcription/transcript/{platform}/{meeting_id}": {
+      "get": {
+        "tags": [
+          "Transcription"
+        ],
+        "summary": "Get transcript",
+        "description": "Get the full transcript for a meeting.",
+        "operationId": "get_transcript_transcription_transcript__platform___meeting_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          },
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcript"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcription/segments/{playlist_id}/{version_id}": {
+      "get": {
+        "tags": [
+          "Transcription"
+        ],
+        "summary": "Get segments for a version",
+        "description": "Get all stored transcript segments for a specific playlist version.",
+        "operationId": "get_segments_for_version_transcription_segments__playlist_id___version_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Playlist Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoredSegment"
+                  },
+                  "title": "Response Get Segments For Version Transcription Segments  Playlist Id   Version Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generate-note": {
+      "post": {
+        "tags": [
+          "LLM"
+        ],
+        "summary": "Generate an AI note suggestion",
+        "description": "Generate a note suggestion using AI based on transcript and version context.",
+        "operationId": "generate_note_generate_note_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateNoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Asset": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Asset name/code"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Asset description"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project information"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "type": "array",
+            "title": "Tasks",
+            "description": "Associated tasks"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Asset",
+        "description": "Asset entity model.\n\nRepresents an asset (character, prop, environment, etc.)."
+      },
+      "Body_upload_attachment_api_attachments_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_attachment_api_attachments_post"
+      },
+      "BotSession": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "playlist_id": {
+            "type": "integer",
+            "title": "Playlist Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BotStatusEnum"
+          },
+          "vexa_meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vexa Meeting Id"
+          },
+          "bot_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Name"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform",
+          "meeting_id",
+          "playlist_id",
+          "status"
+        ],
+        "title": "BotSession",
+        "description": "Represents an active or completed bot session."
+      },
+      "BotStatus": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BotStatusEnum"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform",
+          "meeting_id",
+          "status"
+        ],
+        "title": "BotStatus",
+        "description": "Current status of a transcription bot."
+      },
+      "BotStatusEnum": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "joining",
+          "waiting_room",
+          "in_call",
+          "transcribing",
+          "failed",
+          "stopped",
+          "completed"
+        ],
+        "title": "BotStatusEnum",
+        "description": "Bot lifecycle status values."
+      },
+      "CreateNoteRequest": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "description": "Note subject line"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content",
+            "description": "Note body content"
+          },
+          "project": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Project",
+            "description": "Project reference (e.g., {'type': 'Project', 'id': 85})"
+          },
+          "note_links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EntityLink"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Links",
+            "description": "Entities to link this note to"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject",
+          "project"
+        ],
+        "title": "CreateNoteRequest",
+        "description": "Request model for creating a new note."
+      },
+      "DispatchBotRequest": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id",
+            "description": "Native meeting ID for the platform"
+          },
+          "playlist_id": {
+            "type": "integer",
+            "title": "Playlist Id",
+            "description": "Playlist ID to associate with this meeting"
+          },
+          "passcode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passcode",
+            "description": "Passcode for Teams meetings"
+          },
+          "bot_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Name",
+            "description": "Custom name for the bot"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language",
+            "description": "Transcription language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform",
+          "meeting_id",
+          "playlist_id"
+        ],
+        "title": "DispatchBotRequest",
+        "description": "Request to dispatch a bot to a meeting."
+      },
+      "DraftNote": {
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content",
+            "default": ""
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject",
+            "default": ""
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "default": ""
+          },
+          "cc": {
+            "type": "string",
+            "title": "Cc",
+            "default": ""
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/DraftNoteLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "version_status": {
+            "type": "string",
+            "title": "Version Status",
+            "default": ""
+          },
+          "published": {
+            "type": "boolean",
+            "title": "Published",
+            "default": false
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "default": false
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_note_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Note Id"
+          },
+          "attachment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Attachment Ids"
+          },
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_email": {
+            "type": "string",
+            "title": "User Email"
+          },
+          "playlist_id": {
+            "type": "integer",
+            "title": "Playlist Id"
+          },
+          "version_id": {
+            "type": "integer",
+            "title": "Version Id"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "_id",
+          "user_email",
+          "playlist_id",
+          "version_id",
+          "updated_at",
+          "created_at"
+        ],
+        "title": "DraftNote",
+        "description": "Full draft note model with all fields."
+      },
+      "DraftNoteLink": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "integer",
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "type": "string",
+            "title": "Entity Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id"
+        ],
+        "title": "DraftNoteLink",
+        "description": "Reference to a DNA entity to link to the note."
+      },
+      "DraftNoteUpdate": {
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          },
+          "cc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cc"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DraftNoteLink"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links"
+          },
+          "version_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Status"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "edited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_note_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Note Id"
+          },
+          "attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachment Ids"
+          }
+        },
+        "type": "object",
+        "title": "DraftNoteUpdate",
+        "description": "Model for updating an existing draft note."
+      },
+      "EntityBase": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "EntityBase",
+        "description": "Base model for all DNA entities."
+      },
+      "EntityLink": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Entity type (e.g., 'Version', 'Playlist', 'Shot')"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "EntityLink",
+        "description": "Reference to an existing entity for linking."
+      },
+      "FilterCondition": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "DNA field name to filter on"
+          },
+          "operator": {
+            "type": "string",
+            "title": "Operator",
+            "description": "Filter operator (e.g., 'is', 'contains', 'in')"
+          },
+          "value": {
+            "title": "Value",
+            "description": "Value to filter by"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "operator",
+          "value"
+        ],
+        "title": "FilterCondition",
+        "description": "A single filter condition for entity queries."
+      },
+      "FindRequest": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type",
+            "description": "DNA entity type to search (e.g., 'project', 'shot', 'version')"
+          },
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/FilterCondition"
+            },
+            "type": "array",
+            "title": "Filters",
+            "description": "List of filter conditions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type"
+        ],
+        "title": "FindRequest",
+        "description": "Request model for finding entities."
+      },
+      "GenerateNoteRequest": {
+        "properties": {
+          "playlist_id": {
+            "type": "integer",
+            "title": "Playlist Id",
+            "description": "Playlist ID"
+          },
+          "version_id": {
+            "type": "integer",
+            "title": "Version Id",
+            "description": "Version ID"
+          },
+          "user_email": {
+            "type": "string",
+            "title": "User Email",
+            "description": "User email address"
+          },
+          "additional_instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Instructions",
+            "description": "Optional additional instructions to append to the prompt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "playlist_id",
+          "version_id",
+          "user_email"
+        ],
+        "title": "GenerateNoteRequest",
+        "description": "Request model for generating an AI note suggestion."
+      },
+      "GenerateNoteResponse": {
+        "properties": {
+          "suggestion": {
+            "type": "string",
+            "title": "Suggestion",
+            "description": "The generated note suggestion"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "description": "The full prompt with values substituted"
+          },
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "description": "The version context used for generation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "suggestion",
+          "prompt",
+          "context"
+        ],
+        "title": "GenerateNoteResponse",
+        "description": "Response model for AI note generation."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Note": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject",
+            "description": "Note subject line"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content",
+            "description": "Note body content"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project this note belongs to"
+          },
+          "note_links": {
+            "items": {
+              "$ref": "#/components/schemas/EntityBase"
+            },
+            "type": "array",
+            "title": "Note Links",
+            "description": "Entities this note is linked to"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/User"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Note author"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Note",
+        "description": "Note entity model.\n\nRepresents a note/comment attached to an entity."
+      },
+      "NoteQCAttributeSuggestion": {
+        "properties": {
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To",
+            "description": "Primary recipients when the note is directed at specific users. JSON string of a JSON array: [{\"type\":\"User\",\"id\":123,\"name\":\"Name\"}]. Resolve users via search_entities before suggesting."
+          },
+          "cc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cc",
+            "description": "Users who should see the note but are not primary To recipients (mentioned in passing, stakeholders). Same JSON array string format as to. Do not duplicate users already in to."
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject",
+            "description": "Suggested subject line; only when the check implies it should change."
+          },
+          "version_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Status",
+            "description": "Suggested version status (maps to draft version_status)."
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DraftNoteLink"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Links",
+            "description": "Non-user entity links (Shot, Asset, Version, Task, Playlist). Do not put users here\u2014use to or cc for users."
+          }
+        },
+        "type": "object",
+        "title": "NoteQCAttributeSuggestion",
+        "description": "Suggested updates to draft note metadata."
+      },
+      "NoteQCCheck": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_email": {
+            "type": "string",
+            "title": "User Email"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "warning",
+              "error"
+            ],
+            "title": "Severity"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "_id",
+          "user_email",
+          "name",
+          "prompt",
+          "severity",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "NoteQCCheck",
+        "description": "Stored QC check definition."
+      },
+      "NoteQCCheckCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "warning",
+              "error"
+            ],
+            "title": "Severity"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "prompt",
+          "severity"
+        ],
+        "title": "NoteQCCheckCreate",
+        "description": "Payload for creating a QC check."
+      },
+      "NoteQCCheckUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "warning",
+                  "error"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "title": "NoteQCCheckUpdate",
+        "description": "Partial update for a QC check."
+      },
+      "NoteQCResult": {
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "title": "Check Id"
+          },
+          "check_name": {
+            "type": "string",
+            "title": "Check Name"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "warning",
+              "error"
+            ],
+            "title": "Severity"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "note_suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Suggestion"
+          },
+          "attribute_suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoteQCAttributeSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "check_id",
+          "check_name",
+          "severity",
+          "passed"
+        ],
+        "title": "NoteQCResult",
+        "description": "Outcome of running one check against a draft."
+      },
+      "Platform": {
+        "type": "string",
+        "enum": [
+          "google_meet",
+          "teams"
+        ],
+        "title": "Platform",
+        "description": "Supported meeting platforms."
+      },
+      "Playlist": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Playlist code/name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Playlist description"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project information"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Creation timestamp"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "Last update timestamp"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/Version"
+            },
+            "type": "array",
+            "title": "Versions",
+            "description": "Versions in this playlist"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Playlist",
+        "description": "Playlist entity model.\n\nRepresents a collection of versions for review."
+      },
+      "PlaylistMetadata": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "playlist_id": {
+            "type": "integer",
+            "title": "Playlist Id"
+          },
+          "in_review": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Review"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "vexa_meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vexa Meeting Id"
+          },
+          "transcription_paused": {
+            "type": "boolean",
+            "title": "Transcription Paused",
+            "default": false
+          },
+          "transcription_resumed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcription Resumed At",
+            "description": "Timestamp when transcription was last resumed. Segments with start time before this are discarded."
+          }
+        },
+        "type": "object",
+        "required": [
+          "_id",
+          "playlist_id"
+        ],
+        "title": "PlaylistMetadata",
+        "description": "Full playlist metadata model with all fields."
+      },
+      "PlaylistMetadataUpdate": {
+        "properties": {
+          "in_review": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Review",
+            "description": "Version ID currently in review"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id",
+            "description": "Associated meeting ID"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform",
+            "description": "Meeting platform"
+          },
+          "vexa_meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vexa Meeting Id",
+            "description": "Internal Vexa meeting ID"
+          },
+          "transcription_paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcription Paused",
+            "description": "Whether transcription storage is paused"
+          },
+          "clear_resumed_at": {
+            "type": "boolean",
+            "title": "Clear Resumed At",
+            "description": "If True, clears transcription_resumed_at. Used when starting a new transcription session.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PlaylistMetadataUpdate",
+        "description": "Model for updating playlist metadata."
+      },
+      "Project": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Project name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Project",
+        "description": "Project entity model.\n\nRepresents a project in the production tracking system."
+      },
+      "ProjectGlossary": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "_id",
+          "project_id",
+          "updated_at",
+          "created_at"
+        ],
+        "title": "ProjectGlossary",
+        "description": "Full project glossary model with all fields."
+      },
+      "ProjectGlossaryUpdate": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "Project-specific glossary text injected as note context",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ProjectGlossaryUpdate",
+        "description": "Model for updating a project glossary."
+      },
+      "PublishNoteTarget": {
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "title": "User Email"
+          },
+          "version_id": {
+            "type": "integer",
+            "title": "Version Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_email",
+          "version_id"
+        ],
+        "title": "PublishNoteTarget",
+        "description": "A single draft note to publish (user + version key)."
+      },
+      "PublishNotesRequest": {
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "title": "User Email"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/PublishNoteTarget"
+            },
+            "type": "array",
+            "title": "Targets",
+            "description": "Only draft notes matching these (user_email, version_id) pairs are published."
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_email",
+          "targets"
+        ],
+        "title": "PublishNotesRequest",
+        "description": "Request model for publishing draft notes."
+      },
+      "PublishNotesResponse": {
+        "properties": {
+          "published_count": {
+            "type": "integer",
+            "title": "Published Count"
+          },
+          "republished_count": {
+            "type": "integer",
+            "title": "Republished Count"
+          },
+          "skipped_count": {
+            "type": "integer",
+            "title": "Skipped Count"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "published_count",
+          "republished_count",
+          "skipped_count",
+          "failed_count",
+          "total"
+        ],
+        "title": "PublishNotesResponse",
+        "description": "Response model for publishing draft notes."
+      },
+      "PublishTranscriptRequest": {
+        "properties": {
+          "version_id": {
+            "type": "integer",
+            "title": "Version Id",
+            "description": "Version whose segments to publish"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version_id"
+        ],
+        "title": "PublishTranscriptRequest",
+        "description": "Request to publish a version's captured transcript."
+      },
+      "PublishTranscriptResponse": {
+        "properties": {
+          "transcript_entity_id": {
+            "type": "integer",
+            "title": "Transcript Entity Id",
+            "description": "Entity ID of the row in the tracking system"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome",
+            "description": "created | updated | skipped"
+          },
+          "skipped_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Reason"
+          },
+          "segments_count": {
+            "type": "integer",
+            "title": "Segments Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transcript_entity_id",
+          "outcome",
+          "segments_count"
+        ],
+        "title": "PublishTranscriptResponse",
+        "description": "Response from the publish-transcript endpoint."
+      },
+      "RunQCChecksRequest": {
+        "properties": {
+          "user_email": {
+            "type": "string",
+            "title": "User Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_email"
+        ],
+        "title": "RunQCChecksRequest",
+        "description": "Body for run-qc-checks; playlist/version are path params."
+      },
+      "RunQCChecksResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/NoteQCResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "RunQCChecksResponse",
+        "description": "QC results for one draft note."
+      },
+      "SearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query",
+            "description": "Text to search for (searches name field)"
+          },
+          "entity_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Types",
+            "description": "Entity types to search: user, shot, asset, version, task, playlist"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id",
+            "description": "Scope results to a specific project (recommended for non-user entities)"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Max results per entity type (default: 10)",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "entity_types"
+        ],
+        "title": "SearchRequest",
+        "description": "Request model for unified entity search."
+      },
+      "SearchResult": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Entity type (e.g., 'User', 'Shot', 'Asset')"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Entity name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Entity description (for shots/assets/versions)"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "Email (for users)"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project reference (for project-scoped entities)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "id",
+          "name"
+        ],
+        "title": "SearchResult",
+        "description": "Lightweight entity representation for search results."
+      },
+      "Shot": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Shot name/code"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Shot description"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project information"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "type": "array",
+            "title": "Tasks",
+            "description": "Associated tasks"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Shot",
+        "description": "Shot entity model.\n\nRepresents a shot in a sequence/project."
+      },
+      "StatusOption": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Status code (e.g., 'rev', 'apr', 'rej')"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Display name (e.g., 'Pending Review', 'Approved')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "StatusOption",
+        "description": "A status option from ShotGrid schema."
+      },
+      "StoredSegment": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "playlist_id": {
+            "type": "integer",
+            "title": "Playlist Id"
+          },
+          "version_id": {
+            "type": "integer",
+            "title": "Version Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed",
+            "default": true
+          },
+          "absolute_start_time": {
+            "type": "string",
+            "title": "Absolute Start Time"
+          },
+          "absolute_end_time": {
+            "type": "string",
+            "title": "Absolute End Time"
+          },
+          "vexa_updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vexa Updated At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "_id",
+          "segment_id",
+          "playlist_id",
+          "version_id",
+          "text",
+          "absolute_start_time",
+          "absolute_end_time"
+        ],
+        "title": "StoredSegment",
+        "description": "Full stored segment model with all fields."
+      },
+      "Task": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Task name/content"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Task status"
+          },
+          "pipeline_step": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Step",
+            "description": "Pipeline step information"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project information"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityBase"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Entity this task is assigned to"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Task",
+        "description": "Task entity model.\n\nRepresents a pipeline task assigned to an entity (Shot, Asset, etc.)."
+      },
+      "Transcript": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "meeting_id": {
+            "type": "string",
+            "title": "Meeting Id"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "platform",
+          "meeting_id"
+        ],
+        "title": "Transcript",
+        "description": "Full transcript for a meeting."
+      },
+      "TranscriptSegment": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TranscriptSegment",
+        "description": "A single segment of transcribed speech."
+      },
+      "User": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "User's full name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "User's email address"
+          },
+          "login": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login",
+            "description": "User's login/username"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "User",
+        "description": "User entity model.\n\nRepresents a human user in the production tracking system."
+      },
+      "UserSettingsResponse": {
+        "properties": {
+          "_id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_email": {
+            "type": "string",
+            "title": "User Email"
+          },
+          "note_prompt": {
+            "type": "string",
+            "title": "Note Prompt",
+            "default": ""
+          },
+          "default_note_prompt": {
+            "type": "string",
+            "title": "Default Note Prompt",
+            "default": ""
+          },
+          "regenerate_on_version_change": {
+            "type": "boolean",
+            "title": "Regenerate On Version Change",
+            "default": false
+          },
+          "regenerate_on_transcript_update": {
+            "type": "boolean",
+            "title": "Regenerate On Transcript Update",
+            "default": false
+          },
+          "sync_prodtrack_tab_on_version_change": {
+            "type": "boolean",
+            "title": "Sync Prodtrack Tab On Version Change",
+            "default": true
+          },
+          "prodtrack_page_type": {
+            "type": "string",
+            "title": "Prodtrack Page Type",
+            "default": "version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "_id",
+          "user_email",
+          "updated_at",
+          "created_at"
+        ],
+        "title": "UserSettingsResponse",
+        "description": "User settings returned from the API, including the configured default note prompt."
+      },
+      "UserSettingsUpdate": {
+        "properties": {
+          "note_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Prompt",
+            "description": "Custom prompt for generating notes"
+          },
+          "regenerate_on_version_change": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regenerate On Version Change",
+            "description": "Regenerate AI note when switching review versions"
+          },
+          "regenerate_on_transcript_update": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regenerate On Transcript Update",
+            "description": "Regenerate AI note when transcript segments are updated"
+          },
+          "sync_prodtrack_tab_on_version_change": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Prodtrack Tab On Version Change",
+            "description": "When true, DNA tells the browser extension to open the PT version page whenever the selected version changes"
+          },
+          "prodtrack_page_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodtrack Page Type",
+            "description": "Which PT page to sync: 'version' for Version Detail, 'entity' for Shot/Asset Detail"
+          }
+        },
+        "type": "object",
+        "title": "UserSettingsUpdate",
+        "description": "Model for updating user settings."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Version": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Entity ID"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Version name/code"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Version description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Version status"
+          },
+          "user": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User",
+            "description": "User who created the version"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Creation timestamp"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "Last update timestamp"
+          },
+          "movie_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movie Path",
+            "description": "Path to movie file"
+          },
+          "frame_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Path",
+            "description": "Path to frame sequence"
+          },
+          "thumbnail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail",
+            "description": "URL to thumbnail image (signed URL from ShotGrid)"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project",
+            "description": "Project information"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Shot"
+              },
+              {
+                "$ref": "#/components/schemas/Asset"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity",
+            "description": "Linked Shot or Asset entity"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Task"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Associated task"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "Associated notes"
+          },
+          "prodtrack_detail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodtrack Detail Url",
+            "description": "Web UI URL for this version in the production tracking system"
+          },
+          "prodtrack_entity_detail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prodtrack Entity Detail Url",
+            "description": "Web UI URL for the linked shot/asset in the production tracking system"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Return the entity type name.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "Version",
+        "description": "Version entity model.\n\nRepresents a version/render of work on a Shot or Asset."
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Health check and status endpoints"
+    },
+    {
+      "name": "Entities",
+      "description": "Operations for managing production entities"
+    },
+    {
+      "name": "Playlists",
+      "description": "Operations for managing playlists"
+    },
+    {
+      "name": "Versions",
+      "description": "Operations for managing versions"
+    },
+    {
+      "name": "Shots",
+      "description": "Operations for managing shots"
+    },
+    {
+      "name": "Assets",
+      "description": "Operations for managing assets"
+    },
+    {
+      "name": "Tasks",
+      "description": "Operations for managing tasks"
+    },
+    {
+      "name": "Notes",
+      "description": "Operations for managing notes"
+    },
+    {
+      "name": "Projects",
+      "description": "Operations for managing projects"
+    },
+    {
+      "name": "Users",
+      "description": "Operations for managing users"
+    },
+    {
+      "name": "Transcription",
+      "description": "Audio transcription services"
+    },
+    {
+      "name": "LLM",
+      "description": "LLM-powered note generation"
+    },
+    {
+      "name": "Draft Notes",
+      "description": "Operations for managing draft notes"
+    },
+    {
+      "name": "Playlist Metadata",
+      "description": "Operations for managing playlist metadata (in-review version and meeting ID)"
+    },
+    {
+      "name": "User Settings",
+      "description": "Operations for managing user settings and preferences"
+    },
+    {
+      "name": "Note QC",
+      "description": "User-defined LLM quality checks for draft notes at publish time"
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development"
+    }
+  ]
+}

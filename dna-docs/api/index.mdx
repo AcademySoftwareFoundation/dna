@@ -1,0 +1,64 @@
+---
+sidebar_position: 0
+slug: /
+title: Backend API
+---
+
+# Backend API
+
+HTTP reference for the DNA (Dailies Note Assistant) backend, covering 46
+operations across 17 tags.
+
+The pages under **Reference** are generated from the backend's OpenAPI schema,
+which is extracted directly from the FastAPI application in
+[`AcademySoftwareFoundation/dna`](https://github.com/AcademySoftwareFoundation/dna/tree/main/backend).
+They therefore reflect the server's real routes and Pydantic models. This
+landing page is hand-written and safe to edit.
+
+## Base URL
+
+The generated spec targets a local backend:
+
+```
+http://localhost:8000
+```
+
+Bring one up with Docker Compose from the backend directory:
+
+```bash
+make start-local
+```
+
+Change the recorded base URL by re-running the extraction with an override:
+
+```bash
+DNA_SERVER_URL=https://dna.example.com ./scripts/fetch-openapi.sh
+```
+
+## Authentication
+
+Endpoints use HTTP bearer authentication:
+
+```bash
+curl http://localhost:8000/projects \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+:::note
+The backend declares a `HTTPBearer` scheme but applies it per-route rather than
+globally, so a few endpoints — notably under **Health** — are open. Each
+reference page lists whether it requires authorization.
+:::
+
+## Keeping this in sync
+
+Upstream does not commit an OpenAPI document; FastAPI builds it at runtime.
+`scripts/fetch-openapi.sh` imports the app and serializes `app.openapi()`
+without starting a server or a database:
+
+```bash
+./scripts/fetch-openapi.sh    # refresh openapi/backend.json
+npm run regen-api-docs        # rebuild the MDX under api/reference/
+```
+
+Looking for the frontend guides instead? They live at [/docs](/docs).

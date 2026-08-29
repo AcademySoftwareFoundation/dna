@@ -1,0 +1,19 @@
+DNA Docs
+Copyright 2026 Cameron Target
+
+This product includes software developed at
+The Academy Software Foundation (https://www.aswf.io/).
+
+---
+
+openapi/backend.json is a generated OpenAPI description of the DNA backend
+service. It is derived from:
+
+  AcademySoftwareFoundation/dna
+  https://github.com/AcademySoftwareFoundation/dna
+  Copyright the DNA project authors
+  Licensed under the Apache License, Version 2.0
+
+The file is produced by scripts/fetch-openapi.sh, which imports the upstream
+FastAPI application and serializes its runtime schema. Everything under
+api/reference/ is generated from that file and is not checked in.
