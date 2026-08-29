@@ -802,6 +802,18 @@
             "description": "Optional additional instructions to append to the prompt",
             "title": "Additional Instructions"
           },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional LLM model override; omit to use server default",
+            "title": "Model"
+          },
           "playlist_id": {
             "description": "Playlist ID",
             "title": "Playlist Id",
@@ -2533,6 +2545,11 @@
             "title": "Note Prompt",
             "type": "string"
           },
+          "preferred_model": {
+            "default": "",
+            "title": "Preferred Model",
+            "type": "string"
+          },
           "prodtrack_page_type": {
             "default": "version",
             "title": "Prodtrack Page Type",
@@ -2586,6 +2603,18 @@
             ],
             "description": "Custom prompt for generating notes",
             "title": "Note Prompt"
+          },
+          "preferred_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Preferred LLM model for note generation; empty means use server default",
+            "title": "Preferred Model"
           },
           "prodtrack_page_type": {
             "anyOf": [
@@ -3255,6 +3284,35 @@
         "summary": "Health check",
         "tags": [
           "Health"
+        ]
+      }
+    },
+    "/models": {
+      "get": {
+        "description": "Returns the list of models available from the active LLM provider.",
+        "operationId": "get_available_models_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Available Models Models Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get available LLM models",
+        "tags": [
+          "LLM"
         ]
       }
     },
