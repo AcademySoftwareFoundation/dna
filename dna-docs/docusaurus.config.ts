@@ -76,8 +76,8 @@ const config: Config = {
         docsPluginId: 'api',
         config: {
           backend: {
-            // Extracted from the DNA FastAPI app by scripts/fetch-openapi.sh -
-            // upstream does not commit an OpenAPI document.
+            // Copied from the backend's committed spec (backend/docs/openapi.json)
+            // by scripts/fetch-openapi.sh, which also injects `servers`.
             specPath: 'openapi/backend.json',
             // Generated into a subfolder so the hand-written api/index.mdx
             // landing page survives clean-api-docs.
