@@ -5,6 +5,7 @@ import {
   AlertDialog,
   Button,
   Checkbox,
+  Select,
   TextArea,
   Flex,
   Switch,
@@ -16,6 +17,7 @@ import { Loader2, Info } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type {
+  AvailableModelsResponse,
   ProjectGlossary,
   UserSettings,
   UserSettingsUpdate,
@@ -692,11 +694,14 @@ interface AITabProps {
   isLoading: boolean;
   notePrompt: string;
   projectId: number | null;
+  preferredModel: string;
+  availableModels: AvailableModelsResponse | null;
   regenerateOnVersionChange: boolean;
   regenerateOnTranscriptUpdate: boolean;
   isPending: boolean;
   userEmail: string;
   onNotePromptChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onPreferredModelChange: (value: string) => void;
   onRegenerateOnVersionChange: (checked: boolean) => void;
   onRegenerateOnTranscriptUpdate: (checked: boolean) => void;
 }
@@ -705,11 +710,14 @@ function AITab({
   isLoading,
   notePrompt,
   projectId,
+  preferredModel,
+  availableModels,
   regenerateOnVersionChange,
   regenerateOnTranscriptUpdate,
   isPending,
   userEmail,
   onNotePromptChange,
+  onPreferredModelChange,
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
 }: AITabProps) {
@@ -743,6 +751,40 @@ function AITab({
           }
         />
       </FeatureEnableRow>
+
+      {availableModels && (
+        <Section>
+          <SectionTitle>AI Model</SectionTitle>
+          <SectionDescription>
+            Select which model to use for note generation.
+          </SectionDescription>
+          <Select.Root
+            value={
+              preferredModel && availableModels.models.includes(preferredModel)
+                ? preferredModel
+                : '__default__'
+            }
+            onValueChange={(value) =>
+              onPreferredModelChange(value === '__default__' ? '' : value)
+            }
+            disabled={isPending || !aiEnabled}
+          >
+            <Select.Trigger />
+            <Select.Content>
+              <Select.Item value="__default__">
+                {availableModels.default} (default)
+              </Select.Item>
+              {availableModels.models
+                .filter((m) => m !== availableModels.default)
+                .map((model) => (
+                  <Select.Item key={model} value={model}>
+                    {model}
+                  </Select.Item>
+                ))}
+            </Select.Content>
+          </Select.Root>
+        </Section>
+      )}
 
       <Section>
         <SectionTitle>
@@ -980,6 +1022,7 @@ export function SettingsModal({
     useState(false);
   const [syncProdtrackTabOnVersionChange, setSyncProdtrackTabOnVersionChange] =
     useState(true);
+  const [preferredModel, setPreferredModel] = useState('');
   const [prodtrackPageType, setProdtrackPageType] = useState<'version' | 'entity'>('version');
   const [isDirty, setIsDirty] = useState(false);
 
@@ -992,6 +1035,13 @@ export function SettingsModal({
     queryKey: ['userSettings', userEmail],
     queryFn: () => apiHandler.getUserSettings({ userEmail }),
     enabled: !!userEmail,
+  });
+
+  const { data: availableModels } = useQuery<AvailableModelsResponse>({
+    queryKey: ['availableModels'],
+    queryFn: () => apiHandler.getAvailableModels(),
+    enabled: open,
+    staleTime: 3600000,
   });
 
   const mutation = useMutation({
@@ -1012,6 +1062,7 @@ export function SettingsModal({
           ? settings.note_prompt
           : settings.default_note_prompt;
       setNotePrompt(displayPrompt);
+      setPreferredModel(settings.preferred_model ?? '');
       setRegenerateOnVersionChange(settings.regenerate_on_version_change);
       setRegenerateOnTranscriptUpdate(settings.regenerate_on_transcript_update);
       setSyncProdtrackTabOnVersionChange(
@@ -1021,6 +1072,7 @@ export function SettingsModal({
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
+      setPreferredModel('');
       setRegenerateOnVersionChange(false);
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
@@ -1036,6 +1088,11 @@ export function SettingsModal({
     },
     []
   );
+
+  const handlePreferredModelChange = useCallback((value: string) => {
+    setPreferredModel(value);
+    setIsDirty(true);
+  }, []);
 
   const handleRegenerateOnVersionChange = useCallback((checked: boolean) => {
     setRegenerateOnVersionChange(checked);
@@ -1072,6 +1129,7 @@ export function SettingsModal({
     };
     mutation.mutate({
       note_prompt: toPersisted(notePrompt, settings?.default_note_prompt ?? ''),
+      preferred_model: preferredModel,
       regenerate_on_version_change: regenerateOnVersionChange,
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
@@ -1080,6 +1138,7 @@ export function SettingsModal({
   }, [
     mutation,
     notePrompt,
+    preferredModel,
     settings?.default_note_prompt,
     regenerateOnVersionChange,
     regenerateOnTranscriptUpdate,
@@ -1166,11 +1225,14 @@ export function SettingsModal({
                 isLoading={isLoading}
                 notePrompt={notePrompt}
                 projectId={projectId}
+                preferredModel={preferredModel}
+                availableModels={availableModels ?? null}
                 regenerateOnVersionChange={regenerateOnVersionChange}
                 regenerateOnTranscriptUpdate={regenerateOnTranscriptUpdate}
                 isPending={mutation.isPending}
                 userEmail={userEmail}
                 onNotePromptChange={handleNotePromptChange}
+                onPreferredModelChange={handlePreferredModelChange}
                 onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
                 onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
               />
