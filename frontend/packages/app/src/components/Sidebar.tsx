@@ -9,10 +9,12 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button, Tooltip } from '@radix-ui/themes';
-import type { Version, DraftNote } from '@dna/core';
+import type { Version, DraftNote, Playlist } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
+import { AddVersionInput } from './AddVersionInput';
+import { ChangePlaylistInput } from './ChangePlaylistInput';
 import { ExpandableSearch, type ExpandableSearchHandle } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
@@ -27,7 +29,7 @@ import { useFeatureFlags } from '../contexts';
 interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  onReplacePlaylist?: () => void;
+  onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: number | null;
   projectId: number | null;
   selectedVersionId?: number | null;
@@ -238,7 +240,7 @@ const StateText = styled.span`
 export function Sidebar({
   collapsed,
   onCollapsedChange,
-  onReplacePlaylist,
+  onPlaylistChange,
   playlistId,
   projectId,
   selectedVersionId,
@@ -247,6 +249,9 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [toolbarInput, setToolbarInput] = useState<
+    'none' | 'add-version' | 'change-playlist'
+  >('none');
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -292,8 +297,11 @@ export function Sidebar({
   const inReviewVersionId = playlistMetadata?.in_review;
 
   const playlistMenuItems = [
-    { label: 'Change Playlist', onSelect: onReplacePlaylist },
-    { label: 'Add Version' },
+    {
+      label: 'Change Playlist',
+      onSelect: () => setToolbarInput('change-playlist'),
+    },
+    { label: 'Add Version', onSelect: () => setToolbarInput('add-version') },
   ];
 
   const handleSearchVersionSelect = (version: Version) => {
@@ -430,16 +438,34 @@ export function Sidebar({
         </CollapsedToolbar>
       ) : (
         <Toolbar>
-          {!isSearchExpanded && (
-            <ToolbarLeft>
-              <SplitButton
-                menuItems={playlistMenuItems}
-                onClick={() => refetch()}
-              >
-                Reload Playlist
-              </SplitButton>
-            </ToolbarLeft>
-          )}
+          {!isSearchExpanded &&
+            (toolbarInput === 'add-version' && playlistId ? (
+              <AddVersionInput
+                playlistId={playlistId}
+                projectId={projectId ?? undefined}
+                existingVersionIds={(versions ?? []).map((v) => v.id)}
+                onClose={() => setToolbarInput('none')}
+              />
+            ) : toolbarInput === 'change-playlist' && projectId ? (
+              <ChangePlaylistInput
+                projectId={projectId}
+                currentPlaylistId={playlistId ?? undefined}
+                onSelect={(playlist) => {
+                  setToolbarInput('none');
+                  onPlaylistChange?.(playlist);
+                }}
+                onClose={() => setToolbarInput('none')}
+              />
+            ) : (
+              <ToolbarLeft>
+                <SplitButton
+                  menuItems={playlistMenuItems}
+                  onClick={() => refetch()}
+                >
+                  Reload Playlist
+                </SplitButton>
+              </ToolbarLeft>
+            ))}
 
           <ExpandableSearch
             ref={searchRef}

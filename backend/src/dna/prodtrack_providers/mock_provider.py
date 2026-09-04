@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -71,6 +72,15 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             self._conn = sqlite3.connect(uri, uri=True)
             self._conn.row_factory = sqlite3.Row
         return self._conn
+
+    def _get_rw_conn(self) -> sqlite3.Connection:
+        # The cached connection is read-only; version creation and playlist
+        # membership are the only supported writes, done on a short-lived
+        # connection so reads stay isolated.
+        uri = f"file:{self._db_path}?mode=rw"
+        conn = sqlite3.connect(uri, uri=True)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def _project_from_row(self, row: sqlite3.Row) -> Project:
         return Project(id=row["id"], name=row["name"])
@@ -542,6 +552,21 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         ).fetchall()
         return [self._playlist_from_row(r, r["project_id"]) for r in rows]
 
+    def create_playlist(self, project_id: int, name: str) -> Playlist:
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._get_rw_conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO playlists (code, project_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (name, project_id, now, now),
+            )
+            conn.commit()
+            playlist_id = cur.lastrowid
+        finally:
+            conn.close()
+        return self.get_entity("playlist", playlist_id, resolve_links=False)
+
     def get_versions_for_playlist(self, playlist_id: int) -> list[Version]:
         conn = self._get_conn()
         row = conn.execute(
@@ -562,6 +587,71 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         for vid in version_ids:
             versions.append(self.get_entity("version", vid, resolve_links=True))
         return versions
+
+    def create_version(
+        self,
+        project_id: int,
+        name: str,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[int] = None,
+    ) -> Version:
+        sg_entity_type = None
+        if entity_type and entity_id:
+            sg_entity_type = {"shot": "Shot", "asset": "Asset"}.get(entity_type.lower())
+            if sg_entity_type is None:
+                raise ValueError(f"Unknown entity type: {entity_type}")
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._get_rw_conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO versions "
+                "(name, project_id, entity_type, entity_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (name, project_id, sg_entity_type, entity_id, now, now),
+            )
+            conn.commit()
+            version_id = cur.lastrowid
+        finally:
+            conn.close()
+        return self.get_entity("version", version_id, resolve_links=True)
+
+    def create_entity(self, project_id: int, entity_type: str, name: str) -> EntityBase:
+        entity_type = entity_type.lower()
+        if entity_type not in ("shot", "asset"):
+            raise ValueError(
+                f"Unsupported entity type for creation: '{entity_type}'. "
+                "Supported types: shot, asset"
+            )
+        table = "shots" if entity_type == "shot" else "assets"
+        conn = self._get_rw_conn()
+        try:
+            cur = conn.execute(
+                f"INSERT INTO {table} (name, project_id) VALUES (?, ?)",
+                (name, project_id),
+            )
+            conn.commit()
+            entity_id = cur.lastrowid
+        finally:
+            conn.close()
+        return self.get_entity(entity_type, entity_id, resolve_links=False)
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+        conn = self._get_rw_conn()
+        try:
+            row = conn.execute(
+                "SELECT id FROM playlists WHERE id = ?", (playlist_id,)
+            ).fetchone()
+            if not row:
+                raise ValueError(f"Playlist {playlist_id} not found")
+            conn.execute(
+                "INSERT OR IGNORE INTO playlist_versions (playlist_id, version_id) "
+                "VALUES (?, ?)",
+                (playlist_id, version_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return True
 
     def get_version_statuses(
         self, project_id: int | None = None

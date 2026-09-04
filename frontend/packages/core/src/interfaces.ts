@@ -459,6 +459,27 @@ export interface SearchEntitiesParams {
   limit?: number;
 }
 
+export interface AddVersionToPlaylistParams {
+  playlistId: number;
+  /** ID of an existing version to add */
+  versionId?: number;
+  /** Name for a new version to create and add */
+  versionName?: string;
+  /** Project ID (required when creating a new version) */
+  projectId?: number;
+  /** Entity type to link the new version to (e.g., 'shot', 'asset') */
+  linkEntityType?: string;
+  /** ID of an existing entity to link the new version to */
+  linkEntityId?: number;
+  /** Name for a new entity to create and link the new version to */
+  linkEntityName?: string;
+}
+
+export interface CreatePlaylistParams {
+  projectId: number;
+  name: string;
+}
+
 // Status types for version status dropdown
 export interface StatusOption {
   code: string;
