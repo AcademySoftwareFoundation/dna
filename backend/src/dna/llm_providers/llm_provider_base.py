@@ -114,10 +114,6 @@ class LLMProviderBase:
 
         api_env = f"{self.LLM_PROVIDER_NAME }_API_KEY"
         self.api_key = api_key or os.getenv(api_env)
-        if not self.api_key:
-            raise ValueError(
-                f"API key not provided. Set {api_env} environment variable."
-            )
 
         self.model = model or os.getenv(
             f"{self.LLM_PROVIDER_NAME }_MODEL", self.DEFAULT_MODEL
@@ -379,5 +375,10 @@ def get_llm_provider() -> LLMProviderBase:
         from dna.llm_providers.openai_provider import OpenAIProvider
 
         return OpenAIProvider()
+
+    if provider_type == "custom":
+        from dna.llm_providers.custom_provider import CustomProvider
+
+        return CustomProvider()
 
     raise ValueError(f"Unknown LLM provider: {provider_type}")

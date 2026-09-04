@@ -52,12 +52,6 @@ class TestLLMProviderBase:
         assert provider.model == "env-model"
         assert provider.timeout == 12.5
 
-    def test_init_raises_without_api_key(self):
-        """Providers should fail fast when no API key is configured."""
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="API key not provided"):
-                StubProvider()
-
     def test_client_property_caches_provider_client(self):
         """The shared client property should lazily cache the client."""
         provider = StubProvider(api_key="test-key")

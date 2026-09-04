@@ -166,7 +166,8 @@ configure_llm() {
     echo "  1) OpenAI  (default)"
     echo "  2) Anthropic (Claude)"
     echo "  3) Gemini"
-    echo "  4) Skip"
+    echo "  4) Custom  (OpenAI-compatible)"
+    echo "  5) Skip"
     echo ""
     read -r -p "  Choice [1]: " llm_choice
     llm_choice="${llm_choice:-1}"
@@ -230,7 +231,107 @@ PYEOF
                 warn "Skipped — set GEMINI_API_KEY and LLM_PROVIDER=gemini in backend/docker-compose.local.yml"
             fi
             ;;
-        4|[sS]kip)
+        4|[cC]ustom)
+            local default_url="http://host.docker.internal:11434/v1"
+            local default_model="llama3.2:latest"
+
+            read -r -p "  Custom LLM URL [${default_url}]: " custom_url
+            custom_url="${custom_url:-$default_url}"
+
+            # Warn if the URL uses localhost as hostname
+            if [[ "$custom_url" =~ localhost ]]; then
+                warn "URL uses 'localhost' — this will not work from a Docker container."
+                warn "Use 'host.docker.internal' to refer to the Docker host from within a container."
+                warn "  Example: ${default_url}"
+            fi
+
+            read -r -p "  Custom LLM model [${default_model}]: " custom_model
+            custom_model="${custom_model:-$default_model}"
+
+            read -r -p "  Custom LLM API key required? (y/N): " api_key_required
+            api_key_required="${api_key_required:-n}"
+
+            local custom_api_key=""
+            if [[ "$api_key_required" =~ ^[yY]([eE][sS])?$ ]]; then
+                read -r -p "  Custom LLM API key: " custom_api_key
+            fi
+
+            # Detect OS and handle extra_hosts for Linux
+            local os_type
+            os_type="$(uname -s)"
+            local needs_extra_hosts=false
+            if [[ "$os_type" == "Linux" ]] && [[ "$custom_url" =~ host\.docker\.internal ]]; then
+                needs_extra_hosts=true
+            fi
+
+            python3 - "$BACKEND_DIR/docker-compose.local.yml" "$custom_url" "$custom_model" "$custom_api_key" "$needs_extra_hosts" <<'PYEOF'
+import sys
+
+path, url, model, api_key, needs_extra_hosts = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "true"
+with open(path) as f:
+    lines = f.readlines()
+
+out = []
+for line in lines:
+    stripped = line.lstrip()
+    if stripped.startswith('- OPENAI_API_KEY='):
+        indent = line[: len(line) - len(stripped)]
+        out.append(f"{indent}- LLM_PROVIDER=custom\n")
+        out.append(f"{indent}- CUSTOM_LLM_URL={url}\n")
+        out.append(f"{indent}- CUSTOM_LLM_MODEL={model}\n")
+        if api_key:
+            out.append(f"{indent}- CUSTOM_LLM_API_KEY={api_key}\n")
+    else:
+        out.append(line)
+
+if needs_extra_hosts:
+    # Find the environment block and add extra_hosts after the last env var
+    new_lines = []
+    in_environment = False
+    environment_indent = ""
+    last_env_idx = -1
+    for i, line in enumerate(out):
+        stripped = line.lstrip()
+        if 'environment:' in stripped:
+            in_environment = True
+            environment_indent = line[: len(line) - len(stripped)]
+            new_lines.append(line)
+            continue
+        if in_environment:
+            if stripped.startswith('- ') and '=' in stripped:
+                last_env_idx = len(new_lines)
+                new_lines.append(line)
+                continue
+            if stripped and not stripped.startswith('#'):
+                in_environment = False
+            if not stripped:
+                new_lines.append(line)
+                continue
+        new_lines.append(line)
+
+    if last_env_idx >= 0:
+        extra_indent = environment_indent + "  "
+        new_lines.insert(last_env_idx + 1, f"{extra_indent}extra_hosts:\n")
+        new_lines.insert(last_env_idx + 2, f"{extra_indent}  - \"host.docker.internal:host-gateway\"\n")
+
+    with open(path, 'w') as f:
+        f.writelines(new_lines)
+else:
+    with open(path, 'w') as f:
+        f.writelines(out)
+PYEOF
+
+            if [[ -n "$custom_api_key" ]]; then
+                ok "Custom LLM configured in backend/docker-compose.local.yml (URL, model, and API key)"
+            else
+                ok "Custom LLM configured in backend/docker-compose.local.yml (URL and model)"
+            fi
+
+            if [[ "$needs_extra_hosts" == "true" ]]; then
+                ok "extra_hosts entry added for host.docker.internal (Linux detected)"
+            fi
+            ;;
+        5|[sS]kip)
             warn "Skipped — set your LLM API key in backend/docker-compose.local.yml"
             ;;
         *)
