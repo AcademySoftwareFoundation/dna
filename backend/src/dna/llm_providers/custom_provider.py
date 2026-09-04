@@ -21,7 +21,8 @@ class CustomProvider(LLMProviderBase):
     def _get_provider_client(self):
         """Construct an instance of the LLM provider's client."""
         return AsyncOpenAI(
-            api_key=self.api_key,
+            # Current openai module version (2.36.0) does not support None or "" for api_key
+            api_key=self.api_key or "dna",
             base_url=os.getenv(f"{self.LLM_PROVIDER_NAME}_URL", self.DEFAULT_URL),
             timeout=self.timeout,
         )
