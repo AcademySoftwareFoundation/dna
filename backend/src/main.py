@@ -918,13 +918,7 @@ async def get_versions_for_playlist(
     "/playlists/{playlist_id}/versions",
     tags=["Playlists"],
     summary="Add a version to a playlist",
-    description=(
-        "Add an existing version to a playlist (version_id), or create a new "
-        "version in the production tracking system and add it (version_name + "
-        "project_id). A newly created version can be linked to an existing "
-        "entity (link_entity_type + link_entity_id) or to a newly created one "
-        "(link_entity_type + link_entity_name)."
-    ),
+    description="Add an existing version to a playlist.",
     response_model=Version,
 )
 async def add_version_to_playlist(
@@ -933,40 +927,9 @@ async def add_version_to_playlist(
     provider: ProdtrackProviderDep,
     _: CurrentUserDep,
 ) -> Version:
-    """Add an existing or newly created version to a playlist."""
-    version_name = (request.version_name or "").strip()
-    link_entity_name = (request.link_entity_name or "").strip()
-    if request.version_id is None and not (version_name and request.project_id):
-        raise HTTPException(
-            status_code=400,
-            detail="Provide version_id, or version_name and project_id",
-        )
-    if (
-        request.link_entity_id is not None or link_entity_name
-    ) and not request.link_entity_type:
-        raise HTTPException(
-            status_code=400,
-            detail="link_entity_type is required when linking the new version",
-        )
-
+    """Add an existing version to a playlist."""
     try:
-        if request.version_id is not None:
-            version = provider.get_entity(
-                "version", request.version_id, resolve_links=True
-            )
-        else:
-            link_entity_id = request.link_entity_id
-            if link_entity_id is None and link_entity_name:
-                link_entity = provider.create_entity(
-                    request.project_id, request.link_entity_type, link_entity_name
-                )
-                link_entity_id = link_entity.id
-            version = provider.create_version(
-                request.project_id,
-                version_name,
-                entity_type=request.link_entity_type,
-                entity_id=link_entity_id,
-            )
+        version = provider.get_entity("version", request.version_id, resolve_links=True)
         provider.add_version_to_playlist(playlist_id, version.id)
         return version
     except ValueError as e:

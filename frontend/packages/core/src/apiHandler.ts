@@ -183,11 +183,6 @@ class ApiHandler {
   ): Promise<Version> {
     return this.post<Version>(`/playlists/${params.playlistId}/versions`, {
       version_id: params.versionId,
-      version_name: params.versionName,
-      project_id: params.projectId,
-      link_entity_type: params.linkEntityType,
-      link_entity_id: params.linkEntityId,
-      link_entity_name: params.linkEntityName,
     });
   }
 

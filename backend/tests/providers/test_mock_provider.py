@@ -570,48 +570,6 @@ def test_factory_returns_shotgrid_when_credentials_present():
 class TestMockProviderWrites:
     """Tests for the mock provider's supported write operations."""
 
-    def test_create_version_plain(self, mock_provider):
-        version = mock_provider.create_version(1, "new_v001")
-        assert version.name == "new_v001"
-        assert version.project == {"type": "Project", "id": 1}
-        assert version.entity is None
-        assert version.created_at is not None
-
-    def test_create_version_linked_to_shot(self, mock_provider):
-        version = mock_provider.create_version(
-            1, "new_v002", entity_type="shot", entity_id=100
-        )
-        assert version.entity is not None
-        assert version.entity.type == "Shot"
-        assert version.entity.id == 100
-
-    def test_create_version_linked_to_asset(self, mock_provider):
-        version = mock_provider.create_version(
-            1, "new_v003", entity_type="asset", entity_id=150
-        )
-        assert version.entity is not None
-        assert version.entity.type == "Asset"
-        assert version.entity.id == 150
-
-    def test_create_version_unknown_entity_type_raises(self, mock_provider):
-        with pytest.raises(ValueError, match="Unknown entity type: task"):
-            mock_provider.create_version(1, "v", entity_type="task", entity_id=200)
-
-    def test_create_entity_shot(self, mock_provider):
-        shot = mock_provider.create_entity(1, "shot", "s_010")
-        assert shot.type == "Shot"
-        assert shot.name == "s_010"
-        assert mock_provider.get_entity("shot", shot.id).name == "s_010"
-
-    def test_create_entity_asset(self, mock_provider):
-        asset = mock_provider.create_entity(1, "asset", "prop_chair")
-        assert asset.type == "Asset"
-        assert asset.name == "prop_chair"
-
-    def test_create_entity_unsupported_type_raises(self, mock_provider):
-        with pytest.raises(ValueError, match="Unsupported entity type"):
-            mock_provider.create_entity(1, "task", "nope")
-
     def test_create_playlist(self, mock_provider):
         playlist = mock_provider.create_playlist(1, "pl_new")
         assert playlist.code == "pl_new"
@@ -621,10 +579,10 @@ class TestMockProviderWrites:
         assert mock_provider.get_versions_for_playlist(playlist.id) == []
 
     def test_add_version_to_playlist(self, mock_provider):
-        version = mock_provider.create_version(1, "new_v004")
-        assert mock_provider.add_version_to_playlist(400, version.id) is True
-        ids = [v.id for v in mock_provider.get_versions_for_playlist(400)]
-        assert version.id in ids
+        playlist = mock_provider.create_playlist(1, "pl_target")
+        assert mock_provider.add_version_to_playlist(playlist.id, 300) is True
+        ids = [v.id for v in mock_provider.get_versions_for_playlist(playlist.id)]
+        assert ids == [300]
 
     def test_add_version_to_playlist_is_idempotent(self, mock_provider):
         before = len(mock_provider.get_versions_for_playlist(400))

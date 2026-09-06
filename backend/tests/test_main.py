@@ -1229,113 +1229,15 @@ class TestAddVersionToPlaylistEndpoint:
                 "version", 300, resolve_links=True
             )
             mock_provider.add_version_to_playlist.assert_called_once_with(400, 300)
-            mock_provider.create_version.assert_not_called()
         finally:
             app.dependency_overrides.clear()
 
-    def test_create_version_and_add(self, mock_provider):
-        from dna.models.entity import Version
-
-        mock_provider.create_version.return_value = Version(id=301, name="new_v")
-        mock_provider.add_version_to_playlist.return_value = True
-        self._override(mock_provider)
-
-        try:
-            response = client.post(
-                "/playlists/400/versions",
-                json={"version_name": "new_v", "project_id": 1},
-            )
-            assert response.status_code == 200
-            assert response.json()["name"] == "new_v"
-            mock_provider.create_version.assert_called_once_with(
-                1, "new_v", entity_type=None, entity_id=None
-            )
-            mock_provider.add_version_to_playlist.assert_called_once_with(400, 301)
-        finally:
-            app.dependency_overrides.clear()
-
-    def test_create_version_linked_to_existing_entity(self, mock_provider):
-        from dna.models.entity import Version
-
-        mock_provider.create_version.return_value = Version(id=302, name="new_v")
-        self._override(mock_provider)
-
-        try:
-            response = client.post(
-                "/playlists/400/versions",
-                json={
-                    "version_name": "new_v",
-                    "project_id": 1,
-                    "link_entity_type": "shot",
-                    "link_entity_id": 100,
-                },
-            )
-            assert response.status_code == 200
-            mock_provider.create_version.assert_called_once_with(
-                1, "new_v", entity_type="shot", entity_id=100
-            )
-            mock_provider.create_entity.assert_not_called()
-        finally:
-            app.dependency_overrides.clear()
-
-    def test_create_version_and_new_entity(self, mock_provider):
-        from dna.models.entity import Shot, Version
-
-        mock_provider.create_entity.return_value = Shot(id=101, name="s_010")
-        mock_provider.create_version.return_value = Version(id=303, name="new_v")
-        self._override(mock_provider)
-
-        try:
-            response = client.post(
-                "/playlists/400/versions",
-                json={
-                    "version_name": "new_v",
-                    "project_id": 1,
-                    "link_entity_type": "shot",
-                    "link_entity_name": "s_010",
-                },
-            )
-            assert response.status_code == 200
-            mock_provider.create_entity.assert_called_once_with(1, "shot", "s_010")
-            mock_provider.create_version.assert_called_once_with(
-                1, "new_v", entity_type="shot", entity_id=101
-            )
-        finally:
-            app.dependency_overrides.clear()
-
-    def test_missing_params_returns_400(self, mock_provider):
+    def test_missing_version_id_returns_422(self, mock_provider):
         self._override(mock_provider)
         try:
             response = client.post("/playlists/400/versions", json={})
-            assert response.status_code == 400
-            assert "version_id" in response.json()["detail"]
-        finally:
-            app.dependency_overrides.clear()
-
-    def test_blank_version_name_returns_400(self, mock_provider):
-        self._override(mock_provider)
-        try:
-            response = client.post(
-                "/playlists/400/versions",
-                json={"version_name": "   ", "project_id": 1},
-            )
-            assert response.status_code == 400
-        finally:
-            app.dependency_overrides.clear()
-
-    def test_link_without_type_returns_400(self, mock_provider):
-        self._override(mock_provider)
-        try:
-            response = client.post(
-                "/playlists/400/versions",
-                json={
-                    "version_name": "new_v",
-                    "project_id": 1,
-                    "link_entity_id": 100,
-                },
-            )
-            assert response.status_code == 400
-            assert "link_entity_type" in response.json()["detail"]
+            assert response.status_code == 422
+            mock_provider.add_version_to_playlist.assert_not_called()
         finally:
             app.dependency_overrides.clear()
 
