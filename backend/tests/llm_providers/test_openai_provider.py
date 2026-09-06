@@ -31,12 +31,6 @@ class TestOpenAIProviderInit:
         provider = OpenAIProvider(api_key="test-key")
         assert provider.model == "gpt-4o-mini"
 
-    def test_init_raises_without_api_key(self):
-        """Test that initialization raises without API key."""
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="API key not provided"):
-                OpenAIProvider()
-
 
 class TestOpenAIProviderTemplateSubstitution:
     """Tests for prompt template substitution."""

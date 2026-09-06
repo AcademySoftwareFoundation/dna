@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from dna.llm_providers.custom_provider import CustomProvider
 from dna.llm_providers.gemini_provider import GeminiProvider
 from dna.llm_providers.openai_provider import OpenAIProvider
 
@@ -95,6 +96,49 @@ class TestGeminiGetAvailableModels:
         assert result["provider"] == "gemini"
         assert result["models"] == ["gemini-2.5-flash"]
         assert result["default"] == "gemini-2.5-flash"
+
+
+class TestCustomGetAvailableModels:
+    """Tests for CustomProvider.get_available_models."""
+
+    @pytest.mark.asyncio
+    async def test_returns_models_from_api(self):
+        """Should return model list from Custom OpenAI Compatible API."""
+        provider = CustomProvider(api_key="test-key")
+
+        mock_model_1 = MagicMock()
+        mock_model_1.id = "llama3.2:latest"
+        mock_model_2 = MagicMock()
+        mock_model_2.id = "gpt-oss-20b-mlx-8bit"
+
+        mock_response = MagicMock()
+        mock_response.data = [mock_model_2, mock_model_1]
+
+        mock_client = AsyncMock()
+        mock_client.models.list = AsyncMock(return_value=mock_response)
+        provider._client = mock_client
+
+        result = await provider.get_available_models()
+
+        assert result["provider"] == "custom"
+        assert "llama3.2:latest" in result["models"]
+        assert "gpt-oss-20b-mlx-8bit" in result["models"]
+        assert result["default"] == "llama3.2:latest"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_on_api_error(self):
+        """Should return default model when API call fails."""
+        provider = CustomProvider(api_key="test-key")
+
+        mock_client = AsyncMock()
+        mock_client.models.list = AsyncMock(side_effect=Exception("API error"))
+        provider._client = mock_client
+
+        result = await provider.get_available_models()
+
+        assert result["provider"] == "custom"
+        assert result["models"] == ["llama3.2:latest"]
+        assert result["default"] == "llama3.2:latest"
 
 
 class TestGenerateNoteModelParam:

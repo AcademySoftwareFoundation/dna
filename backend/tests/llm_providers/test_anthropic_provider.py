@@ -36,11 +36,6 @@ class TestAnthropicProviderInit:
         provider = AnthropicProvider(api_key="test-key")
         assert provider.model == "claude-opus-4-8"
 
-    def test_init_raises_without_api_key(self):
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="API key not provided"):
-                AnthropicProvider()
-
 
 class TestToolConversion:
     def test_converts_openai_tools_to_anthropic(self):

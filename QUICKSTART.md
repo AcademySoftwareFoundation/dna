@@ -96,6 +96,22 @@ services:
       - GEMINI_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 ```
 
+**Custom:** requires `CUSTOM_LLM_URL` and `CUSTOM_LLM_MODEL`; also set `LLM_PROVIDER=custom`; optional `CUSTOM_LLM_API_KEY`; use for any OpenAI compatible LLM Provider, e.g. Ollama
+
+```yaml
+services:
+  api:
+    environment:
+      - LLM_PROVIDER=custom
+      - CUSTOM_LLM_URL=http://host.docker.internal:11434/v1
+      - CUSTOM_LLM_MODEL=llama3.2:latest
+
+    # Unnecessary on Docker Desktop (macOS/Windows)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+Refer to the [backend/README.md](backend/README.md#local-llm-host) for more info about local llm hostnames and docker containers.
+
 ### 4. Configure the Transcription Service
 
 Vexa requires an OpenAI Whisper-compatible transcription backend. Edit `backend/docker-compose.local.vexa.yml` for whichever option you choose.
