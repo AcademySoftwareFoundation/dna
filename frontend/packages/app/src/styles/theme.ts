@@ -27,14 +27,67 @@ const base = {
   },
 };
 
-const sharedColors = {
-  accent: {
-    main: '#8b5cf6',
-    hover: '#7c3aed',
-    subtle: 'rgba(139, 92, 246, 0.12)',
-    glow: 'rgba(139, 92, 246, 0.25)',
-    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%)',
+/**
+ * Selectable accent palettes. Only the accent changes — everything else
+ * (backgrounds, text, borders) comes from the dark/light theme, so both modes
+ * keep their own look with any accent applied.
+ */
+export const ACCENTS = {
+  purple: {
+    label: 'Purple',
+    // Radix Themes' own accent scale, kept in step with the styled-components one.
+    radix: 'violet',
+    colors: {
+      main: '#8b5cf6',
+      hover: '#7c3aed',
+      subtle: 'rgba(139, 92, 246, 0.12)',
+      glow: 'rgba(139, 92, 246, 0.25)',
+      gradient: 'linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%)',
+    },
   },
+  blue: {
+    label: 'Blue',
+    radix: 'blue',
+    colors: {
+      main: '#3b82f6',
+      hover: '#2563eb',
+      subtle: 'rgba(59, 130, 246, 0.12)',
+      glow: 'rgba(59, 130, 246, 0.25)',
+      gradient: 'linear-gradient(135deg, #3b82f6 0%, #38bdf8 100%)',
+    },
+  },
+  green: {
+    label: 'Green',
+    radix: 'jade',
+    colors: {
+      main: '#10b981',
+      hover: '#059669',
+      subtle: 'rgba(16, 185, 129, 0.12)',
+      glow: 'rgba(16, 185, 129, 0.25)',
+      gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+    },
+  },
+  pink: {
+    label: 'Pink',
+    radix: 'crimson',
+    colors: {
+      main: '#f43f5e',
+      hover: '#e11d48',
+      subtle: 'rgba(244, 63, 94, 0.12)',
+      glow: 'rgba(244, 63, 94, 0.25)',
+      gradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 100%)',
+    },
+  },
+} as const;
+
+export type AccentName = keyof typeof ACCENTS;
+
+export const DEFAULT_ACCENT: AccentName = 'purple';
+
+export const ACCENT_NAMES = Object.keys(ACCENTS) as AccentName[];
+
+const sharedColors = {
+  accent: ACCENTS[DEFAULT_ACCENT].colors,
   status: {
     success: '#22c55e',
     warning: '#f59e0b',
@@ -111,3 +164,15 @@ type DeepWiden<T> = T extends string
     : T;
 
 export type Theme = DeepWiden<typeof darkTheme>;
+
+/** The dark/light theme with the chosen accent palette swapped in. */
+export function getTheme(
+  mode: 'dark' | 'light',
+  accent: AccentName = DEFAULT_ACCENT
+): Theme {
+  const modeTheme = mode === 'light' ? lightTheme : darkTheme;
+  return {
+    ...modeTheme,
+    colors: { ...modeTheme.colors, accent: ACCENTS[accent].colors },
+  };
+}

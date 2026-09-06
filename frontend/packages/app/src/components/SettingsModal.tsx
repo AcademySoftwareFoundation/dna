@@ -13,7 +13,7 @@ import {
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as RadioGroup from '@radix-ui/react-radio-group';
-import { Loader2, Info } from 'lucide-react';
+import { Loader2, Info, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type {
@@ -27,6 +27,7 @@ import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
+import { ACCENTS, ACCENT_NAMES } from '../styles';
 
 /** The global glossary is a shared repo file — contributors edit it via PR. */
 const GLOBAL_GLOSSARY_GITHUB_URL =
@@ -239,6 +240,38 @@ const RadioDot = styled(RadioGroup.Indicator)`
   }
 `;
 
+const SwatchRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const Swatch = styled.button<{ $color: string; $selected: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 30px;
+  padding: 0;
+  background: ${({ theme }) => theme.colors.bg.surface};
+  border: 2px solid ${({ $color }) => $color};
+  border-radius: ${({ theme }) => theme.radii.md};
+  color: ${({ $color }) => $color};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  box-shadow: ${({ $color, $selected }) =>
+    $selected ? `0 0 0 3px ${$color}33` : 'none'};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ $color }) => $color};
+    outline-offset: 2px;
+  }
+`;
+
 const AppearanceRow = styled.div`
   display: flex;
   align-items: center;
@@ -395,7 +428,7 @@ function GeneralTab({
   onSyncProdtrackTabOnVersionChange,
   onProdtrackPageTypeChange,
 }: GeneralTabProps) {
-  const { mode, setMode } = useThemeMode();
+  const { mode, setMode, accent, setAccent } = useThemeMode();
   const { inReviewEnabled, setInReviewEnabled, inReviewLocked, inReviewLockReason } =
     useFeatureFlags();
 
@@ -420,6 +453,30 @@ function GeneralTab({
             checked={mode === 'light'}
             onCheckedChange={(checked) => setMode(checked ? 'light' : 'dark')}
           />
+        </AppearanceRow>
+        <AppearanceRow>
+          <KeybindingLabel>
+            <KeybindingName>Accent Color</KeybindingName>
+            <KeybindingDesc>
+              Recolors highlights and the background glow
+            </KeybindingDesc>
+          </KeybindingLabel>
+          <SwatchRow>
+            {ACCENT_NAMES.map((name) => (
+              <Swatch
+                key={name}
+                type="button"
+                $color={ACCENTS[name].colors.main}
+                $selected={accent === name}
+                aria-pressed={accent === name}
+                aria-label={`${ACCENTS[name].label} accent`}
+                title={ACCENTS[name].label}
+                onClick={() => setAccent(name)}
+              >
+                {accent === name && <Check size={16} strokeWidth={3} />}
+              </Swatch>
+            ))}
+          </SwatchRow>
         </AppearanceRow>
       </Section>
 
