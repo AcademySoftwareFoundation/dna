@@ -296,6 +296,15 @@ export function Sidebar({
 
   const inReviewVersionId = playlistMetadata?.in_review;
 
+  // Each is non-null only while its toolbar input should be showing.
+  const addVersionPlaylistId =
+    toolbarInput === 'add-version' ? playlistId : null;
+  const changePlaylistProjectId =
+    toolbarInput === 'change-playlist' ? projectId : null;
+  // An open toolbar input owns the whole row, including the search slot.
+  const toolbarInputOpen =
+    addVersionPlaylistId !== null || changePlaylistProjectId !== null;
+
   const playlistMenuItems = [
     {
       label: 'Change Playlist',
@@ -439,16 +448,16 @@ export function Sidebar({
       ) : (
         <Toolbar>
           {!isSearchExpanded &&
-            (toolbarInput === 'add-version' && playlistId ? (
+            (addVersionPlaylistId ? (
               <AddVersionInput
-                playlistId={playlistId}
+                playlistId={addVersionPlaylistId}
                 projectId={projectId ?? undefined}
                 existingVersionIds={(versions ?? []).map((v) => v.id)}
                 onClose={() => setToolbarInput('none')}
               />
-            ) : toolbarInput === 'change-playlist' && projectId ? (
+            ) : changePlaylistProjectId ? (
               <ChangePlaylistInput
-                projectId={projectId}
+                projectId={changePlaylistProjectId}
                 currentPlaylistId={playlistId ?? undefined}
                 onSelect={(playlist) => {
                   setToolbarInput('none');
@@ -467,14 +476,16 @@ export function Sidebar({
               </ToolbarLeft>
             ))}
 
-          <ExpandableSearch
-            ref={searchRef}
-            placeholder="Search versions..."
-            versions={versions}
-            selectedVersionId={selectedVersionId}
-            onVersionSelect={handleSearchVersionSelect}
-            onExpandedChange={setIsSearchExpanded}
-          />
+          {!toolbarInputOpen && (
+            <ExpandableSearch
+              ref={searchRef}
+              placeholder="Search versions..."
+              versions={versions}
+              selectedVersionId={selectedVersionId}
+              onVersionSelect={handleSearchVersionSelect}
+              onExpandedChange={setIsSearchExpanded}
+            />
+          )}
         </Toolbar>
       )}
 
