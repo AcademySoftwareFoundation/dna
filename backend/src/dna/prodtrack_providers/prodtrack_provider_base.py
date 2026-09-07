@@ -133,6 +133,18 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def create_playlist(self, project_id: int, name: str) -> "Playlist":
+        """Create a new playlist in the production tracking system.
+
+        Args:
+            project_id: The ID of the project the playlist belongs to
+            name: The playlist name/code
+
+        Returns:
+            The created Playlist entity
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_versions_for_playlist(self, playlist_id: int) -> list["Version"]:
         """Get versions for a playlist.
 
@@ -141,6 +153,18 @@ class ProdtrackProviderBase:
 
         Returns:
             List of Version entities in the playlist
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+        """Add an existing version to a playlist.
+
+        Args:
+            playlist_id: The ID of the playlist
+            version_id: The ID of the version to add
+
+        Returns:
+            True on success (including when the version was already present)
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

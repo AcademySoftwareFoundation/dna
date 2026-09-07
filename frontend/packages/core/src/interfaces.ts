@@ -459,6 +459,17 @@ export interface SearchEntitiesParams {
   limit?: number;
 }
 
+export interface AddVersionToPlaylistParams {
+  playlistId: number;
+  /** ID of an existing version to add */
+  versionId: number;
+}
+
+export interface CreatePlaylistParams {
+  projectId: number;
+  name: string;
+}
+
 // Status types for version status dropdown
 export interface StatusOption {
   code: string;

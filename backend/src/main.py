@@ -32,10 +32,12 @@ from dna.glossary_config import (
 )
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
+    AddVersionToPlaylistRequest,
     Asset,
     BotSession,
     BotStatus,
     CreateNoteRequest,
+    CreatePlaylistRequest,
     DispatchBotRequest,
     DraftNote,
     DraftNoteUpdate,
@@ -824,6 +826,29 @@ async def get_playlists_for_project(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@app.post(
+    "/projects/{project_id}/playlists",
+    tags=["Playlists"],
+    summary="Create a playlist",
+    description="Create a new playlist in the production tracking system.",
+    response_model=Playlist,
+)
+async def create_playlist(
+    project_id: int,
+    request: CreatePlaylistRequest,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> Playlist:
+    """Create a new playlist in a project."""
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Playlist name is required")
+    try:
+        return provider.create_playlist(project_id, name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @app.get(
     "/projects/{project_id}/glossary",
     tags=["Projects"],
@@ -885,6 +910,28 @@ async def get_versions_for_playlist(
     """Get versions for a playlist."""
     try:
         return provider.get_versions_for_playlist(playlist_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post(
+    "/playlists/{playlist_id}/versions",
+    tags=["Playlists"],
+    summary="Add a version to a playlist",
+    description="Add an existing version to a playlist.",
+    response_model=Version,
+)
+async def add_version_to_playlist(
+    playlist_id: int,
+    request: AddVersionToPlaylistRequest,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> Version:
+    """Add an existing version to a playlist."""
+    try:
+        version = provider.get_entity("version", request.version_id, resolve_links=True)
+        provider.add_version_to_playlist(playlist_id, version.id)
+        return version
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

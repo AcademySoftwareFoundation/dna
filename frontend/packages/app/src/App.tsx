@@ -68,8 +68,8 @@ function App() {
     setUserEmail(email);
   };
 
-  const handleReplacePlaylist = () => {
-    setSelectedPlaylist(null);
+  const handlePlaylistChange = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
     setSelectedVersion(null);
   };
 
@@ -91,7 +91,7 @@ function App() {
 
   return (
     <Layout
-      onReplacePlaylist={handleReplacePlaylist}
+      onPlaylistChange={handlePlaylistChange}
       playlistId={selectedPlaylist.id}
       projectId={selectedProject.id}
       selectedVersionId={selectedVersion?.id}

@@ -45,6 +45,8 @@ import {
   SearchResponse,
   SearchResult,
   StatusOption,
+  AddVersionToPlaylistParams,
+  CreatePlaylistParams,
   NoteQCCheck,
   NoteQCCheckCreate,
   NoteQCCheckUpdate,
@@ -164,10 +166,24 @@ class ApiHandler {
     return this.get<Playlist[]>(`/projects/${params.projectId}/playlists`);
   }
 
+  async createPlaylist(params: CreatePlaylistParams): Promise<Playlist> {
+    return this.post<Playlist>(`/projects/${params.projectId}/playlists`, {
+      name: params.name,
+    });
+  }
+
   async getVersionsForPlaylist(
     params: GetVersionsForPlaylistParams
   ): Promise<Version[]> {
     return this.get<Version[]>(`/playlists/${params.playlistId}/versions`);
+  }
+
+  async addVersionToPlaylist(
+    params: AddVersionToPlaylistParams
+  ): Promise<Version> {
+    return this.post<Version>(`/playlists/${params.playlistId}/versions`, {
+      version_id: params.versionId,
+    });
   }
 
   async getUserByEmail(params: GetUserByEmailParams): Promise<DNAUser> {

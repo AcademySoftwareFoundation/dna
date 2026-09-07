@@ -84,6 +84,18 @@ class SearchRequest(BaseModel):
     )
 
 
+class AddVersionToPlaylistRequest(BaseModel):
+    """Request model for adding an existing version to a playlist."""
+
+    version_id: int = Field(description="ID of an existing version to add")
+
+
+class CreatePlaylistRequest(BaseModel):
+    """Request model for creating a new playlist in a project."""
+
+    name: str = Field(description="Playlist name/code")
+
+
 class SearchResult(BaseModel):
     """Lightweight entity representation for search results."""
 

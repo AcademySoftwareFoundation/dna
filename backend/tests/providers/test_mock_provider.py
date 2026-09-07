@@ -565,3 +565,30 @@ def test_factory_returns_shotgrid_when_credentials_present():
                 provider = get_prodtrack_provider()
                 mock_sg_class.assert_called_once()
                 assert provider is mock_sg_class.return_value
+
+
+class TestMockProviderWrites:
+    """Tests for the mock provider's supported write operations."""
+
+    def test_create_playlist(self, mock_provider):
+        playlist = mock_provider.create_playlist(1, "pl_new")
+        assert playlist.code == "pl_new"
+        assert playlist.type == "Playlist"
+        codes = [p.code for p in mock_provider.get_playlists_for_project(1)]
+        assert "pl_new" in codes
+        assert mock_provider.get_versions_for_playlist(playlist.id) == []
+
+    def test_add_version_to_playlist(self, mock_provider):
+        playlist = mock_provider.create_playlist(1, "pl_target")
+        assert mock_provider.add_version_to_playlist(playlist.id, 300) is True
+        ids = [v.id for v in mock_provider.get_versions_for_playlist(playlist.id)]
+        assert ids == [300]
+
+    def test_add_version_to_playlist_is_idempotent(self, mock_provider):
+        before = len(mock_provider.get_versions_for_playlist(400))
+        assert mock_provider.add_version_to_playlist(400, 300) is True
+        assert len(mock_provider.get_versions_for_playlist(400)) == before
+
+    def test_add_version_to_playlist_missing_playlist_raises(self, mock_provider):
+        with pytest.raises(ValueError, match="Playlist 999 not found"):
+            mock_provider.add_version_to_playlist(999, 300)
