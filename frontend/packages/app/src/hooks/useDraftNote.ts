@@ -28,6 +28,7 @@ export interface UseDraftNoteResult {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
+  saveVersionStatus: (status: string) => Promise<void>;
   clearDraftNote: () => void;
   flushDebouncedSave: () => Promise<void>;
   isSaving: boolean;
@@ -162,7 +163,11 @@ export function useDraftNote({
       if (previousDraftNotes) {
         queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
           if (!old) return old;
-          const index = old.findIndex((n) => n.version_id === versionId);
+          // Match the owner too: this cache holds every user's drafts for the
+          // playlist, so version_id alone can patch someone else's row.
+          const index = old.findIndex(
+            (n) => n.version_id === versionId && n.user_email === userEmail
+          );
           if (index !== -1) {
             const updated = [...old];
             updated[index] = {
@@ -436,6 +441,37 @@ export function useDraftNote({
     [isEnabled, upsertMutation, currentVersion, submitter]
   );
 
+  const saveVersionStatus = useCallback(
+    async (status: string) => {
+      if (!isEnabled) return;
+      const base =
+        pendingDataRef.current ??
+        localDraft ??
+        createEmptyDraft(currentVersion, submitter);
+      const next: LocalDraftNote = { ...base, versionStatus: status };
+      setLocalDraft(next);
+      if (pendingDataRef.current) {
+        pendingDataRef.current = next;
+      }
+      // Existing draft: patch version_status alone so a body edit being typed
+      // in another view (e.g. the publish dialog's editor for this same draft)
+      // isn't overwritten with a stale copy. New draft: write the whole thing
+      // so the prefilled submitter and version link persist too, matching what
+      // a status change made from the main UI creates.
+      await upsertMutation.mutateAsync({
+        data: serverDraft ? { version_status: status } : localToUpdate(next),
+      });
+    },
+    [
+      isEnabled,
+      upsertMutation,
+      currentVersion,
+      submitter,
+      localDraft,
+      serverDraft,
+    ]
+  );
+
   const clearDraftNote = useCallback(() => {
     if (!isEnabled) return;
     if (debounceTimerRef.current) {
@@ -465,6 +501,7 @@ export function useDraftNote({
     draftNote: localDraft,
     updateDraftNote,
     saveAttachmentIds,
+    saveVersionStatus,
     clearDraftNote,
     flushDebouncedSave,
     isSaving: upsertMutation.isPending || deleteMutation.isPending,

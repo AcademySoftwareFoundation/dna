@@ -361,4 +361,130 @@ describe('useDraftNote', () => {
       })
     );
   });
+
+  it('saveVersionStatus patches only version_status on an existing draft', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue({
+      ...mockDraftNote,
+      version_status: 'apr',
+    });
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.content).toBe('Test content');
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr');
+    });
+
+    expect(result.current.draftNote?.versionStatus).toBe('apr');
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
+      playlistId: 1,
+      versionId: 2,
+      userEmail: 'test@example.com',
+      data: { version_status: 'apr' },
+    });
+  });
+
+  it('saveVersionStatus does not clobber a body edit awaiting debounce', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.content).toBe('Test content');
+    });
+
+    act(() => {
+      result.current.updateDraftNote({ content: 'Half-typed note' });
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr');
+    });
+
+    // The status write must not carry the older content along with it
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { version_status: 'apr' } })
+    );
+    expect(result.current.draftNote?.content).toBe('Half-typed note');
+
+    // ...and the pending edit still lands, with the new status preserved
+    await act(async () => {
+      await result.current.flushDebouncedSave();
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: 'Half-typed note',
+          version_status: 'apr',
+        }),
+      })
+    );
+  });
+
+  it('saveVersionStatus writes the prefilled defaults when no draft exists yet', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(null);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
+
+    const currentVersion = { type: 'Version', id: 2, name: 'shot_v1' };
+    const submitter = { type: 'User', id: 7, name: 'Artist' };
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+          currentVersion,
+          submitter,
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote).not.toBeNull();
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr');
+    });
+
+    // A brand-new draft keeps the submitter in To and the version in Links, so
+    // the main UI shows the same thing it would after a status pick made there
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
+      playlistId: 1,
+      versionId: 2,
+      userEmail: 'test@example.com',
+      data: {
+        content: '',
+        subject: '',
+        to: JSON.stringify([submitter]),
+        cc: '',
+        links: [{ entity_type: 'Version', entity_id: 2, entity_name: 'shot_v1' }],
+        version_status: 'apr',
+        edited: false,
+      },
+    });
+  });
 });

@@ -658,6 +658,38 @@ function VersionPublishCard({
     [drafts, currentUserEmail]
   );
 
+  const currentVersionAsSearchResult: SearchResult = useMemo(
+    () => ({
+      type: 'Version',
+      id: version.id,
+      name: version.name || `Version ${version.id}`,
+    }),
+    [version.id, version.name]
+  );
+
+  const versionSubmitter: SearchResult | undefined = useMemo(() => {
+    if (!version.user) return undefined;
+    return { type: 'User', id: version.user.id, name: version.user.name || '' };
+  }, [version.user]);
+
+  // Status lives on the current user's draft note, the same place the main UI
+  // writes it, so a pick here shows up there immediately — like note edits do.
+  const { saveVersionStatus } = useDraftNote({
+    playlistId,
+    versionId: version.id,
+    userEmail: currentUserEmail,
+    currentVersion: currentVersionAsSearchResult,
+    submitter: versionSubmitter,
+  });
+
+  const handleStatusValueChange = useCallback(
+    (value: string) => {
+      onStatusValueChange(value);
+      void saveVersionStatus(value);
+    },
+    [onStatusValueChange, saveVersionStatus]
+  );
+
   return (
     <VersionCard>
       <VersionCardHeader>
@@ -694,7 +726,7 @@ function VersionPublishCard({
           currentStatus={version.status}
           value={statusValue}
           checked={statusChecked}
-          onValueChange={onStatusValueChange}
+          onValueChange={handleStatusValueChange}
           onCheckedChange={onStatusToggle}
         />
         {sortedDrafts.map((d) => (
