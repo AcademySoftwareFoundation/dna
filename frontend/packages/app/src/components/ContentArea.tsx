@@ -89,7 +89,12 @@ export function ContentArea({
     return { type: 'User', id: version.user.id, name: version.user.name || '' };
   }, [version?.user]);
 
-  const { draftNote, updateDraftNote, saveAttachmentIds } = useDraftNote({
+  const {
+    draftNote,
+    updateDraftNote,
+    saveAttachmentIds,
+    saveVersionStatus,
+  } = useDraftNote({
     playlistId,
     versionId: version?.id,
     userEmail,
@@ -99,9 +104,12 @@ export function ContentArea({
 
   const selectedVersionStatus = draftNote?.versionStatus || (version?.status ?? '');
 
-  const handleVersionStatusChange = useCallback((code: string) => {
-    updateDraftNote({ versionStatus: code });
-  }, [updateDraftNote]);
+  const handleVersionStatusChange = useCallback(
+    (code: string) => {
+      void saveVersionStatus(code);
+    },
+    [saveVersionStatus]
+  );
 
   const handleRefreshClick = useCallback(() => {
     // Clear the draft's status override so the display falls back to the

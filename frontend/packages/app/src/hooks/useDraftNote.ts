@@ -141,13 +141,25 @@ export function useDraftNote({
       }),
     enabled: isEnabled,
     staleTime: 0,
+    initialData: () => {
+      const allDrafts = queryClient.getQueryData<DraftNote[]>(['draftNotes', playlistId]);
+      return allDrafts?.find(
+        (n) => n.version_id === versionId && n.user_email === userEmail
+      );
+    },
   });
 
   const upsertMutation = useMutation<
     DraftNote,
     Error,
     { data: DraftNoteUpdate },
-    { previousDraftNotes: DraftNote[] | undefined }
+    {
+      previousDraftNotes: DraftNote[] | undefined;
+      previousDraftNote: DraftNote | null | undefined;
+      targetQueryKey: (string | number | null | undefined)[];
+      targetPlaylistId: number | null | undefined;
+      targetVersionId: number | null | undefined;
+    }
   >({
     mutationFn: ({ data }) =>
       apiHandler.upsertDraftNote({
@@ -157,71 +169,147 @@ export function useDraftNote({
         data,
       }),
     onMutate: async ({ data }) => {
-      await queryClient.cancelQueries({ queryKey: ['draftNotes', playlistId] });
-      const previousDraftNotes = queryClient.getQueryData<DraftNote[]>(['draftNotes', playlistId]);
+      const targetQueryKey = ['draftNote', playlistId, versionId, userEmail];
+      const playlistQueryKey = ['draftNotes', playlistId];
 
-      if (previousDraftNotes) {
-        queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
-          if (!old) return old;
-          // Match the owner too: this cache holds every user's drafts for the
-          // playlist, so version_id alone can patch someone else's row.
-          const index = old.findIndex(
-            (n) => n.version_id === versionId && n.user_email === userEmail
-          );
-          if (index !== -1) {
-            const updated = [...old];
-            updated[index] = {
-              ...updated[index],
-              content: data.content ?? updated[index].content,
-              subject: data.subject ?? updated[index].subject,
-              to: data.to ?? updated[index].to,
-              cc: data.cc ?? updated[index].cc,
-              version_status: data.version_status ?? updated[index].version_status,
-              edited: data.edited ?? updated[index].edited,
-              attachment_ids: data.attachment_ids ?? updated[index].attachment_ids,
-            };
-            return updated;
-          } else {
-            return [
-              ...old,
-              {
-                id: -1,
-                _id: 'temp_id',
-                version_id: versionId!,
-                playlist_id: playlistId!,
-                user_id: -1,
-                user_email: userEmail!,
-                content: data.content ?? '',
-                subject: data.subject ?? '',
-                to: data.to ?? '',
-                cc: data.cc ?? '',
-                links: data.links ?? [],
-                version_status: data.version_status ?? '',
-                published: false,
-                edited: data.edited ?? false,
-                published_note_id: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-            ];
-          }
-        });
-      }
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: targetQueryKey }),
+        queryClient.cancelQueries({ queryKey: playlistQueryKey }),
+      ]);
 
-      return { previousDraftNotes };
+      const previousDraftNote = queryClient.getQueryData<DraftNote | null>(targetQueryKey);
+      const previousDraftNotes = queryClient.getQueryData<DraftNote[]>(playlistQueryKey);
+
+      // Optimistically update the single draft note cache
+      queryClient.setQueryData<DraftNote | null>(targetQueryKey, (old) => {
+        if (!old) {
+          return {
+            id: -1,
+            _id: 'temp_id',
+            version_id: versionId!,
+            playlist_id: playlistId!,
+            user_id: -1,
+            user_email: userEmail!,
+            content: data.content ?? '',
+            subject: data.subject ?? '',
+            to: data.to ?? '',
+            cc: data.cc ?? '',
+            links: data.links ?? [],
+            version_status: data.version_status ?? '',
+            published: false,
+            edited: data.edited ?? false,
+            published_note_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            attachment_ids: data.attachment_ids ?? [],
+          };
+        }
+        return {
+          ...old,
+          content: data.content ?? old.content,
+          subject: data.subject ?? old.subject,
+          to: data.to ?? old.to,
+          cc: data.cc ?? old.cc,
+          links: data.links ?? old.links,
+          version_status: data.version_status ?? old.version_status,
+          edited: data.edited ?? old.edited,
+          attachment_ids: data.attachment_ids ?? old.attachment_ids,
+        };
+      });
+
+      // Optimistically update the playlist draft notes list cache
+      queryClient.setQueryData<DraftNote[]>(playlistQueryKey, (old) => {
+        const list = old ? [...old] : [];
+        const index = list.findIndex(
+          (n) => n.version_id === versionId && n.user_email === userEmail
+        );
+        if (index !== -1) {
+          list[index] = {
+            ...list[index],
+            content: data.content ?? list[index].content,
+            subject: data.subject ?? list[index].subject,
+            to: data.to ?? list[index].to,
+            cc: data.cc ?? list[index].cc,
+            links: data.links ?? list[index].links,
+            version_status: data.version_status ?? list[index].version_status,
+            edited: data.edited ?? list[index].edited,
+            attachment_ids: data.attachment_ids ?? list[index].attachment_ids,
+          };
+        } else {
+          list.push({
+            id: -1,
+            _id: 'temp_id',
+            version_id: versionId!,
+            playlist_id: playlistId!,
+            user_id: -1,
+            user_email: userEmail!,
+            content: data.content ?? '',
+            subject: data.subject ?? '',
+            to: data.to ?? '',
+            cc: data.cc ?? '',
+            links: data.links ?? [],
+            version_status: data.version_status ?? '',
+            published: false,
+            edited: data.edited ?? false,
+            published_note_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            attachment_ids: data.attachment_ids ?? [],
+          });
+        }
+        return list;
+      });
+
+      return {
+        previousDraftNotes,
+        previousDraftNote,
+        targetQueryKey,
+        targetPlaylistId: playlistId,
+        targetVersionId: versionId,
+      };
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousDraftNotes) {
-        queryClient.setQueryData(['draftNotes', playlistId], context.previousDraftNotes);
+      if (context?.previousDraftNotes !== undefined) {
+        queryClient.setQueryData(['draftNotes', context.targetPlaylistId], context.previousDraftNotes);
+      }
+      if (context?.previousDraftNote !== undefined) {
+        queryClient.setQueryData(context.targetQueryKey, context.previousDraftNote);
+      }
+      if (context?.targetVersionId === versionId) {
+        if (context.previousDraftNote) {
+          setLocalDraft(backendToLocal(context.previousDraftNote));
+        } else {
+          setLocalDraft(createEmptyDraft(currentVersion, submitter));
+        }
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['draftNotes', playlistId],
-      });
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.targetPlaylistId != null) {
+        queryClient.invalidateQueries({
+          queryKey: ['draftNotes', context.targetPlaylistId],
+        });
+      }
     },
-    onSuccess: (result) => {
-      queryClient.setQueryData(queryKey, result);
+    onSuccess: (result, _variables, context) => {
+      const qk = context?.targetQueryKey ?? queryKey;
+      queryClient.setQueryData(qk, result);
+      if (context?.targetPlaylistId != null) {
+        queryClient.setQueryData<DraftNote[]>(
+          ['draftNotes', context.targetPlaylistId],
+          (old) => {
+            if (!old) return old;
+            const index = old.findIndex(
+              (n) => n.version_id === result.version_id && n.user_email === result.user_email
+            );
+            if (index !== -1) {
+              const updated = [...old];
+              updated[index] = result;
+              return updated;
+            }
+            return [...old, result];
+          }
+        );
+      }
     },
   });
 
