@@ -32,6 +32,7 @@ from dna.glossary_config import (
 )
 from dna.llm_providers.llm_provider_base import LLMProviderBase, get_llm_provider
 from dna.models import (
+    SCRATCH_VERSION_ID,
     AddVersionToPlaylistRequest,
     Asset,
     BotSession,
@@ -1043,7 +1044,10 @@ async def publish_notes(
 
     for note in notes_to_publish:
         try:
-            status_to_apply = _status_to_apply(note)
+            # Scratch notes belong to the playlist itself: no version, so no
+            # version status to apply.
+            is_scratch = note.version_id == SCRATCH_VERSION_ID
+            status_to_apply = None if is_scratch else _status_to_apply(note)
 
             # Skip notes with no meaningful content to publish
             has_body = (note.content and note.content.strip()) or (
@@ -1100,43 +1104,63 @@ async def publish_notes(
                 )
                 continue
 
-            # Get links
+            # Get links, skipping entities with sentinel ids (e.g. the scratch
+            # pseudo-version) that don't exist in the tracking system
             links = []
             if note.links:
                 for link in note.links:
+                    if link.entity_id <= 0:
+                        continue
                     model_class = ENTITY_MODELS.get(link.entity_type)
                     if model_class:
                         links.append(model_class(id=link.entity_id))
 
-            # Ensure playlist is included in links
-            playlist_link_exists = any(
-                isinstance(l, Playlist) and l.id == playlist_id for l in links
-            )
-            if not playlist_link_exists:
-                links.append(_create_stub_entity("Playlist", playlist_id))
-
-            # Ensure version's parent entity (Shot/Asset) is included in links
-            version = prodtrack.get_entity(
-                "version", note.version_id, resolve_links=False
-            )
-            if version and version.entity:
-                entity_link_exists = any(
-                    l.id == version.entity.id and l.type == version.entity.type
+            if is_scratch:
+                # The provider links the playlist itself; don't pass it twice
+                extra_links = [
+                    l
                     for l in links
+                    if not (isinstance(l, Playlist) and l.id == playlist_id)
+                ]
+                note_id = prodtrack.publish_playlist_note(
+                    playlist_id=playlist_id,
+                    content=note.content,
+                    subject=note.subject,
+                    to_users=[],
+                    cc_users=[],
+                    links=extra_links,
+                    author_email=note.user_email,
                 )
-                if not entity_link_exists:
-                    links.append(version.entity)
+            else:
+                # Ensure playlist is included in links
+                playlist_link_exists = any(
+                    isinstance(l, Playlist) and l.id == playlist_id for l in links
+                )
+                if not playlist_link_exists:
+                    links.append(_create_stub_entity("Playlist", playlist_id))
 
-            note_id = prodtrack.publish_note(
-                version_id=note.version_id,
-                content=note.content,
-                subject=note.subject,
-                to_users=[],  # TODO: Parse to/cc
-                cc_users=[],
-                links=links,
-                author_email=note.user_email,
-                version_status=status_to_apply,
-            )
+                # Ensure version's parent entity (Shot/Asset) is included in links
+                version = prodtrack.get_entity(
+                    "version", note.version_id, resolve_links=False
+                )
+                if version and version.entity:
+                    entity_link_exists = any(
+                        l.id == version.entity.id and l.type == version.entity.type
+                        for l in links
+                    )
+                    if not entity_link_exists:
+                        links.append(version.entity)
+
+                note_id = prodtrack.publish_note(
+                    version_id=note.version_id,
+                    content=note.content,
+                    subject=note.subject,
+                    to_users=[],  # TODO: Parse to/cc
+                    cc_users=[],
+                    links=links,
+                    author_email=note.user_email,
+                    version_status=status_to_apply,
+                )
 
             if note.attachment_ids:
                 _upload_attachments(note_id, note.attachment_ids)
