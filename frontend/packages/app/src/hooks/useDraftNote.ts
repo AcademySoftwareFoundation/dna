@@ -28,6 +28,7 @@ export interface UseDraftNoteResult {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
   saveAttachmentIds: (ids: string[]) => Promise<void>;
+  saveVersionStatus: (status: string) => Promise<void>;
   clearDraftNote: () => void;
   flushDebouncedSave: () => Promise<void>;
   isSaving: boolean;
@@ -162,7 +163,11 @@ export function useDraftNote({
       if (previousDraftNotes) {
         queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
           if (!old) return old;
-          const index = old.findIndex((n) => n.version_id === versionId);
+          // Match the owner too: this cache holds every user's drafts for the
+          // playlist, so version_id alone can patch someone else's row.
+          const index = old.findIndex(
+            (n) => n.version_id === versionId && n.user_email === userEmail
+          );
           if (index !== -1) {
             const updated = [...old];
             updated[index] = {
@@ -261,26 +266,69 @@ export function useDraftNote({
         setLocalDraft(null);
       }
     } else {
-      // Same context: only update system fields to avoid overwriting user input
-      // (entity names in pills are only in local state, not on the server)
+      // Same context: update system fields, and note fields (body, subject,
+      // to/cc, links) when this instance has no unsaved edits, so changes
+      // saved elsewhere (e.g. the publish dialog's editor for the same draft)
+      // are reflected here. versionStatus counts as a system field: publishing
+      // clears it on the server, and the local dropdown must follow.
       if (serverDraft) {
         setLocalDraft((prev) => {
           if (!prev) return backendToLocal(serverDraft);
 
+          // Never clobber edits that are pending debounce or mid-save
+          const hasUnsavedEdits =
+            pendingDataRef.current !== null || upsertMutation.isPending;
+
+          const server = backendToLocal(serverDraft);
+          const next: LocalDraftNote = {
+            ...prev,
+            published: server.published,
+            edited: server.edited,
+            publishedNoteId: server.publishedNoteId,
+            versionStatus: server.versionStatus,
+            ...(hasUnsavedEdits
+              ? {}
+              : {
+                  content: server.content,
+                  subject: server.subject,
+                  to: server.to,
+                  cc: server.cc,
+                  links: server.links,
+                  attachmentIds: server.attachmentIds,
+                }),
+          };
+
+          // Keep previous references for deep-equal lists so downstream
+          // memos don't churn
+          const sameEntities =
+            JSON.stringify(next.to) === JSON.stringify(prev.to) &&
+            JSON.stringify(next.cc) === JSON.stringify(prev.cc) &&
+            JSON.stringify(next.links) === JSON.stringify(prev.links);
+          if (sameEntities) {
+            next.to = prev.to;
+            next.cc = prev.cc;
+            next.links = prev.links;
+          }
+          const sameAttachments =
+            next.attachmentIds.join(',') === prev.attachmentIds.join(',');
+          if (sameAttachments) {
+            next.attachmentIds = prev.attachmentIds;
+          }
+
           if (
-            prev.published === serverDraft.published &&
-            prev.edited === serverDraft.edited &&
-            prev.publishedNoteId === (serverDraft.published_note_id ?? null)
+            next.published === prev.published &&
+            next.edited === prev.edited &&
+            next.publishedNoteId === prev.publishedNoteId &&
+            next.versionStatus === prev.versionStatus &&
+            next.content === prev.content &&
+            next.subject === prev.subject &&
+            sameEntities &&
+            sameAttachments
           ) {
             return prev;
           }
 
-          return {
-            ...prev,
-            published: serverDraft.published,
-            edited: serverDraft.edited,
-            publishedNoteId: serverDraft.published_note_id ?? null,
-          };
+          return next;
         });
       } else if (!isLoading) {
         // Loading finished with no server draft — initialise empty if still null
@@ -393,6 +441,37 @@ export function useDraftNote({
     [isEnabled, upsertMutation, currentVersion, submitter]
   );
 
+  const saveVersionStatus = useCallback(
+    async (status: string) => {
+      if (!isEnabled) return;
+      const base =
+        pendingDataRef.current ??
+        localDraft ??
+        createEmptyDraft(currentVersion, submitter);
+      const next: LocalDraftNote = { ...base, versionStatus: status };
+      setLocalDraft(next);
+      if (pendingDataRef.current) {
+        pendingDataRef.current = next;
+      }
+      // Existing draft: patch version_status alone so a body edit being typed
+      // in another view (e.g. the publish dialog's editor for this same draft)
+      // isn't overwritten with a stale copy. New draft: write the whole thing
+      // so the prefilled submitter and version link persist too, matching what
+      // a status change made from the main UI creates.
+      await upsertMutation.mutateAsync({
+        data: serverDraft ? { version_status: status } : localToUpdate(next),
+      });
+    },
+    [
+      isEnabled,
+      upsertMutation,
+      currentVersion,
+      submitter,
+      localDraft,
+      serverDraft,
+    ]
+  );
+
   const clearDraftNote = useCallback(() => {
     if (!isEnabled) return;
     if (debounceTimerRef.current) {
@@ -422,6 +501,7 @@ export function useDraftNote({
     draftNote: localDraft,
     updateDraftNote,
     saveAttachmentIds,
+    saveVersionStatus,
     clearDraftNote,
     flushDebouncedSave,
     isSaving: upsertMutation.isPending || deleteMutation.isPending,

@@ -381,10 +381,27 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
     const attachmentIdsKey = draftNote?.attachmentIds?.join(',') ?? '';
     useEffect(() => {
-      const serverIds = draftNote?.attachmentIds ?? [];
-      if (!serverIds.length) return;
+      if (!draftNote) return;
+      const serverIds = draftNote.attachmentIds ?? [];
+
+      // Drop uploaded entries whose id vanished from the draft (removed in
+      // another editor or cleared by publish); keep in-flight uploads, which
+      // have no backendId yet
+      const current = attachmentsRef.current;
+      const kept = current.filter(
+        (a) => !a.backendId || serverIds.includes(a.backendId)
+      );
+      if (kept.length !== current.length) {
+        current
+          .filter((a) => a.backendId && !serverIds.includes(a.backendId))
+          .forEach((a) => URL.revokeObjectURL(a.previewUrl));
+        attachmentsRef.current = kept;
+        attachmentsByVersion.current.set(versionIdRef.current, kept);
+        setAttachments(kept);
+      }
+
       const existingBackendIds = new Set(
-        attachmentsRef.current.map((a) => a.backendId).filter(Boolean)
+        kept.map((a) => a.backendId).filter(Boolean)
       );
       const newIds = serverIds.filter((id) => !existingBackendIds.has(id));
       if (!newIds.length) return;

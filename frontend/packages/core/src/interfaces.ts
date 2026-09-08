@@ -488,6 +488,12 @@ export interface PublishNoteTarget {
 export interface PublishNotesRequest {
   user_email: string;
   targets: PublishNoteTarget[];
+  /**
+   * If provided, draft version_status changes are applied only for these
+   * version ids. Pass [] to suppress status side effects entirely (statuses
+   * are then published separately via updateVersionStatus).
+   */
+  status_version_ids?: number[];
 }
 
 export interface PublishNotesResponse {
@@ -501,6 +507,20 @@ export interface PublishNotesResponse {
 export interface PublishNotesParams {
   playlistId: number;
   request: PublishNotesRequest;
+}
+
+export interface UpdateVersionStatusParams {
+  versionId: number;
+  status: string;
+  /**
+   * When set, pending version_status values on this playlist's draft notes
+   * for the version are cleared server-side after the update.
+   */
+  playlistId?: number;
+}
+
+export interface UpdateVersionStatusResponse {
+  success: boolean;
 }
 
 export interface PublishTranscriptRequest {
