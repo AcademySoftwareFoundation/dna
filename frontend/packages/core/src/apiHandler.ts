@@ -19,13 +19,19 @@ import {
   GetUserSettingsParams,
   UpsertUserSettingsParams,
   DeleteUserSettingsParams,
+  GetProjectGlossaryParams,
+  UpsertProjectGlossaryParams,
+  ProjectGlossary,
   GenerateNoteParams,
   GenerateNoteResponse,
+  AvailableModelsResponse,
   GetVersionStatusesParams,
   PublishNotesParams,
   PublishNotesResponse,
   PublishTranscriptParams,
   PublishTranscriptResponse,
+  UpdateVersionStatusParams,
+  UpdateVersionStatusResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -41,6 +47,8 @@ import {
   SearchResponse,
   SearchResult,
   StatusOption,
+  AddVersionToPlaylistParams,
+  CreatePlaylistParams,
   NoteQCCheck,
   NoteQCCheckCreate,
   NoteQCCheckUpdate,
@@ -138,6 +146,19 @@ class ApiHandler {
     return response.data;
   }
 
+  async patch<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
+    const response: AxiosResponse<T> = await this.axiosInstance.patch(
+      url,
+      data,
+      config
+    );
+    return response.data;
+  }
+
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.axiosInstance.delete(
       url,
@@ -160,10 +181,24 @@ class ApiHandler {
     return this.get<Playlist[]>(`/projects/${params.projectId}/playlists`);
   }
 
+  async createPlaylist(params: CreatePlaylistParams): Promise<Playlist> {
+    return this.post<Playlist>(`/projects/${params.projectId}/playlists`, {
+      name: params.name,
+    });
+  }
+
   async getVersionsForPlaylist(
     params: GetVersionsForPlaylistParams
   ): Promise<Version[]> {
     return this.get<Version[]>(`/playlists/${params.playlistId}/versions`);
+  }
+
+  async addVersionToPlaylist(
+    params: AddVersionToPlaylistParams
+  ): Promise<Version> {
+    return this.post<Version>(`/playlists/${params.playlistId}/versions`, {
+      version_id: params.versionId,
+    });
   }
 
   async getUserByEmail(params: GetUserByEmailParams): Promise<DNAUser> {
@@ -269,6 +304,22 @@ class ApiHandler {
     );
   }
 
+  async getProjectGlossary(
+    params: GetProjectGlossaryParams
+  ): Promise<ProjectGlossary> {
+    return this.get<ProjectGlossary>(
+      `/projects/${params.projectId}/glossary`
+    );
+  }
+
+  async upsertProjectGlossary(
+    params: UpsertProjectGlossaryParams
+  ): Promise<ProjectGlossary> {
+    return this.put<ProjectGlossary>(`/projects/${params.projectId}/glossary`, {
+      content: params.content,
+    });
+  }
+
   async generateNote(
     params: GenerateNoteParams
   ): Promise<GenerateNoteResponse> {
@@ -277,7 +328,12 @@ class ApiHandler {
       version_id: params.versionId,
       user_email: params.userEmail,
       additional_instructions: params.additionalInstructions,
+      model: params.model,
     });
+  }
+
+  async getAvailableModels(): Promise<AvailableModelsResponse> {
+    return this.get<AvailableModelsResponse>('/models');
   }
 
   async searchEntities(params: SearchEntitiesParams): Promise<SearchResult[]> {
@@ -309,6 +365,15 @@ class ApiHandler {
     return this.post<PublishNotesResponse>(
       `/playlists/${params.playlistId}/publish-notes`,
       params.request
+    );
+  }
+
+  async updateVersionStatus(
+    params: UpdateVersionStatusParams
+  ): Promise<UpdateVersionStatusResponse> {
+    return this.patch<UpdateVersionStatusResponse>(
+      `/versions/${params.versionId}/status`,
+      { status: params.status, playlist_id: params.playlistId ?? null }
     );
   }
 
@@ -353,7 +418,8 @@ class ApiHandler {
   async runQCChecks(params: RunQCChecksParams): Promise<NoteQCResult[]> {
     const body = await this.post<RunQCChecksResponseBody>(
       `/playlists/${params.playlistId}/versions/${params.versionId}/run-qc-checks`,
-      { user_email: params.userEmail }
+      { user_email: params.userEmail },
+      { timeout: 180_000 }
     );
     return body.results;
   }

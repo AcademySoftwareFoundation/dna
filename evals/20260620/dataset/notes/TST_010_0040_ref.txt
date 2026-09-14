@@ -1,0 +1,4 @@
+- Harvester shadow is looking good.
+- Want to add a rack focus to the Ornothopter as it passes in front of Harvester.
+- Movement of Ornothopter blades is looking good. Trajectory good too.
+- Rack focus should be quick, 10 frames max.

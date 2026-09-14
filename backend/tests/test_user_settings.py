@@ -20,6 +20,7 @@ class TestUserSettingsModels:
         """Test UserSettingsUpdate default values."""
         update = UserSettingsUpdate()
         assert update.note_prompt is None
+        assert update.preferred_model is None
         assert update.regenerate_on_version_change is None
         assert update.regenerate_on_transcript_update is None
         assert update.sync_prodtrack_tab_on_version_change is None
@@ -65,9 +66,27 @@ class TestUserSettingsModels:
             created_at=now,
         )
         assert settings.note_prompt == ""
+        assert settings.preferred_model == ""
         assert settings.regenerate_on_version_change is False
         assert settings.regenerate_on_transcript_update is False
         assert settings.sync_prodtrack_tab_on_version_change is True
+
+    def test_user_settings_with_preferred_model(self):
+        """Test UserSettings with preferred_model set."""
+        now = datetime.now(timezone.utc)
+        settings = UserSettings(
+            _id="abc123",
+            user_email="user@example.com",
+            preferred_model="gpt-4o",
+            updated_at=now,
+            created_at=now,
+        )
+        assert settings.preferred_model == "gpt-4o"
+
+    def test_user_settings_update_with_preferred_model(self):
+        """Test UserSettingsUpdate with preferred_model."""
+        update = UserSettingsUpdate(preferred_model="gpt-4o")
+        assert update.preferred_model == "gpt-4o"
 
 
 class TestUserSettingsEndpoints:

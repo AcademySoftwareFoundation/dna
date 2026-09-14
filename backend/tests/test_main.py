@@ -980,6 +980,35 @@ class TestGetVersionsForPlaylistEndpoint:
             app.dependency_overrides.clear()
 
 
+class TestGetModelsEndpoint:
+    """Tests for GET /models endpoint."""
+
+    @pytest.fixture
+    def mock_llm_provider(self):
+        """Create a mock LLM provider."""
+        return mock.AsyncMock()
+
+    def test_get_models_returns_200(self, mock_llm_provider):
+        """Test that GET /models returns available models."""
+        mock_llm_provider.get_available_models.return_value = {
+            "provider": "openai",
+            "models": ["gpt-4o", "gpt-4o-mini"],
+            "default": "gpt-4o-mini",
+        }
+
+        app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
+
+        try:
+            response = client.get("/models")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["provider"] == "openai"
+            assert "gpt-4o" in data["models"]
+            assert data["default"] == "gpt-4o-mini"
+        finally:
+            app.dependency_overrides.clear()
+
+
 class TestGenerateNoteEndpoint:
     """Tests for POST /generate-note endpoint."""
 
@@ -1245,3 +1274,96 @@ class TestAttachmentsEndpoint:
             assert del_resp.status_code == 200
             get_resp = client.get(f"/api/attachments/{attachment_id}")
         assert get_resp.status_code == 404
+
+
+class TestAddVersionToPlaylistEndpoint:
+    """Tests for POST /playlists/{playlist_id}/versions."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        return mock.MagicMock()
+
+    def _override(self, mock_provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+    def test_add_existing_version(self, mock_provider):
+        from dna.models.entity import Version
+
+        mock_provider.get_entity.return_value = Version(id=300, name="v_001")
+        mock_provider.add_version_to_playlist.return_value = True
+        self._override(mock_provider)
+
+        try:
+            response = client.post("/playlists/400/versions", json={"version_id": 300})
+            assert response.status_code == 200
+            assert response.json()["id"] == 300
+            mock_provider.get_entity.assert_called_once_with(
+                "version", 300, resolve_links=True
+            )
+            mock_provider.add_version_to_playlist.assert_called_once_with(400, 300)
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_missing_version_id_returns_422(self, mock_provider):
+        self._override(mock_provider)
+        try:
+            response = client.post("/playlists/400/versions", json={})
+            assert response.status_code == 422
+            mock_provider.add_version_to_playlist.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_provider_value_error_returns_404(self, mock_provider):
+        mock_provider.get_entity.side_effect = ValueError(
+            "Entity not found: version 999"
+        )
+        self._override(mock_provider)
+        try:
+            response = client.post("/playlists/400/versions", json={"version_id": 999})
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestCreatePlaylistEndpoint:
+    """Tests for POST /projects/{project_id}/playlists."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        return mock.MagicMock()
+
+    def test_create_playlist(self, mock_provider):
+        from dna.models.entity import Playlist
+
+        mock_provider.create_playlist.return_value = Playlist(
+            id=401, code="Dailies Monday"
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+
+        try:
+            response = client.post(
+                "/projects/1/playlists", json={"name": "Dailies Monday"}
+            )
+            assert response.status_code == 200
+            assert response.json()["code"] == "Dailies Monday"
+            mock_provider.create_playlist.assert_called_once_with(1, "Dailies Monday")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_blank_name_returns_400(self, mock_provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.post("/projects/1/playlists", json={"name": "  "})
+            assert response.status_code == 400
+            mock_provider.create_playlist.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_provider_value_error_returns_404(self, mock_provider):
+        mock_provider.create_playlist.side_effect = ValueError("Project 999 not found")
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.post("/projects/999/playlists", json={"name": "pl"})
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides.clear()

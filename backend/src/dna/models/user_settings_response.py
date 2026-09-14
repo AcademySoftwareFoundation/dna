@@ -13,9 +13,11 @@ class UserSettingsResponse(BaseModel):
     id: str = Field(alias="_id")
     user_email: str
     note_prompt: str = ""
+    preferred_model: str = ""
     default_note_prompt: str = ""
     regenerate_on_version_change: bool = False
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True
+    prodtrack_page_type: str = "version"
     updated_at: datetime
     created_at: datetime

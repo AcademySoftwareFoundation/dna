@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from dna.models.draft_note import DraftNote, DraftNoteUpdate
     from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+    from dna.models.project_glossary import ProjectGlossary, ProjectGlossaryUpdate
     from dna.models.published_transcript import (
         PublishedTranscript,
         PublishedTranscriptUpdate,
@@ -35,6 +36,16 @@ class StorageProviderBase:
         self, user_email: str, playlist_id: int, version_id: int
     ) -> Optional["DraftNote"]:
         """Get a draft note by composite key (user_email, playlist_id, version_id)."""
+        raise NotImplementedError()
+
+    async def clear_draft_version_status(
+        self, playlist_id: int, version_id: int
+    ) -> int:
+        """Clear pending version_status on all draft notes for a version.
+
+        Must not modify publish/edited state. Returns the number of drafts
+        updated.
+        """
         raise NotImplementedError()
 
     async def upsert_draft_note(
@@ -113,6 +124,18 @@ class StorageProviderBase:
 
     async def delete_user_settings(self, user_email: str) -> bool:
         """Delete user settings. Returns True if deleted."""
+        raise NotImplementedError()
+
+    async def get_project_glossary(
+        self, project_id: int
+    ) -> Optional["ProjectGlossary"]:
+        """Get the glossary for a project by id."""
+        raise NotImplementedError()
+
+    async def upsert_project_glossary(
+        self, project_id: int, data: "ProjectGlossaryUpdate"
+    ) -> "ProjectGlossary":
+        """Create or update the glossary for a project."""
         raise NotImplementedError()
 
     async def get_published_transcript(

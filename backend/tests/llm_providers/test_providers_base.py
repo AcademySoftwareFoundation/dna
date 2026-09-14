@@ -52,12 +52,6 @@ class TestLLMProviderBase:
         assert provider.model == "env-model"
         assert provider.timeout == 12.5
 
-    def test_init_raises_without_api_key(self):
-        """Providers should fail fast when no API key is configured."""
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="API key not provided"):
-                StubProvider()
-
     def test_client_property_caches_provider_client(self):
         """The shared client property should lazily cache the client."""
         provider = StubProvider(api_key="test-key")
@@ -85,6 +79,33 @@ class TestLLMProviderBase:
         assert result == (
             "Transcript: hello / hello\n" "Context: ctx / ctx\n" "Notes: notes / notes"
         )
+
+    def test_substitute_template_injects_glossaries(self):
+        """Glossary text should fill placeholders, or append when absent."""
+        provider = StubProvider(api_key="test-key")
+
+        with_placeholders = provider._substitute_template(
+            prompt="Global: {{ glossary_global }} Project: {{ glossary_project }}",
+            transcript="t",
+            context="c",
+            existing_notes="n",
+            glossary_global="SR: screen right",
+            glossary_project="Carryall: aircraft",
+        )
+        assert with_placeholders == (
+            "Global: SR: screen right Project: Carryall: aircraft"
+        )
+
+        appended = provider._substitute_template(
+            prompt="{{ transcript }}",
+            transcript="t",
+            context="c",
+            existing_notes="n",
+            glossary_global="SR: screen right",
+            glossary_project="Carryall: aircraft",
+        )
+        assert "Glossary — Global Terms:\nSR: screen right" in appended
+        assert "Glossary — Project Terms:\nCarryall: aircraft" in appended
 
     @pytest.mark.asyncio
     async def test_generate_note_appends_additional_instructions(self):
@@ -146,6 +167,19 @@ class TestGetLLMProvider:
             provider = get_llm_provider()
 
         assert isinstance(provider, OpenAIProvider)
+
+    def test_returns_anthropic_provider_when_configured(self):
+        """The factory should return Anthropic when configured."""
+        from dna.llm_providers.anthropic_provider import AnthropicProvider
+
+        with patch.dict(
+            "os.environ",
+            {"LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": "test-key"},
+            clear=True,
+        ):
+            provider = get_llm_provider()
+
+        assert isinstance(provider, AnthropicProvider)
 
     def test_returns_gemini_provider_when_configured(self):
         """The factory should return Gemini when configured."""

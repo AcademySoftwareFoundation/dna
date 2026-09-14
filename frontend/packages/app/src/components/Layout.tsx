@@ -1,12 +1,13 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import styled from 'styled-components';
-import type { Version } from '@dna/core';
+import type { Playlist, Version } from '@dna/core';
 import { Sidebar } from './Sidebar';
 
 interface LayoutProps {
   children: ReactNode;
-  onReplacePlaylist?: () => void;
+  onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: number | null;
+  projectId: number | null;
   selectedVersionId?: number | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
@@ -43,8 +44,9 @@ const Main = styled.main<{ $sidebarCollapsed: boolean }>`
 
 export function Layout({
   children,
-  onReplacePlaylist,
+  onPlaylistChange,
   playlistId,
+  projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
@@ -70,8 +72,9 @@ export function Layout({
       <Sidebar
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
-        onReplacePlaylist={onReplacePlaylist}
+        onPlaylistChange={onPlaylistChange}
         playlistId={playlistId}
+        projectId={projectId}
         selectedVersionId={selectedVersionId}
         onVersionSelect={onVersionSelect}
         userEmail={userEmail}

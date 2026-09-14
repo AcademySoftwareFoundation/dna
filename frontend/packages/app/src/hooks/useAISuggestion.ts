@@ -99,8 +99,9 @@ export function useAISuggestion({
       prevVersionRef.current !== null &&
       prevVersionRef.current !== versionId
     ) {
+      const model = userSettings?.preferred_model || undefined;
       managerInstance
-        .generateSuggestion(playlistId!, versionId!, userEmail!)
+        .generateSuggestion(playlistId!, versionId!, userEmail!, undefined, model)
         .catch(() => {
           // Error is captured in state
         });
@@ -116,7 +117,8 @@ export function useAISuggestion({
         return;
       }
 
-      managerInstance.scheduleRegeneration(playlistId!, versionId!, userEmail!);
+      const model = userSettings?.preferred_model || undefined;
+      managerInstance.scheduleRegeneration(playlistId!, versionId!, userEmail!, undefined, model);
     },
     [playlistId, versionId, userEmail, userSettings, isEnabled]
   );
@@ -131,12 +133,14 @@ export function useAISuggestion({
     (additionalInstructions?: string) => {
       if (!isEnabled || settingsUpsertInflight) return;
 
+      const model = userSettings?.preferred_model || undefined;
       managerInstance
         .generateSuggestion(
           playlistId!,
           versionId!,
           userEmail!,
-          additionalInstructions
+          additionalInstructions,
+          model
         )
         .catch(() => {
           // Error is captured in state
@@ -146,6 +150,7 @@ export function useAISuggestion({
       playlistId,
       versionId,
       userEmail,
+      userSettings,
       isEnabled,
       settingsUpsertInflight,
     ]

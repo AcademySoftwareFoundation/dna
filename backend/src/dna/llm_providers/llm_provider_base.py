@@ -12,6 +12,7 @@ import instructor
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
+from dna.glossary_config import inject_glossaries
 from dna.prompts.generate_note_prompt import GENERATE_NOTE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -113,10 +114,6 @@ class LLMProviderBase:
 
         api_env = f"{self.LLM_PROVIDER_NAME }_API_KEY"
         self.api_key = api_key or os.getenv(api_env)
-        if not self.api_key:
-            raise ValueError(
-                f"API key not provided. Set {api_env} environment variable."
-            )
 
         self.model = model or os.getenv(
             f"{self.LLM_PROVIDER_NAME }_MODEL", self.DEFAULT_MODEL
@@ -144,6 +141,8 @@ class LLMProviderBase:
         transcript: str,
         context: str,
         existing_notes: str,
+        glossary_global: str = "",
+        glossary_project: str = "",
     ) -> str:
         """Substitute template placeholders in the prompt."""
         result = prompt
@@ -153,6 +152,7 @@ class LLMProviderBase:
         result = result.replace("{{context}}", context)
         result = result.replace("{{ notes }}", existing_notes)
         result = result.replace("{{notes}}", existing_notes)
+        result = inject_glossaries(result, glossary_global, glossary_project)
         return result
 
     async def close(self) -> None:
@@ -161,6 +161,18 @@ class LLMProviderBase:
             await self._client.close()
             self._client = None
 
+    async def get_available_models(self) -> dict[str, Any]:
+        """Return available models for this provider.
+
+        Returns a dict with keys: provider, models, default.
+        Subclasses should override to provide dynamic discovery with caching.
+        """
+        return {
+            "provider": (self.LLM_PROVIDER_NAME or "").lower(),
+            "models": [self.model],
+            "default": self.model,
+        }
+
     async def generate_note(
         self,
         prompt: str,
@@ -168,6 +180,9 @@ class LLMProviderBase:
         context: str,
         existing_notes: str,
         additional_instructions: Optional[str] = None,
+        model: Optional[str] = None,
+        glossary_global: str = "",
+        glossary_project: str = "",
     ) -> str:
         """Generate a note suggestion from the given inputs.
 
@@ -177,19 +192,29 @@ class LLMProviderBase:
             context: Version context (entity name, task, status, etc.).
             existing_notes: Any notes the user has already written.
             additional_instructions: Optional additional instructions to append.
+            model: Optional model override; falls back to self.model.
+            glossary_global: Global VFX glossary text injected as context.
+            glossary_project: Project-specific glossary text injected as context.
 
         Returns:
             The generated note suggestion.
         """
+        use_model = model or self.model
+
         user_message = self._substitute_template(
-            prompt, transcript, context, existing_notes
+            prompt,
+            transcript,
+            context,
+            existing_notes,
+            glossary_global,
+            glossary_project,
         )
 
         if additional_instructions:
             user_message += f"\n\nAdditional Instructions: {additional_instructions}"
 
         response = await self.client.chat.completions.create(
-            model=self.model,
+            model=use_model,
             messages=[
                 {"role": "system", "content": GENERATE_NOTE_PROMPT},
                 {"role": "user", "content": user_message},
@@ -336,6 +361,11 @@ def get_llm_provider() -> LLMProviderBase:
     """Factory function to get the configured LLM provider."""
     provider_type = os.getenv("LLM_PROVIDER", "openai").lower()
 
+    if provider_type == "anthropic":
+        from dna.llm_providers.anthropic_provider import AnthropicProvider
+
+        return AnthropicProvider()
+
     if provider_type == "gemini":
         from dna.llm_providers.gemini_provider import GeminiProvider
 
@@ -345,5 +375,10 @@ def get_llm_provider() -> LLMProviderBase:
         from dna.llm_providers.openai_provider import OpenAIProvider
 
         return OpenAIProvider()
+
+    if provider_type == "custom":
+        from dna.llm_providers.custom_provider import CustomProvider
+
+        return CustomProvider()
 
     raise ValueError(f"Unknown LLM provider: {provider_type}")

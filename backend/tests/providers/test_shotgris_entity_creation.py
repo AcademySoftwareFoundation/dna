@@ -162,3 +162,88 @@ class TestCreateNoteOnVersion:
             created_note.content
             == "This note was created by the DNA integration test suite."
         )
+
+
+class TestCreatePlaylistMocked:
+    """Mocked unit tests for create_playlist."""
+
+    def test_create_playlist_not_connected_raises(self):
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.create_playlist(85, "Dailies Monday")
+
+    def test_create_playlist_calls_sg_create(self, shotgrid_provider):
+        shotgrid_provider.sg.create.return_value = {
+            "type": "Playlist",
+            "id": 77,
+            "code": "Dailies Monday",
+            "project": {"type": "Project", "id": 85},
+        }
+
+        playlist = shotgrid_provider.create_playlist(85, "Dailies Monday")
+
+        shotgrid_provider.sg.create.assert_called_once_with(
+            "Playlist",
+            {
+                "code": "Dailies Monday",
+                "project": {"type": "Project", "id": 85},
+            },
+        )
+        assert playlist.id == 77
+        assert playlist.code == "Dailies Monday"
+
+
+class TestAddVersionToPlaylistMocked:
+    """Mocked unit tests for add_version_to_playlist."""
+
+    def test_appends_version_to_playlist(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = {
+            "type": "Playlist",
+            "id": 6,
+            "versions": [{"type": "Version", "id": 1}],
+        }
+
+        assert shotgrid_provider.add_version_to_playlist(6, 2) is True
+
+        shotgrid_provider.sg.update.assert_called_once_with(
+            "Playlist",
+            6,
+            {
+                "versions": [
+                    {"type": "Version", "id": 1},
+                    {"type": "Version", "id": 2},
+                ]
+            },
+        )
+
+    def test_skips_update_when_version_already_present(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = {
+            "type": "Playlist",
+            "id": 6,
+            "versions": [{"type": "Version", "id": 2}],
+        }
+
+        assert shotgrid_provider.add_version_to_playlist(6, 2) is True
+        shotgrid_provider.sg.update.assert_not_called()
+
+    def test_handles_playlist_with_no_versions(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = {
+            "type": "Playlist",
+            "id": 6,
+            "versions": None,
+        }
+
+        assert shotgrid_provider.add_version_to_playlist(6, 2) is True
+        updated = shotgrid_provider.sg.update.call_args[0][2]
+        assert updated == {"versions": [{"type": "Version", "id": 2}]}
+
+    def test_missing_playlist_raises(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = None
+
+        with pytest.raises(ValueError, match="Playlist 999 not found"):
+            shotgrid_provider.add_version_to_playlist(999, 2)

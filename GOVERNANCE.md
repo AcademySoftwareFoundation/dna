@@ -83,3 +83,14 @@ If you have concerns about communication challenges for this project, please con
 
 If a person holding an appointed role - suitable notice must be given when stepping down and a replacement (if required) will be proposed for inclusion by vote during the next TSC meeting. If an appointed role has not been active and remains out of contact for a period deemed appropriate by the TSC members and - then that role will be put up for nomination by the commitee.
 
+The current Voting Members of the DNA TSC are:
+
+- Tommy Burnette - Industrial Light & Magic **(Chair and TAC Representative)**
+- James Spadafora - Industrial Light & Magic
+- Cottalango Leon - Sony Pictures Imageworks
+- Olga Avramenko - Sony Pictures Imageworks
+- Dmtiry Grankin - Vexa
+- Tommy Snyder - Autodesk
+- Cameron Target
+- Sam Richards
+

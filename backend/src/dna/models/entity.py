@@ -178,6 +178,10 @@ class Version(EntityBase):
         default=None,
         description="Web UI URL for this version in the production tracking system",
     )
+    prodtrack_entity_detail_url: Optional[str] = Field(
+        default=None,
+        description="Web UI URL for the linked shot/asset in the production tracking system",
+    )
 
     @field_validator("notes", mode="before")
     @classmethod

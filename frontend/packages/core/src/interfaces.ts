@@ -84,6 +84,7 @@ export interface Version extends EntityBase {
   task?: Task;
   notes: Note[];
   prodtrack_detail_url?: string;
+  prodtrack_entity_detail_url?: string;
 }
 
 export interface Playlist extends EntityBase {
@@ -336,18 +337,40 @@ export interface UserSettings {
   note_prompt: string;
   /** Configured default prompt template (for display when note_prompt is empty). */
   default_note_prompt: string;
+  preferred_model: string;
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;
+  prodtrack_page_type: 'version' | 'entity';
   updated_at: string;
   created_at: string;
 }
 
 export interface UserSettingsUpdate {
   note_prompt?: string;
+  preferred_model?: string;
   regenerate_on_version_change?: boolean;
   regenerate_on_transcript_update?: boolean;
   sync_prodtrack_tab_on_version_change?: boolean;
+  prodtrack_page_type?: 'version' | 'entity';
+}
+
+/** Production-specific glossary, keyed by ShotGrid project id. */
+export interface ProjectGlossary {
+  _id: string;
+  project_id: number;
+  content: string;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface GetProjectGlossaryParams {
+  projectId: number;
+}
+
+export interface UpsertProjectGlossaryParams {
+  projectId: number;
+  content: string;
 }
 
 export interface GetUserSettingsParams {
@@ -368,6 +391,13 @@ export interface GenerateNoteParams {
   versionId: number;
   userEmail: string;
   additionalInstructions?: string;
+  model?: string;
+}
+
+export interface AvailableModelsResponse {
+  provider: string;
+  models: string[];
+  default: string;
 }
 
 export interface GenerateNoteResponse {
@@ -429,6 +459,17 @@ export interface SearchEntitiesParams {
   limit?: number;
 }
 
+export interface AddVersionToPlaylistParams {
+  playlistId: number;
+  /** ID of an existing version to add */
+  versionId: number;
+}
+
+export interface CreatePlaylistParams {
+  projectId: number;
+  name: string;
+}
+
 // Status types for version status dropdown
 export interface StatusOption {
   code: string;
@@ -447,6 +488,12 @@ export interface PublishNoteTarget {
 export interface PublishNotesRequest {
   user_email: string;
   targets: PublishNoteTarget[];
+  /**
+   * If provided, draft version_status changes are applied only for these
+   * version ids. Pass [] to suppress status side effects entirely (statuses
+   * are then published separately via updateVersionStatus).
+   */
+  status_version_ids?: number[];
 }
 
 export interface PublishNotesResponse {
@@ -460,6 +507,20 @@ export interface PublishNotesResponse {
 export interface PublishNotesParams {
   playlistId: number;
   request: PublishNotesRequest;
+}
+
+export interface UpdateVersionStatusParams {
+  versionId: number;
+  status: string;
+  /**
+   * When set, pending version_status values on this playlist's draft notes
+   * for the version are cleared server-side after the update.
+   */
+  playlistId?: number;
+}
+
+export interface UpdateVersionStatusResponse {
+  success: boolean;
 }
 
 export interface PublishTranscriptRequest {

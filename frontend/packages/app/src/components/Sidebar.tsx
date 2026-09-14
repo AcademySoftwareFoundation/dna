@@ -9,10 +9,12 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button, Tooltip } from '@radix-ui/themes';
-import type { Version, DraftNote } from '@dna/core';
+import type { Version, DraftNote, Playlist } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
+import { AddVersionInput } from './AddVersionInput';
+import { ChangePlaylistInput } from './ChangePlaylistInput';
 import { ExpandableSearch, type ExpandableSearchHandle } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
@@ -22,12 +24,14 @@ import { PublishDialog } from './PublishDialog';
 import { useGetVersionsForPlaylist, useGetUserByEmail } from '../api';
 import { usePlaylistMetadata, usePlaylistDraftNotes } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
+import { useFeatureFlags } from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  onReplacePlaylist?: () => void;
+  onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: number | null;
+  projectId: number | null;
   selectedVersionId?: number | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
@@ -236,14 +240,18 @@ const StateText = styled.span`
 export function Sidebar({
   collapsed,
   onCollapsedChange,
-  onReplacePlaylist,
+  onPlaylistChange,
   playlistId,
+  projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
   onLogout,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [toolbarInput, setToolbarInput] = useState<
+    'none' | 'add-version' | 'change-playlist'
+  >('none');
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -251,6 +259,7 @@ export function Sidebar({
   const searchRef = useRef<ExpandableSearchHandle>(null);
 
   const { getLabel } = useHotkeyConfig();
+  const { transcriptionEnabled, inReviewEnabled } = useFeatureFlags();
 
   const toggleSettings = useCallback(() => {
     setIsSettingsOpen((prev) => !prev);
@@ -287,9 +296,21 @@ export function Sidebar({
 
   const inReviewVersionId = playlistMetadata?.in_review;
 
+  // Each is non-null only while its toolbar input should be showing.
+  const addVersionPlaylistId =
+    toolbarInput === 'add-version' ? playlistId : null;
+  const changePlaylistProjectId =
+    toolbarInput === 'change-playlist' ? projectId : null;
+  // An open toolbar input owns the whole row, including the search slot.
+  const toolbarInputOpen =
+    addVersionPlaylistId !== null || changePlaylistProjectId !== null;
+
   const playlistMenuItems = [
-    { label: 'Change Playlist', onSelect: onReplacePlaylist },
-    { label: 'Add Version' },
+    {
+      label: 'Change Playlist',
+      onSelect: () => setToolbarInput('change-playlist'),
+    },
+    { label: 'Add Version', onSelect: () => setToolbarInput('add-version') },
   ];
 
   const handleSearchVersionSelect = (version: Version) => {
@@ -368,7 +389,7 @@ export function Sidebar({
                 department={version.task?.pipeline_step?.name}
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
-                inReview={inReviewVersionId === version.id}
+                inReview={inReviewEnabled && inReviewVersionId === version.id}
                 noteStatus={((): NoteStatus | null => {
                   const note = draftNotes?.find(
                     (n) => n.version_id === version.id
@@ -422,29 +443,49 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedToolbar>
-          <TranscriptionMenu playlistId={playlistId} collapsed />
+          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
         </CollapsedToolbar>
       ) : (
         <Toolbar>
-          {!isSearchExpanded && (
-            <ToolbarLeft>
-              <SplitButton
-                menuItems={playlistMenuItems}
-                onClick={() => refetch()}
-              >
-                Reload Playlist
-              </SplitButton>
-            </ToolbarLeft>
-          )}
+          {!isSearchExpanded &&
+            (addVersionPlaylistId ? (
+              <AddVersionInput
+                playlistId={addVersionPlaylistId}
+                projectId={projectId ?? undefined}
+                existingVersionIds={(versions ?? []).map((v) => v.id)}
+                onClose={() => setToolbarInput('none')}
+              />
+            ) : changePlaylistProjectId ? (
+              <ChangePlaylistInput
+                projectId={changePlaylistProjectId}
+                currentPlaylistId={playlistId ?? undefined}
+                onSelect={(playlist) => {
+                  setToolbarInput('none');
+                  onPlaylistChange?.(playlist);
+                }}
+                onClose={() => setToolbarInput('none')}
+              />
+            ) : (
+              <ToolbarLeft>
+                <SplitButton
+                  menuItems={playlistMenuItems}
+                  onClick={() => refetch()}
+                >
+                  Reload Playlist
+                </SplitButton>
+              </ToolbarLeft>
+            ))}
 
-          <ExpandableSearch
-            ref={searchRef}
-            placeholder="Search versions..."
-            versions={versions}
-            selectedVersionId={selectedVersionId}
-            onVersionSelect={handleSearchVersionSelect}
-            onExpandedChange={setIsSearchExpanded}
-          />
+          {!toolbarInputOpen && (
+            <ExpandableSearch
+              ref={searchRef}
+              placeholder="Search versions..."
+              versions={versions}
+              selectedVersionId={selectedVersionId}
+              onVersionSelect={handleSearchVersionSelect}
+              onExpandedChange={setIsSearchExpanded}
+            />
+          )}
         </Toolbar>
       )}
 
@@ -469,13 +510,14 @@ export function Sidebar({
           </Tooltip>
           <SettingsModal
             userEmail={userEmail}
+            projectId={projectId}
             open={isSettingsOpen}
             onOpenChange={setIsSettingsOpen}
           />
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
-          <TranscriptionMenu playlistId={playlistId} />
+          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />
@@ -484,6 +526,7 @@ export function Sidebar({
           </Tooltip>
           <SettingsModal
             userEmail={userEmail}
+            projectId={projectId}
             open={isSettingsOpen}
             onOpenChange={setIsSettingsOpen}
           />

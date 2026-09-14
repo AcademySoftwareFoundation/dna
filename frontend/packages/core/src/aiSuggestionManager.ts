@@ -101,7 +101,8 @@ export class AISuggestionManager {
     playlistId: number,
     versionId: number,
     userEmail: string,
-    additionalInstructions?: string
+    additionalInstructions?: string,
+    model?: string
   ): Promise<string> {
     const key = buildKey(playlistId, versionId);
 
@@ -122,6 +123,7 @@ export class AISuggestionManager {
         versionId,
         userEmail,
         additionalInstructions,
+        model,
       });
 
       this.setState(playlistId, versionId, {
@@ -147,7 +149,8 @@ export class AISuggestionManager {
     playlistId: number,
     versionId: number,
     userEmail: string,
-    additionalInstructions?: string
+    additionalInstructions?: string,
+    model?: string
   ): void {
     const key = buildKey(playlistId, versionId);
 
@@ -162,7 +165,8 @@ export class AISuggestionManager {
         playlistId,
         versionId,
         userEmail,
-        additionalInstructions
+        additionalInstructions,
+        model
       ).catch(() => {
         // Error is already captured in state
       });

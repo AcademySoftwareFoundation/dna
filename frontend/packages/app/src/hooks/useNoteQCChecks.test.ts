@@ -128,6 +128,63 @@ describe('useNoteQCChecks', () => {
     });
   });
 
+  it('updates results per draft as each request resolves', async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    let resolveFirst: (value: Awaited<ReturnType<typeof apiHandler.runQCChecks>>) => void;
+    const firstPromise = new Promise<Awaited<ReturnType<typeof apiHandler.runQCChecks>>>(
+      (resolve) => {
+        resolveFirst = resolve;
+      }
+    );
+    spy.mockImplementation(({ userEmail }) => {
+      if (userEmail === 'a@test.com') {
+        return firstPromise;
+      }
+      return Promise.resolve([
+        {
+          check_id: 'c2',
+          check_name: 'B check',
+          severity: 'warning',
+          passed: true,
+        },
+      ]);
+    });
+
+    const d1 = draft({ _id: 'a', user_email: 'a@test.com' });
+    const d2 = draft({ _id: 'b', user_email: 'b@test.com', version_id: 3 });
+    const { result } = renderHook(
+      () =>
+        useNoteQCChecks({
+          open: true,
+          playlistId: 10,
+          drafts: [d1, d2],
+        }),
+      { wrapper: wrapper(qc) }
+    );
+
+    await waitFor(() => expect(result.current.results.b?.length).toBe(1));
+    expect(result.current.results.a).toBeUndefined();
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolveFirst([
+        {
+          check_id: 'c1',
+          check_name: 'A check',
+          severity: 'warning',
+          passed: true,
+        },
+      ]);
+      await firstPromise;
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.results.a?.length).toBe(1);
+    expect(result.current.results.b?.length).toBe(1);
+  });
+
   it('refetches bulk QC when dialog closes and reopens', async () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: 0 } },

@@ -14,7 +14,7 @@ Communications
 --------------
 
 * [ASWF Slack](https://slack.aswf.io) -- join for the `#wg-ml` channel for the discussions about machine learning and the `#dna` and `##dailies-notes-assistant-tech` channels for the discussions about Dailies Notes Assistant.
-* Weekly Technical Steering Committee (TSC) Zoom meetings are currently Mondays at 12:00 PT (requests to change the day or time will be entertained if it's impeding participation of stakeholders).
+* Weekly Technical Steering Committee (TSC) Zoom meetings are currently every other Monday at 13:00 PT (requests to change the day or time will be entertained if it's impeding participation of stakeholders).
 
 
 Contributor License Agreement (CLA) and Intellectual Property
