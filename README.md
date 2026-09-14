@@ -111,7 +111,7 @@ DNA is built for:
   - **Ask a question:**
     - All can be done via [ASWF Slack](https://slack.aswf.io/) -- join for the #dna channel for the discussions about this project.
 - **Attend a meeting:**
-  - Technical Steering Committee meetings are open to the public, bi-weekley on Mondays 12:30pm PST
+  - Technical Steering Committee meetings are open to the public, bi-weekley on Mondays 13:00pm PST
   - Calendar: [Zoom Meeting](https://zoom-lfx.platform.linuxfoundation.org/meeting/96088138284?password=c9e528a8-3852-4b82-89c2-96d6f22526ad)
   - Meeting Notes: [HERE](https://docs.google.com/document/d/1RebKyycUsWSKpv09PjAcWCFfMmXFiS4d43udIWC30lY/edit?tab=t.0)
 - **Report a bug:**
@@ -137,7 +137,7 @@ For information on how to contribute to DNA please visit: [CONTRIBUTING.md](http
 The DNA project is part of the [Academy Software
 Foundation](https://www.aswf.io/), a part of the Linux Foundation formed in
 collaboration with the Academy of Motion Picture Arts and Sciences. The
-[Technical Charter](aswf/Technical-Charter.md) and [Project
+[Technical Charter](ASWF/Technical-Charter.md) and [Project
 Governance](GOVERNANCE.md) explain how the project is run, who makes
 decisions, etc. Please be aware of our [Code of Conduct](CODE_OF_CONDUCT.md).
 
