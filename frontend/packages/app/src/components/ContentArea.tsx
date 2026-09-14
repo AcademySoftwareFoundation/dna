@@ -1,11 +1,18 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import type { Version } from '@dna/core';
+import { useQuery } from '@tanstack/react-query';
+import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
-import { usePlaylistMetadata, useSetInReview } from '../hooks';
+import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
+import { apiHandler } from '../api';
+import { useFeatureFlags } from '../contexts';
+import {
+  openProdtrackVersionViaExtensionOrNewTab,
+  openProdtrackVersionInExtension,
+} from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -23,6 +30,7 @@ const ContentWrapper = styled.div`
   height: 100%;
   min-height: 0;
   overflow-y: auto;
+  padding-right: 32px;
 `;
 
 const EmptyState = styled.div`
@@ -57,17 +65,6 @@ function formatDate(dateString?: string): string {
   });
 }
 
-function getStatusLabel(status?: string): string {
-  const statusMap: Record<string, string> = {
-    rev: 'Pending Review',
-    apr: 'Approved',
-    rej: 'Rejected',
-    ip: 'In Progress',
-    hld: 'On Hold',
-  };
-  return status ? statusMap[status] || status : 'Unknown';
-}
-
 const IN_REVIEW_STATUS = 'rev';
 
 export function ContentArea({
@@ -79,6 +76,40 @@ export function ContentArea({
   onRefresh,
 }: ContentAreaProps) {
   const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
+  const assistantPanelVisible = transcriptionEnabled || aiEnabled;
+
+  const currentVersionAsSearchResult = useMemo((): SearchResult | undefined => {
+    if (!version) return undefined;
+    return { type: 'Version', id: version.id, name: version.name || `Version ${version.id}` };
+  }, [version]);
+
+  const versionSubmitter = useMemo((): SearchResult | undefined => {
+    if (!version?.user) return undefined;
+    return { type: 'User', id: version.user.id, name: version.user.name || '' };
+  }, [version?.user]);
+
+  const { draftNote, updateDraftNote, saveAttachmentIds } = useDraftNote({
+    playlistId,
+    versionId: version?.id,
+    userEmail,
+    currentVersion: currentVersionAsSearchResult,
+    submitter: versionSubmitter,
+  });
+
+  const selectedVersionStatus = draftNote?.versionStatus || (version?.status ?? '');
+
+  const handleVersionStatusChange = useCallback((code: string) => {
+    updateDraftNote({ versionStatus: code });
+  }, [updateDraftNote]);
+
+  const handleRefreshClick = useCallback(() => {
+    // Clear the draft's status override so the display falls back to the
+    // version's actual status once fresh playlist data arrives.
+    updateDraftNote({ versionStatus: '' });
+    onRefresh?.();
+  }, [onRefresh, updateDraftNote]);
+
   const currentIndex = version
     ? versions.findIndex((v) => v.id === version.id)
     : -1;
@@ -126,11 +157,99 @@ export function ContentArea({
     noteEditorRef.current?.appendContent(content);
   }, []);
 
-  useHotkeyAction('nextVersion', handleNext, { enabled: canGoNext });
-  useHotkeyAction('previousVersion', handleBack, { enabled: canGoBack });
+  useHotkeyAction('nextVersion', handleNext);
+  useHotkeyAction('previousVersion', handleBack);
   useHotkeyAction('setInReview', handleSetInReview, {
     enabled: !!version && !!playlistId,
   });
+
+  const extensionId =
+    import.meta.env.VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?.trim() ?? '';
+
+  const [prodtrackControlledTabId, setProdtrackControlledTabId] = useState<
+    number | null
+  >(null);
+  const prodtrackTabIdRef = useRef<number | null>(null);
+  prodtrackTabIdRef.current = prodtrackControlledTabId;
+
+  const { data: userSettings, isSuccess: userSettingsQuerySuccess } =
+    useQuery<UserSettings | null>({
+      queryKey: ['userSettings', userEmail],
+      queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
+      enabled: !!userEmail,
+    });
+
+
+  const shouldAutoSyncProdtrackTab =
+    userSettingsQuerySuccess &&
+    (userSettings === null ||
+      (userSettings.sync_prodtrack_tab_on_version_change ?? true) === true);
+
+  const prodtrackPageType = userSettings?.prodtrack_page_type ?? 'version';
+  const activeProdtrackUrl =
+    prodtrackPageType === 'entity'
+      ? (version?.prodtrack_entity_detail_url ?? version?.prodtrack_detail_url)
+      : version?.prodtrack_detail_url;
+
+  const handleSyncProdtrackTab = useCallback(() => {
+    const url = activeProdtrackUrl;
+    if (!url || !extensionId) return;
+    void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
+      tabId: prodtrackControlledTabId ?? undefined,
+    }).then((result) => {
+      if (result.ok && typeof result.tabId === 'number') {
+        setProdtrackControlledTabId(result.tabId);
+      }
+    });
+  }, [activeProdtrackUrl, extensionId, prodtrackControlledTabId]);
+
+  // Tracks the version id we last reacted to, so we only sync on an actual
+  // version change (not on settings/url/mount re-renders for the same version).
+  const lastProdtrackVersionIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const currentVersionId = version?.id ?? null;
+    if (currentVersionId == null) return;
+
+    const previousVersionId = lastProdtrackVersionIdRef.current;
+    lastProdtrackVersionIdRef.current = currentVersionId;
+    if (currentVersionId === previousVersionId) return;
+
+    // Only sync into a PT tab the user already opened with the "PT tab" button.
+    // We never open the tab automatically — not on launch, not on version change.
+    const controlledTabId = prodtrackTabIdRef.current;
+    if (controlledTabId == null) return;
+
+    if (!activeProdtrackUrl) return;
+    if (!shouldAutoSyncProdtrackTab) return;
+    if (!extensionId) return;
+    const url = activeProdtrackUrl;
+    const timer = window.setTimeout(() => {
+      // Extension-only (no new-tab fallback): if the controlled tab was closed,
+      // a failed sync must not spawn a window on its own.
+      void openProdtrackVersionInExtension(extensionId, url, {
+        tabId: controlledTabId,
+      }).then((result) => {
+        if (result.ok && typeof result.tabId === 'number') {
+          setProdtrackControlledTabId(result.tabId);
+        }
+      });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [
+    version?.id,
+    activeProdtrackUrl,
+    shouldAutoSyncProdtrackTab,
+    extensionId,
+  ]);
+
+  const syncProdtrackTitle = !activeProdtrackUrl
+    ? 'Production tracking URL is not available for this version.'
+    : extensionId
+      ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
+      : 'Open production tracking in a new browser tab.';
+
+  const syncProdtrackDisabled = !activeProdtrackUrl;
 
   if (!version) {
     return (
@@ -159,31 +278,42 @@ export function ContentArea({
   }
 
   return (
-    <ContentWrapper>
+    <>
+      <ContentWrapper>
       <VersionHeader
         shotCode={entityName}
         versionNumber={versionNumber}
         submittedBy={version.user?.name}
         dateSubmitted={formatDate(version.created_at as string)}
-        versionStatus={getStatusLabel(version.status)}
+        versionStatus={selectedVersionStatus}
+        projectId={version.project?.id}
         thumbnailUrl={version.thumbnail}
         links={links}
         onBack={handleBack}
         onNext={handleNext}
         onInReview={handleInReview}
         onSetInReview={handleSetInReview}
+        onVersionStatusChange={handleVersionStatusChange}
+        prodtrackDetailUrl={activeProdtrackUrl}
+        prodtrackTabUsesExtension={!!extensionId}
+        onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
+        syncProdtrackDisabled={syncProdtrackDisabled}
+        syncProdtrackTitle={syncProdtrackTitle}
         canGoBack={canGoBack}
         canGoNext={canGoNext}
         hasInReview={hasInReview}
         isCurrentVersionInReview={isCurrentVersionInReview}
         isSettingInReview={isSettingInReview}
-        onRefresh={onRefresh}
+        onRefresh={handleRefreshClick}
       />
       <NoteEditor
         ref={noteEditorRef}
-        playlistId={playlistId}
-        versionId={version.id}
-        userEmail={userEmail}
+        projectId={version.project?.id}
+        currentVersion={version}
+        draftNote={draftNote}
+        updateDraftNote={updateDraftNote}
+        saveAttachmentIds={saveAttachmentIds}
+        defaultHeight={assistantPanelVisible ? undefined : 300}
       />
       <AssistantPanel
         playlistId={playlistId}
@@ -191,6 +321,7 @@ export function ContentArea({
         userEmail={userEmail}
         onInsertNote={handleInsertNote}
       />
-    </ContentWrapper>
+      </ContentWrapper>
+    </>
   );
 }

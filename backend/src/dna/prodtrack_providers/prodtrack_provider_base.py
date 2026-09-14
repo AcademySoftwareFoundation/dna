@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import os
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -14,6 +17,26 @@ class UserNotFoundError(Exception):
 class ProdtrackProviderBase:
     def __init__(self):
         pass
+
+    @staticmethod
+    def build_version_context(version: Version) -> str:
+        """Format a Version entity as plain text for LLM prompts."""
+        parts: list[str] = []
+        if version.name:
+            parts.append(f"Version: {version.name}")
+        if version.entity:
+            entity_type = version.entity.__class__.__name__
+            parts.append(f"{entity_type}: {version.entity.name}")
+        if version.task:
+            if version.task.name:
+                parts.append(f"Task: {version.task.name}")
+            if version.task.pipeline_step and version.task.pipeline_step.get("name"):
+                parts.append(f"Department: {version.task.pipeline_step['name']}")
+        if version.status:
+            parts.append(f"Status: {version.status}")
+        if version.description:
+            parts.append(f"Description: {version.description}")
+        return "\n".join(parts) if parts else "No version context available."
 
     def _get_object_type(self, object_type: str) -> type["EntityBase"]:
         """Get the model class from the entity type string."""
@@ -110,6 +133,18 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def create_playlist(self, project_id: int, name: str) -> "Playlist":
+        """Create a new playlist in the production tracking system.
+
+        Args:
+            project_id: The ID of the project the playlist belongs to
+            name: The playlist name/code
+
+        Returns:
+            The created Playlist entity
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_versions_for_playlist(self, playlist_id: int) -> list["Version"]:
         """Get versions for a playlist.
 
@@ -118,6 +153,31 @@ class ProdtrackProviderBase:
 
         Returns:
             List of Version entities in the playlist
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+        """Add an existing version to a playlist.
+
+        Args:
+            playlist_id: The ID of the playlist
+            version_id: The ID of the version to add
+
+        Returns:
+            True on success (including when the version was already present)
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def get_version_statuses(
+        self, project_id: int | None = None
+    ) -> list[dict[str, str]]:
+        """Get valid status values for Versions.
+
+        Args:
+            project_id: Optional project ID to scope status values
+
+        Returns:
+            List of status dicts with 'code' and 'name' keys
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -130,6 +190,7 @@ class ProdtrackProviderBase:
         cc_users: list[int],
         links: list["EntityBase"],
         author_email: str | None = None,
+        version_status: str | None = None,
     ) -> int:
         """Publish a note to the production tracking system.
 
@@ -142,18 +203,99 @@ class ProdtrackProviderBase:
             links: List of additional entities to link
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
+            version_status: Optional status code to set on the version.
 
         Returns:
             The ID of the created note
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def update_version_status(self, version_id: int, status: str) -> bool:
+        """Update the status of a version without publishing a note.
+
+        Args:
+            version_id: The ID of the version to update
+            status: The status code to set
+
+        Returns:
+            True if the update succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def attach_file_to_note(
+        self, note_id: int, file_path: str, display_name: str
+    ) -> bool:
+        """Upload a local file as an attachment on an existing note.
+
+        Args:
+            note_id: The ID of the note to attach the file to
+            file_path: Absolute path to the local file
+            display_name: Filename to display in the tracking system
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def publish_transcript(
+        self,
+        *,
+        project_id: int,
+        playlist_id: int,
+        version_id: int,
+        meeting_id: str,
+        meeting_date: date,
+        platform: str,
+        body: str,
+    ) -> int:
+        """Create a transcript row in the production tracking system.
+
+        Returns the entity ID of the newly-created row.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def update_transcript(
+        self,
+        *,
+        entity_type: str,
+        entity_id: int,
+        body: str,
+        meeting_date: date,
+    ) -> bool:
+        """Update body + meeting_date on an existing transcript entity.
+
+        `entity_type` must come from the caller's bookkeeping (whichever
+        custom-entity slot the row was originally created in). Reading the
+        current env var here would misfire if studios migrate between slots.
+
+        Only body and meeting_date are touched on purpose; summary and other
+        fields are left alone so manual edits on the tracking-system side
+        survive a re-publish.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
 
 def get_prodtrack_provider() -> ProdtrackProviderBase:
     """Get the production tracking provider."""
-    from dna.prodtrack_providers.shotgrid import ShotgridProvider
-
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
+
+    if provider_type == "mock":
+        from dna.prodtrack_providers.mock_provider import MockProdtrackProvider
+
+        return MockProdtrackProvider()
+
     if provider_type == "shotgrid":
+        sg_url = os.getenv("SHOTGRID_URL")
+        sg_script = os.getenv("SHOTGRID_SCRIPT_NAME")
+        sg_key = os.getenv("SHOTGRID_API_KEY")
+        if not all([sg_url, sg_script, sg_key]):
+            raise ValueError(
+                "ShotGrid credentials not provided. Set SHOTGRID_URL, "
+                "SHOTGRID_SCRIPT_NAME, and SHOTGRID_API_KEY, or use "
+                "PRODTRACK_PROVIDER=mock for the mock provider."
+            )
+        from dna.prodtrack_providers.shotgrid import ShotgridProvider
+
         return ShotgridProvider()
+
     raise ValueError(f"Unknown production tracking provider: {provider_type}")

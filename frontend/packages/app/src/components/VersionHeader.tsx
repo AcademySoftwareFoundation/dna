@@ -1,8 +1,18 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
-import { ChevronLeft, Eye, ChevronRight, RotateCw, Target } from 'lucide-react';
+import {
+  ChevronLeft,
+  Eye,
+  ChevronRight,
+  RotateCw,
+  Target,
+  ChevronDown,
+  ExternalLink,
+} from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 import { useHotkeyConfig } from '../hotkeys';
+import { useVersionStatuses } from '../hooks';
+import { useFeatureFlags } from '../contexts';
 
 interface VersionHeaderProps {
   shotCode?: string;
@@ -11,6 +21,7 @@ interface VersionHeaderProps {
   submittedByImageUrl?: string;
   dateSubmitted?: string;
   versionStatus?: string;
+  projectId?: number;
   thumbnailUrl?: string;
   links?: string[];
   onBack?: () => void;
@@ -18,6 +29,12 @@ interface VersionHeaderProps {
   onInReview?: () => void;
   onRefresh?: () => void;
   onSetInReview?: () => void;
+  onVersionStatusChange?: (code: string) => void;
+  prodtrackDetailUrl?: string | null;
+  prodtrackTabUsesExtension?: boolean;
+  onSyncProdtrackTab?: () => void | Promise<void>;
+  syncProdtrackDisabled?: boolean;
+  syncProdtrackTitle?: string;
   canGoBack?: boolean;
   canGoNext?: boolean;
   hasInReview?: boolean;
@@ -97,6 +114,49 @@ const InReviewButton = styled.button`
   }
 `;
 
+const syncProdtrackSurface = css`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.secondary};
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  box-sizing: border-box;
+`;
+
+const SyncProdtrackButton = styled.button`
+  ${syncProdtrackSurface}
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+`;
+
+const SyncProdtrackLink = styled.a`
+  ${syncProdtrackSurface}
+  text-decoration: none;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bg.surfaceHover};
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-color: ${({ theme }) => theme.colors.border.strong};
+  }
+`;
+
 const NextVersionButton = styled.button`
   display: flex;
   align-items: center;
@@ -150,8 +210,11 @@ const MainContent = styled.div`
 const ThumbnailWrapper = styled.div`
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   gap: 8px;
   flex-shrink: 0;
+  height: 224px;
 `;
 
 const Thumbnail = styled.div`
@@ -246,28 +309,62 @@ const MetadataValue = styled.span`
   gap: 8px;
 `;
 
-const StatusBadge = styled.span`
+const LinkBadge = styled.span`
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
+  height: 26px;
+  box-sizing: border-box;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1;
   color: ${({ theme }) => theme.colors.text.primary};
   background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.default};
   border-radius: ${({ theme }) => theme.radii.sm};
 `;
 
-const LinkBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
+const StatusSelectWrapper = styled.div`
+  position: relative;
+`;
+
+const StatusSelect = styled.select`
+  appearance: none;
+  padding: 4px 28px 4px 10px;
+  height: 26px;
+  box-sizing: border-box;
   font-size: 12px;
   font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
   color: ${({ theme }) => theme.colors.text.primary};
   background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.default};
   border-radius: ${({ theme }) => theme.radii.sm};
+  outline: none;
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.accent.main};
+    box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.accent.subtle};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const StatusSelectIcon = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: ${({ theme }) => theme.colors.text.muted};
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const LinksContainer = styled.div`
@@ -283,6 +380,7 @@ export function VersionHeader({
   submittedByImageUrl,
   dateSubmitted,
   versionStatus,
+  projectId,
   thumbnailUrl,
   links = [],
   onBack,
@@ -290,6 +388,12 @@ export function VersionHeader({
   onInReview,
   onRefresh,
   onSetInReview,
+  onVersionStatusChange,
+  prodtrackDetailUrl,
+  prodtrackTabUsesExtension = false,
+  onSyncProdtrackTab,
+  syncProdtrackDisabled = false,
+  syncProdtrackTitle = 'Open current version in production tracking (browser tab)',
   canGoBack = true,
   canGoNext = true,
   hasInReview = true,
@@ -297,6 +401,8 @@ export function VersionHeader({
   isSettingInReview = false,
 }: VersionHeaderProps) {
   const { getLabel } = useHotkeyConfig();
+  const { inReviewEnabled } = useFeatureFlags();
+  const { statuses, isLoading: isLoadingStatuses } = useVersionStatuses({ projectId });
   const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
   const displayCode = versionNumber || shotCode || 'Untitled Version';
 
@@ -310,10 +416,36 @@ export function VersionHeader({
           </BackButton>
         </Tooltip>
         <TopBarActions>
-          <InReviewButton onClick={onInReview} disabled={!hasInReview}>
-            <Eye size={14} />
-            In Review
-          </InReviewButton>
+          {inReviewEnabled && (
+            <InReviewButton onClick={onInReview} disabled={!hasInReview}>
+              <Eye size={14} />
+              In Review
+            </InReviewButton>
+          )}
+          {prodtrackDetailUrl && prodtrackTabUsesExtension && onSyncProdtrackTab && (
+            <Tooltip content={syncProdtrackTitle}>
+              <SyncProdtrackButton
+                type="button"
+                onClick={() => void onSyncProdtrackTab()}
+                disabled={syncProdtrackDisabled}
+              >
+                <ExternalLink size={14} />
+                PT tab
+              </SyncProdtrackButton>
+            </Tooltip>
+          )}
+          {prodtrackDetailUrl && !prodtrackTabUsesExtension && (
+            <Tooltip content={syncProdtrackTitle}>
+              <SyncProdtrackLink
+                href={prodtrackDetailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink size={14} />
+                PT tab
+              </SyncProdtrackLink>
+            </Tooltip>
+          )}
           <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>
             <NextVersionButton onClick={onNext} disabled={!canGoNext}>
               Next Version
@@ -330,27 +462,29 @@ export function VersionHeader({
           <Thumbnail>
             {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
           </Thumbnail>
-          <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
-            <SetInReviewButton
-              $isInReview={isCurrentVersionInReview}
-              onClick={onSetInReview}
-              disabled={isCurrentVersionInReview || isSettingInReview}
-            >
-              {isSettingInReview ? (
-                <>Setting...</>
-              ) : isCurrentVersionInReview ? (
-                <>
-                  <Eye size={14} />
-                  In Review
-                </>
-              ) : (
-                <>
-                  <Target size={14} />
-                  Set In Review
-                </>
-              )}
-            </SetInReviewButton>
-          </Tooltip>
+          {inReviewEnabled && (
+            <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
+              <SetInReviewButton
+                $isInReview={isCurrentVersionInReview}
+                onClick={onSetInReview}
+                disabled={isCurrentVersionInReview || isSettingInReview}
+              >
+                {isSettingInReview ? (
+                  <>Setting...</>
+                ) : isCurrentVersionInReview ? (
+                  <>
+                    <Eye size={14} />
+                    In Review
+                  </>
+                ) : (
+                  <>
+                    <Target size={14} />
+                    Set In Review
+                  </>
+                )}
+              </SetInReviewButton>
+            </Tooltip>
+          )}
         </ThumbnailWrapper>
         <MetadataSection>
           <VersionTitle>
@@ -375,7 +509,23 @@ export function VersionHeader({
           <MetadataRow>
             <MetadataLabel>Version Status:</MetadataLabel>
             <MetadataValue>
-              <StatusBadge>{versionStatus}</StatusBadge>
+              <StatusSelectWrapper>
+                <StatusSelect
+                  value={versionStatus ?? ''}
+                  onChange={(e) => onVersionStatusChange?.(e.target.value)}
+                  disabled={isLoadingStatuses}
+                >
+                  {isLoadingStatuses && <option value="">Loading...</option>}
+                  {statuses.map((status) => (
+                    <option key={status.code} value={status.code}>
+                      {status.name}
+                    </option>
+                  ))}
+                </StatusSelect>
+                <StatusSelectIcon>
+                  <ChevronDown size={12} />
+                </StatusSelectIcon>
+              </StatusSelectWrapper>
             </MetadataValue>
           </MetadataRow>
           <MetadataRow>

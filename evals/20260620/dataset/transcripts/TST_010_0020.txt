@@ -1,0 +1,10 @@
+Ken: This guy's still a bit of a WIP.
+Phil: Yeah, Dennis, John's done a great job here, but we wanted to get this over so you could take a look before we went any further with it.
+John: It's a bit more than a first pass, but we wanted to gauge feelings about the visibility of the surroundings.
+Dennis: Yeah, reading the submission notes here, I think we're looking good. We want there to be visibility, so we know there's stuff around there, but want to hold onto that infinity feeling. Don't want to see the edges of the room at all.
+Ken: Right right.
+Dennis: I think you're on the right track, I had some other things I wanted to address though. The two digi's are looking a little static. If we can get just a little bit of movement. Let's have them walk into their current position.
+Phil: Ah, okay, that's going to involve some more animation.
+Ken: Not a problem, Dennis, makes sense.
+Dennis: Also, I think we can lose the highlights on the top of the throne. Should look almost like an alien material, where all light gets lost.
+Ken: You got it, thanks we're on it.

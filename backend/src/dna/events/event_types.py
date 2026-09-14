@@ -1,17 +1,16 @@
-"""Event type definitions."""
+"""Event type definitions.
+
+Only events that are actually emitted AND consumed live here. The flat
+`transcript` frame doesn't go through this enum — it's broadcast directly
+via `EventPublisher.ws_manager.broadcast(...)` because its envelope is
+shaped by the Vexa contract, not by the `{type, payload}` wrapper this
+enum drives.
+"""
 
 from enum import Enum
 
 
 class EventType(str, Enum):
-    TRANSCRIPTION_SUBSCRIBE = "transcription.subscribe"
-    TRANSCRIPTION_STARTED = "transcription.started"
-    TRANSCRIPTION_UPDATED = "transcription.updated"
     TRANSCRIPTION_COMPLETED = "transcription.completed"
     TRANSCRIPTION_ERROR = "transcription.error"
-    SEGMENT_CREATED = "segment.created"
-    SEGMENT_UPDATED = "segment.updated"
     BOT_STATUS_CHANGED = "bot.status_changed"
-    PLAYLIST_UPDATED = "playlist.updated"
-    VERSION_UPDATED = "version.updated"
-    DRAFT_NOTE_UPDATED = "draft_note.updated"

@@ -19,10 +19,19 @@ import {
   GetUserSettingsParams,
   UpsertUserSettingsParams,
   DeleteUserSettingsParams,
+  GetProjectGlossaryParams,
+  UpsertProjectGlossaryParams,
+  ProjectGlossary,
   GenerateNoteParams,
   GenerateNoteResponse,
+  AvailableModelsResponse,
+  GetVersionStatusesParams,
   PublishNotesParams,
   PublishNotesResponse,
+  PublishTranscriptParams,
+  PublishTranscriptResponse,
+  UpdateVersionStatusParams,
+  UpdateVersionStatusResponse,
   DraftNote,
   Playlist,
   PlaylistMetadata,
@@ -34,6 +43,22 @@ import {
   Transcript,
   StoredSegment,
   UserSettings,
+  SearchEntitiesParams,
+  SearchResponse,
+  SearchResult,
+  StatusOption,
+  AddVersionToPlaylistParams,
+  CreatePlaylistParams,
+  NoteQCCheck,
+  NoteQCCheckCreate,
+  NoteQCCheckUpdate,
+  NoteQCResult,
+  RunQCChecksResponseBody,
+  GetQCChecksParams,
+  CreateQCCheckParams,
+  UpdateQCCheckParams,
+  DeleteQCCheckParams,
+  RunQCChecksParams,
 } from './interfaces';
 
 export interface User {
@@ -46,6 +71,13 @@ export interface User {
 export interface ApiHandlerConfig {
   baseURL: string;
   timeout?: number;
+}
+
+function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
+  return {
+    ...raw,
+    _id: raw._id || raw.id || '',
+  };
 }
 
 class ApiHandler {
@@ -114,6 +146,19 @@ class ApiHandler {
     return response.data;
   }
 
+  async patch<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
+    const response: AxiosResponse<T> = await this.axiosInstance.patch(
+      url,
+      data,
+      config
+    );
+    return response.data;
+  }
+
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.axiosInstance.delete(
       url,
@@ -136,10 +181,24 @@ class ApiHandler {
     return this.get<Playlist[]>(`/projects/${params.projectId}/playlists`);
   }
 
+  async createPlaylist(params: CreatePlaylistParams): Promise<Playlist> {
+    return this.post<Playlist>(`/projects/${params.projectId}/playlists`, {
+      name: params.name,
+    });
+  }
+
   async getVersionsForPlaylist(
     params: GetVersionsForPlaylistParams
   ): Promise<Version[]> {
     return this.get<Version[]>(`/playlists/${params.playlistId}/versions`);
+  }
+
+  async addVersionToPlaylist(
+    params: AddVersionToPlaylistParams
+  ): Promise<Version> {
+    return this.post<Version>(`/playlists/${params.playlistId}/versions`, {
+      version_id: params.versionId,
+    });
   }
 
   async getUserByEmail(params: GetUserByEmailParams): Promise<DNAUser> {
@@ -224,10 +283,8 @@ class ApiHandler {
     );
   }
 
-  async getUserSettings(
-    params: GetUserSettingsParams
-  ): Promise<UserSettings | null> {
-    return this.get<UserSettings | null>(
+  async getUserSettings(params: GetUserSettingsParams): Promise<UserSettings> {
+    return this.get<UserSettings>(
       `/users/${encodeURIComponent(params.userEmail)}/settings`
     );
   }
@@ -247,6 +304,22 @@ class ApiHandler {
     );
   }
 
+  async getProjectGlossary(
+    params: GetProjectGlossaryParams
+  ): Promise<ProjectGlossary> {
+    return this.get<ProjectGlossary>(
+      `/projects/${params.projectId}/glossary`
+    );
+  }
+
+  async upsertProjectGlossary(
+    params: UpsertProjectGlossaryParams
+  ): Promise<ProjectGlossary> {
+    return this.put<ProjectGlossary>(`/projects/${params.projectId}/glossary`, {
+      content: params.content,
+    });
+  }
+
   async generateNote(
     params: GenerateNoteParams
   ): Promise<GenerateNoteResponse> {
@@ -255,18 +328,122 @@ class ApiHandler {
       version_id: params.versionId,
       user_email: params.userEmail,
       additional_instructions: params.additionalInstructions,
+      model: params.model,
     });
+  }
+
+  async getAvailableModels(): Promise<AvailableModelsResponse> {
+    return this.get<AvailableModelsResponse>('/models');
+  }
+
+  async searchEntities(params: SearchEntitiesParams): Promise<SearchResult[]> {
+    const response = await this.post<SearchResponse>('/search', {
+      query: params.query,
+      entity_types: params.entityTypes,
+      project_id: params.projectId,
+      limit: params.limit ?? 10,
+    });
+    return response.results;
+  }
+
+  async getVersionStatuses(
+    params: GetVersionStatusesParams
+  ): Promise<StatusOption[]> {
+    const queryParams = params.projectId
+      ? `?project_id=${params.projectId}`
+      : '';
+    return this.get<StatusOption[]>(`/version-statuses${queryParams}`);
   }
 
   async getPlaylistDraftNotes(playlistId: number): Promise<DraftNote[]> {
     return this.get<DraftNote[]>(`/playlists/${playlistId}/draft-notes`);
   }
 
-  async publishNotes(params: PublishNotesParams): Promise<PublishNotesResponse> {
+  async publishNotes(
+    params: PublishNotesParams
+  ): Promise<PublishNotesResponse> {
     return this.post<PublishNotesResponse>(
       `/playlists/${params.playlistId}/publish-notes`,
       params.request
     );
+  }
+
+  async updateVersionStatus(
+    params: UpdateVersionStatusParams
+  ): Promise<UpdateVersionStatusResponse> {
+    return this.patch<UpdateVersionStatusResponse>(
+      `/versions/${params.versionId}/status`,
+      { status: params.status, playlist_id: params.playlistId ?? null }
+    );
+  }
+
+  async publishTranscript(
+    params: PublishTranscriptParams
+  ): Promise<PublishTranscriptResponse> {
+    return this.post<PublishTranscriptResponse>(
+      `/playlists/${params.playlistId}/publish-transcript`,
+      params.request
+    );
+  }
+
+  async getQCChecks(params: GetQCChecksParams): Promise<NoteQCCheck[]> {
+    const rows = await this.get<(NoteQCCheck & { id?: string })[]>(
+      `/users/${encodeURIComponent(params.userEmail)}/qc-checks`
+    );
+    return rows.map((r) => normalizeNoteQCCheck(r));
+  }
+
+  async createQCCheck(params: CreateQCCheckParams): Promise<NoteQCCheck> {
+    const row = await this.post<NoteQCCheck & { id?: string }>(
+      `/users/${encodeURIComponent(params.userEmail)}/qc-checks`,
+      params.data
+    );
+    return normalizeNoteQCCheck(row);
+  }
+
+  async updateQCCheck(params: UpdateQCCheckParams): Promise<NoteQCCheck> {
+    const row = await this.put<NoteQCCheck & { id?: string }>(
+      `/users/${encodeURIComponent(params.userEmail)}/qc-checks/${encodeURIComponent(params.checkId)}`,
+      params.data
+    );
+    return normalizeNoteQCCheck(row);
+  }
+
+  async deleteQCCheck(params: DeleteQCCheckParams): Promise<void> {
+    await this.axiosInstance.delete(
+      `/users/${encodeURIComponent(params.userEmail)}/qc-checks/${encodeURIComponent(params.checkId)}`
+    );
+  }
+
+  async runQCChecks(params: RunQCChecksParams): Promise<NoteQCResult[]> {
+    const body = await this.post<RunQCChecksResponseBody>(
+      `/playlists/${params.playlistId}/versions/${params.versionId}/run-qc-checks`,
+      { user_email: params.userEmail },
+      { timeout: 180_000 }
+    );
+    return body.results;
+  }
+
+  async uploadAttachment(file: File): Promise<{ id: string; filename: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.axiosInstance.postForm<{
+      id: string;
+      filename: string;
+    }>('/api/attachments', formData);
+    return response.data;
+  }
+
+  async deleteAttachment(attachmentId: string): Promise<void> {
+    await this.delete(`/api/attachments/${attachmentId}`);
+  }
+
+  async getAttachmentBlobUrl(attachmentId: string): Promise<string> {
+    const response = await this.axiosInstance.get<Blob>(
+      `/api/attachments/${attachmentId}`,
+      { responseType: 'blob' }
+    );
+    return URL.createObjectURL(response.data);
   }
 }
 

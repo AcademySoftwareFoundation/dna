@@ -1,0 +1,3 @@
+- Fix the spaceship reflection.
+- Figure out correct scale and add animation.
+- Currently static, which reads as janky.

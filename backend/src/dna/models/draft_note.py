@@ -14,6 +14,7 @@ class DraftNoteLink(BaseModel):
 
     entity_type: str
     entity_id: int
+    entity_name: str = ""
 
 
 class DraftNoteBase(BaseModel):
@@ -29,6 +30,7 @@ class DraftNoteBase(BaseModel):
     edited: bool = False
     published_at: Optional[datetime] = None
     published_note_id: Optional[int] = None
+    attachment_ids: list[str] = Field(default_factory=list)
 
 
 class DraftNoteCreate(DraftNoteBase):
@@ -65,3 +67,4 @@ class DraftNoteUpdate(BaseModel):
     edited: Optional[bool] = None
     published_at: Optional[datetime] = None
     published_note_id: Optional[int] = None
+    attachment_ids: Optional[list[str]] = None

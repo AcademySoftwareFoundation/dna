@@ -1,9 +1,11 @@
 """Tests for the Transcription Provider Base."""
 
+from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
 
+from dna.models.stored_segment import StoredSegment
 from dna.models.transcription import Platform
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
@@ -18,6 +20,42 @@ class TestTranscriptionProviderBase:
         """Test that TranscriptionProviderBase can be instantiated."""
         provider = TranscriptionProviderBase()
         assert provider is not None
+
+    def test_build_transcript_text_empty(self):
+        assert TranscriptionProviderBase.build_transcript_text([]) == (
+            "No transcript available."
+        )
+
+    def test_build_transcript_text_from_segments(self):
+        now = datetime.now(timezone.utc)
+        segments = [
+            StoredSegment(
+                id="seg1",
+                segment_id="seg1",
+                playlist_id=1,
+                version_id=1,
+                text="Hello",
+                speaker="Alice",
+                absolute_start_time="2024-01-01T00:00:00Z",
+                absolute_end_time="2024-01-01T00:00:01Z",
+                created_at=now,
+                updated_at=now,
+            ),
+            StoredSegment(
+                id="seg2",
+                segment_id="seg2",
+                playlist_id=1,
+                version_id=1,
+                text="Hi there",
+                speaker=None,
+                absolute_start_time="2024-01-01T00:00:01Z",
+                absolute_end_time="2024-01-01T00:00:02Z",
+                created_at=now,
+                updated_at=now,
+            ),
+        ]
+        out = TranscriptionProviderBase.build_transcript_text(segments)
+        assert out == "Alice: Hello\nUnknown: Hi there"
 
     @pytest.mark.asyncio
     async def test_dispatch_bot_raises_not_implemented(self):

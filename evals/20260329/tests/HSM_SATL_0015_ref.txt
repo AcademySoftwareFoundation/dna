@@ -1,0 +1,2 @@
+- Grade down or matte out the visor reflection, currently too distracting.
+- Increase local contrast on the astronaut's eye whites, which are getting lost against the background.

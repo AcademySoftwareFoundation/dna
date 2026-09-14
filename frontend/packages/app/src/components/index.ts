@@ -11,7 +11,7 @@ export { NoteOptionsInline } from './NoteOptionsInline';
 export { MarkdownEditor } from './MarkdownEditor';
 export { VersionCard } from './VersionCard';
 export { VersionHeader } from './VersionHeader';
-export { NoteEditor } from './NoteEditor';
+export { NoteEditor, NoteDraftStatusBadges } from './NoteEditor';
 export { AssistantNote } from './AssistantNote';
 export { AssistantPanel } from './AssistantPanel';
 export { OtherNotesPanel } from './OtherNotesPanel';
@@ -24,3 +24,7 @@ export {
 export { TranscriptionMenu } from './TranscriptionMenu';
 export { TranscriptPanel } from './TranscriptPanel';
 export { SettingsModal } from './SettingsModal';
+export { EntityPill } from './EntityPill/EntityPill';
+export { EntitySearchInput } from './EntitySearchInput';
+export { AddVersionInput } from './AddVersionInput';
+export { ChangePlaylistInput } from './ChangePlaylistInput';

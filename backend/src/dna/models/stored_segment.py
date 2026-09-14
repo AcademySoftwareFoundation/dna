@@ -1,37 +1,37 @@
 """Stored Segment Models.
 
 Pydantic models for transcription segments stored in MongoDB.
+
+Backend operates as a passthrough for Vexa's transcript stream:
+- `segment_id` is Vexa's stable id (e.g. "9b914779:speaker-1:72"), not a hash.
+- Upsert key in MongoDB is `{segment_id, playlist_id, version_id}`.
+- All Vexa fields (start_time, end_time, completed, language, ...) are preserved.
 """
 
-import hashlib
 from datetime import datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-def generate_segment_id(
-    playlist_id: int,
-    version_id: int,
-    absolute_start_time: str,
-) -> str:
-    """Generate a unique segment ID based on version and start time.
-
-    Note: Speaker is intentionally excluded from the key because Vexa's mutable
-    transcription can reassign speakers as it refines the transcript. Using only
-    the start time ensures updates to the same moment are treated as updates
-    rather than new segments.
-    """
-    key = f"{playlist_id}:{version_id}:{absolute_start_time}"
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
-
-
 class StoredSegmentCreate(BaseModel):
-    """Model for creating a stored segment."""
+    """Model for creating/upserting a stored segment (raw Vexa passthrough)."""
 
+    segment_id: str = Field(
+        ..., description="Vexa's stable segment id (e.g. '9b914779:speaker-1:72')"
+    )
     text: str = Field(..., description="Transcript text content")
     speaker: Optional[str] = Field(default=None, description="Speaker identifier")
     language: Optional[str] = Field(default=None, description="Language code")
+    start_time: Optional[float] = Field(
+        default=None, description="Relative start time in seconds"
+    )
+    end_time: Optional[float] = Field(
+        default=None, description="Relative end time in seconds"
+    )
+    completed: Optional[bool] = Field(
+        default=True, description="Whether the segment is confirmed (vs draft)"
+    )
     absolute_start_time: str = Field(
         ..., description="UTC timestamp (ISO 8601) of segment start"
     )
@@ -39,7 +39,7 @@ class StoredSegmentCreate(BaseModel):
         ..., description="UTC timestamp (ISO 8601) of segment end"
     )
     vexa_updated_at: Optional[str] = Field(
-        default=None, description="Vexa's updated_at timestamp for deduplication"
+        default=None, description="Vexa's updated_at timestamp"
     )
 
 
@@ -49,12 +49,15 @@ class StoredSegment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(alias="_id")
-    segment_id: str = Field(..., description="Unique segment ID")
+    segment_id: str
     playlist_id: int
     version_id: int
     text: str
     speaker: Optional[str] = None
     language: Optional[str] = None
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+    completed: Optional[bool] = True
     absolute_start_time: str
     absolute_end_time: str
     vexa_updated_at: Optional[str] = None

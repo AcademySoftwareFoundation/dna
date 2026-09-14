@@ -27,8 +27,8 @@ services:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
+      - ./.coveragerc:/app/.coveragerc
       - ./htmlcov:/app/htmlcov
-      - ./coverage.xml:/app/coverage.xml
     environment:
       - PYTHONUNBUFFERED=1
       - SHOTGRID_URL=https://your-shotgrid-url.com
@@ -37,14 +37,26 @@ services:
       - PRODTRACK_PROVIDER=shotgrid
       - MONGODB_URL=mongodb://mongo:27017
       - STORAGE_PROVIDER=mongodb
+      # LLM provider: set LLM_PROVIDER to openai | anthropic | gemini.
+      - LLM_PROVIDER=openai
       - OPENAI_API_KEY=your-openai-api-key
       - OPENAI_MODEL=gpt-4o-mini
-      - LLM_PROVIDER=openai
+      # To use Claude, set LLM_PROVIDER=anthropic and supply these:
+      - ANTHROPIC_API_KEY=your-anthropic-api-key
+      - ANTHROPIC_MODEL=claude-opus-4-8
     depends_on:
       - mongo
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Use Python instead of curl: on some Docker Desktop setups the curl
+      # binary hits "input/output error" on exec while the app is fine.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

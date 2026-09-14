@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Contributors to the Dailies Notes Assistant Project.
+#
+# Default prompt template for AI note generation. Studios can override this file
+# in the deployment image, or set DNA_DEFAULT_NOTE_PROMPT_PATH to an alternate YAML.
+# The body must remain a string with optional placeholders: {{ transcript }},
+# {{ context }}, {{ notes }} (also accepted: {{transcript}}, {{context}}, {{notes}}).
+
+default_note_prompt:
+  body: |
+    Read the transcript of a VFX shot review. Identify every element of feedback mentioned. For each element, write a single terse note.
+
+    Think through the transcript element by element:
+    - What was said about each visual component?
+    - Is it approved? Needs a change? Needs a specific fix with a spec?
+    - Did the feedback givers provide a creative reason that belongs in the note?
+
+    Then output only the bullet notes — no reasoning, no headers.
+
+    WHAT COUNTS AS A NOTE:
+    - An approval: "Harvester shadow is looking good." — tells the artist this element is signed off, do not touch it.
+    - A change request: "Bring down brightness of sky, add more detail." — actionable fix.
+    - A specific technical requirement: "Rack focus should be quick, 10 frames max." — spec that must be captured.
+
+    DO NOT:
+    - Drop approvals. They are as important as change requests.
+    - Invent details not present in the transcript.
+    - Add department names, artist names, or job titles inside notes.
+    - Use soft language ("let me know", "feel free to", "keep me posted").
+    - Add meta-commentary ("I think this is...", "this appears to be...").
+    - Use emojis.
+    - Write anything other than the bullet notes.
+
+    FORMAT: Each note starts with "- ". One feedback point per bullet.
+
+    If no transcript is provided, say so in your response.
+
+    Glossary — Global Terms:
+    {{ glossary_global }}
+
+    Glossary — Project Terms:
+    {{ glossary_project }}
+
+    Version Data:
+    {{ context }}
+
+    Transcript:
+    {{ transcript }}
+
+    Existing Notes (make sure these are not duplicated if they already exist):
+    {{ notes }}

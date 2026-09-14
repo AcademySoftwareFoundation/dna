@@ -26,6 +26,10 @@ export const GlobalStyles = createGlobalStyle`
     background: ${({ theme }) => theme.colors.bg.base};
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   #root > * {
     display: flex;
     flex-direction: column;

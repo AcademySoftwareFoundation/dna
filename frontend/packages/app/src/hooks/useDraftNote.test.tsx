@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
-import { useDraftNote } from './useDraftNote';
+import { useDraftNote, backendToLocal } from './useDraftNote';
 import { apiHandler } from '../api';
 import type { DraftNote } from '@dna/core';
 
@@ -40,6 +40,7 @@ function createWrapper() {
 }
 
 const mockDraftNote: DraftNote = {
+  id: 1,
   _id: 'abc123',
   user_email: 'test@example.com',
   playlist_id: 1,
@@ -50,9 +51,50 @@ const mockDraftNote: DraftNote = {
   cc: '',
   links: [],
   version_status: 'pending',
+  published: false,
+  edited: false,
+  published_note_id: null,
   updated_at: '2025-01-15T00:00:00Z',
   created_at: '2025-01-15T00:00:00Z',
+  attachment_ids: [],
 };
+
+describe('backendToLocal', () => {
+  it('parses to and cc JSON like the editor stores them', () => {
+    const to = JSON.stringify([{ type: 'User', id: 1, name: 'A' }]);
+    const cc = JSON.stringify([{ type: 'User', id: 2, name: 'B' }]);
+    const note: DraftNote = {
+      _id: 'x',
+      user_email: 'u@test.com',
+      playlist_id: 1,
+      version_id: 2,
+      content: 'c',
+      subject: 's',
+      to,
+      cc,
+      links: [{ entity_type: 'Version', entity_id: 9, entity_name: 'v' }],
+      version_status: 'ip',
+      published: false,
+      edited: false,
+      published_note_id: null,
+      updated_at: '2025-01-15T00:00:00Z',
+      created_at: '2025-01-15T00:00:00Z',
+      attachment_ids: [],
+    };
+    expect(backendToLocal(note)).toEqual({
+      content: 'c',
+      subject: 's',
+      to: [{ type: 'User', id: 1, name: 'A' }],
+      cc: [{ type: 'User', id: 2, name: 'B' }],
+      links: [{ type: 'Version', id: 9, name: 'v' }],
+      versionStatus: 'ip',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
+      attachmentIds: [],
+    });
+  });
+});
 
 describe('useDraftNote', () => {
   beforeEach(() => {
@@ -101,10 +143,14 @@ describe('useDraftNote', () => {
     expect(result.current.draftNote).toEqual({
       content: 'Test content',
       subject: 'Test subject',
-      to: 'recipient@example.com',
-      cc: '',
-      linksText: '',
+      to: [],
+      cc: [],
+      links: [],
+      attachmentIds: [],
       versionStatus: 'pending',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
     });
   });
 
@@ -132,10 +178,14 @@ describe('useDraftNote', () => {
     expect(result.current.draftNote).toEqual({
       content: '',
       subject: '',
-      to: '',
-      cc: '',
-      linksText: '',
+      to: [],
+      cc: [],
+      links: [],
+      attachmentIds: [],
       versionStatus: '',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
     });
   });
 
@@ -208,6 +258,7 @@ describe('useDraftNote', () => {
         cc: '',
         links: [],
         version_status: '',
+        edited: true,
       },
     });
   });
@@ -237,10 +288,14 @@ describe('useDraftNote', () => {
     expect(result.current.draftNote).toEqual({
       content: '',
       subject: '',
-      to: '',
-      cc: '',
-      linksText: '',
+      to: [],
+      cc: [],
+      links: [],
+      attachmentIds: [],
       versionStatus: '',
+      published: false,
+      edited: false,
+      publishedNoteId: null,
     });
 
     await waitFor(() => {
@@ -270,5 +325,166 @@ describe('useDraftNote', () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     expect(mockedApiHandler.upsertDraftNote).not.toHaveBeenCalled();
+  });
+
+  it('flushDebouncedSave persists pending changes without waiting for debounce', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote).not.toBeNull();
+    });
+
+    act(() => {
+      result.current.updateDraftNote({ content: 'Flush me' });
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.flushDebouncedSave();
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ content: 'Flush me' }),
+      })
+    );
+  });
+
+  it('saveVersionStatus patches only version_status on an existing draft', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue({
+      ...mockDraftNote,
+      version_status: 'apr',
+    });
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.content).toBe('Test content');
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr');
+    });
+
+    expect(result.current.draftNote?.versionStatus).toBe('apr');
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
+      playlistId: 1,
+      versionId: 2,
+      userEmail: 'test@example.com',
+      data: { version_status: 'apr' },
+    });
+  });
+
+  it('saveVersionStatus does not clobber a body edit awaiting debounce', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.content).toBe('Test content');
+    });
+
+    act(() => {
+      result.current.updateDraftNote({ content: 'Half-typed note' });
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr');
+    });
+
+    // The status write must not carry the older content along with it
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { version_status: 'apr' } })
+    );
+    expect(result.current.draftNote?.content).toBe('Half-typed note');
+
+    // ...and the pending edit still lands, with the new status preserved
+    await act(async () => {
+      await result.current.flushDebouncedSave();
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: 'Half-typed note',
+          version_status: 'apr',
+        }),
+      })
+    );
+  });
+
+  it('saveVersionStatus writes the prefilled defaults when no draft exists yet', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(null);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
+
+    const currentVersion = { type: 'Version', id: 2, name: 'shot_v1' };
+    const submitter = { type: 'User', id: 7, name: 'Artist' };
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+          currentVersion,
+          submitter,
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote).not.toBeNull();
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr');
+    });
+
+    // A brand-new draft keeps the submitter in To and the version in Links, so
+    // the main UI shows the same thing it would after a status pick made there
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
+      playlistId: 1,
+      versionId: 2,
+      userEmail: 'test@example.com',
+      data: {
+        content: '',
+        subject: '',
+        to: JSON.stringify([submitter]),
+        cc: '',
+        links: [{ entity_type: 'Version', entity_id: 2, entity_name: 'shot_v1' }],
+        version_status: 'apr',
+        edited: false,
+      },
+    });
   });
 });

@@ -1,0 +1,5 @@
+Cameron: Okay, so let's start here with HSM, satl, 0010. This is one of Sonia's shots. We're going to look at some of the lighting real quick. So let's jump in here. First thing that pops out to me, Sonia is, I think you did a really great job with the sun. The stars are looking good in the background and the animation of the droid is looking really, really good. Do you have anything to add here with regards to the lighting pass?
+Sonia: Yeah, my team is still working on the reflection. We don't know how big to make it right now. And right now it's not moving at all, so I think it looks a little janky.
+Cameron: copy that. Okay, yeah, that makes a ton of sense.
+Cameron: Okay, so let's jump in. Keep me posted on roadblocks, by the way. Sonia, that's looking really good right now.
+Sonia: yeah, definitely.

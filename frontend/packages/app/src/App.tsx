@@ -5,13 +5,14 @@ import {
   Layout,
   ContentArea,
   ProjectSelector,
-  clearUserSession,
 } from './components';
+import { useAuth } from './contexts';
 import { useGetVersionsForPlaylist } from './api';
 import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';
 
 function App() {
   const queryClient = useQueryClient();
+  const { signOut } = useAuth();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -28,33 +29,32 @@ function App() {
   );
 
   useEffect(() => {
-    if (versions.length > 0 && !selectedVersion) {
+    if (versions.length === 0) return;
+
+    if (!selectedVersion) {
       const inReviewVersionId = playlistMetadata?.in_review;
       const inReviewVersion = inReviewVersionId
         ? versions.find((v) => v.id === inReviewVersionId)
         : null;
 
-      if (inReviewVersion) {
-        setSelectedVersion(inReviewVersion);
-      } else {
-        setSelectedVersion(versions[0]);
-      }
+      setSelectedVersion(inReviewVersion ?? versions[0]);
+      return;
+    }
+
+    // Keep the selected version in sync with refetched playlist data so
+    // upstream changes (e.g. a status updated in the tracking system) are
+    // reflected after a reload. React Query's structural sharing preserves
+    // object identity for unchanged versions, so this only fires on change.
+    const updatedVersion = versions.find((v) => v.id === selectedVersion.id);
+    if (updatedVersion && updatedVersion !== selectedVersion) {
+      setSelectedVersion(updatedVersion);
     }
   }, [versions, selectedVersion, playlistMetadata]);
 
   const handleRefresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['allDraftNotes'] });
     await queryClient.invalidateQueries({ queryKey: ['draftNote'] });
-
-    const result = await refetch();
-    if (result.data && selectedVersion) {
-      const updatedVersion = result.data.find(
-        (v) => v.id === selectedVersion.id
-      );
-      if (updatedVersion) {
-        setSelectedVersion(updatedVersion);
-      }
-    }
+    await refetch();
   };
 
   const handleSelectionComplete = (
@@ -67,13 +67,13 @@ function App() {
     setUserEmail(email);
   };
 
-  const handleReplacePlaylist = () => {
-    setSelectedPlaylist(null);
+  const handlePlaylistChange = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
     setSelectedVersion(null);
   };
 
   const handleLogout = () => {
-    clearUserSession();
+    signOut();
     setSelectedProject(null);
     setSelectedPlaylist(null);
     setUserEmail(null);
@@ -90,8 +90,9 @@ function App() {
 
   return (
     <Layout
-      onReplacePlaylist={handleReplacePlaylist}
+      onPlaylistChange={handlePlaylistChange}
       playlistId={selectedPlaylist.id}
+      projectId={selectedProject.id}
       selectedVersionId={selectedVersion?.id}
       onVersionSelect={handleVersionSelect}
       userEmail={userEmail}

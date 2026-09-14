@@ -1,3 +1,7 @@
+# Local development override. Copy to docker-compose.local.yml and fill in secrets.
+# Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
+# Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
+# To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
 services:
   api:
     environment:
@@ -5,6 +9,13 @@ services:
       - SHOTGRID_URL=https://aswf.shotgrid.autodesk.com/
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
+      - PRODTRACK_PROVIDER=mock
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
+      - AUTH_PROVIDER=none
+      # Transcript publishing (V1, disabled by default). Set to "true" to
+      # expose POST /playlists/{id}/publish-transcript. See DEPLOYMENT.md
+      # for the ShotGrid site-setup checklist the custom entity depends on.
+      - DNA_ENABLE_TRANSCRIPT_PUBLISH=false
+      - SHOTGRID_TRANSCRIPT_ENTITY=CustomEntity01

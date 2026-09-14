@@ -1,0 +1,12 @@
+Cameron: Let's jump into Griffin. This is HSM satl 0020. This one is going to be your effects pass, looking specifically at the asteroid hit. Cool. First things that jump out to me is it's looking a little linear there. What are you thinking?
+Griffin: Yeah, it's a little linear. I'll add some turbulence and break it up if you'd like.
+Cameron: Okay, yeah, nice. That would be sweet. I like the color. I think the first pass is looking good. We could definitely give it a couple more rounds here.
+Griffin: Do you think the color fall off from yellow to red is a bit abrupt?
+Cameron: Yeah, that's a good point. Actually, I'm seeing that now here.
+Griffin: I can add some cooler tones at the base if we want.
+Cameron: yeah, yeah, actually, yeah. I'm just looking at frame like 1050 or something.
+Cameron: Thanks. Okay, yeah, I think, like something like 1015 could work with it.
+Griffin: Okay, and maybe we add some additional motion blur at the flame streak, sell the speed a little bit?
+Cameron: Wait, yeah, actually, going back to that, yeah, I'm seeing that too. That's it. Okay.
+Griffin: You see it?
+Cameron: All good ideas, guys.

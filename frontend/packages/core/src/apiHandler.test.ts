@@ -37,7 +37,7 @@ describe('ApiHandler', () => {
       },
     };
 
-    mockedAxios.create.mockReturnValue(
+    vi.mocked(mockedAxios.create).mockReturnValue(
       mockAxiosInstance as unknown as ReturnType<typeof axios.create>
     );
   });
@@ -673,6 +673,89 @@ describe('ApiHandler', () => {
           versionId: 2,
         })
       ).rejects.toThrow('Server error');
+    });
+  });
+
+  describe('publishTranscript', () => {
+    it('posts to the publish-transcript endpoint and returns the response', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.post.mockResolvedValue({
+        data: {
+          transcript_entity_id: 9001,
+          outcome: 'created',
+          skipped_reason: null,
+          segments_count: 12,
+        },
+      });
+
+      const result = await api.publishTranscript({
+        playlistId: 42,
+        request: { version_id: 101 },
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/playlists/42/publish-transcript',
+        { version_id: 101 },
+        undefined
+      );
+      expect(result.outcome).toBe('created');
+      expect(result.transcript_entity_id).toBe(9001);
+      expect(result.segments_count).toBe(12);
+    });
+  });
+
+  describe('note QC endpoints', () => {
+    it('getQCChecks maps id to _id', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: [
+          {
+            id: 'oid1',
+            user_email: 'u@x.com',
+            name: 'N',
+            prompt: 'P',
+            severity: 'warning',
+            enabled: true,
+            updated_at: '2025-01-01T00:00:00Z',
+            created_at: '2025-01-01T00:00:00Z',
+          },
+        ],
+      });
+
+      const rows = await api.getQCChecks({ userEmail: 'u@x.com' });
+      expect(rows[0]._id).toBe('oid1');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/users/u%40x.com/qc-checks',
+        undefined
+      );
+    });
+
+    it('runQCChecks posts user_email and returns results', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.post.mockResolvedValue({
+        data: {
+          results: [
+            {
+              check_id: 'c1',
+              check_name: 'A',
+              severity: 'warning',
+              passed: true,
+            },
+          ],
+        },
+      });
+
+      const results = await api.runQCChecks({
+        playlistId: 1,
+        versionId: 2,
+        userEmail: 'u@x.com',
+      });
+      expect(results).toHaveLength(1);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/playlists/1/versions/2/run-qc-checks',
+        { user_email: 'u@x.com' },
+        { timeout: 180_000 }
+      );
     });
   });
 });

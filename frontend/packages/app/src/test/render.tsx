@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import { theme } from '../styles';
+import { AuthProvider } from '../contexts/AuthContext';
+import { ThemeModeProvider } from '../contexts/ThemeContext';
 
 interface WrapperProps {
   children: ReactNode;
@@ -26,7 +28,11 @@ function AllTheProviders({ children }: WrapperProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
-        <Theme>{children}</Theme>
+        <Theme>
+          <ThemeModeProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ThemeModeProvider>
+        </Theme>
       </ThemeProvider>
     </QueryClientProvider>
   );

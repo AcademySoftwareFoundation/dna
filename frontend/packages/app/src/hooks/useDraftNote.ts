@@ -1,71 +1,116 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DraftNote, DraftNoteUpdate } from '@dna/core';
+import { DraftNote, DraftNoteUpdate, SearchResult } from '@dna/core';
 import { apiHandler } from '../api';
 
 export interface LocalDraftNote {
   content: string;
   subject: string;
-  to: string;
-  cc: string;
-  linksText: string;
+  to: SearchResult[];
+  cc: SearchResult[];
+  links: SearchResult[];
   versionStatus: string;
   published: boolean;
   edited: boolean;
   publishedNoteId: number | null;
+  attachmentIds: string[];
 }
 
 export interface UseDraftNoteParams {
   playlistId: number | null | undefined;
   versionId: number | null | undefined;
   userEmail: string | null | undefined;
+  currentVersion?: SearchResult | null;
+  submitter?: SearchResult | null;
 }
 
 export interface UseDraftNoteResult {
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
+  saveAttachmentIds: (ids: string[]) => Promise<void>;
+  saveVersionStatus: (status: string) => Promise<void>;
   clearDraftNote: () => void;
+  flushDebouncedSave: () => Promise<void>;
   isSaving: boolean;
   isLoading: boolean;
 }
 
-function createEmptyDraft(): LocalDraftNote {
+function createEmptyDraft(
+  currentVersion?: SearchResult | null,
+  submitter?: SearchResult | null
+): LocalDraftNote {
   return {
     content: '',
     subject: '',
-    to: '',
-    cc: '',
-    linksText: '',
+    to: submitter ? [submitter] : [],
+    cc: [],
+    links: currentVersion ? [currentVersion] : [],
     versionStatus: '',
     published: false,
     edited: false,
     publishedNoteId: null,
+    attachmentIds: [],
   };
 }
 
-function backendToLocal(note: DraftNote): LocalDraftNote {
+// Parse JSON array from string, with fallback for legacy comma-separated format
+function parseEntitiesFromString(str: string): SearchResult[] {
+  if (!str) return [];
+  try {
+    const parsed = JSON.parse(str);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Fallback: treat as comma-separated names (legacy format)
+    // Can't recover full entity data, so return empty
+  }
+  return [];
+}
+
+export function backendToLocal(note: DraftNote): LocalDraftNote {
+  // Convert links from DraftNoteLink[] to SearchResult[]
+  const links: SearchResult[] = (note.links || []).map((link) => ({
+    type: link.entity_type,
+    id: link.entity_id,
+    name: link.entity_name || '',
+  }));
+
   return {
-    content: note.content,
-    subject: note.subject,
-    to: note.to,
-    cc: note.cc,
-    linksText: '',
-    versionStatus: note.version_status,
+    content: note.content ?? '',
+    subject: note.subject ?? '',
+    to: parseEntitiesFromString(note.to ?? ''),
+    cc: parseEntitiesFromString(note.cc ?? ''),
+    links,
+    versionStatus: note.version_status ?? '',
     published: note.published,
     edited: note.edited,
     publishedNoteId: note.published_note_id ?? null,
+    attachmentIds: note.attachment_ids ?? [],
   };
 }
 
 function localToUpdate(local: LocalDraftNote): DraftNoteUpdate {
+  // Store to/cc as JSON strings to preserve entity data
+  const toJson = local.to.length > 0 ? JSON.stringify(local.to) : '';
+  const ccJson = local.cc.length > 0 ? JSON.stringify(local.cc) : '';
+
+  // Convert links to DraftNoteLink format (include name so it persists)
+  const links = local.links.map((entity) => ({
+    entity_type: entity.type,
+    entity_id: entity.id,
+    entity_name: entity.name,
+  }));
+
   return {
     content: local.content,
     subject: local.subject,
-    to: local.to,
-    cc: local.cc,
-    links: [],
+    to: toJson,
+    cc: ccJson,
+    links,
     version_status: local.versionStatus,
     edited: local.edited,
+    // attachment_ids are managed exclusively by saveAttachmentIds — omitting here
+    // prevents a race condition where a post-publish content edit restores
+    // attachment_ids that the server already cleared during publish
   };
 }
 
@@ -73,13 +118,14 @@ export function useDraftNote({
   playlistId,
   versionId,
   userEmail,
+  currentVersion,
+  submitter,
 }: UseDraftNoteParams): UseDraftNoteResult {
   const queryClient = useQueryClient();
   const [localDraft, setLocalDraft] = useState<LocalDraftNote | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMutationRef = useRef<Promise<DraftNote> | null>(null);
   const pendingDataRef = useRef<LocalDraftNote | null>(null);
-
   const isEnabled =
     playlistId != null && versionId != null && userEmail != null;
 
@@ -117,7 +163,11 @@ export function useDraftNote({
       if (previousDraftNotes) {
         queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
           if (!old) return old;
-          const index = old.findIndex((n) => n.version_id === versionId);
+          // Match the owner too: this cache holds every user's drafts for the
+          // playlist, so version_id alone can patch someone else's row.
+          const index = old.findIndex(
+            (n) => n.version_id === versionId && n.user_email === userEmail
+          );
           if (index !== -1) {
             const updated = [...old];
             updated[index] = {
@@ -128,6 +178,7 @@ export function useDraftNote({
               cc: data.cc ?? updated[index].cc,
               version_status: data.version_status ?? updated[index].version_status,
               edited: data.edited ?? updated[index].edited,
+              attachment_ids: data.attachment_ids ?? updated[index].attachment_ids,
             };
             return updated;
           } else {
@@ -210,32 +261,78 @@ export function useDraftNote({
       if (serverDraft) {
         setLocalDraft(backendToLocal(serverDraft));
       } else if (!isLoading) {
-        setLocalDraft(createEmptyDraft());
+        setLocalDraft(createEmptyDraft(currentVersion, submitter));
       } else {
         setLocalDraft(null);
       }
     } else {
-      // Same context: only update system fields to avoid overwriting user input
+      // Same context: update system fields, and note fields (body, subject,
+      // to/cc, links) when this instance has no unsaved edits, so changes
+      // saved elsewhere (e.g. the publish dialog's editor for the same draft)
+      // are reflected here. versionStatus counts as a system field: publishing
+      // clears it on the server, and the local dropdown must follow.
       if (serverDraft) {
         setLocalDraft((prev) => {
           if (!prev) return backendToLocal(serverDraft);
 
-          // Only update if system fields changed to avoid unnecessary re-renders
+          // Never clobber edits that are pending debounce or mid-save
+          const hasUnsavedEdits =
+            pendingDataRef.current !== null || upsertMutation.isPending;
+
+          const server = backendToLocal(serverDraft);
+          const next: LocalDraftNote = {
+            ...prev,
+            published: server.published,
+            edited: server.edited,
+            publishedNoteId: server.publishedNoteId,
+            versionStatus: server.versionStatus,
+            ...(hasUnsavedEdits
+              ? {}
+              : {
+                  content: server.content,
+                  subject: server.subject,
+                  to: server.to,
+                  cc: server.cc,
+                  links: server.links,
+                  attachmentIds: server.attachmentIds,
+                }),
+          };
+
+          // Keep previous references for deep-equal lists so downstream
+          // memos don't churn
+          const sameEntities =
+            JSON.stringify(next.to) === JSON.stringify(prev.to) &&
+            JSON.stringify(next.cc) === JSON.stringify(prev.cc) &&
+            JSON.stringify(next.links) === JSON.stringify(prev.links);
+          if (sameEntities) {
+            next.to = prev.to;
+            next.cc = prev.cc;
+            next.links = prev.links;
+          }
+          const sameAttachments =
+            next.attachmentIds.join(',') === prev.attachmentIds.join(',');
+          if (sameAttachments) {
+            next.attachmentIds = prev.attachmentIds;
+          }
+
           if (
-            prev.published === serverDraft.published &&
-            prev.edited === serverDraft.edited &&
-            prev.publishedNoteId === (serverDraft.published_note_id ?? null)
+            next.published === prev.published &&
+            next.edited === prev.edited &&
+            next.publishedNoteId === prev.publishedNoteId &&
+            next.versionStatus === prev.versionStatus &&
+            next.content === prev.content &&
+            next.subject === prev.subject &&
+            sameEntities &&
+            sameAttachments
           ) {
             return prev;
           }
 
-          return {
-            ...prev,
-            published: serverDraft.published,
-            edited: serverDraft.edited,
-            publishedNoteId: serverDraft.published_note_id ?? null,
-          };
+          return next;
         });
+      } else if (!isLoading) {
+        // Loading finished with no server draft — initialise empty if still null
+        setLocalDraft((prev) => prev ?? createEmptyDraft(currentVersion, submitter));
       }
     }
   }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail]);
@@ -281,11 +378,8 @@ export function useDraftNote({
       if (!isEnabled) return;
 
       setLocalDraft((prev) => {
-        const base = prev ?? createEmptyDraft();
+        const base = prev ?? createEmptyDraft(currentVersion, submitter);
 
-        // Determine if this update counts as an "edit" that should trigger republishing
-        // We only care if meaningful content changed (content, subject, to, cc)
-        // System updates (published status) shouldn't trigger this manually usually
         let isEdited = base.edited;
 
         const meaningfulFields: (keyof LocalDraftNote)[] = ['content', 'subject', 'to', 'cc'];
@@ -318,7 +412,64 @@ export function useDraftNote({
         return updated;
       });
     },
-    [isEnabled, upsertMutation]
+    [isEnabled, upsertMutation, currentVersion, submitter]
+  );
+
+  const saveAttachmentIds = useCallback(
+    async (ids: string[]) => {
+      if (!isEnabled) return;
+      const addingAttachments = ids.length > 0;
+      setLocalDraft((prev) => {
+        const base = prev ?? createEmptyDraft(currentVersion, submitter);
+        const edited = base.edited || addingAttachments;
+        return { ...base, attachmentIds: ids, edited };
+      });
+      if (pendingDataRef.current) {
+        pendingDataRef.current = {
+          ...pendingDataRef.current,
+          attachmentIds: ids,
+          ...(addingAttachments ? { edited: true } : {}),
+        };
+      }
+      await upsertMutation.mutateAsync({
+        data: {
+          attachment_ids: ids,
+          ...(addingAttachments ? { edited: true } : {}),
+        },
+      });
+    },
+    [isEnabled, upsertMutation, currentVersion, submitter]
+  );
+
+  const saveVersionStatus = useCallback(
+    async (status: string) => {
+      if (!isEnabled) return;
+      const base =
+        pendingDataRef.current ??
+        localDraft ??
+        createEmptyDraft(currentVersion, submitter);
+      const next: LocalDraftNote = { ...base, versionStatus: status };
+      setLocalDraft(next);
+      if (pendingDataRef.current) {
+        pendingDataRef.current = next;
+      }
+      // Existing draft: patch version_status alone so a body edit being typed
+      // in another view (e.g. the publish dialog's editor for this same draft)
+      // isn't overwritten with a stale copy. New draft: write the whole thing
+      // so the prefilled submitter and version link persist too, matching what
+      // a status change made from the main UI creates.
+      await upsertMutation.mutateAsync({
+        data: serverDraft ? { version_status: status } : localToUpdate(next),
+      });
+    },
+    [
+      isEnabled,
+      upsertMutation,
+      currentVersion,
+      submitter,
+      localDraft,
+      serverDraft,
+    ]
   );
 
   const clearDraftNote = useCallback(() => {
@@ -329,13 +480,30 @@ export function useDraftNote({
     }
     pendingDataRef.current = null;
     deleteMutation.mutate();
-    setLocalDraft(createEmptyDraft());
-  }, [isEnabled, deleteMutation]);
+    setLocalDraft(createEmptyDraft(currentVersion, submitter));
+  }, [isEnabled, deleteMutation, currentVersion, submitter]);
+
+  const flushDebouncedSave = useCallback(async () => {
+    if (!isEnabled) return;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (pendingDataRef.current) {
+      const data = localToUpdate(pendingDataRef.current);
+      pendingMutationRef.current = upsertMutation.mutateAsync({ data });
+      pendingDataRef.current = null;
+      await pendingMutationRef.current;
+    }
+  }, [isEnabled, upsertMutation]);
 
   return {
     draftNote: localDraft,
     updateDraftNote,
+    saveAttachmentIds,
+    saveVersionStatus,
     clearDraftNote,
+    flushDebouncedSave,
     isSaving: upsertMutation.isPending || deleteMutation.isPending,
     isLoading,
   };

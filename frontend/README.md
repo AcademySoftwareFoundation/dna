@@ -25,6 +25,8 @@ npm run dev
 
 This will start the Vite dev server for the app.
 
+For local development, use the noop auth provider so you can sign in with any email: copy `packages/app/.env.example` to `packages/app/.env` and keep `VITE_AUTH_PROVIDER=none`. The backend should also use `AUTH_PROVIDER=none` (see backend README).
+
 ### Build
 
 Build all packages:

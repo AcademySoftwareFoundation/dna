@@ -1,0 +1,3 @@
+- Warm up the character grade to correct the color balance mismatch with the background.
+- Add subtle atmospheric haze for depth cueing to push the sense of scale.
+- Coordinate with Sonia for feedback on the somersaulting and facial lighting interaction.

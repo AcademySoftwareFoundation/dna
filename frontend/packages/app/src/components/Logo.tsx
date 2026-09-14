@@ -1,5 +1,7 @@
 import logoIcon from '../assets/Logo.svg';
-import logoFull from '../assets/logo-full-dark.svg';
+import logoFullDark from '../assets/logo-full-dark.svg';
+import logoFullLight from '../assets/logo-full-light.svg';
+import { useThemeMode } from '../contexts';
 
 interface LogoProps {
   showText?: boolean;
@@ -7,6 +9,8 @@ interface LogoProps {
 }
 
 export function Logo({ showText = false, width = 32 }: LogoProps) {
+  const { mode } = useThemeMode();
+  const logoFull = mode === 'light' ? logoFullLight : logoFullDark;
   const src = showText ? logoFull : logoIcon;
   const alt = showText ? 'DNA - Dailies Notes Assistant' : 'DNA';
 

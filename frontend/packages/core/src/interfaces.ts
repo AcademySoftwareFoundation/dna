@@ -83,6 +83,8 @@ export interface Version extends EntityBase {
   entity?: Shot | Asset;
   task?: Task;
   notes: Note[];
+  prodtrack_detail_url?: string;
+  prodtrack_entity_detail_url?: string;
 }
 
 export interface Playlist extends EntityBase {
@@ -144,6 +146,7 @@ export interface GetUserByEmailParams {
 export interface DraftNoteLink {
   entity_type: string;
   entity_id: number;
+  entity_name?: string;
 }
 
 export interface DraftNote {
@@ -162,6 +165,7 @@ export interface DraftNote {
   published_note_id?: number | null;
   updated_at: string;
   created_at: string;
+  attachment_ids: string[];
 }
 
 export interface DraftNoteUpdate {
@@ -172,6 +176,7 @@ export interface DraftNoteUpdate {
   links?: DraftNoteLink[];
   version_status?: string;
   edited?: boolean;
+  attachment_ids?: string[];
 }
 
 export interface GetDraftNoteParams {
@@ -310,6 +315,9 @@ export interface StoredSegment {
   text: string;
   speaker?: string;
   language?: string;
+  start_time?: number;
+  end_time?: number;
+  completed?: boolean;
   absolute_start_time: string;
   absolute_end_time: string;
   vexa_updated_at?: string;
@@ -325,17 +333,44 @@ export interface GetSegmentsParams {
 export interface UserSettings {
   _id: string;
   user_email: string;
+  /** Saved custom prompt; empty means use deployment default. */
   note_prompt: string;
+  /** Configured default prompt template (for display when note_prompt is empty). */
+  default_note_prompt: string;
+  preferred_model: string;
   regenerate_on_version_change: boolean;
   regenerate_on_transcript_update: boolean;
+  sync_prodtrack_tab_on_version_change: boolean;
+  prodtrack_page_type: 'version' | 'entity';
   updated_at: string;
   created_at: string;
 }
 
 export interface UserSettingsUpdate {
   note_prompt?: string;
+  preferred_model?: string;
   regenerate_on_version_change?: boolean;
   regenerate_on_transcript_update?: boolean;
+  sync_prodtrack_tab_on_version_change?: boolean;
+  prodtrack_page_type?: 'version' | 'entity';
+}
+
+/** Production-specific glossary, keyed by ShotGrid project id. */
+export interface ProjectGlossary {
+  _id: string;
+  project_id: number;
+  content: string;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface GetProjectGlossaryParams {
+  projectId: number;
+}
+
+export interface UpsertProjectGlossaryParams {
+  projectId: number;
+  content: string;
 }
 
 export interface GetUserSettingsParams {
@@ -356,6 +391,13 @@ export interface GenerateNoteParams {
   versionId: number;
   userEmail: string;
   additionalInstructions?: string;
+  model?: string;
+}
+
+export interface AvailableModelsResponse {
+  provider: string;
+  models: string[];
+  default: string;
 }
 
 export interface GenerateNoteResponse {
@@ -378,13 +420,85 @@ export type AISuggestionStateChangeCallback = (
   state: AISuggestionState
 ) => void;
 
+// Search types for entity search endpoint
+export type SearchableEntityType =
+  | 'user'
+  | 'shot'
+  | 'asset'
+  | 'version'
+  | 'task'
+  | 'playlist';
+
+export interface SearchRequest {
+  query: string;
+  entity_types: SearchableEntityType[];
+  project_id?: number;
+  limit?: number;
+}
+
+export interface SearchResult {
+  type: string;
+  id: number;
+  name: string;
+  description?: string;
+  email?: string;
+  project?: {
+    type: string;
+    id: number;
+  };
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+}
+
+export interface SearchEntitiesParams {
+  query: string;
+  entityTypes: SearchableEntityType[];
+  projectId?: number;
+  limit?: number;
+}
+
+export interface AddVersionToPlaylistParams {
+  playlistId: number;
+  /** ID of an existing version to add */
+  versionId: number;
+}
+
+export interface CreatePlaylistParams {
+  projectId: number;
+  name: string;
+}
+
+// Status types for version status dropdown
+export interface StatusOption {
+  code: string;
+  name: string;
+}
+
+export interface GetVersionStatusesParams {
+  projectId?: number;
+}
+
+export interface PublishNoteTarget {
+  user_email: string;
+  version_id: number;
+}
+
 export interface PublishNotesRequest {
   user_email: string;
-  include_others: boolean;
+  targets: PublishNoteTarget[];
+  /**
+   * If provided, draft version_status changes are applied only for these
+   * version ids. Pass [] to suppress status side effects entirely (statuses
+   * are then published separately via updateVersionStatus).
+   */
+  status_version_ids?: number[];
 }
 
 export interface PublishNotesResponse {
   published_count: number;
+  republished_count: number;
   skipped_count: number;
   failed_count: number;
   total: number;
@@ -393,4 +507,114 @@ export interface PublishNotesResponse {
 export interface PublishNotesParams {
   playlistId: number;
   request: PublishNotesRequest;
+}
+
+export interface UpdateVersionStatusParams {
+  versionId: number;
+  status: string;
+  /**
+   * When set, pending version_status values on this playlist's draft notes
+   * for the version are cleared server-side after the update.
+   */
+  playlistId?: number;
+}
+
+export interface UpdateVersionStatusResponse {
+  success: boolean;
+}
+
+export interface PublishTranscriptRequest {
+  version_id: number;
+}
+
+export interface PublishTranscriptResponse {
+  transcript_entity_id: number;
+  outcome: 'created' | 'updated' | 'skipped';
+  skipped_reason?: string | null;
+  segments_count: number;
+}
+
+export interface PublishTranscriptParams {
+  playlistId: number;
+  request: PublishTranscriptRequest;
+}
+
+export type NoteQCSeverity = 'warning' | 'error';
+
+export interface NoteQCCheck {
+  _id: string;
+  user_email: string;
+  name: string;
+  prompt: string;
+  severity: NoteQCSeverity;
+  enabled: boolean;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface NoteQCCheckCreate {
+  name: string;
+  prompt: string;
+  severity: NoteQCSeverity;
+  enabled?: boolean;
+}
+
+export interface NoteQCCheckUpdate {
+  name?: string;
+  prompt?: string;
+  severity?: NoteQCSeverity;
+  enabled?: boolean;
+}
+
+export interface NoteQCAttributeSuggestion {
+  to?: string | null;
+  cc?: string | null;
+  subject?: string | null;
+  version_status?: string | null;
+  links?: DraftNoteLink[] | null;
+}
+
+export interface NoteQCResult {
+  check_id: string;
+  check_name: string;
+  severity: NoteQCSeverity;
+  passed: boolean;
+  issue?: string | null;
+  evidence?: string | null;
+  note_suggestion?: string | null;
+  attribute_suggestion?: NoteQCAttributeSuggestion | null;
+}
+
+export interface RunQCChecksRequestBody {
+  user_email: string;
+}
+
+export interface RunQCChecksResponseBody {
+  results: NoteQCResult[];
+}
+
+export interface GetQCChecksParams {
+  userEmail: string;
+}
+
+export interface CreateQCCheckParams {
+  userEmail: string;
+  data: NoteQCCheckCreate;
+}
+
+export interface UpdateQCCheckParams {
+  userEmail: string;
+  checkId: string;
+  data: NoteQCCheckUpdate;
+}
+
+export interface DeleteQCCheckParams {
+  userEmail: string;
+  checkId: string;
+}
+
+export interface RunQCChecksParams {
+  playlistId: number;
+  versionId: number;
+  userEmail: string;
 }

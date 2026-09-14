@@ -54,6 +54,10 @@ class GenerateNoteRequest(BaseModel):
         default=None,
         description="Optional additional instructions to append to the prompt",
     )
+    model: Optional[str] = Field(
+        default=None,
+        description="Optional LLM model override; omit to use server default",
+    )
 
 
 class GenerateNoteResponse(BaseModel):
@@ -80,6 +84,18 @@ class SearchRequest(BaseModel):
     )
 
 
+class AddVersionToPlaylistRequest(BaseModel):
+    """Request model for adding an existing version to a playlist."""
+
+    version_id: int = Field(description="ID of an existing version to add")
+
+
+class CreatePlaylistRequest(BaseModel):
+    """Request model for creating a new playlist in a project."""
+
+    name: str = Field(description="Playlist name/code")
+
+
 class SearchResult(BaseModel):
     """Lightweight entity representation for search results."""
 
@@ -95,11 +111,54 @@ class SearchResult(BaseModel):
     )
 
 
+class StatusOption(BaseModel):
+    """A status option from ShotGrid schema."""
+
+    code: str = Field(description="Status code (e.g., 'rev', 'apr', 'rej')")
+    name: str = Field(description="Display name (e.g., 'Pending Review', 'Approved')")
+
+
+class PublishNoteTarget(BaseModel):
+    """A single draft note to publish (user + version key)."""
+
+    user_email: str
+    version_id: int
+
+
 class PublishNotesRequest(BaseModel):
     """Request model for publishing draft notes."""
 
     user_email: str
-    include_others: bool = False
+    targets: list[PublishNoteTarget] = Field(
+        description="Only draft notes matching these (user_email, version_id) pairs are published."
+    )
+    status_version_ids: Optional[list[int]] = Field(
+        default=None,
+        description=(
+            "If provided, draft version_status changes are applied only for "
+            "these version ids. Omit for legacy behavior (apply all)."
+        ),
+    )
+
+
+class UpdateVersionStatusRequest(BaseModel):
+    """Request model for updating a version's status."""
+
+    status: str = Field(description="Status code to set on the version")
+    playlist_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "If provided, pending version_status values on this playlist's "
+            "draft notes for the version are cleared after the update, "
+            "without touching note publish state."
+        ),
+    )
+
+
+class UpdateVersionStatusResponse(BaseModel):
+    """Response model for updating a version's status."""
+
+    success: bool
 
 
 class PublishNotesResponse(BaseModel):
@@ -110,3 +169,20 @@ class PublishNotesResponse(BaseModel):
     skipped_count: int
     failed_count: int
     total: int
+
+
+class PublishTranscriptRequest(BaseModel):
+    """Request to publish a version's captured transcript."""
+
+    version_id: int = Field(description="Version whose segments to publish")
+
+
+class PublishTranscriptResponse(BaseModel):
+    """Response from the publish-transcript endpoint."""
+
+    transcript_entity_id: int = Field(
+        description="Entity ID of the row in the tracking system"
+    )
+    outcome: str = Field(description="created | updated | skipped")
+    skipped_reason: Optional[str] = None
+    segments_count: int

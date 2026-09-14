@@ -1,4 +1,6 @@
-import styled from 'styled-components';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import styled, { type DefaultTheme } from 'styled-components';
 import { Eye } from 'lucide-react';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
@@ -88,6 +90,14 @@ const InReviewIcon = styled.span`
   }
 `;
 
+const statusColor = (theme: DefaultTheme, status: NoteStatus) => {
+  switch (status) {
+    case 'published': return theme.colors.status.success;
+    case 'edited': return theme.colors.status.warning;
+    case 'draft': return theme.colors.status.info;
+  }
+};
+
 const StatusIcon = styled.div<{ $status: NoteStatus }>`
   display: flex;
   align-items: center;
@@ -98,21 +108,27 @@ const StatusIcon = styled.div<{ $status: NoteStatus }>`
   font-size: 10px;
   font-weight: 700;
   color: #ffffff;
-  background-color: ${({ theme, $status }) => {
-    switch ($status) {
-      case 'published':
-        return theme.colors.status.success;
-      case 'edited':
-        return theme.colors.status.warning;
-      case 'draft':
-      default:
-        return 'var(--indigo-9)'; // Blue used on avatars
-    }
-  }};
-  
-  /* Ensure text color is readable on lighter backgrounds if needed, 
-     but typically onColor is white-ish. 
-     For 'draft' (black/gray), white text is good. */
+  cursor: default;
+  background-color: ${({ theme, $status }) => statusColor(theme, $status)};
+`;
+
+const PortalPill = styled.div<{ $status: NoteStatus }>`
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background-color: ${({ theme }) => theme.colors.bg.surfaceHover};
+
+  span {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    background-color: ${({ theme, $status }) => statusColor(theme, $status) + '33'};
+    color: ${({ theme, $status }) => statusColor(theme, $status)};
+  }
 `;
 
 const ArtistRow = styled.div`
@@ -134,6 +150,47 @@ const Department = styled.span`
   color: ${({ theme }) => theme.colors.text.muted};
 `;
 
+function StatusBadge({ status, label, letter }: { status: NoteStatus; label: string; letter: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+
+  const handleMouseEnter = () => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      setPos({
+        top: rect.top - 8, // will be adjusted below the pill via transform
+        right: window.innerWidth - rect.right,
+      });
+    }
+  };
+
+  return (
+    <>
+      <StatusIcon
+        ref={ref}
+        $status={status}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setPos(null)}
+      >
+        {letter}
+      </StatusIcon>
+      {pos && createPortal(
+        <PortalPill
+          $status={status}
+          style={{
+            top: pos.top,
+            right: pos.right,
+            transform: 'translateY(-100%) translateY(-6px)',
+          }}
+        >
+          <span>{label}</span>
+        </PortalPill>,
+        document.body
+      )}
+    </>
+  );
+}
+
 export function VersionCard({
   version,
   artistName,
@@ -150,7 +207,15 @@ export function VersionCard({
     switch (status) {
       case 'published': return 'P';
       case 'edited': return 'E';
-      case 'draft': return 'D'; // Draft/Unpublished
+      case 'draft': return 'D';
+    }
+  };
+
+  const getStatusLabel = (status: NoteStatus) => {
+    switch (status) {
+      case 'published': return 'Published';
+      case 'edited': return 'Published (Edited)';
+      case 'draft': return 'Draft';
     }
   };
 
@@ -171,9 +236,11 @@ export function VersionCard({
       </Content>
       <IconsContainer>
         {noteStatus && (
-          <StatusIcon $status={noteStatus}>
-            {getStatusLetter(noteStatus)}
-          </StatusIcon>
+          <StatusBadge
+            status={noteStatus}
+            label={getStatusLabel(noteStatus)}
+            letter={getStatusLetter(noteStatus)}
+          />
         )}
         {inReview && (
           <InReviewIcon>
