@@ -94,7 +94,9 @@ export function ShotGridLoginPage() {
     try {
       await signIn(username, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+      setError(
+        err instanceof Error ? err.message : 'Login failed. Please try again.'
+      );
     }
   };
 
@@ -102,7 +104,7 @@ export function ShotGridLoginPage() {
     <PageWrapper>
       <Card>
         <LogoWrapper>
-          <Logo size={48} />
+          <Logo width={48} />
         </LogoWrapper>
 
         <Title>Welcome to DNA</Title>
@@ -140,19 +142,25 @@ export function ShotGridLoginPage() {
 
             {error && <ErrorText>{error}</ErrorText>}
 
-            <Button type="submit" disabled={isLoading || !username || !password} size="3">
+            <Button
+              type="submit"
+              disabled={isLoading || !username || !password}
+              size="3"
+            >
               {isLoading ? <Spinner /> : 'Sign in'}
             </Button>
           </Flex>
         </form>
 
         <HelpText>
-          <strong>Cloud ShotGrid:</strong> Use your ShotGrid Legacy Login password. If
-          you haven't set one, go to{' '}
-          <em>Account Settings → Legacy Login and Personal Access Token</em> in ShotGrid
-          and bind your Personal Access Token (generated at profile.autodesk.com).
+          <strong>Cloud ShotGrid:</strong> Use your ShotGrid Legacy Login
+          password. If you haven't set one, go to{' '}
+          <em>Account Settings → Legacy Login and Personal Access Token</em> in
+          ShotGrid and bind your Personal Access Token (generated at
+          profile.autodesk.com).
           <br />
-          <strong>On-prem ShotGrid:</strong> Use your regular ShotGrid or LDAP password.
+          <strong>On-prem ShotGrid:</strong> Use your regular ShotGrid or LDAP
+          password.
         </HelpText>
       </Card>
     </PageWrapper>

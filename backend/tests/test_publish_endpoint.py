@@ -427,7 +427,9 @@ class TestUpdateVersionStatusEndpoint:
 
     @pytest.fixture
     def override_deps(self, mock_prodtrack, mock_storage):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_user_scoped_prodtrack_provider] = (
+            lambda: mock_prodtrack
+        )
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
         yield
         app.dependency_overrides.clear()

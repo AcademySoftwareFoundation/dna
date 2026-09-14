@@ -49,15 +49,17 @@ Transcription providers are the services that provide the transcription function
 
 Authentication is handled by pluggable auth providers, configured via the `AUTH_PROVIDER` environment variable:
 
-| Value   | Provider        | Use case                                      |
-|--------|------------------|-----------------------------------------------|
-| `none` | Noop (default)   | Local development and testing; no validation  |
-| `google` | Google OAuth   | Production; validates Google ID/access tokens  |
+| Value      | Provider        | Use case                                                   |
+|------------|-----------------|------------------------------------------------------------|
+| `none`     | Noop (default)  | Local development and testing; no validation               |
+| `google`   | Google OAuth    | Production; validates Google ID/access tokens              |
+| `shotgrid` | ShotGrid PAT    | Production; ShotGrid username + Legacy Password login      |
 
 - **Local development:** Use the noop provider so you can sign in with any email and the backend accepts the token without validation. Set `AUTH_PROVIDER=none` in your override (the example local compose file does this).
-- **Production:** Set `AUTH_PROVIDER=google` and configure `GOOGLE_CLIENT_ID` (and optionally Google verification) as required.
+- **Production (Google):** Set `AUTH_PROVIDER=google` and configure `GOOGLE_CLIENT_ID` (and optionally Google verification) as required.
+- **Production (ShotGrid):** Set `AUTH_PROVIDER=shotgrid`, a `JWT_SECRET_KEY` of at least 32 characters, and `CORS_ALLOWED_ORIGINS` to an explicit list of frontend origins (the refresh token is an httpOnly cookie, which needs credentialed CORS). Each request is then scoped to the logged-in user via ShotGrid's `sudo_as_login`, so real `SHOTGRID_*` script credentials are required. See [QUICKSTART.md](../QUICKSTART.md#authentication) for the full flow.
 
-The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
+The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in), `VITE_AUTH_PROVIDER=google` when using Google OAuth, or `VITE_AUTH_PROVIDER=shotgrid` for ShotGrid login.
 
 ## Setup
 
@@ -80,7 +82,7 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
 
 2. Edit `docker-compose.local.yml` and set at least:
    - **ShotGrid:** To use ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave unset) and set `SHOTGRID_URL`, `SHOTGRID_API_KEY`, and `SHOTGRID_SCRIPT_NAME`. To run without ShotGrid, set `PRODTRACK_PROVIDER=mock`; see [Mock production tracking](#mock-production-tracking).
-   - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
+   - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` or `AUTH_PROVIDER=shotgrid` only if you need to test that login locally.
    - **LLM:** Choose an LLM provider and matching credentials. Examples:
 
      ```yaml

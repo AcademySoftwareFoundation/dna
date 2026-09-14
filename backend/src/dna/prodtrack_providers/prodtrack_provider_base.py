@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from abc import ABC, abstractmethod
 from datetime import date
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -15,14 +14,31 @@ class UserNotFoundError(Exception):
     pass
 
 
-class ProdtrackProviderBase(ABC):
-    """Abstract base for all production tracking providers.
+class ProdtrackPermissionError(Exception):
+    """Raised when the production tracker denies access to a resource.
 
-    Subclasses must implement every ``@abstractmethod``.  Adding a new provider
-    (e.g. Ftrack) means subclassing this and implementing all methods — no
-    changes to callers or this base class are needed (Open/Closed Principle).
+    The caller is authenticated, but their permission group in the tracker does
+    not grant access to what they asked for.  Surfaces as HTTP 403.
     """
 
+
+class ProdtrackAuthError(Exception):
+    """Raised when the production tracker rejects the impersonated identity.
+
+    Typically means the user was deactivated or their access was revoked while
+    their DNA session was still live.  Surfaces as HTTP 401 so the client
+    clears its token and re-authenticates.
+    """
+
+
+class ProdtrackUnavailableError(Exception):
+    """Raised when the production tracker errors or cannot be reached.
+
+    Nothing is wrong with the request itself.  Surfaces as HTTP 503.
+    """
+
+
+class ProdtrackProviderBase:
     def __init__(self):
         pass
 
@@ -47,27 +63,43 @@ class ProdtrackProviderBase(ABC):
         return "\n".join(parts) if parts else "No version context available."
 
     def _get_object_type(self, object_type: str) -> type["EntityBase"]:
+        """Get the model class from the entity type string."""
         from dna.models.entity import ENTITY_MODELS, EntityBase
 
         return ENTITY_MODELS.get(object_type, EntityBase)
 
-    @abstractmethod
     def get_entity(
         self, entity_type: str, entity_id: int, resolve_links: bool = True
     ) -> "EntityBase":
-        """Fetch a single entity by type and ID."""
+        """Get an entity by its ID.
 
-    @abstractmethod
+        Args:
+            entity_type: The type of entity to fetch
+            entity_id: The ID of the entity
+            resolve_links: If True, recursively fetch linked entities.
+                If False, only include shallow links with id/name.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def add_entity(self, entity_type: str, entity: "EntityBase") -> "EntityBase":
-        """Create a new entity and return the persisted version."""
+        """Add an entity to the production tracking system."""
+        raise NotImplementedError("Subclasses must implement this method.")
 
-    @abstractmethod
     def find(
         self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
     ) -> list["EntityBase"]:
-        """Return entities matching the given filters."""
+        """Find entities matching the given filters.
 
-    @abstractmethod
+        Args:
+            entity_type: The DNA entity type to search for (e.g., 'shot', 'version')
+            filters: List of filter conditions in DNA format
+            limit: Maximum number of entities to return. Defaults to 0 (no limit).
+
+        Returns:
+            List of matching entities
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def search(
         self,
         query: str,
@@ -75,19 +107,55 @@ class ProdtrackProviderBase(ABC):
         project_id: int | None = None,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
-        """Full-text search across one or more entity types."""
+        """Search for entities across multiple entity types.
 
-    @abstractmethod
+        Args:
+            query: Text to search for (searches name field)
+            entity_types: List of entity types to search (e.g., ['user', 'shot', 'asset'])
+            project_id: Optional project ID to scope non-user entities
+            limit: Maximum results per entity type
+
+        Returns:
+            List of lightweight entity representations with type, id, name, and
+            type-specific fields (email for users, description for shots/assets/versions)
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_user_by_email(self, user_email: str) -> "User":
-        """Return the User record for the given email address."""
+        """Get a user by their email address.
 
-    @abstractmethod
+        Args:
+            user_email: The email address of the user
+
+        Returns:
+            User entity with name, email, and login
+
+        Raises:
+            ValueError: If user is not found
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_projects_for_user(self, user_email: str) -> list["Project"]:
-        """Return projects accessible by the given user."""
+        """Get projects accessible by a user.
 
-    @abstractmethod
+        Args:
+            user_email: The email address of the user
+
+        Returns:
+            List of Project entities the user has access to
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def get_playlists_for_project(self, project_id: int) -> list["Playlist"]:
-        """Return all playlists belonging to the project."""
+        """Get playlists for a project.
+
+        Args:
+            project_id: The ID of the project
+
+        Returns:
+            List of Playlist entities for the project
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
 
     def create_playlist(self, project_id: int, name: str) -> "Playlist":
         """Create a new playlist in the production tracking system.
@@ -101,9 +169,16 @@ class ProdtrackProviderBase(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    @abstractmethod
     def get_versions_for_playlist(self, playlist_id: int) -> list["Version"]:
-        """Return all versions in the playlist."""
+        """Get versions for a playlist.
+
+        Args:
+            playlist_id: The ID of the playlist
+
+        Returns:
+            List of Version entities in the playlist
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
 
     def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
         """Add an existing version to a playlist.
@@ -117,13 +192,19 @@ class ProdtrackProviderBase(ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    @abstractmethod
     def get_version_statuses(
         self, project_id: int | None = None
     ) -> list[dict[str, str]]:
-        """Return valid version status codes (optionally scoped to a project)."""
+        """Get valid status values for Versions.
 
-    @abstractmethod
+        Args:
+            project_id: Optional project ID to scope status values
+
+        Returns:
+            List of status dicts with 'code' and 'name' keys
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def publish_note(
         self,
         version_id: int,
@@ -135,17 +216,50 @@ class ProdtrackProviderBase(ABC):
         author_email: str | None = None,
         version_status: str | None = None,
     ) -> int:
-        """Create and publish a note; return the new note ID."""
+        """Publish a note to the production tracking system.
 
-    @abstractmethod
+        Args:
+            version_id: The ID of the version (or other entity) to link to
+            content: Note content
+            subject: Note subject
+            to_users: List of user IDs to address
+            cc_users: List of user IDs to CC
+            links: List of additional entities to link
+            author_email: Optional email of the author. If provided, the note
+                should be created on behalf of this user.
+            version_status: Optional status code to set on the version.
+
+        Returns:
+            The ID of the created note
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def update_version_status(self, version_id: int, status: str) -> bool:
-        """Update the status of a version. Returns True on success."""
+        """Update the status of a version without publishing a note.
 
-    @abstractmethod
+        Args:
+            version_id: The ID of the version to update
+            status: The status code to set
+
+        Returns:
+            True if the update succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def attach_file_to_note(
         self, note_id: int, file_path: str, display_name: str
     ) -> bool:
-        """Attach a local file to an existing note. Returns True on success."""
+        """Upload a local file as an attachment on an existing note.
+
+        Args:
+            note_id: The ID of the note to attach the file to
+            file_path: Absolute path to the local file
+            display_name: Filename to display in the tracking system
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
 
     def publish_transcript(
         self,
@@ -186,24 +300,27 @@ class ProdtrackProviderBase(ABC):
 
 
 def get_prodtrack_provider(
-    user_token: Optional[str] = None,
+    sudo_login: Optional[str] = None,
     session_id: Optional[str] = None,
 ) -> ProdtrackProviderBase:
     """Get the production tracking provider.
 
     Args:
-        user_token:  Presence signal — any truthy value triggers user-scoped mode.
-                     The actual ShotGrid login name is always looked up from the
-                     session (session_id), never passed directly, so no credential
-                     is carried in this parameter.
-        session_id:  The user's DNA session ID.  Used to look up the stored
-                     ShotGrid login name for sudo_as_login.
+        sudo_login:  The authenticated user's ShotGrid login name.  When set,
+                     the provider connects with the script account and
+                     ``sudo_as_login=<sudo_login>``, so ShotGrid enforces that
+                     user's own permission group natively.  The caller resolves
+                     this from the server-side session store — it is never taken
+                     from client input.
+        session_id:  The user's DNA session ID.  Carried for diagnostics only.
 
-    Returns:
-        Configured ProdtrackProviderBase instance.
-
-    Raises:
-        ValueError: Unknown provider or missing credentials.
+    Warning:
+        Omitting ``sudo_login`` returns a provider bound to the bare script
+        account, which has full site permissions.  That path exists only for
+        unauthenticated contexts — background jobs and ``AUTH_PROVIDER=none``.
+        Authenticated request paths must always supply ``sudo_login``;
+        ``get_user_scoped_prodtrack_provider`` in main.py enforces this by
+        failing closed with 401 when the session carries no login name.
     """
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
 
@@ -214,35 +331,20 @@ def get_prodtrack_provider(
 
     if provider_type == "shotgrid":
         sg_url = os.getenv("SHOTGRID_URL")
-        if not sg_url:
+        sg_script = os.getenv("SHOTGRID_SCRIPT_NAME")
+        sg_key = os.getenv("SHOTGRID_API_KEY")
+        if not all([sg_url, sg_script, sg_key]):
             raise ValueError(
-                "SHOTGRID_URL is required. Use PRODTRACK_PROVIDER=mock for local dev."
+                "ShotGrid credentials not provided. Set SHOTGRID_URL, "
+                "SHOTGRID_SCRIPT_NAME, and SHOTGRID_API_KEY, or use "
+                "PRODTRACK_PROVIDER=mock for the mock provider."
             )
         from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
-        if user_token:
-            # Resolve the ShotGrid login name from the session and use script + sudo_as_login.
-            # The user's password is never stored — identity is established at login time
-            # and the session carries only the ShotGrid login name (username field).
-            from dna.auth.session_store import get_session_store
-
-            store = get_session_store()
-            session = store.get_session(session_id) if session_id else None
-            sudo_login = (
-                session.sg_username if (session and session.sg_username) else user_token
-            )
+        if sudo_login:
             return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
-        else:
-            # Script-auth fallback: background jobs / non-SG-SSO auth providers.
-            sg_script = os.getenv("SHOTGRID_SCRIPT_NAME")
-            sg_key = os.getenv("SHOTGRID_API_KEY")
-            if not all([sg_script, sg_key]):
-                raise ValueError(
-                    "Script credentials missing. Set SHOTGRID_SCRIPT_NAME and "
-                    "SHOTGRID_API_KEY, or use PRODTRACK_PROVIDER=mock."
-                )
-            return ShotgridProvider()
 
-    raise ValueError(
-        f"Unknown PRODTRACK_PROVIDER: '{provider_type}'. Valid: mock, shotgrid."
-    )
+        # Script account: unauthenticated contexts only (background jobs, dev mode).
+        return ShotgridProvider()
+
+    raise ValueError(f"Unknown production tracking provider: {provider_type}")

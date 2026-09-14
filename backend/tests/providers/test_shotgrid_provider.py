@@ -53,11 +53,27 @@ def test_get_version(shotgrid_provider):
     assert version.project == {"type": "Project", "id": 1, "name": "Project 1"}
 
 
-def test_missing_credentials_raises_error():
-    """Test that missing credentials raises ValueError."""
+def test_missing_url_raises_error():
+    """A provider with no ShotGrid URL cannot be built."""
     with mock.patch.dict("os.environ", {}, clear=True):
-        with pytest.raises(ValueError, match="ShotGrid credentials not provided"):
+        with pytest.raises(ValueError, match="SHOTGRID_URL is required"):
             ShotgridProvider(url=None, script_name=None, api_key=None, connect=False)
+
+
+def test_missing_credentials_raises_error():
+    """Script credentials are mandatory — they perform every sudo_as_login.
+
+    The URL is supplied here so the failure is specifically about credentials
+    rather than the earlier URL guard.
+    """
+    with mock.patch.dict("os.environ", {}, clear=True):
+        with pytest.raises(ValueError, match="script credentials not provided"):
+            ShotgridProvider(
+                url="https://test.shotgunstudio.com",
+                script_name=None,
+                api_key=None,
+                connect=False,
+            )
 
 
 def test_connect_creates_shotgun_instance():
@@ -775,7 +791,7 @@ class TestShotgridEdgeCases:
         """Test that _convert_sg_entity_to_dna_entity raises error when no mapping found."""
         sg_entity = {"id": 1, "code": "test"}
         with pytest.raises(
-            ValueError, match="No field mapping found for entity type: unknown_type"
+            ValueError, match="No field mapping for entity type: unknown_type"
         ):
             shotgrid_provider._convert_sg_entity_to_dna_entity(
                 sg_entity, entity_mapping=None, entity_type="unknown_type"
@@ -1057,7 +1073,7 @@ class TestShotgridProviderFind:
         filters = [{"field": "nonexistent_field", "operator": "is", "value": "test"}]
 
         with pytest.raises(
-            ValueError, match="Unknown field 'nonexistent_field' for entity type"
+            ValueError, match="Unknown field 'nonexistent_field' for 'project'"
         ):
             shotgrid_provider.find("project", filters)
 

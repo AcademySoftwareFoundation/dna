@@ -1284,7 +1284,9 @@ class TestAddVersionToPlaylistEndpoint:
         return mock.MagicMock()
 
     def _override(self, mock_provider):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_user_scoped_prodtrack_provider] = (
+            lambda: mock_provider
+        )
 
     def test_add_existing_version(self, mock_provider):
         from dna.models.entity import Version
@@ -1338,7 +1340,9 @@ class TestCreatePlaylistEndpoint:
         mock_provider.create_playlist.return_value = Playlist(
             id=401, code="Dailies Monday"
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_user_scoped_prodtrack_provider] = (
+            lambda: mock_provider
+        )
 
         try:
             response = client.post(
@@ -1351,7 +1355,9 @@ class TestCreatePlaylistEndpoint:
             app.dependency_overrides.clear()
 
     def test_blank_name_returns_400(self, mock_provider):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_user_scoped_prodtrack_provider] = (
+            lambda: mock_provider
+        )
         try:
             response = client.post("/projects/1/playlists", json={"name": "  "})
             assert response.status_code == 400
@@ -1361,7 +1367,9 @@ class TestCreatePlaylistEndpoint:
 
     def test_provider_value_error_returns_404(self, mock_provider):
         mock_provider.create_playlist.side_effect = ValueError("Project 999 not found")
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_user_scoped_prodtrack_provider] = (
+            lambda: mock_provider
+        )
         try:
             response = client.post("/projects/999/playlists", json={"name": "pl"})
             assert response.status_code == 404

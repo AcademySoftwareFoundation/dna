@@ -14,11 +14,13 @@ describe('ApiHandler', () => {
     delete: ReturnType<typeof vi.fn>;
     interceptors: {
       request: { use: ReturnType<typeof vi.fn> };
+      response: { use: ReturnType<typeof vi.fn> };
     };
   };
   let requestInterceptor: (
     config: Record<string, unknown>
   ) => Record<string, unknown>;
+  let responseErrorInterceptor: (error: unknown) => Promise<never>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -32,6 +34,11 @@ describe('ApiHandler', () => {
         request: {
           use: vi.fn((interceptor) => {
             requestInterceptor = interceptor;
+          }),
+        },
+        response: {
+          use: vi.fn((_onSuccess, onError) => {
+            responseErrorInterceptor = onError;
           }),
         },
       },
@@ -98,6 +105,32 @@ describe('ApiHandler', () => {
       api.setUser(null);
 
       expect(api.getUser()).toBeNull();
+    });
+  });
+
+  describe('response interceptor', () => {
+    it('should call the unauthorized handler on 401 and still reject', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const onUnauthorized = vi.fn();
+      api.setUnauthorizedHandler(onUnauthorized);
+      const error = { response: { status: 401 } };
+
+      await expect(responseErrorInterceptor(error)).rejects.toBe(error);
+      expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not call the unauthorized handler for other errors', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const onUnauthorized = vi.fn();
+      api.setUnauthorizedHandler(onUnauthorized);
+
+      await expect(
+        responseErrorInterceptor({ response: { status: 403 } })
+      ).rejects.toBeDefined();
+      await expect(
+        responseErrorInterceptor(new Error('Network Error'))
+      ).rejects.toBeDefined();
+      expect(onUnauthorized).not.toHaveBeenCalled();
     });
   });
 

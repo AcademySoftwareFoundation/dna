@@ -4,27 +4,23 @@ Responsibilities
 ----------------
 - Create, read, update, delete user sessions keyed by ``session_id``.
 - Manage the JWT revocation blocklist (by ``jti``).
-- Manage ephemeral OAuth2 state tokens for CSRF protection.
 
 MongoDB collection schema
 --------------------------
 Collection ``dna_sessions``:
     _id          : session_id (str)
-    jti          : current JWT id — old JWTs with a different jti are rejected
+    jti          : id of the most recently issued JWT (superseded ids are blocklisted)
     email        : str
     name         : str
     auth_provider: 'shotgrid_pat'
     created_at   : float (unix timestamp)
     expires_at   : datetime  ← TTL index on this field
-    shotgrid     : sub-document
+    shotgrid     : sub-document — identity only, never a credential
       user_id      : int
       username     : str       (ShotGrid login name — used for sudo_as_login)
-      access_token : str       (ShotGrid Bearer token — rotated on refresh)
-      refresh_token: str | null
-
-Collection ``dna_oauth_states``:
-    _id          : state token (str)
-    expires_at   : datetime  ← TTL index
+    dna_refresh_token_hash         : SHA-256 of the current DNA refresh secret
+    dna_previous_refresh_token_hash: SHA-256 of the secret it replaced
+    dna_refresh_rotated_at         : float (unix timestamp of the last rotation)
 
 Collection ``dna_token_blocklist``:
     _id          : jti (str)
@@ -35,18 +31,19 @@ Environment variables
 ``MONGODB_URL``          - Default: ``mongodb://localhost:27017``
 ``MONGODB_DB``           - Default: ``dna``
 ``SESSION_TTL_SECONDS``  - Default: ``28800`` (8 hours)
-``OAUTH_STATE_TTL``      - Default: ``600``   (10 minutes)
 """
 
 from __future__ import annotations
 
-import json
+import logging
 import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # ── Provider-specific credential models ──────────────────────────────────────
 #
@@ -58,28 +55,30 @@ from typing import Any, Optional
 
 @dataclass
 class ShotGridCredentials:
-    """Credentials for ShotGrid PAT sessions.
+    """The ShotGrid identity behind a PAT session.
+
+    Holds no credential of any kind. The password is verified once at login
+    and discarded, and the tokens ShotGrid returns are discarded with it: every
+    request runs as the script account with ``sudo_as_login``, so a user token
+    is never needed. A leaked session document therefore grants no ShotGrid
+    access.
 
     These fields are ShotGrid-specific and should never be accessed by code
     that is not in the ShotGrid auth or prodtrack provider.
 
     Fields
     ------
-    user_id       : Integer primary key of the HumanUser record in ShotGrid.
-    username      : ShotGrid login name — passed as sudo_as_login on every
-                    prodtrack request.  Never overwritten after creation.
-    access_token  : ShotGrid Bearer access token — returned by the ShotGrid OAuth
-                    endpoint and refreshed periodically.
-    refresh_token : ShotGrid refresh token — used to obtain a new access_token.
+    user_id  : Integer primary key of the HumanUser record in ShotGrid. Used to
+               re-check the account's status on refresh.
+    username : ShotGrid login name — passed as sudo_as_login on every
+               prodtrack request.  Never overwritten after creation.
     """
 
+    # Default "" on username keeps sessions written before the field existed
+    # deserialisable.  Such a session is not usable: the request path rejects a
+    # missing username with 401 rather than degrading to script-account access.
     user_id: int
-    username: str = ""  # ShotGrid login name — never overwritten after login.
-    # Default "" for backward-compat with sessions stored
-    # before this field was added (they deserialise safely
-    # and are re-populated on the next login).
-    access_token: str = ""  # ShotGrid Bearer token — rotated on refresh
-    refresh_token: Optional[str] = None
+    username: str = ""  # ShotGrid login name — never overwritten after login
 
 
 # ── Core session model ────────────────────────────────────────────────────────
@@ -96,15 +95,24 @@ class UserSession:
     Fields
     ------
     session_id    : UUID — primary key, stored in the DNA JWT as ``session_id``.
-    jti           : Current JWT id — every request validates that
-                    ``claims["jti"] == session.jti``.  Rotated on token refresh
-                    so old JWTs are automatically invalidated without a separate
-                    blocklist lookup.
+    jti           : Id of the JWT most recently issued for this session.
+                    Rotated on refresh; the superseded jti is added to the
+                    revocation blocklist, which is what actually invalidates
+                    the old token on the next request.
     email         : Canonical user email, provider-agnostic.
     name          : Display name.
     auth_provider : Which auth path created this session.
     created_at    : Unix timestamp of session creation.
     shotgrid      : ShotGrid-specific credentials.
+    dna_refresh_token_hash:
+                    SHA-256 of the current DNA refresh token secret.  The raw
+                    secret exists only in the browser's httpOnly cookie, so a
+                    database leak does not yield usable refresh tokens.
+    dna_previous_refresh_token_hash / dna_refresh_rotated_at:
+                    The secret replaced by the most recent rotation, and when.
+                    Presenting it inside a short grace window is a benign
+                    concurrent refresh; presenting it later means the token was
+                    copied, and the session is revoked.
     """
 
     session_id: str
@@ -117,6 +125,11 @@ class UserSession:
     # ── Provider credentials — add new providers here ─────────────────── #
     shotgrid: Optional[ShotGridCredentials] = None
     # future: ftrack: Optional[FtrackCredentials] = None
+
+    # ── DNA refresh token — hashes only, never the raw secret ─────────── #
+    dna_refresh_token_hash: str = ""
+    dna_previous_refresh_token_hash: str = ""
+    dna_refresh_rotated_at: float = 0.0
 
     # ── Serialisation helpers ──────────────────────────────────────────── #
 
@@ -167,31 +180,12 @@ class UserSession:
 
     @property
     def sg_username(self) -> Optional[str]:
-        """ShotGrid login name — use as the ``login=`` arg to shotgun_api3."""
+        """ShotGrid login name — passed to ShotGrid as ``sudo_as_login``."""
         return self.shotgrid.username if self.shotgrid else None
-
-    @property
-    def sg_token(self) -> str:
-        """ShotGrid Bearer access token (rotated on refresh)."""
-        return self.shotgrid.access_token if self.shotgrid else ""
-
-    @sg_token.setter
-    def sg_token(self, value: str) -> None:
-        if self.shotgrid:
-            self.shotgrid.access_token = value
 
     @property
     def sg_user_id(self) -> int:
         return self.shotgrid.user_id if self.shotgrid else 0
-
-    @property
-    def refresh_token(self) -> Optional[str]:
-        return self.shotgrid.refresh_token if self.shotgrid else None
-
-    @refresh_token.setter
-    def refresh_token(self, value: Optional[str]) -> None:
-        if self.shotgrid:
-            self.shotgrid.refresh_token = value
 
 
 # ── Abstract interface ────────────────────────────────────────────────────────
@@ -223,6 +217,25 @@ class AbstractSessionStore(ABC):
         """Delete a session (called on logout)."""
 
     @abstractmethod
+    def delete_sessions_for_email(self, email: str) -> int:
+        """Delete every session belonging to a user. Returns how many were removed."""
+
+    @abstractmethod
+    def rotate_refresh_token(
+        self, session_id: str, expected_hash: str, new_hash: str, new_jti: str
+    ) -> Optional[UserSession]:
+        """Atomically swap the refresh-token hash, if it still equals ``expected_hash``.
+
+        The comparison and the write must be one operation. Two requests that
+        both read the same hash and then both write would each hand the browser
+        a different secret, only one of which the server keeps.
+
+        Returns:
+            The updated session, or None if another request rotated it first
+            or the session has ended.
+        """
+
+    @abstractmethod
     def get_session_ttl(self, session_id: str) -> int:
         """Return remaining TTL in seconds, or -2 if absent."""
 
@@ -235,16 +248,6 @@ class AbstractSessionStore(ABC):
     @abstractmethod
     def is_token_revoked(self, jti: str) -> bool:
         """Return True if the jti is on the blocklist."""
-
-    # ── OAuth2 CSRF state ──────────────────────────────────────────────── #
-
-    @abstractmethod
-    def store_oauth_state(self, state: str) -> None:
-        """Persist a CSRF state token."""
-
-    @abstractmethod
-    def consume_oauth_state(self, state: str) -> bool:
-        """Atomically consume a CSRF state token. Returns True if it existed."""
 
     # ── Health ─────────────────────────────────────────────────────────── #
 
@@ -264,7 +267,6 @@ class MongoSessionStore(AbstractSessionStore):
     Collections
     -----------
     dna_sessions       — user sessions, TTL-indexed on ``expires_at``
-    dna_oauth_states   — CSRF state tokens, TTL-indexed on ``expires_at``
     dna_token_blocklist — revoked JTIs, TTL-indexed on ``expires_at``
 
     TTL notes
@@ -280,7 +282,6 @@ class MongoSessionStore(AbstractSessionStore):
         mongo_url: Optional[str] = None,
         db_name: Optional[str] = None,
         session_ttl: Optional[int] = None,
-        state_ttl: Optional[int] = None,
     ) -> None:
         try:
             from pymongo import ASCENDING, MongoClient
@@ -295,17 +296,18 @@ class MongoSessionStore(AbstractSessionStore):
         )
         self._db_name = db_name or os.getenv("MONGODB_DB", "dna")
         self.session_ttl = session_ttl or int(os.getenv("SESSION_TTL_SECONDS", "28800"))
-        self.state_ttl = state_ttl or int(os.getenv("OAUTH_STATE_TTL", "600"))
 
         self._client = MongoClient(
             self._mongo_url,
             serverSelectionTimeoutMS=5000,
             connectTimeoutMS=5000,
             socketTimeoutMS=5000,
+            # Return aware datetimes. Naive ones make expires_at comparisons and
+            # .timestamp() depend on the host's local timezone.
+            tz_aware=True,
         )
         db = self._client[self._db_name]
         self._sessions = db["dna_sessions"]
-        self._states = db["dna_oauth_states"]
         self._blocklist = db["dna_token_blocklist"]
 
         # Ensure TTL indexes exist (idempotent)
@@ -314,11 +316,8 @@ class MongoSessionStore(AbstractSessionStore):
             expireAfterSeconds=0,
             background=True,
         )
-        self._states.create_index(
-            [("expires_at", ASCENDING)],
-            expireAfterSeconds=0,
-            background=True,
-        )
+        # Supports logout-everywhere without a collection scan.
+        self._sessions.create_index([("email", ASCENDING)], background=True)
         self._blocklist.create_index(
             [("expires_at", ASCENDING)],
             expireAfterSeconds=0,
@@ -327,6 +326,43 @@ class MongoSessionStore(AbstractSessionStore):
 
     def _expires_at(self, ttl_seconds: int) -> datetime:
         return datetime.fromtimestamp(time.time() + ttl_seconds, tz=timezone.utc)
+
+    @staticmethod
+    def _now() -> datetime:
+        return datetime.now(timezone.utc)
+
+    def _active(self, session_id: str) -> dict:
+        """Filter matching a session that has not passed its idle timeout.
+
+        MongoDB's TTL monitor deletes expired documents only about once a
+        minute, and later under load, so expiry is enforced here as well.
+        """
+        return {"_id": session_id, "expires_at": {"$gt": self._now()}}
+
+    def _to_session(self, doc: dict, session_id: str) -> Optional[UserSession]:
+        try:
+            doc = dict(doc)
+            doc["session_id"] = doc.pop("_id")
+            doc.pop("expires_at", None)
+            return UserSession.from_dict(doc)
+        except (KeyError, TypeError) as exc:
+            logger.warning(
+                "Failed to deserialize session '%s': %s. The document may be "
+                "from an older schema — deleting it.",
+                session_id,
+                exc,
+            )
+            # Remove the corrupt document so the user is prompted to log in again
+            # rather than seeing repeated errors on every request.
+            try:
+                self._sessions.delete_one({"_id": session_id})
+            except Exception as delete_exc:
+                # Non-fatal: returning None still forces a fresh login, and the
+                # TTL index removes the document eventually.
+                logger.warning(
+                    "Could not delete corrupt session '%s': %s", session_id, delete_exc
+                )
+            return None
 
     # ── Sessions ───────────────────────────────────────────────────────── #
 
@@ -337,28 +373,8 @@ class MongoSessionStore(AbstractSessionStore):
         self._sessions.insert_one(doc)
 
     def get_session(self, session_id: str) -> Optional[UserSession]:
-        doc = self._sessions.find_one({"_id": session_id})
-        if doc is None:
-            return None
-        try:
-            doc["session_id"] = doc.pop("_id")
-            doc.pop("expires_at", None)
-            return UserSession.from_dict(doc)
-        except (KeyError, TypeError) as exc:
-            import warnings
-
-            warnings.warn(
-                f"[session_store] Failed to deserialize session '{session_id}': {exc}. "
-                "The session document may be from an older schema — deleting it.",
-                stacklevel=2,
-            )
-            # Remove the corrupt document so the user is prompted to log in again
-            # rather than seeing repeated errors on every request.
-            try:
-                self._sessions.delete_one({"_id": session_id})
-            except Exception:
-                pass
-            return None
+        doc = self._sessions.find_one(self._active(session_id))
+        return None if doc is None else self._to_session(doc, session_id)
 
     def update_session(self, session: UserSession) -> None:
         doc = session.to_dict()
@@ -372,6 +388,32 @@ class MongoSessionStore(AbstractSessionStore):
 
     def delete_session(self, session_id: str) -> None:
         self._sessions.delete_one({"_id": session_id})
+
+    def delete_sessions_for_email(self, email: str) -> int:
+        return self._sessions.delete_many({"email": email}).deleted_count
+
+    def rotate_refresh_token(
+        self, session_id: str, expected_hash: str, new_hash: str, new_jti: str
+    ) -> Optional[UserSession]:
+        from pymongo import ReturnDocument
+
+        # findOneAndUpdate matches and writes as a single atomic operation, so
+        # exactly one of any concurrent refreshes of the same secret succeeds.
+        doc = self._sessions.find_one_and_update(
+            {**self._active(session_id), "dna_refresh_token_hash": expected_hash},
+            {
+                "$set": {
+                    "dna_refresh_token_hash": new_hash,
+                    "dna_previous_refresh_token_hash": expected_hash,
+                    "dna_refresh_rotated_at": time.time(),
+                    "jti": new_jti,
+                    # A refresh is activity: restart the idle timeout.
+                    "expires_at": self._expires_at(self.session_ttl),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        return None if doc is None else self._to_session(doc, session_id)
 
     def get_session_ttl(self, session_id: str) -> int:
         doc = self._sessions.find_one({"_id": session_id}, {"expires_at": 1})
@@ -394,20 +436,6 @@ class MongoSessionStore(AbstractSessionStore):
     def is_token_revoked(self, jti: str) -> bool:
         return self._blocklist.find_one({"_id": jti}) is not None
 
-    # ── OAuth2 CSRF state ──────────────────────────────────────────────── #
-
-    def store_oauth_state(self, state: str) -> None:
-        self._states.replace_one(
-            {"_id": state},
-            {"_id": state, "expires_at": self._expires_at(self.state_ttl)},
-            upsert=True,
-        )
-
-    def consume_oauth_state(self, state: str) -> bool:
-        """Atomically consume — findOneAndDelete is atomic in MongoDB."""
-        result = self._states.find_one_and_delete({"_id": state})
-        return result is not None
-
     # ── Health ─────────────────────────────────────────────────────────── #
 
     def ping(self) -> bool:
@@ -419,9 +447,6 @@ class MongoSessionStore(AbstractSessionStore):
 
 
 # ── Singleton factory ─────────────────────────────────────────────────────────
-
-# Backward-compat alias — kept so any existing import of ``SessionStore`` still resolves.
-SessionStore = AbstractSessionStore
 
 _session_store: Optional[AbstractSessionStore] = None
 

@@ -269,6 +269,79 @@ The React app will be available at `http://localhost:5173`.
 
 ---
 
+## Authentication
+
+When authentication is enabled, every API endpoint except `/health` and
+`/auth/*` requires a valid token. The backend supports three providers, set by
+`AUTH_PROVIDER` (the frontend's `VITE_AUTH_PROVIDER` must match):
+
+| Value      | Login                                   | Details                         |
+|------------|-----------------------------------------|---------------------------------|
+| `none`     | Any email, no validation (default)      | Local development only          |
+| `google`   | Google OAuth                            | See [DEPLOYMENT.md](DEPLOYMENT.md) |
+| `shotgrid` | ShotGrid username + Legacy Password     | Set up below                    |
+
+This section covers setting up ShotGrid login. For how it works — the login
+and request flows, tokens and sessions, security design, API, full
+configuration and code map — see **[AUTH_CHANGES.md](AUTH_CHANGES.md)**.
+
+### Enabling ShotGrid login
+
+Set these on the `api` service in `backend/docker-compose.local.yml`, then
+restart the stack:
+
+```yaml
+- AUTH_PROVIDER=shotgrid
+- JWT_SECRET_KEY=<openssl rand -hex 32>
+- CORS_ALLOWED_ORIGINS=http://localhost:8080,http://localhost:5173
+- SHOTGRID_URL=https://<your-studio>.shotgrid.autodesk.com/
+- SHOTGRID_SCRIPT_NAME=<script name>
+- SHOTGRID_API_KEY=<script key>
+```
+
+- `JWT_SECRET_KEY` must be at least 32 characters; the backend refuses to start
+  otherwise.
+- `CORS_ALLOWED_ORIGINS` must list the frontend origins explicitly, never `*`:
+  the refresh token is an httpOnly cookie, which needs credentialed CORS.
+- The script account performs every request on the user's behalf through
+  `sudo_as_login`. The backend verifies it at startup and reports the result via
+  `GET /health`.
+
+Then switch the frontend to the ShotGrid login screen in
+`frontend/packages/app/.env`, and restart the dev server:
+
+```bash
+VITE_AUTH_PROVIDER=shotgrid
+```
+
+On ShotGrid cloud sites each user must generate a Personal Access Token once at
+`profile.autodesk.com` and bind it to their account; an admin cannot provision
+it. On-prem sites (`SG_SITE_TYPE=onprem`) do not need one.
+
+### Verifying
+
+```bash
+# 1. Log in; the refresh cookie is saved to a cookie jar
+TOKEN=$(curl -s -c jar.txt -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"you@studio.com","password":"<legacy-password>"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 2. The session resolves
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/auth/me
+
+# 3. Log out, then the token no longer works (expect 401)
+curl -s -b jar.txt -X POST -H "X-DNA-CSRF: 1" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/auth/logout
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/auth/me
+```
+
+More checks — the stored session, refresh rotation and cross-user access — are
+in [AUTH_CHANGES.md § Testing](AUTH_CHANGES.md#7-testing).
+
+---
+
 ## Environment Variables Reference
 
 ### Backend API (`api` service)
@@ -293,6 +366,16 @@ The React app will be available at `http://localhost:5173`.
 | `GEMINI_URL` | No | `https://generativelanguage.googleapis.com/v1beta/openai/` | Override the Gemini OpenAI-compatible base URL |
 | `DNA_ENABLE_TRANSCRIPT_PUBLISH` | No | `false` | Set to `true` to enable `POST /playlists/{id}/publish-transcript`. When off, the endpoint returns 404. |
 | `SHOTGRID_TRANSCRIPT_ENTITY` | No | `CustomEntity01` | ShotGrid custom entity slot used when publishing transcripts. Match whichever `CustomEntityNN` the site admin has enabled. |
+| `AUTH_PROVIDER` | No | `none` | `google` or `shotgrid` to lock endpoints behind token auth; `none` disables authentication (local development only) |
+| `JWT_SECRET_KEY` | Yes\* | - | Signing key for DNA JWTs when `AUTH_PROVIDER=shotgrid`. Minimum 32 chars — generate with `openssl rand -hex 32` |
+| `CORS_ALLOWED_ORIGINS` | Yes\* | `http://localhost:5173,http://localhost:3000` | Comma-separated frontend origins allowed to call the API (scheme, host and port; no path). Required as an explicit list when `AUTH_PROVIDER=shotgrid` — the refresh-token cookie needs credentialed CORS, which is never enabled for `*`. Include `http://localhost:8080` when using the Docker frontend |
+| `JWT_ALGORITHM` | No | `HS256` | JWT signing algorithm |
+| `JWT_EXPIRE_MINUTES` | No | `15` | Access-token lifetime in minutes when `AUTH_PROVIDER=shotgrid` |
+| `SESSION_TTL_SECONDS` | No | `28800` | Idle timeout: a session with no refresh for this long ends (8 hours) |
+| `SESSION_MAX_LIFETIME_SECONDS` | No | `43200` | Absolute session lifetime from login, however active (12 hours) |
+| `REFRESH_COOKIE_SAMESITE` | No | `strict` | `strict`, `lax`, or `none` (only for frontend and API on different sites) |
+| `REFRESH_COOKIE_SECURE` | No | `true` | `Secure` flag on the refresh cookie; `none` SameSite requires it |
+| `SG_SITE_TYPE` | No | `cloud` | `cloud` or `onprem`; on-prem sites do not require a per-user PAT |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ### Vexa Service (`vexa` service)

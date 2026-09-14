@@ -1,382 +1,455 @@
-# DNA Authentication — Code Changes Summary
+# DNA Authentication
 
-**Branch:** `dna/issue55-Autodesk-PAT-based-authentication-for-backend-API-endpoints`  
-**Author:** Srijan Tripathi  
-**Date:** July 2026
+**Branch:** `dna/issue55-Autodesk-PAT-based-authentication-for-backend-API-endpoints`
+**Issue:** [#55 — Lockdown backend API endpoints behind token auth](https://github.com/AcademySoftwareFoundation/dna/issues/55)
+**Author:** Srijan Tripathi
+**Updated:** September 2026
+
+This document describes how authentication and authorization work in DNA as
+implemented on this branch: the login and request flows, the token and session
+model, the security controls, the configuration, and where each piece lives in
+the code.
 
 ---
 
 ## 1. Overview
 
-This change implements **PAT (Personal Access Token) based authentication** for DNA — specifically the legacy ShotGrid username + password flow — without ever storing the password in the session.
+When authentication is enabled, every API endpoint except `/health` and
+`/auth/*` requires a valid token. The backend supports three providers, selected
+by `AUTH_PROVIDER`; the frontend's `VITE_AUTH_PROVIDER` must match.
 
-| Method | Description |
-|--------|-------------|
-| **ShotGrid PAT** | Username + ShotGrid Legacy Password (verified once, password discarded) |
+| Value      | Login                                    | Notes                                              |
+|------------|------------------------------------------|----------------------------------------------------|
+| `none`     | Any email, no validation (default)       | Local development and tests only                   |
+| `google`   | Google OAuth                             | Unchanged by this branch; see `DEPLOYMENT.md`       |
+| `shotgrid` | ShotGrid username + Legacy Password (PAT) | Added by this branch; the subject of this document |
 
-The core principle: after ShotGrid validates the user's password at login, the password is **thrown away**. All subsequent ShotGrid queries run via the server's script account with `sudo_as_login=<username>`, so ShotGrid still enforces the user's own native permission group — but without keeping any user credential alive in the session.
+The ShotGrid provider rests on three principles:
 
----
-
-## 2. Problem Statement
-
-The original implementation had several gaps addressed in this PR:
-
-- **Password stored in session** — ShotGrid username + password were kept in MongoDB sessions, which was flagged as a security risk. Stolen session data could expose ShotGrid credentials.
-- **No session backend abstraction** — only Redis was supported; MongoDB (already in the stack) couldn't be used as an alternative.
-- **`sudo_as_login` not used** — API calls to ShotGrid were either made with a script account (bypassing user permissions) or would have required a stored credential. This PR adds proper user-identity propagation via `sudo_as_login`.
-- **Authorization bypass in `/projects/user/{email}`** — any authenticated user could read any other user's project list by substituting a different email in the URL path.
-- **Inconsistent `self._sg` usage** — `search()` and `get_version_statuses()` called `self.sg.find()` directly (bypassing sudo), so the script account's permissions were used instead of the user's.
-
----
-
-## 3. Architecture: How Authentication Works
-
-### 3.1 Phase 1 — PAT Login (password verified then discarded)
-
-```
-Browser              Backend (FastAPI)         ShotGrid API          MongoDB
-  │                        │                        │                   │
-  │  POST /auth/login      │                        │                   │
-  │  { username, password }│                        │                   │
-  │ ──────────────────────>│                        │                   │
-  │                        │  POST /api/v1/auth/    │                   │
-  │                        │    access_token        │                   │
-  │                        │  { grant_type:         │                   │
-  │                        │    "password",         │                   │
-  │                        │    username, password }│                   │
-  │                        │ ──────────────────────>│                   │
-  │                        │                        │  validate creds   │
-  │                        │  { access_token,       │  against SG user  │
-  │                        │    refresh_token }     │  database         │
-  │                        │ <──────────────────────│                   │
-  │                        │                        │                   │
-  │                        │  *** PASSWORD          │                   │
-  │                        │      DISCARDED ***     │                   │
-  │                        │                        │                   │
-  │                        │  find_one("HumanUser", │                   │
-  │                        │   [["email","is",      │                   │
-  │                        │     username]])        │                   │
-  │                        │  ─ ─ ─(script creds)─>│                   │
-  │                        │                        │  looks up real    │
-  │                        │  { id, name, email,    │  user record      │
-  │                        │    login }             │                   │
-  │                        │ <─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                   │
-  │                        │                        │                   │
-  │                        │  UserSession {         │                   │
-  │                        │   session_id: uuid,    │   insert_one      │
-  │                        │   jti: uuid,           │   (8hr TTL index) │
-  │                        │   email: <from SG>,    │ ─────────────────>│
-  │                        │   name:  <from SG>,    │                   │
-  │                        │   auth_provider: "pat",│                   │
-  │                        │   shotgrid: {          │  stored; NO       │
-  │                        │     user_id: <int>,    │  password field   │
-  │                        │     username: <login>, │                   │
-  │                        │     access_token: ..., │                   │
-  │                        │     refresh_token: ... │                   │
-  │                        │   }}                   │                   │
-  │                        │                        │                   │
-  │  DNA JWT (the "Key")   │                        │                   │
-  │  { jti, session_id,    │                        │                   │
-  │    email, exp }        │                        │                   │
-  │ <──────────────────────│  ← no credentials      │                   │
-  │  (stored in browser    │    inside the JWT      │                   │
-  │   sessionStorage)      │                        │                   │
-```
-
-**Code — how the password is discarded:**
-
-```python
-# Step 1 — verify user's identity via ShotGrid
-sg_token_set = sg_auth.login_user(username, password)
-# password validated by ShotGrid; access_token + refresh_token returned
-
-# Step 2 — look up canonical user record (id, real email, login name)
-user_info = sg_auth.get_user_info(sg_token_set.access_token, username=username)
-# all values come from ShotGrid — nothing hardcoded
-
-# Step 3 — build session; password is simply NOT passed
-shotgrid = ShotGridCredentials(
-    user_id       = user_info.sg_user_id,       # ShotGrid integer PK
-    username      = username,                    # login name for sudo_as_login
-    access_token  = sg_token_set.access_token,   # stored for token refresh only
-    refresh_token = sg_token_set.refresh_token,
-    # password is verified once to confirm identity, then discarded
-)
-```
-
-`username` (the ShotGrid login name) is safe to store — it is the user's public identifier, not a credential.
+1. **DNA stores no user credential.** The password is verified against ShotGrid
+   at login and never stored, logged, or placed in a token. The ShotGrid tokens
+   that verification returns are discarded too.
+2. **ShotGrid enforces permissions.** Every request queries ShotGrid through the
+   script account with `sudo_as_login=<user>`, so ShotGrid applies that user's
+   own permission group. DNA adds no permission logic of its own.
+3. **Revocation is immediate.** Every request confirms its server-side session
+   still exists; ending a session cuts off all of its tokens at once.
 
 ---
 
-### 3.2 Phase 2 — Per-Request ShotGrid Call (`sudo_as_login`)
+## 2. How it works
+
+### 2.1 Login — the password is verified, then discarded
 
 ```
-Browser                    Backend                          ShotGrid API       MongoDB
-  │                           │                                  │                │
-  │  GET /projects/user/{e}   │                                  │                │
-  │  Authorization: Bearer    │                                  │                │
-  │    <DNA JWT>              │                                  │                │
-  │ ─────────────────────────>│                                  │                │
-  │                           │  1. verify JWT sig + expiry      │                │
-  │                           │  2. check jti not revoked        │                │
-  │                           │  3. check path email matches     │                │
-  │                           │     JWT email (403 if not)       │                │
-  │                           │  4. get_session(session_id) ─────────────────────>│
-  │                           │<─────────────────────────────────────────────────│
-  │                           │     → session.sg_username                         │
-  │                           │                                  │                │
-  │                           │  ShotgridProvider(               │                │
-  │                           │    sudo_user=username)           │                │
-  │                           │                                  │                │
-  │                           │  self._sg.find(...)              │                │
-  │                           │  = script account +              │                │
-  │                           │    sudo_as_login=username ───────>                │
-  │                           │                                  │  enforces user's│
-  │                           │                                  │  permission     │
-  │                           │                                  │  group natively │
-  │                           │<─────────────────────────────────                │
-  │ <─────────────────────────│                                  │                │
+Browser                  DNA backend                     ShotGrid            MongoDB
+  │  POST /auth/login       │                                │                   │
+  │  { username, password } │                                │                   │
+  │────────────────────────>│  POST /api/v1/auth/access_token│                   │
+  │                         │  grant_type=password           │                   │
+  │                         │───────────────────────────────>│ validate          │
+  │                         │  { access_token, refresh_token}│ credentials       │
+  │                         │<───────────────────────────────│                   │
+  │                         │ ** password and ShotGrid       │                   │
+  │                         │    tokens discarded **         │                   │
+  │                         │  find HumanUser by login,      │                   │
+  │                         │  then by email (script account)│                   │
+  │                         │───────────────────────────────>│                   │
+  │                         │  { id, name, email, login,     │                   │
+  │                         │    status } — must be active   │                   │
+  │                         │<───────────────────────────────│                   │
+  │                         │  create session (hash of refresh secret only)      │
+  │                         │───────────────────────────────────────────────────>│
+  │  200 { access_token }   │                                │                   │
+  │  Set-Cookie: dna_refresh│                                │                   │
+  │<────────────────────────│                                │                   │
 ```
 
-**How `sudo_as_login` works:**
+The user is looked up by **login name first, then email**, because people sign in
+with either depending on the site. The session stores the resolved
+`HumanUser.login` — not what was typed — because that is the value
+`sudo_as_login` matches on. An account whose status is not active is refused.
 
-`shotgun_api3` supports `sudo_as_login`, which instructs ShotGrid to execute the query *as if* the named user made it, while the script account provides authentication. ShotGrid enforces the sudo user's own native permission group — identical to if they had logged in directly. This is Autodesk's recommended identity-broker pattern for server-to-server integrations.
+ShotGrid's token response is used only as proof that the credentials are valid.
+DNA never needs a user's ShotGrid token — every request runs as the script
+account with `sudo_as_login` — so keeping one would only put a renewable
+ShotGrid credential in the database.
 
-```python
-# get_prodtrack_provider() — resolves the right ShotGrid connection per request
-if user_token:
-    store = get_session_store()
-    session = store.get_session(session_id) if session_id else None
-    sudo_login = session.sg_username if (session and session.sg_username) else user_token
-    return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
+### 2.2 Tokens and session
+
+| Credential | Lifetime | Where it lives | Readable by page JavaScript? |
+|------------|----------|----------------|------------------------------|
+| **Access token** — signed JWT `{ jti, sub, session_id, email, name, iat, exp, iss, aud }` | 15 minutes | Response body → `sessionStorage`; sent as `Authorization: Bearer` | Yes |
+| **Refresh token** — 256-bit random secret, sent as `<session_id>.<secret>` | Until the session ends | `dna_refresh` cookie: `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/auth` | **No** |
+
+Neither credential contains a password or a ShotGrid token.
+
+**Session document** (`dna_sessions` collection, MongoDB):
+
+```
+_id                              session_id (UUID)
+jti                              id of the most recently issued access token
+email, name                      from ShotGrid
+auth_provider                    "shotgrid_pat"
+created_at                       unix timestamp — drives the absolute lifetime
+expires_at                       TTL index — drives the idle timeout
+shotgrid:
+  user_id                        HumanUser id
+  username                       HumanUser login — used for sudo_as_login
+dna_refresh_token_hash           SHA-256 of the current refresh secret
+dna_previous_refresh_token_hash  SHA-256 of the secret it replaced
+dna_refresh_rotated_at           when the last rotation happened
 ```
 
-`user_token` is a presence signal (confirms authenticated PAT session), not a credential. The actual identity anchor is `session.sg_username` fetched from MongoDB.
+The document holds **no credential**: no password, no ShotGrid token, and only
+a **hash** of the refresh secret. A database leak exposes names and email
+addresses, but nothing that can sign in to DNA or ShotGrid. Revoked access-token ids are kept in
+`dna_token_blocklist` until they would have expired.
+
+### 2.3 Every request — impersonation via `sudo_as_login`
+
+```
+Browser                  DNA backend                                  ShotGrid
+  │  GET /projects/...      │                                            │
+  │  Bearer <access token>  │                                            │
+  │────────────────────────>│ 1. signature (HS256), expiry, iss and aud  │
+  │                         │ 2. jti not on the blocklist                │
+  │                         │ 3. session exists and within max lifetime  │
+  │                         │ 4. same-user check on per-user endpoints   │
+  │                         │ 5. script account + sudo_as_login=<login>  │
+  │                         │───────────────────────────────────────────>│
+  │                         │                  query runs with the user's│
+  │                         │                  own permission group      │
+  │  response               │<───────────────────────────────────────────│
+  │<────────────────────────│                                            │
+```
+
+- **Authenticated once per request, off the event loop.** Steps 1–3 run in a
+  single dependency whose result every consumer shares. It is a synchronous
+  function, so FastAPI runs its blocking MongoDB lookup in the threadpool.
+- **Fails closed.** If a session cannot supply a ShotGrid login name, the request
+  is rejected with 401. It is never downgraded to the bare script account, which
+  would answer with full site permissions.
+- **Notes are attributed to their author.** Publishing opens a nested
+  `sudo_as_login` for the note's author, so a supervisor publishing a playlist
+  of artists' notes records each artist correctly.
+- **Same-user endpoints.** These return 403 unless the path email matches the
+  token's email (compared case-insensitively):
+  `GET /projects/user/{user_email}`, `/users/{user_email}/settings`,
+  `/users/{user_email}/qc-checks` and `/users/{user_email}/qc-checks/{check_id}`.
+
+### 2.4 Staying signed in — single-use refresh tokens
+
+About a minute before the access token expires, and whenever a sleeping tab
+becomes visible again, the frontend calls `POST /auth/refresh`. The browser
+attaches the cookie; the page adds the `X-DNA-CSRF: 1` header.
+
+```
+refresh secret matches the current hash
+    → atomically swap in a new secret (only one concurrent request can win)
+    → the winner checks the HumanUser with the script account:
+          deactivated, deleted, or login   → delete the session → 401
+            changed
+          ShotGrid unreachable or script   → keep the session; recheck on the
+            account unusable                 next refresh
+    → 200 + new access token + new cookie
+
+refresh secret matches the previous hash
+    rotated ≤ 30 s ago  → a concurrent tab won the swap: new access token only
+    rotated earlier     → a real, rotated-out secret replayed: delete the session → 401
+
+refresh secret never issued for this session (forged, mistyped)
+    → 401, nothing revoked
+```
+
+A forged secret is rejected **without** revoking anything. Session ids are
+readable inside every access token, so revoking on any mismatch would let anyone
+who had seen one token log that user out at will. Only replaying a secret that
+was genuinely issued counts as theft.
+
+The frontend ends the session only on 401 or 403. Network errors and 5xx
+responses are retried every 30 seconds, so a brief ShotGrid or backend hiccup
+does not sign anyone out.
+
+When any other API call is answered with 401 — the session was ended from
+another device, or the account was deactivated — the frontend refreshes at once
+(at most every 30 seconds) rather than waiting for the scheduled refresh. The
+refresh either renews the session or shows the login page.
+
+When the session ends or a different user signs in, the frontend discards the
+React Query cache and the current selection, so nothing loaded for one user is
+shown to the next.
+
+A session ends when **any** of these happens:
+
+| Limit | Default | Setting |
+|-------|---------|---------|
+| Idle — no refresh for this long | 8 hours | `SESSION_TTL_SECONDS` |
+| Absolute — time since login, however active | 12 hours | `SESSION_MAX_LIFETIME_SECONDS` |
+| Browser closed | — | cookie has no `Max-Age` |
+| ShotGrid account deactivated, deleted, or its login changed — checked on every refresh; not when ShotGrid is merely unreachable | — | — |
+| Logout, logout everywhere, or refresh-token reuse | — | — |
+
+### 2.5 Logging out
+
+- `POST /auth/logout` ends the current session. It accepts the access token —
+  even if expired — or the refresh cookie, so an idle user can still log out.
+- `POST /auth/logout-all` ends every session for the user, on every device.
+
+Both **fail closed**: if the session cannot be removed server-side they return
+`503` rather than reporting success while the session remains usable. The
+frontend discards its local credentials either way.
 
 ---
 
-### 3.3 Key Security Properties
+## 3. Security design
 
-- **No password stored anywhere** — password goes in, hits ShotGrid's API over HTTPS, and is immediately GC'd. Not in MongoDB, not in logs, not in the JWT.
-- **DNA JWT carries no credentials** — `{ jti, session_id, email, exp }` only.
-- **MongoDB is the source of truth** — a JWT is only valid if `session_id` resolves to a live MongoDB document (8h TTL); no session → 401 immediately.
-- **JWT revocation** — logout deletes the session document and adds `jti` to the blocklist, preventing replay for the token's remaining lifetime.
-- **User permissions enforced by ShotGrid** — `sudo_as_login` makes ShotGrid apply the user's own permission group; no custom permission logic in DNA.
-- **Authorization check on path parameter** — `GET /projects/user/{email}` returns 403 if the JWT email doesn't match the path email, preventing cross-user data access.
+### 3.1 Controls
+
+| Control | Threat addressed |
+|---------|------------------|
+| Password verified once, never stored; ShotGrid tokens from login discarded | Database, backup or log leak exposing credentials usable against ShotGrid directly |
+| 15-minute access tokens | A leaked access token (logs, proxy, XSS) is useful only briefly |
+| Session existence checked on every request | Revocation takes effect on the next request, including endpoints that never call ShotGrid |
+| Refresh token in an `HttpOnly` cookie | XSS cannot read the long-lived credential |
+| Refresh token stored only as a hash | Database leak does not yield usable refresh tokens |
+| Rotation on every refresh + reuse detection | A copied refresh token: replaying a genuinely issued, rotated-out secret revokes the whole session, locking out the thief even if they refreshed first |
+| Forged refresh secrets rejected without side effects | Forcing another user's logout using a session id read from a token or log |
+| Atomic refresh-token swap | Concurrent refreshes (several tabs, a waking laptop) leaving the browser holding a cookie the server discarded |
+| `SameSite=Strict` + required `X-DNA-CSRF` header | Cross-site request forgery against cookie-authenticated endpoints |
+| Credentialed CORS only with an explicit origin list | Any website making logged-in requests on a user's behalf |
+| 12-hour absolute session lifetime | A session kept alive indefinitely by a continuously refreshed token |
+| Account status re-checked with the script account on every DNA refresh, distinguishing refusal from outage | Deactivated ShotGrid accounts keeping DNA access, without a ShotGrid outage logging everyone out |
+| Fail-closed logout and logout everywhere | Users told they are logged out while the session survives; lost or compromised devices |
+| `sudo_as_login` with fail-closed provider resolution | Queries answered with script-account permissions |
+| `JWT_SECRET_KEY` of at least 32 characters, algorithm pinned on decode | Forged tokens via a guessable key or algorithm confusion |
+| `iss` and `aud` claims required and verified | Tokens minted by another system sharing the signing key (e.g. staging) being accepted |
+| Idle timeout enforced on read, not only by MongoDB's TTL monitor | Sessions remaining usable for a minute or more past expiry |
+| No session ids or emails in security logs; login outage details logged, never returned | Logs used to target a session; unauthenticated callers learning internal URLs or errors |
+| Login, refresh and logout run in the threadpool | A slow ShotGrid stalling every other request and WebSocket |
+| Frontend refreshes on any API 401 and clears cached data when the user changes | A revoked session leaving a page of errors; one user's data shown to the next on a shared tab |
+| HSTS honours `X-Forwarded-Proto` | HTTPS downgrade behind a TLS-terminating proxy |
+
+### 3.2 Deliberate design choices
+
+- **Session-existence check rather than strict `jti` matching.** All tabs share
+  one refresh cookie, so requiring each access token's `jti` to equal the latest
+  one issued would invalidate every other open tab whenever one refreshed. The
+  15-minute lifetime bounds older tokens instead, and deleting a session still
+  revokes all of them at once.
+- **30-second reuse grace window.** Two tabs can present the same refresh secret
+  before either receives the rotated cookie. Within 30 seconds of a rotation this
+  is treated as that race; afterwards it is treated as theft.
+- **One MongoDB session read per authenticated request, in the threadpool.**
+  This lookup is what makes revocation immediate. The session store uses a
+  synchronous driver; running authentication as a synchronous dependency keeps
+  it off the event loop, and FastAPI's per-request dependency cache ensures the
+  lookup happens once however many consumers need the caller's identity. The
+  login, refresh and logout endpoints, which call ShotGrid and MongoDB, are
+  synchronous for the same reason.
+- **No ShotGrid token is kept, even to detect deactivation.** A stored ShotGrid
+  refresh token would stop working once an account is disabled, but it is also
+  a credential anyone reading the database could use against ShotGrid. Asking
+  ShotGrid for the account's status with the script account gives the same
+  signal without it. The trade-off: changing a ShotGrid password does not end
+  existing DNA sessions; use logout everywhere, or deactivate the account.
+- **A ShotGrid outage does not end sessions.** The ShotGrid check on refresh is
+  how a deactivated account is noticed, so a refusal ends the session. When
+  ShotGrid cannot be reached, nothing is known about the account; the session
+  continues, the check is retried on the next refresh, and the 12-hour absolute
+  lifetime still applies.
+- **Credentials are never combined with a CORS wildcard.** With
+  `AUTH_PROVIDER=shotgrid`, credentialed CORS is enabled only for an explicit
+  `CORS_ALLOWED_ORIGINS` list. The Google deployment (`CORS_ALLOWED_ORIGINS=*`)
+  is unaffected.
+- **Refresh-cookie `SameSite` is configurable.** `Strict` works when the frontend
+  and API share a site (for example `localhost:8080` and `localhost:8000`). Split
+  deployments set `REFRESH_COOKIE_SAMESITE=none`, which requires `Secure` and
+  relies on the CSRF header for cross-site protection.
 
 ---
 
-## 4. Files Changed
+## 4. HTTP API
 
-### 4.1 `backend/src/dna/auth/session_store.py`
+### 4.1 Endpoints
 
-Three independent improvements:
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /auth/login` | none | Report the login mode (`{"mode": "pat"}`) so the UI renders the right form |
+| `POST /auth/login` | none | Exchange username + password for an access token and refresh cookie |
+| `POST /auth/refresh` | cookie + `X-DNA-CSRF` | Rotate the refresh cookie and issue a new access token |
+| `POST /auth/logout` | access token (even expired), or cookie + `X-DNA-CSRF` | End the current session and clear the cookie |
+| `POST /auth/logout-all` | access token | End every session for the current user |
+| `GET /auth/me` | access token | Return `email`, `name` and `shotgrid_user_id` |
+| `GET /health` | none | Readiness: `mongo` (live ping) and `shotgrid` (startup credential check); 503 when either fails |
 
-#### A. `ShotGridCredentials` — password field removed entirely
+### 4.2 Status codes
 
-The `password: Optional[str]` field has been **removed** — not made `None` by default, not made optional in a different way, but removed from the dataclass entirely. The password is now discarded at the point of ShotGrid verification and never reaches the session store.
+| Code | Meaning |
+|------|---------|
+| `401` | Missing, invalid, expired or revoked token; session ended (logout, idle, maximum lifetime, reuse detected, ShotGrid account no longer active); or a session with no usable ShotGrid identity |
+| `403` | ShotGrid denied access to the resource; the request targets another user's data; or `X-DNA-CSRF` is missing on a cookie-authenticated call |
+| `503` | ShotGrid is unreachable or erroring, or the script account is misconfigured — including during login, where nothing is known about the credentials and a generic message is returned; or a logout could not be completed server-side |
 
-```python
-# Before — password field existed on the credentials dataclass
-@dataclass
-class ShotGridCredentials:
-    user_id: int
-    username: str = ""
-    access_token: str = ""
-    refresh_token: Optional[str] = None
-    password: Optional[str] = None   # ← REMOVED (security risk)
+### 4.3 ShotGrid error translation
 
-# After — no password field
-@dataclass
-class ShotGridCredentials:
-    user_id: int
-    username: str = ""               # ShotGrid login name for sudo_as_login
-    access_token: str = ""           # ShotGrid Bearer token (for token refresh)
-    refresh_token: Optional[str] = None
+ShotGrid reports permission denials, revoked identities and outages as the same
+`shotgun_api3.Fault`. Unhandled, all three would surface as HTTP 500.
+`classify_sg_fault` maps them to domain errors, and FastAPI exception handlers
+turn those into status codes:
+
+| ShotGrid condition | Domain error | HTTP |
+|--------------------|--------------|------|
+| `AuthenticationFault` | `ProdtrackAuthError` | 401 |
+| Fault naming a permission problem | `ProdtrackPermissionError` | 403 |
+| Any other fault | `ProdtrackUnavailableError` | 503 |
+
+---
+
+## 5. Configuration
+
+### 5.1 Backend (`api` service)
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `AUTH_PROVIDER` | No | `none` | `none`, `google` or `shotgrid` |
+| `JWT_SECRET_KEY` | Yes\* | — | Access-token signing key; at least 32 characters (`openssl rand -hex 32`). The backend refuses to start otherwise |
+| `JWT_ALGORITHM` | No | `HS256` | Signing algorithm, pinned on decode |
+| `JWT_ISSUER` | No | `dna-backend` | `iss` claim issued and required |
+| `JWT_AUDIENCE` | No | `dna-api` | `aud` claim issued and required |
+| `JWT_EXPIRE_MINUTES` | No | `15` | Access-token lifetime |
+| `SESSION_TTL_SECONDS` | No | `28800` | Idle timeout (8 hours) |
+| `SESSION_MAX_LIFETIME_SECONDS` | No | `43200` | Absolute session lifetime (12 hours) |
+| `CORS_ALLOWED_ORIGINS` | Yes\* | — | Explicit, comma-separated frontend origins. Never `*` with ShotGrid auth |
+| `REFRESH_COOKIE_SAMESITE` | No | `strict` | `strict`, `lax` or `none` (frontend and API on different sites) |
+| `REFRESH_COOKIE_SECURE` | No | `true` | Browsers treat `http://localhost` as secure, so the default works locally |
+| `SHOTGRID_URL` | Yes\* | — | ShotGrid site URL |
+| `SHOTGRID_SCRIPT_NAME`, `SHOTGRID_API_KEY` | Yes\* | — | Script account that performs `sudo_as_login`; verified at startup |
+| `SG_SITE_TYPE` | No | `cloud` | `onprem` sites need no Personal Access Token |
+| `SG_STARTUP_CHECK_TIMEOUT` | No | `10` | Seconds to wait for the startup credential check |
+| `MONGODB_URL`, `MONGODB_DB` | No | `mongodb://localhost:27017`, `dna` | Session storage |
+| `LOG_LEVEL` | No | `INFO` | Application log level |
+
+\* Required when `AUTH_PROVIDER=shotgrid`.
+
+### 5.2 Frontend
+
+| Variable | Purpose |
+|----------|---------|
+| `VITE_AUTH_PROVIDER` | `none`, `google` or `shotgrid` — must match the backend |
+| `VITE_API_BASE_URL` | Backend URL. When unset, requests are relative to the page origin |
+
+The frontend Docker image defaults to `google` for the GCP deployment. Build a
+ShotGrid image with `--build-arg VITE_AUTH_PROVIDER=shotgrid`.
+
+### 5.3 Enabling ShotGrid login locally
+
+Step-by-step setup and a quick verification are in
+[QUICKSTART.md § Authentication](QUICKSTART.md#authentication).
+
+---
+
+## 6. Code map
+
+### 6.1 Backend
+
+| File | Responsibility |
+|------|----------------|
+| `src/main.py` | `get_current_user` and `get_user_scoped_prodtrack_provider` dependencies; `/auth/*` endpoints; refresh-cookie and CSRF helpers; ShotGrid fault handlers; startup credential check (`lifespan`); `/health`; security headers |
+| `src/dna/auth_providers/auth_provider_base.py` | Provider interface and `get_auth_provider` factory (`none`, `google`, `shotgrid`) |
+| `src/dna/auth_providers/shotgrid_sso.py` | `ShotGridSSOProvider`: login, access-token validation with session check, refresh rotation and reuse detection, logout, logout-all, cookie settings |
+| `src/dna/auth/shotgrid_auth_client.py` | Password verification against the ShotGrid token endpoint; HumanUser lookup and account-status check |
+| `src/dna/auth/session_store.py` | `UserSession` and `ShotGridCredentials` models; `MongoSessionStore` with TTL indexes, blocklist and logout-all |
+| `src/dna/auth/email.py` | Case-insensitive email comparison for same-user checks |
+| `src/dna/cors_settings.py` | CORS settings; credentials only for ShotGrid auth with explicit origins |
+| `src/dna/prodtrack_providers/prodtrack_provider_base.py` | `get_prodtrack_provider(sudo_login=...)` and the `Prodtrack*Error` domain errors |
+| `src/dna/prodtrack_providers/shotgrid.py` | `ShotgridProvider` script connection with `sudo_as_login`; `sudo()` context; `classify_sg_fault` |
+| `src/dna/auth_providers/google_auth_provider.py`, `noop_auth_provider.py` | Google and no-auth providers, unchanged |
+
+### 6.2 Frontend
+
+| File | Responsibility |
+|------|----------------|
+| `src/contexts/ShotGridAuthContext.tsx` | Login, refresh scheduling before expiry, on tab visibility and on API 401s; session restore from the cookie; logout and logout-everywhere |
+| `src/contexts/AuthContext.tsx` | Shared `useAuth()` context; selects the noop, Google or ShotGrid provider and adapts ShotGrid to the shared shape |
+| `src/components/ShotGridLoginPage.tsx` | Username + password form |
+| `src/App.tsx` | Shows `ShotGridLoginPage` when `authProvider === 'shotgrid'` and the user is not signed in; clears cached data and selection when the signed-in user changes |
+| `packages/core/src/apiHandler.ts` | `setUnauthorizedHandler`: notifies the auth context when an API call returns 401 |
+
+---
+
+## 7. Testing
+
+### 7.1 Automated
+
+Run from `backend/`:
+
+```bash
+python -m pytest tests/test_auth_prod.py tests/test_shotgrid_auth_client.py tests/test_cors_settings.py -v
 ```
 
-The `username` field (ShotGrid login name) is the stable identity anchor enabling `sudo_as_login`. Safe to persist — it is the user's public ShotGrid username, not a secret.
-
-#### B. SOLID restructuring — `ShotGridCredentials` nested dataclass
-
-ShotGrid-specific fields are isolated in a nested dataclass instead of being flat on `UserSession`. Following the Open/Closed Principle — a new provider (Ftrack, Kitsu, etc.) adds its own dataclass and an `Optional` field on `UserSession` without touching existing ShotGrid code.
-
-```python
-@dataclass
-class UserSession:
-    session_id: str
-    jti: str
-    email: str
-    name: str
-    auth_provider: str
-    created_at: float = ...
-    # Provider credentials — add new providers here, never touch existing ones
-    shotgrid: Optional[ShotGridCredentials] = None
-    # future: ftrack: Optional[FtrackCredentials] = None
-```
-
-Legacy property aliases (`sg_token`, `sg_user_id`, `sg_username`, `refresh_token`) remain on `UserSession` for backward compat.
-
-#### C. MongoDB as the default session backend
-
-Sessions default to MongoDB (`SESSION_BACKEND=mongo`) — using the same instance already running for DNA data.
-
-```
-dna_sessions        ← user sessions (8-hour TTL index on expires_at)
-dna_oauth_states    ← CSRF state tokens (10-minute TTL)
-dna_token_blocklist ← revoked JWT jti values
-```
-
-`AbstractSessionStore` ABC ensures any future backend (Redis, DynamoDB, Postgres) can be swapped in without touching application code.
-
----
-
-### 4.2 `backend/src/dna/auth_providers/shotgrid_sso.py`
-
-**`login()` method** — password is verified via `login_user(username, password)` to obtain the ShotGrid access token, but is not passed to `ShotGridCredentials`. The `username` is stored for `sudo_as_login`.
-
-```python
-shotgrid = ShotGridCredentials(
-    user_id       = user_info.sg_user_id,
-    username      = username,                    # used as sudo_as_login on every request
-    access_token  = sg_token_set.access_token,
-    refresh_token = sg_token_set.refresh_token,
-    # password is verified once here to confirm identity, then discarded
-)
-```
-
----
-
-### 4.3 `backend/src/dna/prodtrack_providers/prodtrack_provider_base.py`
-
-**`get_prodtrack_provider()`** — removed the old login+password branch. Now always routes authenticated sessions through `ShotgridProvider(sudo_user=session.sg_username)`.
-
-```python
-# Before — had a branch attempting to authenticate with stored password
-if session.sg_password and session.sg_username:
-    return ShotgridProvider(login=..., password=...)   # ← REMOVED
-
-# After — always use script account + sudo_as_login
-if user_token:
-    store = get_session_store()
-    session = store.get_session(session_id) if session_id else None
-    sudo_login = session.sg_username if (session and session.sg_username) else user_token
-    return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
-```
-
----
-
-### 4.4 `backend/src/dna/prodtrack_providers/shotgrid.py`
-
-Two sudo-context propagation fixes:
-
-- **B-02** — `search()` (~line 507): `self.sg.find(` → `self._sg.find(`
-- **B-03** — `get_version_statuses()` (~line 669): `self.sg.schema_field_read(` → `self._sg.schema_field_read(`
-
-`self._sg` returns the active sudo connection (script account + `sudo_as_login`). `self.sg` is the raw script connection that bypasses sudo. These two methods were accidentally running under the script account's permissions rather than the user's.
-
----
-
-### 4.5 `backend/src/main.py`
-
-**S-07 fix** — `GET /projects/user/{email}` now validates path email matches JWT email:
-
-```python
-async def get_projects_for_user(
-    user_email: str, provider: ProdtrackProviderDep, current_user: CurrentUserDep
-) -> list[Project]:
-    if os.getenv("AUTH_PROVIDER", "none") != "none" and not emails_match(current_user, user_email):
-        raise HTTPException(status_code=403, detail="Access denied.")
-    return provider.get_projects_for_user(user_email)
-```
-
-`emails_match()` is case-insensitive. The guard is skipped when `AUTH_PROVIDER=none` (dev mode).
-
----
-
-## 5. Environment Variables
-
-### Backend (`docker-compose.local.yml` → `api` service)
-
-| Variable | Required For | Description |
-|----------|-------------|-------------|
-| `AUTH_PROVIDER` | All | Must be `shotgrid` to enable token auth |
-| `SHOTGRID_AUTH_MODE` | All | `pat` — shows username + legacy password login form |
-| `JWT_SECRET_KEY` | All | Secret key for signing DNA JWTs (min 32 chars) |
-| `JWT_EXPIRE_MINUTES` | All | JWT lifetime (default: 480 min = 8 hours) |
-| `SESSION_BACKEND` | All | `mongo` (default) or `redis` |
-| `MONGODB_URL` | mongo backend | MongoDB connection string (e.g. `mongodb://mongo:27017`) |
-| `MONGODB_DB` | mongo backend | MongoDB database name (default: `dna`) |
-| `SESSION_TTL_SECONDS` | All | Session lifetime (default: 28800 = 8 hours) |
-| `SHOTGRID_URL` | PAT | ShotGrid instance URL |
-| `SHOTGRID_SCRIPT_NAME` | PAT | Script account name — used for `sudo_as_login` queries |
-| `SHOTGRID_API_KEY` | PAT | Script account API key — used with `sudo_as_login` |
-
-### Frontend (`.env` / Docker build args)
-
-| Variable | Description |
-|----------|-------------|
-| `VITE_AUTH_PROVIDER` | Must be `shotgrid` |
-| `VITE_API_BASE_URL` | Backend API URL |
-
----
-
-## 6. Production Deployment Considerations
-
-### Password security
-- The user's ShotGrid password is **never persisted** — it exists in memory only for the single HTTPS call to ShotGrid's token endpoint, then is discarded.
-- A compromised MongoDB session exposes the ShotGrid `access_token` (which expires and can be rotated) but never the user's password.
-
-### `sudo_as_login` and script account
-- The script account (`SHOTGRID_SCRIPT_NAME` / `SHOTGRID_API_KEY`) must have sufficient ShotGrid permissions to proxy queries for all users. Script accounts are typically created with Admin-equivalent read access.
-- ShotGrid enforces the sudo user's native permission group on every query — DNA does not need to implement its own permission filtering.
-
-### Session storage (MongoDB — default)
-- Default `SESSION_BACKEND=mongo` reuses the same MongoDB instance as DNA's data storage — no extra service needed in production.
-- Sessions stored in `dna_sessions` with a TTL index; expired documents are cleaned by MongoDB's background TTL thread (runs every ~60 seconds).
-- For production, MongoDB should have persistence enabled (the default for `mongo:7` with a named volume).
-
-### Token revocation
-- Logout deletes the MongoDB session and blocklists the `jti` — token replay is impossible even if the JWT was captured in transit.
-- Blocklist entries may linger up to ~60s past their TTL due to the MongoDB TTL thread cadence; this is strictly more conservative (safer).
-
----
-
-## 7. What Was NOT Changed
-
-- The ShotGrid legacy username + password login UX is **unchanged** from the user's perspective.
-- All downstream API endpoints (`/projects`, `/playlists`, `/versions`, `/notes`, etc.) are unchanged — they accept the same `Authorization: Bearer <jwt>` header.
-- The AMI (Application Managed Interface) flow — launching DNA from within ShotGrid via session token — is out of scope for this PR.
-- Autodesk SSO / Google OAuth — out of scope for this PR.
-
----
-
-## 8. Summary of Files Modified
-
-| File | Change |
+| File | Covers |
 |------|--------|
-| `backend/src/dna/auth/session_store.py` | Removed `password` field from `ShotGridCredentials`; added `username` for `sudo_as_login`; MongoDB default backend; `AbstractSessionStore` ABC; `ShotGridCredentials` nested dataclass |
-| `backend/src/dna/auth_providers/shotgrid_sso.py` | `login()` — password discarded after SG verification; `username` stored; no `password=` in `ShotGridCredentials` constructor |
-| `backend/src/dna/prodtrack_providers/prodtrack_provider_base.py` | Removed login+password branch; always uses `ShotgridProvider(sudo_user=session.sg_username)` |
-| `backend/src/dna/prodtrack_providers/shotgrid.py` | `search()` and `get_version_statuses()` use `self._sg` (sudo-aware) instead of `self.sg` (bypasses sudo) |
-| `backend/src/main.py` | `get_projects_for_user` — 403 guard if JWT email ≠ path email (S-07) |
-| `backend/docker-compose.yml` | MongoDB service added; `SESSION_BACKEND=mongo` configured |
-| `backend/requirements.txt` | `pymongo` added |
+| `tests/test_auth_prod.py` | No password or ShotGrid token in the model or database; JWT secret length; login and identity resolution; short-lived access tokens; session check on every request; refresh rotation, reuse detection, grace window and maximum lifetime; forged secrets rejected without revocation; concurrent refreshes with one winner; an inactive ShotGrid account revoking the session while an outage keeps it; idle expiry before MongoDB reaps the document; `iss`/`aud` enforcement; one authentication per request, off the event loop; logout and logout-all including fail-closed behaviour; `sudo_as_login` routing and fail-closed provider resolution; fault translation; cross-user 403; provider factory for all three providers; cookie attributes and CSRF enforcement over HTTP |
+| `tests/test_shotgrid_auth_client.py` | Password grant, error messages shown to users, login-then-email user lookup, inactive accounts, account-status check, refusal vs outage classification |
+| `tests/test_cors_settings.py` | Credentialed CORS only for ShotGrid with explicit origins; Google deployment unchanged |
+
+The critical controls are mutation-tested — each defect was re-introduced and
+the targeted test failed: removing the per-request session check, disabling
+reuse detection, revoking on a forged secret, making the refresh swap
+non-atomic, treating a ShotGrid outage as a refusal, accepting expired but
+unreaped sessions, skipping audience verification, authenticating twice per
+request, and moving authentication or the login and refresh endpoints back onto
+the event loop.
+
+The same behaviours were also verified against a real MongoDB instance: eight
+concurrent refreshes of one cookie produced exactly one rotation in every run,
+and an expired session document still present in MongoDB was rejected.
+
+### 7.2 Manual verification
+
+```bash
+# 1. Log in; the refresh cookie is saved to a cookie jar
+TOKEN=$(curl -s -c jar.txt -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"you@studio.com","password":"<legacy-password>"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 2. The session resolves
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/auth/me
+
+# 3. The stored session holds no password, no ShotGrid token, and only a refresh-token hash
+docker exec dna-mongo mongosh dna --quiet \
+  --eval 'printjson(db.dna_sessions.findOne({}, {shotgrid: 1, dna_refresh_token_hash: 1, _id: 0}))'
+
+# 4. Refresh using only the cookie (expect 200 and a rotated cookie)
+curl -s -b jar.txt -c jar.txt -X POST -H "X-DNA-CSRF: 1" http://localhost:8000/auth/refresh
+
+# 5. Cross-user access is refused (expect 403)
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/projects/user/someone.else@studio.com
+
+# 6. Log out, then the access token no longer works (expect 401)
+curl -s -b jar.txt -X POST -H "X-DNA-CSRF: 1" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/auth/logout
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/auth/me
+```
 
 ---
 
-## 9. Issues Deferred to Future PRs
+## 8. Known limitations and future work
 
-| ID | Category | Description |
-|----|----------|-------------|
-| S-05 | Security | ShotGrid `access_token` may appear in server logs on exceptions |
-| S-06 | Security | DNA JWT stored in `localStorage` — move to `sessionStorage` or `httpOnly` cookie |
-| S-08 | Security | No rate limiting on `POST /auth/login` — brute-force possible |
-| S-09 | Security | Deactivating a ShotGrid user does not invalidate their live DNA session |
-| O-04 | Security | Session sub-documents stored in plaintext in MongoDB — consider AES-256-GCM encryption at rest |
-| B-05 | Bug | `HumanUser.login` vs `HumanUser.email` field mismatch on cloud ShotGrid instances |
-| S-01/S-02 | AMI | HMAC signature on AMI session token not enforced; no timestamp validation |
-| B-01 | AMI | AMI sessions fall through to script mode — need dedicated session creation |
-| A-01 | Ops | No startup health check that verifies script account can authenticate to ShotGrid |
-| O-01 | Ops | No audit log for login / logout / token refresh events |
+| Item | Status |
+|------|--------|
+| Rate limiting on `POST /auth/login` | **Not implemented** — repeated password guessing is not throttled |
+| Persistent authentication audit log (logins, failures, logouts) | Not implemented; events are written to application logs only |
+| Access after deactivation | ShotGrid refuses to act as a deactivated user, so every ShotGrid-backed request fails at once. Endpoints that read only DNA's own data (e.g. draft notes) keep working until the next refresh — at most the 15-minute access-token lifetime |
+| Password change ending DNA sessions | Not detected; existing sessions continue until a limit is reached. Use logout everywhere, or deactivate the account in ShotGrid |
+| Access token readable by page JavaScript | By design: only the 15-minute access token is, the refresh token is not |
+| Asynchronous session store | The store uses a synchronous MongoDB driver; authentication runs in FastAPI's threadpool to keep it off the event loop |
+| Frontend "permission denied" view for 403 responses | Not implemented |
+| Publishing drafts written by other users | Notes are created by impersonating each draft's author, so they are created with the author's ShotGrid permissions, not the requester's. Behaviour inherited from upstream; needs a product decision |
+| `Content-Security-Policy` header | Not set; would further limit the impact of XSS on the in-page access token |
+| Autodesk Identity SSO and `POST /auth/callback`; launching from ShotGrid (AMI) | Out of scope for this branch |
+| MongoDB network exposure | Deployment concern: the local compose file publishes MongoDB without authentication. Sessions hold no credentials, but names and emails are readable |

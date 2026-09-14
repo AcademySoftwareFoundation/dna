@@ -9,14 +9,13 @@ services:
     environment:
       - MONGO_INITDB_DATABASE=dna
     restart: unless-stopped
-    networks:
-      - dna-network
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
   api:
     build:
       context: .
@@ -48,8 +47,6 @@ services:
     depends_on:
       - mongo
     restart: unless-stopped
-    networks:
-      - dna-network
     healthcheck:
       # Use Python instead of curl: on some Docker Desktop setups the curl
       # binary hits "input/output error" on exec while the app is fine.
@@ -67,7 +64,3 @@ services:
 
 volumes:
   mongo_data:
-
-networks:
-  dna-network:
-    driver: bridge

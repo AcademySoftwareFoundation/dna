@@ -1,23 +1,24 @@
 """ShotGrid production tracking provider implementation.
 
-Authentication modes
---------------------
-**User-token mode** (``user_token`` provided — production):
-    Opens ``Shotgun(url, session_token=user_token)``.  ShotGrid natively
-    enforces that user's project permissions on every API call.  The
-    connection is retrieved from ``ShotGridConnectionPool`` — no new TCP
-    handshake per request.
+Authentication
+--------------
+Every connection authenticates with the script account
+(``SHOTGRID_SCRIPT_NAME`` + ``SHOTGRID_API_KEY``).  How the connection is
+scoped depends on whether a user is being impersonated:
 
-**Script-auth mode** (``user_token`` is None — dev / background jobs):
-    Uses ``SHOTGRID_SCRIPT_NAME`` + ``SHOTGRID_API_KEY`` credentials.
-    Never use for user-facing requests in production.
+**User-scoped mode** (``sudo_user`` provided — all authenticated requests):
+    Opens ``Shotgun(url, script_name, api_key, sudo_as_login=<login>)``.
+    ShotGrid runs the query as that user and enforces their own permission
+    group natively, so no filtering is required in application code.  The
+    login name is resolved server-side from the session store; the user's
+    password is verified once at login and never stored.
 
-Connection pool
----------------
-When ``user_token`` and ``session_id`` are both provided, the provider
-uses ``ShotGridConnectionPool.get()`` instead of constructing a new
-``Shotgun()`` instance.  This is the fast path for all authenticated
-user requests.
+**Script mode** (``sudo_user`` is None — background jobs / dev):
+    The bare script account, which has full site permissions.  Never use
+    this for user-facing requests — see Issue #55.
+
+All queries must go through the ``self._sg`` property rather than
+``self.sg`` directly, so that an active ``sudo()`` context is honoured.
 """
 
 import contextlib
@@ -25,7 +26,13 @@ import os
 from datetime import date
 from typing import Any, Optional, cast
 
+from shotgun_api3 import Fault as SGFault
 from shotgun_api3 import Shotgun
+
+try:  # AuthenticationFault is absent from very old shotgun_api3 releases.
+    from shotgun_api3 import AuthenticationFault
+except ImportError:  # pragma: no cover - depends on installed library version
+    AuthenticationFault = None
 
 from dna.models.entity import (
     ENTITY_MODELS,
@@ -36,7 +43,10 @@ from dna.models.entity import (
     Version,
 )
 from dna.prodtrack_providers.prodtrack_provider_base import (
+    ProdtrackAuthError,
+    ProdtrackPermissionError,
     ProdtrackProviderBase,
+    ProdtrackUnavailableError,
     UserNotFoundError,
 )
 
@@ -129,6 +139,57 @@ FIELD_MAPPING = {
 }
 
 
+# ── ShotGrid fault translation ────────────────────────────────────────────────
+#
+# shotgun_api3 signals every server-side problem as a Fault carrying a prose
+# message — a permission denial and an outage arrive as the same exception type.
+# Left unhandled these surface as HTTP 500, so a user querying a project they
+# cannot see is told "internal server error" instead of "forbidden".
+#
+# Classification lives here, next to the ShotGrid-specific knowledge it needs.
+# main.py registers a single exception handler that calls this and maps the
+# result onto a status code, so no call site has to wrap anything.
+
+_PERMISSION_FAULT_MARKERS = (
+    "permission",
+    "not authorized",
+    "unauthorized",
+    "access denied",
+    "does not have access",
+    "cannot be accessed",
+    "restricted",
+)
+
+
+def classify_sg_fault(exc: Exception) -> Exception:
+    """Map a ShotGrid ``Fault`` onto the matching DNA domain exception.
+
+    Returns (rather than raises) the exception so callers and the FastAPI
+    handler can decide what to do with it.
+
+    - ``AuthenticationFault`` → :class:`ProdtrackAuthError` (401): ShotGrid
+      rejected the impersonated identity, usually a deactivated account.
+    - message naming a permission problem → :class:`ProdtrackPermissionError`
+      (403): the account is valid but lacks access to this resource.
+    - anything else → :class:`ProdtrackUnavailableError` (503).
+    """
+    message = str(exc)
+
+    if AuthenticationFault is not None and isinstance(exc, AuthenticationFault):
+        return ProdtrackAuthError(
+            "ShotGrid rejected the current identity. Your access may have been "
+            "revoked or your account deactivated. Please log in again."
+        )
+
+    lowered = message.lower()
+    if any(marker in lowered for marker in _PERMISSION_FAULT_MARKERS):
+        return ProdtrackPermissionError(
+            "ShotGrid denied access to this resource for your account."
+        )
+
+    return ProdtrackUnavailableError(f"ShotGrid request failed: {message}")
+
+
 class ShotgridProvider(ProdtrackProviderBase):
     """ShotGrid provider for production tracking operations."""
 
@@ -139,24 +200,25 @@ class ShotgridProvider(ProdtrackProviderBase):
         api_key: Optional[str] = None,
         sudo_user: Optional[str] = None,
         connect: bool = True,
-        user_token: Optional[str] = None,
         session_id: Optional[str] = None,
-        login=None,
-        password=None,
     ):
         """Initialize the ShotGrid connection.
+
+        All connections authenticate with the script account.  When
+        ``sudo_user`` is set, the connection additionally passes
+        ``sudo_as_login=<sudo_user>`` so ShotGrid applies that user's own
+        permission group to every query.  No user credential is ever held by
+        this class — the user's password is verified once at login and
+        discarded, and only their ShotGrid login name is carried forward.
 
         Args:
             url:          ShotGrid server URL. Defaults to SHOTGRID_URL.
             script_name:  API script name. Defaults to SHOTGRID_SCRIPT_NAME.
             api_key:      API key. Defaults to SHOTGRID_API_KEY.
-            sudo_user:    Sudo user login (script-auth only).
-            connect:      Whether to connect immediately (script-auth only).
-            user_token:   ShotGrid session token for the authenticated user.
-                          Takes priority over script credentials.
-            session_id:   The user's session ID from the DNA JWT.
-                          When provided alongside user_token, connections are
-                          retrieved from the pool instead of created fresh.
+            sudo_user:    ShotGrid login name to impersonate via sudo_as_login.
+                          Resolved server-side from the session store.
+            connect:      Whether to connect immediately.
+            session_id:   The user's DNA session ID. Diagnostics only.
         """
         super().__init__()
 
@@ -166,24 +228,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not self.url:
             raise ValueError("SHOTGRID_URL is required.")
 
-        # ── User-token mode (production) ──────────────────────────────── #
-        if user_token:
-            # user_token is not used for connection — sudo_user is set instead
-            # This branch is no longer reached after prodtrack_provider_base change
-            pass
-
-        if login and password:
-            self.user_token = None
-            self.session_id = session_id
-            self.script_name = None
-            self.api_key = None
-            self.sudo_user = None
-            self.sg = Shotgun(self.url, login=login, password=password)
-            return
-
-        # ── Script-auth mode (background jobs / dev) ──────────────────── #
-        self.user_token = None
-        self.session_id = None
+        self.session_id = session_id
         self.script_name = script_name or os.getenv("SHOTGRID_SCRIPT_NAME")
         self.api_key = api_key or os.getenv("SHOTGRID_API_KEY")
         self.sudo_user = sudo_user or os.getenv("SHOTGRID_SUDO_USER")
@@ -191,26 +236,12 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not all([self.script_name, self.api_key]):
             raise ValueError(
                 "ShotGrid script credentials not provided. Set SHOTGRID_SCRIPT_NAME "
-                "and SHOTGRID_API_KEY, or pass user_token for user-scoped auth."
+                "and SHOTGRID_API_KEY."
             )
 
         self.sg: Optional[Shotgun] = None
         if connect:
             self.connect()
-
-    def _get_connection(self, user_token: str, session_id: Optional[str]) -> Shotgun:
-        """Get a SG connection from the pool (if session_id given) or create fresh."""
-        if session_id:
-            try:
-                from dna.auth.connection_pool import get_connection_pool
-
-                return get_connection_pool().get(
-                    session_id=session_id, sg_token=user_token
-                )
-            except Exception:
-                pass  # Pool unavailable — fall through to direct connection
-        # Direct connection fallback (no session_id, or pool error)
-        return Shotgun(self.url, session_token=user_token)
 
     def connect(self, sudo_user: Optional[str] = None) -> None:
         """Connect using script credentials."""
@@ -230,18 +261,12 @@ class ShotgridProvider(ProdtrackProviderBase):
     def sudo(self, user_login: str):
         """Context manager to perform actions as a specific user.
 
-        In user-token mode: the connection IS already the authenticated user,
-        so ShotGrid will record the correct author automatically.  The sudo
-        context is a no-op in this mode.
-
-        In script-auth mode: creates a temporary sudo connection.
+        Opens a temporary script connection carrying
+        ``sudo_as_login=<user_login>`` and routes every ``self._sg`` call
+        through it for the duration of the block, so ShotGrid attributes the
+        action to that user and enforces their permission group.  The previous
+        connection is restored on exit, including on exception.
         """
-        if self.user_token:
-            # User-token mode: SG enforces identity natively — no sudo needed.
-            yield
-            return
-
-        # Script-auth mode: create a temporary sudo connection.
         original = self._sudo_connection
         try:
             self._sudo_connection = Shotgun(
@@ -255,8 +280,17 @@ class ShotgridProvider(ProdtrackProviderBase):
             self._sudo_connection = original
 
     @property
-    def _sg(self) -> Shotgun:
-        """Return the active ShotGrid connection (sudo override or main)."""
+    def _sg(self) -> Optional[Shotgun]:
+        """Return the active ShotGrid connection (sudo override or main).
+
+        Always use this rather than ``self.sg`` so that an open ``sudo()``
+        context is honoured — reaching for ``self.sg`` directly runs the query
+        as the bare script account and silently ignores the impersonation.
+
+        ``Fault`` exceptions raised through this connection propagate to the
+        FastAPI handler registered in main.py, which uses
+        :func:`classify_sg_fault` to return 403/401/503 as appropriate.
+        """
         return self._sudo_connection or self.sg
 
     # ── Entity conversion ─────────────────────────────────────────────── #
@@ -847,25 +881,26 @@ class ShotgridProvider(ProdtrackProviderBase):
             "addressings_cc": [{"type": "HumanUser", "id": uid} for uid in cc_users],
         }
 
-        # In user-token mode ShotGrid auto-records the authenticated user as author.
-        # In script-auth mode, use sudo to record the correct author.
-        if self.user_token:
-            result = self._sg.create("Note", note_data)
-        else:
-            author_login = None
-            if author_email:
-                try:
-                    author_user = self.get_user_by_email(author_email)
-                    author_login = author_user.login if author_user else None
-                except ValueError as e:
-                    raise UserNotFoundError(
-                        f"Author not found in ShotGrid: {author_email}"
-                    ) from e
-            if author_login:
-                with self.sudo(author_login):
-                    result = self._sg.create("Note", note_data)
-            else:
+        # Attribute the note to its actual author, which is not necessarily the
+        # user making the request — a supervisor may publish a playlist
+        # containing notes written by several artists.  Opening a nested sudo
+        # for the author makes ShotGrid record the correct one.  With no
+        # author_email, the note is created on the current connection, which is
+        # already impersonating the requesting user.
+        author_login = None
+        if author_email:
+            try:
+                author_user = self.get_user_by_email(author_email)
+                author_login = author_user.login if author_user else None
+            except ValueError as e:
+                raise UserNotFoundError(
+                    f"Author not found in ShotGrid: {author_email}"
+                ) from e
+        if author_login:
+            with self.sudo(author_login):
                 result = self._sg.create("Note", note_data)
+        else:
+            result = self._sg.create("Note", note_data)
 
         if version_status:
             self._sg.update("Version", version_id, {"sg_status_list": version_status})

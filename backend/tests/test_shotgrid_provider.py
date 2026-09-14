@@ -301,12 +301,16 @@ class TestShotgridProviderRefactor:
         assert result is False
 
     def test_update_version_status_not_connected(self, provider, mock_shotgun):
-        """Test update_version_status raises when not connected."""
+        """Returns False when there is no connection.
+
+        update_version_status reports success as a bool and already swallows
+        ShotGrid errors into False; signalling "no connection" the same way
+        keeps one return contract instead of two.
+        """
         provider.sg = None
         provider._sudo_connection = None
 
-        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
-            provider.update_version_status(101, "rev")
+        assert provider.update_version_status(101, "rev") is False
 
 
 class TestShotgridProviderPublishTranscript:

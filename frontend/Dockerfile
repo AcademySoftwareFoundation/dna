@@ -19,12 +19,14 @@ COPY packages/app/ ./packages/app/
 # Build arguments for API URLs and authentication (baked into the static build)
 ARG VITE_API_BASE_URL
 ARG VITE_WS_URL
-ARG VITE_AUTH_PROVIDER=shotgrid
+ARG VITE_AUTH_PROVIDER=google
+ARG VITE_GOOGLE_CLIENT_ID
 
 # Set environment variables for build
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_WS_URL=$VITE_WS_URL
 ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
 # Build the application (vite handles transpilation, skip tsc type checking)
 WORKDIR /app/packages/app

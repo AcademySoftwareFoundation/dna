@@ -55,6 +55,7 @@ def get_auth_provider() -> Optional[AuthProviderBase]:
 
     Supported values:
         ``none``      - No authentication (development/testing only).
+        ``google``    - Google OAuth; validates Google ID/access tokens.
         ``shotgrid``  - ShotGrid PAT login (username + Legacy Password).
                         Requires ``SHOTGRID_URL`` and ``JWT_SECRET_KEY`` env vars.
 
@@ -71,6 +72,11 @@ def get_auth_provider() -> Optional[AuthProviderBase]:
 
         return NoopAuthProvider()
 
+    elif provider == "google":
+        from dna.auth_providers.google_auth_provider import GoogleAuthProvider
+
+        return GoogleAuthProvider()
+
     elif provider == "shotgrid":
         from dna.auth_providers.shotgrid_sso import ShotGridSSOProvider
 
@@ -78,5 +84,5 @@ def get_auth_provider() -> Optional[AuthProviderBase]:
 
     else:
         raise ValueError(
-            f"Unknown auth provider: '{provider}'. " f"Valid values: none, shotgrid."
+            f"Unknown auth provider: '{provider}'. Valid values: none, google, shotgrid."
         )

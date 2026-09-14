@@ -14,6 +14,17 @@ services:
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
       - AUTH_PROVIDER=none
+      # To require ShotGrid login instead (username + Legacy Password), replace the
+      # line above with the block below, set VITE_AUTH_PROVIDER=shotgrid in the
+      # frontend .env, and use real SHOTGRID_* script credentials — the script
+      # account impersonates each user via sudo_as_login. See QUICKSTART.md.
+      #   - AUTH_PROVIDER=shotgrid
+      #   - JWT_SECRET_KEY=<at least 32 chars: openssl rand -hex 32>
+      #   - CORS_ALLOWED_ORIGINS=http://localhost:5173   # explicit list; never *
+      #   - JWT_EXPIRE_MINUTES=15                        # access-token lifetime
+      #   - SESSION_TTL_SECONDS=28800                    # idle timeout
+      #   - SESSION_MAX_LIFETIME_SECONDS=43200           # absolute limit
+      #   - SG_SITE_TYPE=cloud    # or "onprem" (no Personal Access Token needed)
       # Transcript publishing (V1, disabled by default). Set to "true" to
       # expose POST /playlists/{id}/publish-transcript. See DEPLOYMENT.md
       # for the ShotGrid site-setup checklist the custom entity depends on.
