@@ -75,7 +75,7 @@ SHOTGRID_API_KEY=your-api-key
 1. **Start Backend**:
 ```bash
 cd backend
-python -m uvicorn main:main --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
 ```
 
 2. **Start Frontend**:
