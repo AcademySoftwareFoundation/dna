@@ -39,6 +39,24 @@ function createWrapper() {
   };
 }
 
+function createWrapperWithClient() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 5 * 60 * 1000,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  });
+  const Wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return { Wrapper, queryClient };
+}
+
 const mockDraftNote: DraftNote = {
   id: 1,
   _id: 'abc123',
@@ -441,6 +459,97 @@ describe('useDraftNote', () => {
         }),
       })
     );
+  });
+
+  it('optimistically updates draftNote query cache for version_status', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    let resolveUpsert!: (value: DraftNote) => void;
+    mockedApiHandler.upsertDraftNote.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpsert = resolve;
+        })
+    );
+
+    const { Wrapper, queryClient } = createWrapperWithClient();
+    const draftKey = ['draftNote', 1, 2, 'test@example.com'];
+
+    const { result, rerender } = renderHook(
+      (props: { versionId: number }) =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: props.versionId,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: Wrapper, initialProps: { versionId: 2 } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.content).toBe('Test content');
+    });
+
+    act(() => {
+      void result.current.saveVersionStatus('apr');
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(draftKey)).toEqual(
+        expect.objectContaining({ version_status: 'apr' })
+      );
+    });
+
+    mockedApiHandler.getDraftNote.mockImplementation(async (params) => {
+      if (params.versionId === 2) {
+        return mockDraftNote;
+      }
+      return null;
+    });
+
+    rerender({ versionId: 3 });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    rerender({ versionId: 2 });
+    await waitFor(() => {
+      expect(result.current.draftNote?.versionStatus).toBe('apr');
+    });
+
+    await act(async () => {
+      resolveUpsert({ ...mockDraftNote, version_status: 'apr' });
+    });
+  });
+
+  it('rolls back draftNote query cache when version_status save fails', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockRejectedValue(new Error('save failed'));
+
+    const { Wrapper, queryClient } = createWrapperWithClient();
+    const draftKey = ['draftNote', 1, 2, 'test@example.com'];
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: 1,
+          versionId: 2,
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: Wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.versionStatus).toBe('pending');
+    });
+
+    await act(async () => {
+      await result.current.saveVersionStatus('apr').catch(() => {});
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(draftKey)).toEqual(
+        expect.objectContaining({ version_status: 'pending' })
+      );
+    });
   });
 
   it('saveVersionStatus writes the prefilled defaults when no draft exists yet', async () => {
