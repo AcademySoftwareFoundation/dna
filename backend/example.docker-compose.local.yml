@@ -19,3 +19,8 @@ services:
       # for the ShotGrid site-setup checklist the custom entity depends on.
       - DNA_ENABLE_TRANSCRIPT_PUBLISH=false
       - SHOTGRID_TRANSCRIPT_ENTITY=CustomEntity01
+      # Browser-extension transcription route (opt-in). Choosing option 2 under
+      # "Transcription route" in ./bootstrap.sh enables it and appends a randomly
+      # generated DNA_EXTENSION_KEY here. That key must match
+      # VITE_TRANSCRIPTION_EXTENSION_KEY in the frontend and the key entered once
+      # in the extension popup; leave it unset to disable the key gate.

@@ -857,3 +857,139 @@ class TestTranscriptionServiceLifecycle:
         mock_transcription_provider.close.assert_called_once()
         assert len(service._subscribed_meetings) == 0
         assert len(service._meeting_to_playlist) == 0
+
+
+class TestIngestExtensionTranscript:
+    """Tests for `ingest_extension_transcript` — the browser-extension path.
+
+    Unlike Vexa, the extension supplies `playlist_id` directly (no
+    `platform:meeting_id` routing), but shares the same store+broadcast core.
+    """
+
+    @pytest.fixture
+    def service_ready(
+        self,
+        mock_transcription_provider,
+        mock_storage_provider,
+        mock_event_publisher,
+    ):
+        return TranscriptionService(
+            transcription_provider=mock_transcription_provider,
+            storage_provider=mock_storage_provider,
+            event_publisher=mock_event_publisher,
+        )
+
+    @pytest.fixture
+    def metadata(self):
+        return PlaylistMetadata(
+            _id="meta1",
+            playlist_id=42,
+            in_review=7,
+            transcription_paused=False,
+        )
+
+    def _seg(self, **overrides):
+        seg = {
+            "segment_id": "ext:speaker-0:1",
+            "text": "hello from extension",
+            "speaker": "Alice",
+            "language": "en",
+            "start_time": 0.0,
+            "end_time": 1.0,
+            "absolute_start_time": "2026-04-20T19:00:00.000Z",
+            "absolute_end_time": "2026-04-20T19:00:01.000Z",
+            "updated_at": "2026-04-20T19:00:01.500Z",
+        }
+        seg.update(overrides)
+        return seg
+
+    def _payload(self, **overrides):
+        base = {
+            "type": "transcript",
+            "playlist_id": 42,
+            "speaker": "Alice",
+            "confirmed": [],
+            "pending": [],
+            "ts": "2026-04-20T19:00:00.000Z",
+        }
+        base.update(overrides)
+        return base
+
+    @pytest.mark.asyncio
+    async def test_upserts_and_broadcasts_flat_shape(
+        self, service_ready, mock_storage_provider, mock_event_publisher, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        seg = self._seg()
+
+        stored = await service_ready.ingest_extension_transcript(
+            self._payload(confirmed=[seg], pending=[{"segment_id": "p1"}])
+        )
+
+        assert stored == 1
+        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        assert kwargs["playlist_id"] == 42
+        assert kwargs["version_id"] == 7
+        assert kwargs["segment_id"] == "ext:speaker-0:1"
+        assert kwargs["data"].speaker == "Alice"
+
+        msg = mock_event_publisher.ws_manager.broadcast.call_args.args[0]
+        assert msg["type"] == "transcript"
+        assert msg["playlist_id"] == 42
+        assert msg["version_id"] == 7
+        assert msg["confirmed"] == [seg]
+        assert msg["pending"] == [{"segment_id": "p1"}]
+
+    @pytest.mark.asyncio
+    async def test_accepts_string_playlist_id(
+        self, service_ready, mock_storage_provider, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        await service_ready.ingest_extension_transcript(
+            self._payload(playlist_id="42", confirmed=[self._seg()])
+        )
+        mock_storage_provider.get_playlist_metadata.assert_awaited_with(42)
+
+    @pytest.mark.asyncio
+    async def test_returns_zero_when_providers_missing(self, service_ready, caplog):
+        service_ready.storage_provider = None
+        stored = await service_ready.ingest_extension_transcript(self._payload())
+        assert stored == 0
+        assert "Providers not initialized" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_zero_when_playlist_id_missing(
+        self, service_ready, mock_storage_provider, caplog
+    ):
+        payload = self._payload()
+        del payload["playlist_id"]
+        stored = await service_ready.ingest_extension_transcript(payload)
+        assert stored == 0
+        mock_storage_provider.upsert_segment.assert_not_called()
+        assert "missing playlist_id" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_returns_zero_when_metadata_missing(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = None
+        stored = await service_ready.ingest_extension_transcript(
+            self._payload(confirmed=[self._seg()])
+        )
+        assert stored == 0
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_zero_when_paused(
+        self, service_ready, mock_storage_provider, mock_event_publisher
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="m", playlist_id=42, in_review=7, transcription_paused=True
+        )
+        stored = await service_ready.ingest_extension_transcript(
+            self._payload(confirmed=[self._seg()])
+        )
+        assert stored == 0
+        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_event_publisher.ws_manager.broadcast.assert_not_called()

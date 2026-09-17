@@ -1,18 +1,20 @@
-import { useRef, useCallback, useMemo, useEffect, useState } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
+import { SCRATCH_VERSION_ID } from '@dna/core';
 import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
-import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
-import { useHotkeyAction } from '../hotkeys';
-import { apiHandler } from '../api';
-import { useFeatureFlags } from '../contexts';
 import {
-  openProdtrackVersionViaExtensionOrNewTab,
-  openProdtrackVersionInExtension,
-} from '../prodtrackTabSync/sendProdtrackTabSync';
+  usePlaylistMetadata,
+  useSetInReview,
+  useDraftNote,
+  useProdtrackTabSync,
+} from '../hooks';
+import { useHotkeyAction } from '../hotkeys';
+import { apiHandler, useGetUserByEmail } from '../api';
+import { useFeatureFlags } from '../contexts';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -55,6 +57,14 @@ const EmptyStateText = styled.p`
   font-size: 14px;
 `;
 
+const ScratchTitle = styled.h1`
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.primary};
+`;
+
 function formatDate(dateString?: string): string {
   if (!dateString) return '';
   const date = new Date(dateString);
@@ -79,15 +89,30 @@ export function ContentArea({
   const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
   const assistantPanelVisible = transcriptionEnabled || aiEnabled;
 
+  // Scratch tiles are placeholders for a note on the playlist entity: no
+  // version metadata, AI assistant, transcript, or in-review interactions.
+  const isScratch = version?.id === SCRATCH_VERSION_ID;
+
   const currentVersionAsSearchResult = useMemo((): SearchResult | undefined => {
-    if (!version) return undefined;
+    // Don't seed the draft's links with the scratch pseudo-version — the note
+    // links to the playlist, which the backend adds on publish.
+    if (!version || version.id === SCRATCH_VERSION_ID) return undefined;
     return { type: 'Version', id: version.id, name: version.name || `Version ${version.id}` };
   }, [version]);
 
+  const { data: currentUser } = useGetUserByEmail(
+    isScratch ? (userEmail ?? null) : null
+  );
+
   const versionSubmitter = useMemo((): SearchResult | undefined => {
+    // The scratch pad has no submitter; its note defaults "To" the author.
+    if (isScratch) {
+      if (!currentUser) return undefined;
+      return { type: 'User', id: currentUser.id, name: currentUser.name || '' };
+    }
     if (!version?.user) return undefined;
     return { type: 'User', id: version.user.id, name: version.user.name || '' };
-  }, [version?.user]);
+  }, [isScratch, currentUser, version?.user]);
 
   const { draftNote, updateDraftNote, saveAttachmentIds } = useDraftNote({
     playlistId,
@@ -160,17 +185,8 @@ export function ContentArea({
   useHotkeyAction('nextVersion', handleNext);
   useHotkeyAction('previousVersion', handleBack);
   useHotkeyAction('setInReview', handleSetInReview, {
-    enabled: !!version && !!playlistId,
+    enabled: !!version && !!playlistId && !isScratch,
   });
-
-  const extensionId =
-    import.meta.env.VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?.trim() ?? '';
-
-  const [prodtrackControlledTabId, setProdtrackControlledTabId] = useState<
-    number | null
-  >(null);
-  const prodtrackTabIdRef = useRef<number | null>(null);
-  prodtrackTabIdRef.current = prodtrackControlledTabId;
 
   const { data: userSettings, isSuccess: userSettingsQuerySuccess } =
     useQuery<UserSettings | null>({
@@ -191,57 +207,12 @@ export function ContentArea({
       ? (version?.prodtrack_entity_detail_url ?? version?.prodtrack_detail_url)
       : version?.prodtrack_detail_url;
 
-  const handleSyncProdtrackTab = useCallback(() => {
-    const url = activeProdtrackUrl;
-    if (!url || !extensionId) return;
-    void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
-      tabId: prodtrackControlledTabId ?? undefined,
-    }).then((result) => {
-      if (result.ok && typeof result.tabId === 'number') {
-        setProdtrackControlledTabId(result.tabId);
-      }
+  const { extensionId, syncProdtrackTab: handleSyncProdtrackTab } =
+    useProdtrackTabSync({
+      activeProdtrackUrl,
+      versionId: version?.id ?? null,
+      autoSyncEnabled: shouldAutoSyncProdtrackTab,
     });
-  }, [activeProdtrackUrl, extensionId, prodtrackControlledTabId]);
-
-  // Tracks the version id we last reacted to, so we only sync on an actual
-  // version change (not on settings/url/mount re-renders for the same version).
-  const lastProdtrackVersionIdRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const currentVersionId = version?.id ?? null;
-    if (currentVersionId == null) return;
-
-    const previousVersionId = lastProdtrackVersionIdRef.current;
-    lastProdtrackVersionIdRef.current = currentVersionId;
-    if (currentVersionId === previousVersionId) return;
-
-    // Only sync into a PT tab the user already opened with the "PT tab" button.
-    // We never open the tab automatically — not on launch, not on version change.
-    const controlledTabId = prodtrackTabIdRef.current;
-    if (controlledTabId == null) return;
-
-    if (!activeProdtrackUrl) return;
-    if (!shouldAutoSyncProdtrackTab) return;
-    if (!extensionId) return;
-    const url = activeProdtrackUrl;
-    const timer = window.setTimeout(() => {
-      // Extension-only (no new-tab fallback): if the controlled tab was closed,
-      // a failed sync must not spawn a window on its own.
-      void openProdtrackVersionInExtension(extensionId, url, {
-        tabId: controlledTabId,
-      }).then((result) => {
-        if (result.ok && typeof result.tabId === 'number') {
-          setProdtrackControlledTabId(result.tabId);
-        }
-      });
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [
-    version?.id,
-    activeProdtrackUrl,
-    shouldAutoSyncProdtrackTab,
-    extensionId,
-  ]);
 
   const syncProdtrackTitle = !activeProdtrackUrl
     ? 'Production tracking URL is not available for this version.'
@@ -260,6 +231,23 @@ export function ContentArea({
             Select a version from the sidebar to view its details
           </EmptyStateText>
         </EmptyState>
+      </ContentWrapper>
+    );
+  }
+
+  if (isScratch) {
+    return (
+      <ContentWrapper>
+        <ScratchTitle>SCRATCH PAD</ScratchTitle>
+        <NoteEditor
+          ref={noteEditorRef}
+          projectId={version.project?.id}
+          currentVersion={null}
+          draftNote={draftNote}
+          updateDraftNote={updateDraftNote}
+          saveAttachmentIds={saveAttachmentIds}
+          defaultHeight={300}
+        />
       </ContentWrapper>
     );
   }
