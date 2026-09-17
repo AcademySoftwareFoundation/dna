@@ -917,11 +917,6 @@ function AITab({
   );
 }
 
-// // --- Reset Settings ---
-// function ResetSettingsToDefault(){
-//   return ;
-// }
-
 // --- Reset Tab ---
 interface ResetTabProps {
   onSettingsReset: () => void;
@@ -1178,9 +1173,9 @@ export function SettingsModal({
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
       setProdtrackPageType('version');
-      resetToDefaults();
+      resetToDefaults(); 
       setIsDirty(true);
-  }, [settings]);
+  }, [settings, resetToDefaults]);
 
   const handleSave = useCallback(() => {
     // Persist an empty string when the value matches the deployment default so
