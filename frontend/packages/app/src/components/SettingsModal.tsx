@@ -917,6 +917,11 @@ function AITab({
   );
 }
 
+// // --- Reset Settings ---
+// function ResetSettingsToDefault(){
+//   return ;
+// }
+
 // --- Reset Tab ---
 interface ResetTabProps {
   onSettingsReset: () => void;
@@ -1166,6 +1171,17 @@ export function SettingsModal({
     []
   );
 
+  const handleSettingsReset = useCallback(() => {
+      setNotePrompt(settings?.default_note_prompt ?? '');
+      setPreferredModel('');
+      setRegenerateOnVersionChange(false);
+      setRegenerateOnTranscriptUpdate(false);
+      setSyncProdtrackTabOnVersionChange(true);
+      setProdtrackPageType('version');
+      resetToDefaults();
+      setIsDirty(true);
+  }, [settings]);
+
   const handleSave = useCallback(() => {
     // Persist an empty string when the value matches the deployment default so
     // the setting continues to track future changes to that default.
@@ -1284,7 +1300,9 @@ export function SettingsModal({
 
           <Tabs.Content value="reset" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <TabsContentWrapper>
-              <ResetTab />
+              <ResetTab 
+                onSettingsReset={handleSettingsReset}
+              />
             </TabsContentWrapper>
           </Tabs.Content>
         </Tabs.Root>
