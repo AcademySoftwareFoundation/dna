@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
@@ -12,6 +12,30 @@ class UserNotFoundError(Exception):
     """Raised when a user is not found in the production tracking system."""
 
     pass
+
+
+class ProdtrackPermissionError(Exception):
+    """Raised when the production tracker denies access to a resource.
+
+    The caller is authenticated, but their permission group in the tracker does
+    not grant access to what they asked for.  Surfaces as HTTP 403.
+    """
+
+
+class ProdtrackAuthError(Exception):
+    """Raised when the production tracker rejects the impersonated identity.
+
+    Typically means the user was deactivated or their access was revoked while
+    their DNA session was still live.  Surfaces as HTTP 401 so the client
+    clears its token and re-authenticates.
+    """
+
+
+class ProdtrackUnavailableError(Exception):
+    """Raised when the production tracker errors or cannot be reached.
+
+    Nothing is wrong with the request itself.  Surfaces as HTTP 503.
+    """
 
 
 class ProdtrackProviderBase:
@@ -302,8 +326,29 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
 
-def get_prodtrack_provider() -> ProdtrackProviderBase:
-    """Get the production tracking provider."""
+def get_prodtrack_provider(
+    sudo_login: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> ProdtrackProviderBase:
+    """Get the production tracking provider.
+
+    Args:
+        sudo_login:  The authenticated user's ShotGrid login name.  When set,
+                     the provider connects with the script account and
+                     ``sudo_as_login=<sudo_login>``, so ShotGrid enforces that
+                     user's own permission group natively.  The caller resolves
+                     this from the server-side session store — it is never taken
+                     from client input.
+        session_id:  The user's DNA session ID.  Carried for diagnostics only.
+
+    Warning:
+        Omitting ``sudo_login`` returns a provider bound to the bare script
+        account, which has full site permissions.  That path exists only for
+        unauthenticated contexts — background jobs and ``AUTH_PROVIDER=none``.
+        Authenticated request paths must always supply ``sudo_login``;
+        ``get_user_scoped_prodtrack_provider`` in main.py enforces this by
+        failing closed with 401 when the session carries no login name.
+    """
     provider_type = os.getenv("PRODTRACK_PROVIDER", "shotgrid")
 
     if provider_type == "mock":
@@ -323,6 +368,10 @@ def get_prodtrack_provider() -> ProdtrackProviderBase:
             )
         from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
+        if sudo_login:
+            return ShotgridProvider(sudo_user=sudo_login, session_id=session_id)
+
+        # Script account: unauthenticated contexts only (background jobs, dev mode).
         return ShotgridProvider()
 
     raise ValueError(f"Unknown production tracking provider: {provider_type}")

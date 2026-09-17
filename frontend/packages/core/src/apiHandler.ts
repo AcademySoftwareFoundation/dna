@@ -83,6 +83,7 @@ function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
 class ApiHandler {
   private axiosInstance: AxiosInstance;
   private currentUser: User | null = null;
+  private unauthorizedHandler: (() => void) | null = null;
 
   constructor(config: ApiHandlerConfig) {
     this.axiosInstance = axios.create({
@@ -102,10 +103,25 @@ class ApiHandler {
       }
       return requestConfig;
     });
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error?.response?.status === 401) {
+          this.unauthorizedHandler?.();
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   setUser(user: User | null): void {
     this.currentUser = user;
+  }
+
+  /** Called whenever the API rejects a request with 401, e.g. an ended session. */
+  setUnauthorizedHandler(handler: (() => void) | null): void {
+    this.unauthorizedHandler = handler;
   }
 
   getUser(): User | null {

@@ -8,11 +8,12 @@ import {
 } from 'react';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import { apiHandler } from '../api';
+import { ShotGridAuthProvider, useShotGridAuth } from './ShotGridAuthContext';
 
 const STORAGE_KEY = 'dna-auth-token';
 const USER_STORAGE_KEY = 'dna-auth-user';
 
-export type AuthProviderType = 'none' | 'google';
+export type AuthProviderType = 'none' | 'google' | 'shotgrid';
 
 export interface AuthUser {
   id: string;
@@ -36,7 +37,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function getAuthProvider(): AuthProviderType {
   const provider = import.meta.env.VITE_AUTH_PROVIDER || 'google';
-  if (provider === 'none' || provider === 'google') {
+  if (provider === 'none' || provider === 'google' || provider === 'shotgrid') {
     return provider;
   }
   return 'google';
@@ -225,6 +226,29 @@ function GoogleAuthProviderInner({ children }: GoogleAuthProviderInnerProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// Bridges ShotGridAuthContext into the shared AuthContext shape so components
+// using useAuth() work unchanged. Sign-in happens on ShotGridLoginPage (App.tsx
+// renders it for this provider), so the generic sign-in entry points are unused.
+function ShotGridAuthAdapterInner({ children }: { children: ReactNode }) {
+  const sg = useShotGridAuth();
+
+  const value: AuthContextValue = {
+    isAuthenticated: sg.isAuthenticated,
+    isLoading: sg.isLoading,
+    user: sg.user
+      ? { id: String(sg.user.id), email: sg.user.email, name: sg.user.name }
+      : null,
+    token: sg.token,
+    authProvider: 'shotgrid',
+    signIn: () => console.warn('Use ShotGridLoginPage for ShotGrid auth'),
+    signInWithEmail: () =>
+      console.warn('Use ShotGridLoginPage for ShotGrid auth'),
+    signOut: sg.signOut,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
 interface AuthProviderProps {
   children: ReactNode;
   clientId?: string;
@@ -232,6 +256,14 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children, clientId }: AuthProviderProps) {
   const authProviderType = getAuthProvider();
+
+  if (authProviderType === 'shotgrid') {
+    return (
+      <ShotGridAuthProvider>
+        <ShotGridAuthAdapterInner>{children}</ShotGridAuthAdapterInner>
+      </ShotGridAuthProvider>
+    );
+  }
 
   if (authProviderType === 'none') {
     return <NoopAuthProviderInner>{children}</NoopAuthProviderInner>;
