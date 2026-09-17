@@ -1178,8 +1178,6 @@ export function SettingsModal({
   }, [settings, resetToDefaults]);
 
   const handleSave = useCallback(() => {
-    // Persist an empty string when the value matches the deployment default so
-    // the setting continues to track future changes to that default.
     const toPersisted = (current: string, fallback: string): string => {
       const trimmed = current.trim();
       return trimmed === '' || trimmed === fallback.trim() ? '' : current;

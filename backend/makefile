@@ -1,32 +1,83 @@
 DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
 
-COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml
+# Vexa stack — server-side bot transcription (pulls Vexa images).
+COMPOSE_LOCAL_VEXA := -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml
 
-# If start-local fails with: blob sha256:... input/output error — Docker’s local
+# Extension stack — browser extension + WhisperLive (no Vexa images).
+COMPOSE_LOCAL_EXTENSION := -f docker-compose.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml
+
+# Backward-compatible alias for the Vexa stack.
+COMPOSE_LOCAL := $(COMPOSE_LOCAL_VEXA)
+
+# If start-local fails with: blob sha256:... input/output error — Docker's local
 # image store is damaged. Run: make docker-fix-api-image, restart Docker Desktop,
-# then make start-local. If it still fails: Docker → Troubleshoot → Clean/Purge
+# then make start-local-vexa. If it still fails: Docker → Troubleshoot → Clean/Purge
 # data, or check disk space.
 
-docker-fix-api-image:
-	-$(DOCKER_COMPOSE) $(COMPOSE_LOCAL) down
-	-docker rmi backend-api 2>/dev/null || true
-	@echo "Removed backend-api if present. Restart Docker Desktop, then: make start-local"
+.PHONY: start-local-vexa start-local-vexa-detached stop-local-vexa logs-local-vexa restart-local-vexa build-vexa \
+	start-local-extension start-local-extension-detached stop-local-extension logs-local-extension restart-local-extension build-extension \
+	start-local stop-local logs-local restart-local build docker-fix-api-image shell test test-cov test-cov-html venv-lint format-python seed-mock-db inject-transcript
 
-build:
+# ── Vexa stack ────────────────────────────────────────────────────────────────
+
+start-local-vexa:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_VEXA) up --build
+
+start-local-vexa-detached:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_VEXA) up --build -d --force-recreate --remove-orphans
+
+stop-local-vexa:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_VEXA) down
+
+logs-local-vexa:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_VEXA) logs -f
+
+restart-local-vexa:
+	$(MAKE) stop-local-vexa
+	$(MAKE) start-local-vexa
+
+build-vexa:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml build --no-cache
 
-start-local:
-	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL) up --build
+# ── Extension stack (no Vexa) ─────────────────────────────────────────────────
 
-stop-local:
-	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL) down
+start-local-extension:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_EXTENSION) up --build
 
-logs-local:
-	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL) logs -f
+start-local-extension-detached:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_EXTENSION) up --build -d --force-recreate --remove-orphans
 
-restart-local:
-	make stop-local
-	make start-local
+stop-local-extension:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_EXTENSION) down
+
+logs-local-extension:
+	$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_EXTENSION) logs -f
+
+restart-local-extension:
+	$(MAKE) stop-local-extension
+	$(MAKE) start-local-extension
+
+build-extension:
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml build --no-cache
+
+# ── Backward-compatible aliases (Vexa stack) ──────────────────────────────────
+
+start-local: start-local-vexa
+
+stop-local: stop-local-vexa
+
+logs-local: logs-local-vexa
+
+restart-local: restart-local-vexa
+
+build: build-vexa
+
+# ── Shared / utility targets ──────────────────────────────────────────────────
+
+docker-fix-api-image:
+	-$(DOCKER_COMPOSE) $(COMPOSE_LOCAL_VEXA) down
+	-docker rmi backend-api 2>/dev/null || true
+	@echo "Removed backend-api if present. Restart Docker Desktop, then: make start-local-vexa"
 
 shell:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api bash

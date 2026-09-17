@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useEffect, useState } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import { SCRATCH_VERSION_ID } from '@dna/core';
@@ -6,14 +6,15 @@ import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
-import { usePlaylistMetadata, useSetInReview, useDraftNote } from '../hooks';
+import {
+  usePlaylistMetadata,
+  useSetInReview,
+  useDraftNote,
+  useProdtrackTabSync,
+} from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler, useGetUserByEmail } from '../api';
 import { useFeatureFlags } from '../contexts';
-import {
-  openProdtrackVersionViaExtensionOrNewTab,
-  openProdtrackVersionInExtension,
-} from '../prodtrackTabSync/sendProdtrackTabSync';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -187,15 +188,6 @@ export function ContentArea({
     enabled: !!version && !!playlistId && !isScratch,
   });
 
-  const extensionId =
-    import.meta.env.VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID?.trim() ?? '';
-
-  const [prodtrackControlledTabId, setProdtrackControlledTabId] = useState<
-    number | null
-  >(null);
-  const prodtrackTabIdRef = useRef<number | null>(null);
-  prodtrackTabIdRef.current = prodtrackControlledTabId;
-
   const { data: userSettings, isSuccess: userSettingsQuerySuccess } =
     useQuery<UserSettings | null>({
       queryKey: ['userSettings', userEmail],
@@ -215,57 +207,12 @@ export function ContentArea({
       ? (version?.prodtrack_entity_detail_url ?? version?.prodtrack_detail_url)
       : version?.prodtrack_detail_url;
 
-  const handleSyncProdtrackTab = useCallback(() => {
-    const url = activeProdtrackUrl;
-    if (!url || !extensionId) return;
-    void openProdtrackVersionViaExtensionOrNewTab(extensionId, url, {
-      tabId: prodtrackControlledTabId ?? undefined,
-    }).then((result) => {
-      if (result.ok && typeof result.tabId === 'number') {
-        setProdtrackControlledTabId(result.tabId);
-      }
+  const { extensionId, syncProdtrackTab: handleSyncProdtrackTab } =
+    useProdtrackTabSync({
+      activeProdtrackUrl,
+      versionId: version?.id ?? null,
+      autoSyncEnabled: shouldAutoSyncProdtrackTab,
     });
-  }, [activeProdtrackUrl, extensionId, prodtrackControlledTabId]);
-
-  // Tracks the version id we last reacted to, so we only sync on an actual
-  // version change (not on settings/url/mount re-renders for the same version).
-  const lastProdtrackVersionIdRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const currentVersionId = version?.id ?? null;
-    if (currentVersionId == null) return;
-
-    const previousVersionId = lastProdtrackVersionIdRef.current;
-    lastProdtrackVersionIdRef.current = currentVersionId;
-    if (currentVersionId === previousVersionId) return;
-
-    // Only sync into a PT tab the user already opened with the "PT tab" button.
-    // We never open the tab automatically — not on launch, not on version change.
-    const controlledTabId = prodtrackTabIdRef.current;
-    if (controlledTabId == null) return;
-
-    if (!activeProdtrackUrl) return;
-    if (!shouldAutoSyncProdtrackTab) return;
-    if (!extensionId) return;
-    const url = activeProdtrackUrl;
-    const timer = window.setTimeout(() => {
-      // Extension-only (no new-tab fallback): if the controlled tab was closed,
-      // a failed sync must not spawn a window on its own.
-      void openProdtrackVersionInExtension(extensionId, url, {
-        tabId: controlledTabId,
-      }).then((result) => {
-        if (result.ok && typeof result.tabId === 'number') {
-          setProdtrackControlledTabId(result.tabId);
-        }
-      });
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [
-    version?.id,
-    activeProdtrackUrl,
-    shouldAutoSyncProdtrackTab,
-    extensionId,
-  ]);
 
   const syncProdtrackTitle = !activeProdtrackUrl
     ? 'Production tracking URL is not available for this version.'

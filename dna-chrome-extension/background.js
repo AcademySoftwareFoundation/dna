@@ -1,3 +1,11 @@
+// Load the transcription capability (registers its own popup/log listeners and
+// exposes self.DNATranscription for the external-message delegation below).
+try {
+  importScripts('transcription.js', 'capture.js');
+} catch (e) {
+  console.error('Failed to load transcription/capture scripts', e);
+}
+
 let controlledTabId = null;
 
 function reply(sendResponse, payload) {
@@ -248,6 +256,18 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   if (!message || typeof message !== 'object') {
     reply(sendResponse, { ok: false, error: 'invalid_message' });
     return;
+  }
+
+  // Delegate transcription handshake messages to the transcription module.
+  if (
+    self.DNATranscription &&
+    self.DNATranscription.EXTERNAL_TYPES.has(message.type)
+  ) {
+    return self.DNATranscription.handleExternalMessage(
+      message,
+      sender,
+      sendResponse
+    );
   }
 
   if (message.type === 'PING') {
