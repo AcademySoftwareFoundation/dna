@@ -917,6 +917,52 @@ function AITab({
   );
 }
 
+// --- Reset Tab ---
+interface ResetTabProps {
+  onSettingsReset: () => void;
+}
+
+function ResetTab({
+    onSettingsReset
+  }: ResetTabProps) {
+  return (
+    <ModalContent>
+      <Section>
+        <SectionDescription>
+          Click below to restore all settings to their original defaults
+        </SectionDescription>
+        <Flex mt="" justify="center">
+          <AlertDialog.Root>
+            <AlertDialog.Trigger>
+              <Button variant="soft" color="red">
+                Reset Settings
+              </Button>
+            </AlertDialog.Trigger>
+            <AlertDialog.Content maxWidth="400px">
+              <AlertDialog.Title>Reset settings?</AlertDialog.Title>
+              <AlertDialog.Description size="2">
+                This will reset all settings to their default values.
+              </AlertDialog.Description>
+              <Flex gap="3" mt="4" justify="end">
+                <AlertDialog.Cancel>
+                  <Button variant="soft" color="gray">
+                    Cancel
+                  </Button>
+                </AlertDialog.Cancel>
+                <AlertDialog.Action onClick={onSettingsReset}>
+                  <Button variant="solid" color="red">
+                    Reset
+                  </Button>
+                </AlertDialog.Action>
+              </Flex>
+            </AlertDialog.Content>
+          </AlertDialog.Root>
+        </Flex>
+      </Section>
+    </ModalContent>
+  );
+}
+
 // --- Keybinding Recorder ---
 
 function formatKeysForDisplay(keys: string): string {
@@ -1178,13 +1224,10 @@ export function SettingsModal({
         <Tabs.Root defaultValue="general" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
           <StyledTabsList>
             <StyledTabsTrigger value="general">General</StyledTabsTrigger>
-            <StyledTabsTrigger value="keybindings">
-              Keybindings
-            </StyledTabsTrigger>
-            <StyledTabsTrigger value="transcription">
-              Transcription
-            </StyledTabsTrigger>
+            <StyledTabsTrigger value="keybindings">Keybindings</StyledTabsTrigger>
+            <StyledTabsTrigger value="transcription">Transcription</StyledTabsTrigger>
             <StyledTabsTrigger value="ai">AI</StyledTabsTrigger>
+            <StyledTabsTrigger value="reset">Reset</StyledTabsTrigger>
           </StyledTabsList>
 
           <Tabs.Content value="general" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -1236,6 +1279,12 @@ export function SettingsModal({
                 onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
                 onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
               />
+            </TabsContentWrapper>
+          </Tabs.Content>
+
+          <Tabs.Content value="reset" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <TabsContentWrapper>
+              <ResetTab />
             </TabsContentWrapper>
           </Tabs.Content>
         </Tabs.Root>
