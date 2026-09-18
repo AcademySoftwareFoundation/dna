@@ -385,6 +385,7 @@ interface GeneralTabProps {
   isPending: boolean;
   onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
   onProdtrackPageTypeChange: (value: 'version' | 'entity') => void;
+  onSettingsReset: () => void;
 }
 
 function GeneralTab({
@@ -394,6 +395,7 @@ function GeneralTab({
   isPending,
   onSyncProdtrackTabOnVersionChange,
   onProdtrackPageTypeChange,
+  onSettingsReset
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
   const { inReviewEnabled, setInReviewEnabled, inReviewLocked, inReviewLockReason } =
@@ -498,6 +500,40 @@ function GeneralTab({
             </CheckboxContent>
           </RadioItem>
         </RadioGroupRoot>
+      </Section>
+
+      <Section>
+        <SectionTitle>Reset Settings</SectionTitle>
+        <SectionDescription>
+            Resets all user settings excluding QC checks.
+        </SectionDescription>
+        <Flex justify="center">
+          <AlertDialog.Root>
+            <AlertDialog.Trigger>
+              <Button variant="soft" color="red">
+                Reset Settings
+              </Button>
+            </AlertDialog.Trigger>
+            <AlertDialog.Content maxWidth="400px">
+              <AlertDialog.Title>Reset settings?</AlertDialog.Title>
+              <AlertDialog.Description size="2">
+                This will reset all settings to their default values excluding QC checks.
+              </AlertDialog.Description>
+              <Flex gap="3" mt="4" justify="end">
+                <AlertDialog.Cancel>
+                  <Button variant="soft" color="gray">
+                    Cancel
+                  </Button>
+                </AlertDialog.Cancel>
+                <AlertDialog.Action onClick={onSettingsReset}>
+                  <Button variant="solid" color="red">
+                    Reset
+                  </Button>
+                </AlertDialog.Action>
+              </Flex>
+            </AlertDialog.Content>
+          </AlertDialog.Root>
+        </Flex>
       </Section>
     </ModalContent>
   );
@@ -917,52 +953,6 @@ function AITab({
   );
 }
 
-// --- Reset Tab ---
-interface ResetTabProps {
-  onSettingsReset: () => void;
-}
-
-function ResetTab({
-    onSettingsReset
-  }: ResetTabProps) {
-  return (
-    <ModalContent>
-      <Section>
-        <SectionDescription>
-          Click below to restore all settings to their original defaults
-        </SectionDescription>
-        <Flex mt="" justify="center">
-          <AlertDialog.Root>
-            <AlertDialog.Trigger>
-              <Button variant="soft" color="red">
-                Reset Settings
-              </Button>
-            </AlertDialog.Trigger>
-            <AlertDialog.Content maxWidth="400px">
-              <AlertDialog.Title>Reset settings?</AlertDialog.Title>
-              <AlertDialog.Description size="2">
-                This will reset all settings to their default values.
-              </AlertDialog.Description>
-              <Flex gap="3" mt="4" justify="end">
-                <AlertDialog.Cancel>
-                  <Button variant="soft" color="gray">
-                    Cancel
-                  </Button>
-                </AlertDialog.Cancel>
-                <AlertDialog.Action onClick={onSettingsReset}>
-                  <Button variant="solid" color="red">
-                    Reset
-                  </Button>
-                </AlertDialog.Action>
-              </Flex>
-            </AlertDialog.Content>
-          </AlertDialog.Root>
-        </Flex>
-      </Section>
-    </ModalContent>
-  );
-}
-
 // --- Keybinding Recorder ---
 
 function formatKeysForDisplay(keys: string): string {
@@ -1236,7 +1226,6 @@ export function SettingsModal({
             <StyledTabsTrigger value="keybindings">Keybindings</StyledTabsTrigger>
             <StyledTabsTrigger value="transcription">Transcription</StyledTabsTrigger>
             <StyledTabsTrigger value="ai">AI</StyledTabsTrigger>
-            <StyledTabsTrigger value="reset">Reset</StyledTabsTrigger>
           </StyledTabsList>
 
           <Tabs.Content value="general" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -1250,6 +1239,7 @@ export function SettingsModal({
                   handleSyncProdtrackTabOnVersionChange
                 }
                 onProdtrackPageTypeChange={handleProdtrackPageTypeChange}
+                onSettingsReset={handleSettingsReset}
               />
             </TabsContentWrapper>
           </Tabs.Content>
@@ -1287,14 +1277,6 @@ export function SettingsModal({
                 onPreferredModelChange={handlePreferredModelChange}
                 onRegenerateOnVersionChange={handleRegenerateOnVersionChange}
                 onRegenerateOnTranscriptUpdate={handleRegenerateOnTranscriptUpdate}
-              />
-            </TabsContentWrapper>
-          </Tabs.Content>
-
-          <Tabs.Content value="reset" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            <TabsContentWrapper>
-              <ResetTab 
-                onSettingsReset={handleSettingsReset}
               />
             </TabsContentWrapper>
           </Tabs.Content>
