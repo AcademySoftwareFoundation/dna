@@ -1296,6 +1296,11 @@
             "title": "Id",
             "type": "string"
           },
+          "has_scratch": {
+            "default": false,
+            "title": "Has Scratch",
+            "type": "boolean"
+          },
           "in_review": {
             "anyOf": [
               {
@@ -1378,6 +1383,18 @@
             "description": "If True, clears transcription_resumed_at. Used when starting a new transcription session.",
             "title": "Clear Resumed At",
             "type": "boolean"
+          },
+          "has_scratch": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether the playlist has a scratch tile — a placeholder for a note on the playlist entity rather than on a version.",
+            "title": "Has Scratch"
           },
           "in_review": {
             "anyOf": [
@@ -4578,6 +4595,30 @@
           }
         ],
         "summary": "Get bot status",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/transcription/extension/health": {
+      "get": {
+        "description": "Handshake/availability probe for the DNA browser extension. Returns 404 when extension transcription is disabled.",
+        "operationId": "extension_transcription_health_transcription_extension_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Extension Transcription Health Transcription Extension Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Extension transcription handshake",
         "tags": [
           "Transcription"
         ]
