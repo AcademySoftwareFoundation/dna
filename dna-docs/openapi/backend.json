@@ -2,81 +2,17 @@
   "components": {
     "schemas": {
       "AddVersionToPlaylistRequest": {
-        "description": "Request model for adding a version to a playlist.\n\nProvide version_id to add an existing version, or version_name and\nproject_id to create a new version and add it. When creating, the new\nversion can be linked to an entity: pass link_entity_type with\nlink_entity_id (existing entity) or link_entity_name (create the entity\nfirst, then link).",
+        "description": "Request model for adding an existing version to a playlist.",
         "properties": {
-          "link_entity_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "ID of an existing entity to link the new version to",
-            "title": "Link Entity Id"
-          },
-          "link_entity_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Name for a new entity to create and link the new version to",
-            "title": "Link Entity Name"
-          },
-          "link_entity_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Entity type to link the new version to (e.g., 'shot', 'asset')",
-            "title": "Link Entity Type"
-          },
-          "project_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Project ID (required when creating a new version)",
-            "title": "Project Id"
-          },
           "version_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "description": "ID of an existing version to add",
-            "title": "Version Id"
-          },
-          "version_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Name for a new version to create and add",
-            "title": "Version Name"
+            "title": "Version Id",
+            "type": "integer"
           }
         },
+        "required": [
+          "version_id"
+        ],
         "title": "AddVersionToPlaylistRequest",
         "type": "object"
       },
@@ -1360,11 +1296,6 @@
             "title": "Id",
             "type": "string"
           },
-          "has_scratch": {
-            "default": false,
-            "title": "Has Scratch",
-            "type": "boolean"
-          },
           "in_review": {
             "anyOf": [
               {
@@ -1375,11 +1306,6 @@
               }
             ],
             "title": "In Review"
-          },
-          "in_review_pinned": {
-            "default": false,
-            "title": "In Review Pinned",
-            "type": "boolean"
           },
           "meeting_id": {
             "anyOf": [
@@ -1453,18 +1379,6 @@
             "title": "Clear Resumed At",
             "type": "boolean"
           },
-          "has_scratch": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Whether the playlist has a scratch tile — a placeholder for a note on the playlist entity rather than on a version.",
-            "title": "Has Scratch"
-          },
           "in_review": {
             "anyOf": [
               {
@@ -1476,18 +1390,6 @@
             ],
             "description": "Version ID currently in review",
             "title": "In Review"
-          },
-          "in_review_pinned": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "If True, in_review is held to the pinned version and RV sync will not move it. Setting False resumes syncing from RV.",
-            "title": "In Review Pinned"
           },
           "meeting_id": {
             "anyOf": [
@@ -1765,135 +1667,6 @@
           "segments_count"
         ],
         "title": "PublishTranscriptResponse",
-        "type": "object"
-      },
-      "RVLaunchInfo": {
-        "description": "rvlink URL pair for opening a playlist in RV.",
-        "properties": {
-          "load_url": {
-            "description": "rvlink://baked/… URL that loads the playlist; send once connected",
-            "title": "Load Url",
-            "type": "string"
-          },
-          "port": {
-            "description": "Network port the launched RV will listen on",
-            "title": "Port",
-            "type": "integer"
-          },
-          "url": {
-            "description": "rvlink://baked/… URL that brings RV up with networking",
-            "title": "Url",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url",
-          "load_url",
-          "port"
-        ],
-        "title": "RVLaunchInfo",
-        "type": "object"
-      },
-      "RVScanResult": {
-        "description": "A networked RV session discovered on the configured host.",
-        "properties": {
-          "greeting": {
-            "description": "Contact string RV returned at handshake",
-            "title": "Greeting",
-            "type": "string"
-          },
-          "port": {
-            "description": "TCP port the RV session is listening on",
-            "title": "Port",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "port",
-          "greeting"
-        ],
-        "title": "RVScanResult",
-        "type": "object"
-      },
-      "RVSyncConnectRequest": {
-        "description": "Request to bind a playlist's in_review to a running RV session.",
-        "properties": {
-          "playlist_id": {
-            "description": "Playlist to keep in sync",
-            "title": "Playlist Id",
-            "type": "integer"
-          },
-          "port": {
-            "description": "Port of the RV session (from a scan)",
-            "title": "Port",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "playlist_id",
-          "port"
-        ],
-        "title": "RVSyncConnectRequest",
-        "type": "object"
-      },
-      "RVSyncStatus": {
-        "description": "Current state of a playlist's RV sync session.",
-        "properties": {
-          "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail"
-          },
-          "playlist_id": {
-            "title": "Playlist Id",
-            "type": "integer"
-          },
-          "port": {
-            "title": "Port",
-            "type": "integer"
-          },
-          "status": {
-            "description": "connecting | connected | disconnected | error",
-            "title": "Status",
-            "type": "string"
-          },
-          "version_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "SG Version ID currently under the playhead",
-            "title": "Version Id"
-          },
-          "version_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "SG Version code currently under the playhead",
-            "title": "Version Name"
-          }
-        },
-        "required": [
-          "playlist_id",
-          "port",
-          "status"
-        ],
-        "title": "RVSyncStatus",
         "type": "object"
       },
       "RunQCChecksRequest": {
@@ -3839,7 +3612,7 @@
         ]
       },
       "post": {
-        "description": "Add an existing version to a playlist (version_id), or create a new version in the production tracking system and add it (version_name + project_id). A newly created version can be linked to an existing entity (link_entity_type + link_entity_id) or to a newly created one (link_entity_type + link_entity_name).",
+        "description": "Add an existing version to a playlist.",
         "operationId": "add_version_to_playlist_playlists__playlist_id__versions_post",
         "parameters": [
           {
@@ -4497,237 +4270,6 @@
         "summary": "Create a playlist",
         "tags": [
           "Playlists"
-        ]
-      }
-    },
-    "/rv-sync/connect": {
-      "post": {
-        "description": "Connect to the RV session on the given port and keep the playlist's in-review version synced to the version under RV's playhead.",
-        "operationId": "rv_sync_connect_rv_sync_connect_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RVSyncConnectRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RVSyncStatus"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Connect a playlist to an RV session",
-        "tags": [
-          "RV Sync"
-        ]
-      }
-    },
-    "/rv-sync/scan": {
-      "post": {
-        "description": "Probe the configured host for RV sessions with networking on.",
-        "operationId": "rv_sync_scan_rv_sync_scan_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RVScanResult"
-                  },
-                  "title": "Response Rv Sync Scan Rv Sync Scan Post",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Scan for networked RV sessions",
-        "tags": [
-          "RV Sync"
-        ]
-      }
-    },
-    "/rv-sync/{playlist_id}": {
-      "delete": {
-        "description": "Tear down the playlist's RV sync session.",
-        "operationId": "rv_sync_disconnect_rv_sync__playlist_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "playlist_id",
-            "required": true,
-            "schema": {
-              "title": "Playlist Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "title": "Response Rv Sync Disconnect Rv Sync  Playlist Id  Delete",
-                  "type": "boolean"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Disconnect a playlist from RV",
-        "tags": [
-          "RV Sync"
-        ]
-      }
-    },
-    "/rv-sync/{playlist_id}/launch-url": {
-      "get": {
-        "description": "Returns a baked rvlink:// URL that opens a new RV instance with networking enabled and the playlist's versions loaded. Open it on the client, then connect to the returned port.",
-        "operationId": "rv_sync_launch_url_rv_sync__playlist_id__launch_url_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "playlist_id",
-            "required": true,
-            "schema": {
-              "title": "Playlist Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RVLaunchInfo"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get an rvlink URL to open the playlist in RV",
-        "tags": [
-          "RV Sync"
-        ]
-      }
-    },
-    "/rv-sync/{playlist_id}/status": {
-      "get": {
-        "description": "Return the sync session state, or null when none exists.",
-        "operationId": "rv_sync_status_rv_sync__playlist_id__status_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "playlist_id",
-            "required": true,
-            "schema": {
-              "title": "Playlist Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/RVSyncStatus"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Response Rv Sync Status Rv Sync  Playlist Id  Status Get"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get RV sync status for a playlist",
-        "tags": [
-          "RV Sync"
         ]
       }
     },
@@ -5801,10 +5343,6 @@
     {
       "description": "Operations for managing playlist metadata (in-review version and meeting ID)",
       "name": "Playlist Metadata"
-    },
-    {
-      "description": "Sync in-review version from a local RV session",
-      "name": "RV Sync"
     },
     {
       "description": "Operations for managing user settings and preferences",
