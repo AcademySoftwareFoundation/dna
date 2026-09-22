@@ -126,10 +126,25 @@ export function useDraftNote({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMutationRef = useRef<Promise<DraftNote> | null>(null);
   const pendingDataRef = useRef<LocalDraftNote | null>(null);
+  const pendingStatusMutationRef = useRef<{
+    versionId: number;
+    status: string;
+  } | null>(null);
   const isEnabled =
     playlistId != null && versionId != null && userEmail != null;
 
   const queryKey = ['draftNote', playlistId, versionId, userEmail];
+
+  const applyPendingVersionStatus = useCallback(
+    (local: LocalDraftNote, currentVersionId: number): LocalDraftNote => {
+      const pending = pendingStatusMutationRef.current;
+      if (pending && pending.versionId === currentVersionId) {
+        return { ...local, versionStatus: pending.status };
+      }
+      return local;
+    },
+    []
+  );
 
   const { data: serverDraft, isLoading } = useQuery<DraftNote | null, Error>({
     queryKey,
@@ -147,7 +162,10 @@ export function useDraftNote({
     DraftNote,
     Error,
     { data: DraftNoteUpdate },
-    { previousDraftNotes: DraftNote[] | undefined }
+    {
+      previousDraftNotes: DraftNote[] | undefined;
+      previousDraftNote: DraftNote | null | undefined;
+    }
   >({
     mutationFn: ({ data }) =>
       apiHandler.upsertDraftNote({
@@ -158,7 +176,21 @@ export function useDraftNote({
       }),
     onMutate: async ({ data }) => {
       await queryClient.cancelQueries({ queryKey: ['draftNotes', playlistId] });
+      await queryClient.cancelQueries({ queryKey });
       const previousDraftNotes = queryClient.getQueryData<DraftNote[]>(['draftNotes', playlistId]);
+      const previousDraftNote = queryClient.getQueryData<DraftNote | null>(queryKey);
+
+      const patchDraftNote = (note: DraftNote): DraftNote => ({
+        ...note,
+        content: data.content ?? note.content,
+        subject: data.subject ?? note.subject,
+        to: data.to ?? note.to,
+        cc: data.cc ?? note.cc,
+        version_status: data.version_status ?? note.version_status,
+        edited: data.edited ?? note.edited,
+        attachment_ids: data.attachment_ids ?? note.attachment_ids,
+        updated_at: new Date().toISOString(),
+      });
 
       if (previousDraftNotes) {
         queryClient.setQueryData<DraftNote[]>(['draftNotes', playlistId], (old) => {
@@ -208,14 +240,52 @@ export function useDraftNote({
         });
       }
 
-      return { previousDraftNotes };
+      queryClient.setQueryData<DraftNote | null>(queryKey, (old) => {
+        if (old) {
+          return patchDraftNote(old);
+        }
+        return {
+          id: -1,
+          _id: 'temp_id',
+          version_id: versionId!,
+          playlist_id: playlistId!,
+          user_id: -1,
+          user_email: userEmail!,
+          content: data.content ?? '',
+          subject: data.subject ?? '',
+          to: data.to ?? '',
+          cc: data.cc ?? '',
+          links: data.links ?? [],
+          version_status: data.version_status ?? '',
+          published: false,
+          edited: data.edited ?? false,
+          published_note_id: null,
+          attachment_ids: data.attachment_ids ?? [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      });
+
+      if (data.version_status !== undefined) {
+        pendingStatusMutationRef.current = {
+          versionId: versionId!,
+          status: data.version_status,
+        };
+      }
+
+      return { previousDraftNotes, previousDraftNote };
     },
     onError: (_err, _variables, context) => {
       if (context?.previousDraftNotes) {
         queryClient.setQueryData(['draftNotes', playlistId], context.previousDraftNotes);
       }
+      if (context) {
+        queryClient.setQueryData(queryKey, context.previousDraftNote);
+      }
+      pendingStatusMutationRef.current = null;
     },
     onSettled: () => {
+      pendingStatusMutationRef.current = null;
       queryClient.invalidateQueries({
         queryKey: ['draftNotes', playlistId],
       });
@@ -259,9 +329,16 @@ export function useDraftNote({
     if (isContextSwitch) {
       lastContextRef.current = currentContext;
       if (serverDraft) {
-        setLocalDraft(backendToLocal(serverDraft));
+        setLocalDraft(
+          applyPendingVersionStatus(backendToLocal(serverDraft), versionId!)
+        );
       } else if (!isLoading) {
-        setLocalDraft(createEmptyDraft(currentVersion, submitter));
+        setLocalDraft(
+          applyPendingVersionStatus(
+            createEmptyDraft(currentVersion, submitter),
+            versionId!
+          )
+        );
       } else {
         setLocalDraft(null);
       }
@@ -280,12 +357,17 @@ export function useDraftNote({
             pendingDataRef.current !== null || upsertMutation.isPending;
 
           const server = backendToLocal(serverDraft);
+          const pendingStatus = pendingStatusMutationRef.current;
+          const versionStatus =
+            pendingStatus && pendingStatus.versionId === versionId
+              ? pendingStatus.status
+              : server.versionStatus;
           const next: LocalDraftNote = {
             ...prev,
             published: server.published,
             edited: server.edited,
             publishedNoteId: server.publishedNoteId,
-            versionStatus: server.versionStatus,
+            versionStatus,
             ...(hasUnsavedEdits
               ? {}
               : {
@@ -335,7 +417,7 @@ export function useDraftNote({
         setLocalDraft((prev) => prev ?? createEmptyDraft(currentVersion, submitter));
       }
     }
-  }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail]);
+  }, [serverDraft, isEnabled, isLoading, playlistId, versionId, userEmail, applyPendingVersionStatus]);
 
   useEffect(() => {
     const flushPending = () => {
