@@ -1,0 +1,33 @@
+---
+sidebar_position: 6
+slug: /6-ai
+title: 6 - AI Integration
+---
+
+## Generating Notes
+
+With AI enabled in settings, DNA drafts a note for the in-review version from its transcript and version context. Insert the draft into your notes box with the AI Insert Note shortcut, or ask for a fresh take with AI Regenerate. You can also have notes regenerate automatically when the version changes or new transcript segments arrive; both are toggles in settings.
+
+## Setting The Prompt
+
+The note generation prompt is fully editable in the [settings panel](/docs/10-settings). Use template tags to control what the model sees: `{{ transcript }}` for what was said on the version, `{{ context }}` for the version's production context, `{{ notes }}` for anything you have already written, plus `{{ glossary_global }}` and `{{ glossary_project }}` for the glossaries below.
+
+<Figure
+  src="img/6-ai/ai-prompt.png"
+  width="75%"
+  alt="DNA ai prompt settings"
+  caption="Image shows DNA's AI prompt settings."
+/>
+
+## Additional Prompts
+
+## Glossaries
+
+Glossaries are supplied alongside the prompt so the AI expands VFX shorthand and show-specific terms correctly. There are two: a global glossary of industry-wide terms maintained in the open-source repo (use the Contribute button in settings to open a PR), and a project glossary you can edit directly in settings for your production's own vocabulary.
+
+<Figure
+  src="img/6-ai/glossaries.png"
+  width="75%"
+  alt="DNA glossaries"
+  caption="Image shows AI Glossaries feature."
+/>
