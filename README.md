@@ -4,6 +4,7 @@
 
 <img width="4801" height="2001" alt="ASWF_DNA Project Logo_Color_Dark_Without_BG" src="https://github.com/user-attachments/assets/db3d414b-367a-498c-b8aa-6b2b8495f35e" />
 
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/14644/baseline)](https://www.bestpractices.dev/projects/14644)
 
 Introduction: Dailies Notes Assistant (DNA)
 ===========================================
@@ -114,14 +115,21 @@ DNA is built for:
   - Technical Steering Committee meetings are open to the public, bi-weekley on Mondays 13:00pm PST
   - Calendar: [Zoom Meeting](https://zoom-lfx.platform.linuxfoundation.org/meeting/96088138284?password=c9e528a8-3852-4b82-89c2-96d6f22526ad)
   - Meeting Notes: [HERE](https://docs.google.com/document/d/1RebKyycUsWSKpv09PjAcWCFfMmXFiS4d43udIWC30lY/edit?tab=t.0)
+- **Obtain the software:** clone the public repository over HTTPS:
+  - `git clone https://github.com/AcademySoftwareFoundation/dna.git`
+  - Setup and run instructions: [QUICKSTART.md](QUICKSTART.md)
 - **Report a bug:**
   - Submit an Issue: [**https://github.com/AcademySoftwareFoundation/dna/issues**](https://github.com/AcademySoftwareFoundation/dna/issues)
+- **Report a security vulnerability:**
+  - Follow [SECURITY.md](SECURITY.md). Do not file public issues for unfixed vulnerabilities.
 - **Contribute a Fix, Feature, or Improvement:**
   - Read the [**Contribution Guidelines**](https://github.com/AcademySoftwareFoundation/dna/blob/main/CONTRIBUTING.md) and [**Code of Conduct**](https://github.com/AcademySoftwareFoundation/dna/blob/main/CODE_OF_CONDUCT.md)
   - Submit a Pull Request: [**https://github.com/AcademySoftwareFoundation/dna/pulls**](https://github.com/AcademySoftwareFoundation/dna/pulls)
 - [GitHub project page](https://github.com/AcademySoftwareFoundation/dna)
 - [The DNA project was established by this proposal](https://github.com/AcademySoftwareFoundation/tac/issues/1040)
 - [ASWF's Machine Learning Working Group proposal](https://github.com/AcademySoftwareFoundation/tac/issues/1029) -- describes the purpose and scope of MLWG. Join the [ASWF Slack](https://slack.aswf.io/) -- join for the #wg-ml, #dna, and ##dailies-notes-assistant-tech channels for the discussions about Machine Learning and Dailies Notes Assistant
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14644/badge)](https://www.bestpractices.dev/projects/14644)
+
 
 ## ☎️ Contributing and Developer Documentation
 
@@ -145,5 +153,8 @@ This project is (c) Copyright Contributors to the Dailies Notes Assistant projec
 
 For original code, we use the [Apache-2.0 license](LICENSE), and for
 documentation, the [Creative Commons Attribution 4.0 Unported
-License](http://creativecommons.org/licenses/by/4.0/).
+License](https://creativecommons.org/licenses/by/4.0/).
+
+DNA is developed in a single public repository:
+[https://github.com/AcademySoftwareFoundation/dna](https://github.com/AcademySoftwareFoundation/dna).
 

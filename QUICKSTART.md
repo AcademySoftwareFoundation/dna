@@ -52,7 +52,7 @@ Follow these steps if you prefer to set up each component yourself, or if you ne
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/AcademySoftwareFoundation/dna.git
 cd dna
 ```
 
