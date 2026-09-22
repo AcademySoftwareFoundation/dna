@@ -24,6 +24,14 @@ class GeminiProvider(LLMProviderBase):
 
     def _get_provider_client(self):
         """Construct an instance of the LLM provider's client."""
+        if not self.api_key:
+            # AsyncOpenAI falls back to the OPENAI_API_KEY env var when no
+            # api_key is passed, which produces a confusing error (mentioning
+            # OpenAI) when the real problem is a missing GEMINI_API_KEY.
+            raise ValueError(
+                "GEMINI_API_KEY is required to use the Gemini provider. "
+                "Set the GEMINI_API_KEY environment variable."
+            )
         return AsyncOpenAI(
             api_key=self.api_key,
             base_url=os.getenv(f"{self.LLM_PROVIDER_NAME }_URL", self.DEFAULT_URL),
