@@ -526,7 +526,9 @@ class FtrackProvider(ProdtrackProviderBase):
                 collect_task(entity)
                 collect_context(entity.get("parent"))
             elif kind == "Note":
-                collect(entity.get("author"), "User")
+                # Notes are fetched with author_id only; callers that resolve
+                # the author warm it with the author row.
+                pass
             elif kind not in _PROJECTLESS_TYPES:
                 # Contexts, lists and review sessions all carry a project link
                 # and nothing else the conversions reach for.
@@ -823,10 +825,9 @@ class FtrackProvider(ProdtrackProviderBase):
         )
 
     def _note_from(self, note: Any, author: Optional[User] = None) -> Note:
+        # The author is passed in rather than read off the note: NOTE_PROJECTION
+        # fetches only author_id, and reading the link would auto-populate.
         metadata = self._note_metadata(note)
-        author_entity = author
-        if author_entity is None and note.get("author"):
-            author_entity = self._user_from(note["author"])
         return Note(
             id=self._to_id(note, "Note"),
             subject=metadata.get(NOTE_SUBJECT_KEY),
@@ -834,7 +835,7 @@ class FtrackProvider(ProdtrackProviderBase):
             # ftrack notes belong to their parent, not to a project of their own.
             project=None,
             note_links=[],
-            author=author_entity,
+            author=author,
         )
 
     def _note_metadata(self, note: Any) -> dict[str, Any]:
@@ -1113,8 +1114,13 @@ class FtrackProvider(ProdtrackProviderBase):
         if entity_type == "note":
             note = self._require(entity_type, entity_id, uuid)
             author = None
-            if resolve_links and note.get("author"):
-                author = self._user_from(note["author"])
+            if resolve_links and note.get("author_id"):
+                row = self._fetch_by_ids(
+                    "User", [note["author_id"]], USER_PROJECTION
+                ).get(note["author_id"])
+                if row is not None:
+                    self._warm_ids([row])
+                    author = self._user_from(row)
             return self._note_from(note, author)
 
         raise ValueError(f"Unknown entity type: {entity_type}")
@@ -1197,7 +1203,9 @@ class FtrackProvider(ProdtrackProviderBase):
             ).first(),
             recipients=[],
         )
-        return self._note_from(created)
+        # The note was just created locally, so its author link is populated.
+        author = created.get("author")
+        return self._note_from(created, self._user_from(author) if author else None)
 
     def find(
         self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0

@@ -462,6 +462,22 @@ def make_playlist(session, project, uuid="list-1", name="dailies", versions=()):
     )
 
 
+def make_note(session, parent, uuid="note-1", author_id="user-1"):
+    return session.register(
+        FakeEntity(
+            "Note",
+            {
+                "id": uuid,
+                "content": "Warmer grade",
+                "parent_id": parent["id"],
+                "parent_type": parent.entity_type,
+                "metadata": {"dna_subject": "Grade"},
+                "author_id": author_id,
+            },
+        )
+    )
+
+
 # ---------------------------------------------------------------------------
 # Playlist entity type setting
 # ---------------------------------------------------------------------------
@@ -1124,6 +1140,117 @@ class TestGetEntity:
 
         assert result.versions == []
 
+    def test_reads_a_project(self, provider, session):
+        project = make_project(session)
+
+        result = provider.get_entity("project", provider._to_id(project, "Project"))
+
+        assert result.name == "Skyfall"
+
+    def test_reads_a_user(self, provider, session):
+        user = make_user(session)
+
+        result = provider.get_entity("user", provider._to_id(user, "User"))
+
+        assert result.email == "artist@example.com"
+
+    def test_reads_a_task_with_its_parent(self, provider, session):
+        project = make_project(session)
+        make_version(session, project)
+        task = session.get("Task", "task-for-version-1")
+
+        result = provider.get_entity("task", provider._to_id(task, "Task"))
+
+        assert result.name == "comp"
+        assert result.pipeline_step["name"] == "Compositing"
+        assert result.entity.name == "sh010"
+
+    def test_shallow_task_read_skips_the_parent(self, provider, session):
+        project = make_project(session)
+        make_version(session, project)
+        task = session.get("Task", "task-for-version-1")
+
+        result = provider.get_entity(
+            "task", provider._to_id(task, "Task"), resolve_links=False
+        )
+
+        assert result.entity is None
+
+    def test_reads_a_version_with_its_links(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        make_note(session, version)
+
+        result = provider.get_entity(
+            "version", provider._to_id(version, "AssetVersion")
+        )
+
+        assert isinstance(result, Version)
+        assert result.name == "sh010_comp_v003"
+        assert result.entity.name == "sh010"
+        assert result.task.name == "comp"
+        assert result.user.email == "artist@example.com"
+        assert [n.subject for n in result.notes] == ["Grade"]
+        assert result.notes[0].author.email == "artist@example.com"
+
+    def test_shallow_version_read_skips_the_links(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        make_note(session, version)
+
+        result = provider.get_entity(
+            "version", provider._to_id(version, "AssetVersion"), resolve_links=False
+        )
+
+        assert result.entity is None
+        assert result.task is None
+        assert result.notes == []
+
+    def test_reads_a_note_with_its_author(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        note = make_note(session, version)
+
+        result = provider.get_entity("note", provider._to_id(note, "Note"))
+
+        assert isinstance(result, Note)
+        assert result.subject == "Grade"
+        assert result.content == "Warmer grade"
+        assert result.author.email == "artist@example.com"
+
+    def test_reading_a_note_fetches_only_what_it_projects(self, provider, session):
+        """The author comes from author_id, not from an auto-populated link."""
+        project = make_project(session)
+        version = make_version(session, project)
+        note = make_note(session, version)
+        note_id = provider._to_id(note, "Note")
+
+        lazy_reads = []
+        FakeEntity.lazy_reads = lazy_reads
+        try:
+            provider.get_entity("note", note_id)
+        finally:
+            FakeEntity.lazy_reads = None
+
+        assert lazy_reads == []
+
+    @pytest.mark.parametrize(
+        "entity_type, ftrack_type, uuid",
+        [
+            ("shot", "Shot", "missing-shot"),
+            ("task", "Task", "missing-task"),
+            ("version", "AssetVersion", "missing-version"),
+            ("project", "Project", "missing-project"),
+        ],
+    )
+    def test_a_mapped_id_that_is_gone_is_not_found(
+        self, provider, entity_type, ftrack_type, uuid
+    ):
+        entity_id = provider._to_id(FakeEntity(ftrack_type, {"id": uuid}), ftrack_type)
+
+        with pytest.raises(ValueError, match="Entity not found"):
+            provider.get_entity(entity_type, entity_id)
+
     def test_rejects_an_unknown_entity_type(self, provider):
         with pytest.raises(ValueError, match="Unknown entity type"):
             provider.get_entity("sequence", 1)
@@ -1407,6 +1534,70 @@ class TestFind:
         assert session.queries_against("Shot") == [
             'select id from Shot where project_id is "project-1"'
         ]
+
+    def test_no_match_returns_nothing(self, provider, session):
+        make_project(session)
+
+        assert (
+            provider.find("shot", [{"field": "name", "operator": "is", "value": "x"}])
+            == []
+        )
+
+    def test_hydrates_versions(self, provider, session):
+        project = make_project(session)
+        make_version(session, project)
+
+        results = provider.find("version", [])
+
+        # find is shallow for every type: links are left for get_entity.
+        assert [r.name for r in results] == ["sh010_comp_v003"]
+        assert results[0].status == "Pending Review"
+        assert results[0].project["name"] == "Skyfall"
+        assert results[0].entity is None
+
+    def test_hydrates_tasks(self, provider, session):
+        project = make_project(session)
+        make_version(session, project)
+
+        results = provider.find("task", [])
+
+        assert [(r.name, r.pipeline_step["name"]) for r in results] == [
+            ("comp", "Compositing")
+        ]
+
+    def test_hydrates_projects_and_users(self, provider, session):
+        make_project(session)
+        make_user(session)
+
+        assert [p.name for p in provider.find("project", [])] == ["Skyfall"]
+        assert [u.email for u in provider.find("user", [])] == ["artist@example.com"]
+
+    def test_hydrates_notes(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        make_note(session, version)
+
+        lazy_reads = []
+        FakeEntity.lazy_reads = lazy_reads
+        try:
+            results = provider.find("note", [])
+        finally:
+            FakeEntity.lazy_reads = None
+
+        assert [n.subject for n in results] == ["Grade"]
+        assert lazy_reads == []
+
+    def test_hydrates_playlists_with_their_project(
+        self, provider, session, monkeypatch
+    ):
+        monkeypatch.setenv("FTRACK_PLAYLIST_ENTITY", "AssetVersionList")
+        project = make_project(session)
+        make_playlist(session, project)
+
+        results = provider.find("playlist", [])
+
+        assert [p.code for p in results] == ["dailies"]
+        assert results[0].project["name"] == "Skyfall"
 
 
 # ---------------------------------------------------------------------------
@@ -1754,23 +1945,104 @@ class TestTranscripts:
         )
 
 
+class TestGetThumbnail:
+    class FakeAccessor:
+        def __init__(self):
+            self.requested = []
+
+        def get_thumbnail_url(self, component_id, size=None):
+            self.requested.append((component_id, size))
+            return f"{SERVER_URL}/component/thumbnail?id={component_id}&apiKey=key"
+
+    def _server_location(self, session):
+        location = session.register(
+            FakeEntity("Location", {"id": "location-server", "name": "ftrack.server"})
+        )
+        location.accessor = self.FakeAccessor()
+        return location
+
+    def _response(self, status_code=200, content=b"jpeg", content_type="image/png"):
+        return mock.Mock(
+            status_code=status_code,
+            content=content,
+            headers={"Content-Type": content_type},
+        )
+
+    def test_fetches_the_image_server_side(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        location = self._server_location(session)
+
+        with mock.patch("requests.get", return_value=self._response()) as get:
+            result = provider.get_thumbnail(provider._to_id(version, "AssetVersion"))
+
+        assert result == (b"jpeg", "image/png")
+        assert location.accessor.requested == [("thumb-1", 300)]
+        assert get.call_args.args[0].startswith(f"{SERVER_URL}/component/thumbnail")
+
+    def test_no_thumbnail_is_none(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        version["thumbnail_id"] = None
+        self._server_location(session)
+
+        with mock.patch("requests.get") as get:
+            assert (
+                provider.get_thumbnail(provider._to_id(version, "AssetVersion")) is None
+            )
+        get.assert_not_called()
+
+    def test_missing_server_location_is_none(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+
+        assert provider.get_thumbnail(provider._to_id(version, "AssetVersion")) is None
+
+    def test_an_error_status_is_none(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        self._server_location(session)
+
+        with mock.patch("requests.get", return_value=self._response(status_code=404)):
+            assert (
+                provider.get_thumbnail(provider._to_id(version, "AssetVersion")) is None
+            )
+
+    def test_a_failed_request_is_none_not_an_error(self, provider, session):
+        project = make_project(session)
+        version = make_version(session, project)
+        self._server_location(session)
+
+        with mock.patch("requests.get", side_effect=ConnectionError("down")):
+            assert (
+                provider.get_thumbnail(provider._to_id(version, "AssetVersion")) is None
+            )
+
+    def test_an_unmapped_version_raises(self, provider):
+        with pytest.raises(ValueError):
+            provider.get_thumbnail(99999)
+
+
 # ---------------------------------------------------------------------------
-# Wiring
+# Provider factory
 # ---------------------------------------------------------------------------
 
 
 class TestProviderFactory:
     def test_builds_an_ftrack_provider(self):
-        with mock.patch.dict(
-            os.environ,
-            {
-                "PRODTRACK_PROVIDER": "ftrack",
-                "FTRACK_SERVER": SERVER_URL,
-                "FTRACK_API_KEY": "key",
-                "FTRACK_API_USER": "api@example.com",
-                "FTRACK_ID_MAP": "memory",
-            },
-        ), mock.patch("dna.prodtrack_providers.ftrack.ftrack_api.Session") as session:
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "PRODTRACK_PROVIDER": "ftrack",
+                    "FTRACK_SERVER": SERVER_URL,
+                    "FTRACK_API_KEY": "key",
+                    "FTRACK_API_USER": "api@example.com",
+                    "FTRACK_ID_MAP": "memory",
+                },
+            ),
+            mock.patch("dna.prodtrack_providers.ftrack.ftrack_api.Session") as session,
+        ):
             provider = get_prodtrack_provider()
 
         assert isinstance(provider, FtrackProvider)

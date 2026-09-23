@@ -1163,6 +1163,45 @@ class TestMockThumbnailsEndpoint:
         assert response.status_code == 404
 
 
+class TestFtrackThumbnailEndpoint:
+    """Tests for GET /api/ftrack-thumbnails/{version_id}."""
+
+    def _get(self, provider, version_id=7):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: provider
+        try:
+            return client.get(f"/api/ftrack-thumbnails/{version_id}")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_streams_the_image(self):
+        provider = mock.MagicMock()
+        provider.get_thumbnail.return_value = (b"\x89PNG", "image/png")
+
+        response = self._get(provider)
+
+        assert response.status_code == 200
+        assert response.content == b"\x89PNG"
+        assert response.headers["content-type"] == "image/png"
+        provider.get_thumbnail.assert_called_once_with(7)
+
+    def test_no_thumbnail_returns_404(self):
+        provider = mock.MagicMock()
+        provider.get_thumbnail.return_value = None
+
+        assert self._get(provider).status_code == 404
+
+    def test_unknown_version_returns_404(self):
+        provider = mock.MagicMock()
+        provider.get_thumbnail.side_effect = ValueError("Unknown version id 7")
+
+        assert self._get(provider).status_code == 404
+
+    def test_provider_without_thumbnails_returns_404(self):
+        provider = mock.MagicMock(spec=["get_entity"])
+
+        assert self._get(provider).status_code == 404
+
+
 class TestAttachmentsEndpoint:
     """Tests for POST/GET/DELETE /api/attachments."""
 
