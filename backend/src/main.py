@@ -20,7 +20,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dna.auth.email import emails_match
@@ -474,6 +474,35 @@ async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
         raise HTTPException(status_code=404, detail="Attachment not found")
     shutil.rmtree(attachment_dir)
     return {"deleted": attachment_id}
+
+
+@app.get(
+    "/api/ftrack-thumbnails/{version_id}",
+    tags=["Versions"],
+    summary="Serve an ftrack version thumbnail",
+    description=(
+        "Streams a version's thumbnail from ftrack (when using the ftrack "
+        "prodtrack provider). ftrack's own thumbnail URL carries the API key "
+        "in its query string, so it is proxied here instead of handed to the "
+        "browser."
+    ),
+    response_class=Response,
+)
+async def get_ftrack_thumbnail(version_id: int, provider: ProdtrackProviderDep):
+    """Proxy a version thumbnail from ftrack."""
+    getter = getattr(provider, "get_thumbnail", None)
+    if getter is None:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    try:
+        thumbnail = getter(version_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    if thumbnail is None:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    content, media_type = thumbnail
+    return Response(content=content, media_type=media_type)
 
 
 @app.get(
@@ -1318,7 +1347,9 @@ async def publish_transcript(
     except NotImplementedError as e:
         raise HTTPException(status_code=501, detail=str(e))
 
-    entity_type = os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
+    # Ask the provider where it just wrote, rather than reading ShotGrid's env
+    # var: ftrack stores transcripts somewhere else entirely.
+    entity_type = prodtrack.transcript_entity_type()
     try:
         await storage.upsert_published_transcript(
             PublishedTranscriptUpdate(

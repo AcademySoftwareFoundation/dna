@@ -351,7 +351,7 @@ The following secrets must be configured in GitHub repository settings:
 |----------|-------|
 | `PYTHONUNBUFFERED` | 1 |
 | `STORAGE_PROVIDER` | mongodb |
-| `PRODTRACK_PROVIDER` | shotgrid |
+| `PRODTRACK_PROVIDER` | `shotgrid`, `ftrack` or `mock` |
 | `LLM_PROVIDER` | openai |
 | `AUTH_PROVIDER` | `none` (noop) for local dev; `google` for production |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins |

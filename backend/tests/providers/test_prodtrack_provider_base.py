@@ -23,6 +23,11 @@ class TestProdtrackProviderBaseTranscriptContract:
                 body="Speaker: hi",
             )
 
+    def test_transcript_entity_type_raises_not_implemented(self):
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError):
+            provider.transcript_entity_type()
+
     def test_update_transcript_raises_not_implemented(self):
         provider = ProdtrackProviderBase()
         with pytest.raises(NotImplementedError):
