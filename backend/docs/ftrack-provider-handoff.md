@@ -211,21 +211,28 @@ assumption — which is the whole reason §7 step 2 exists.
   links by column, matching how the rest of the adapter queries; either form
   works.
 
-### 6.2 The repo's test suite has never run
+### 6.2 The repo's test suite
 
-At the time this was written no `fastapi` or `pydantic` was installable on the
+For the whole first session no `fastapi` or `pydantic` was installable on the
 host (the configured devpi index has neither) and Docker was unavailable, so
-`make test` never ran. The flake added since (§9) supplies the interpreter and
-both prodtrack SDKs, but the rest of `requirements.txt` still needs a working
-index — so this is not resolved yet, only made easier.
+`make test` never ran. The nix shell (§9) now carries the full locked backend
+environment, and the suite has run on the host with it:
 
-The 123 new tests pass under a **throwaway pydantic shim** in a scratchpad —
+```
+nix develop --command bash -c 'cd backend && python -m pytest'
+823 passed — 2026-09-23, x86_64-linux
+```
+
+That is the host, not the container; `make test` in Docker is still worth one
+run before merging.
+
+Before that, the 123 new tests passed under a **throwaway pydantic shim** in a scratchpad —
 which exercises logic, query shape and round-trip counts, but **not pydantic
 field-type validation**. The entity models are the part this cannot vouch for:
 if e.g. `Version.created_at` gets a type the model rejects, only the real suite
 will show it.
 
-**First action in a new session: run `make test` in `backend/`.**
+The real suite has since covered this (above).
 
 Also unrun: the modified `test_publish_transcript_endpoint.py` and
 `test_prodtrack_provider_base.py`.
@@ -247,7 +254,8 @@ don't "fix" it.
 
 ## 7. Suggested order of work
 
-1. **Run `make test`.** Fix whatever pydantic validation surfaces.
+1. ~~Run the suite.~~ Done on the host via the nix shell (§6.2); run
+   `make test` in Docker once before merging.
 2. **Run it against a sandbox project.** The schema names are checked (§6.1) but
    nothing has actually executed: load a playlist, publish a note with a subject
    and an attachment, set a status, create a playlist. Reading is the low-risk
@@ -276,7 +284,8 @@ PYTHONPATH=<shim>:backend/src python3.9 -m pytest test_ftrack_provider.py -c /de
 ```
 
 It is deliberately **not** committed — it is a crutch for an environment without
-the real dependencies, and it would rot. `make test` is the real check.
+the real dependencies, and it would rot. Superseded by the nix shell (§9),
+which runs the real suite on the host.
 
 ---
 
@@ -287,68 +296,82 @@ Added because the missing host dependencies above are what blocked `make test`
 for the whole of the first session.
 
 ```
-git add flake.nix flake.lock   # flakes only see git-tracked files
+git add flake.nix flake.lock backend/uv.lock   # flakes only see git-tracked files
 nix develop
 ```
 
 **What the shell gives you:** `python311` (3.11.16, matching
-`backend/Dockerfile`) with `shotgun_api3` and `ftrack_api` already importable,
-plus `uv`, `nodejs_22`, `mongodb-ce`, `black`, `isort` and `docker-compose`.
+`backend/Dockerfile`) with every backend dependency installed at the exact
+version in `backend/uv.lock`, `PYTHONPATH` set to `backend/src` as in the
+container, plus `uv`, `nodejs_22`, `mongodb-ce`, `black`, `isort` and
+`docker-compose`. Nothing is installed into a venv by hand.
 
-**What it deliberately does not do:** install the backend's pinned dependencies.
-The shellHook prints the commands rather than running them, so entering the
-shell is fast and works offline:
+### One lock for the shell, Docker and CI
+
+`backend/requirements.txt` used to pin only top-level packages, so everything
+beneath them (starlette, anyio, pydantic-core, ...) floated with each install,
+and `anthropic` was a range. Now:
+
+- `backend/pyproject.toml` `[project].dependencies` is where dependencies are
+  declared (same list, same pins as the old `requirements.txt`).
+- `backend/uv.lock` pins the whole tree by version and hash. The flake builds
+  the shell's environment from it with
+  [uv2nix](https://github.com/pyproject-nix/uv2nix).
+- `backend/requirements.txt` is **generated** from the lock
+  (`uv export`), so the Dockerfile and `.github/workflows/backend-tests.yml`
+  keep their `pip install -r requirements.txt` unchanged and get the same set.
+
+To change a dependency: edit `pyproject.toml`, then
 
 ```
-uv venv --system-site-packages backend/.venv
-uv pip install --python backend/.venv -r backend/requirements.txt
+cd backend
+uv lock
+uv export --frozen --no-hashes --no-emit-project -o requirements.txt
 ```
 
-`--system-site-packages` is what lets the venv see the two nix-built SDKs.
+and commit all three. Never edit `requirements.txt` by hand.
 
-### Why four derivations for two SDKs
+Every locked package ships a wheel for CPython 3.11 on x86_64 Linux, so nothing
+is built from source.
 
-Neither `shotgun_api3` nor `ftrack-python-api` is in nixpkgs, and ftrack drags
-in two more that are missing or wrong-versioned:
+### ftrack's pins are honoured, not patched
 
-| Package | Source | Why |
+The first version of the flake hand-built `shotgun_api3`, `ftrack-python-api`,
+`arrow` and `clique`, and relaxed two of ftrack's pins to fit nixpkgs. With
+everything resolved from PyPI by uv none of that is needed, and ftrack gets
+exactly what it asks for:
+
+| Package | Locked | Why it matters |
 |---|---|---|
-| `shotgun_api3` 3.9.2 | GitHub `shotgunsoftware/python-api` | Plain setuptools, vendors its own httplib2 |
-| `ftrack-python-api` 3.0.6 | GitHub `ftrackhq/ftrack-python-api` | Needs patching, see below |
-| `clique` 1.6.1 | **PyPI** | ftrack pins `==1.6.1`; `4degrees/clique`'s GitHub tags stop at 1.5.0, so 1.6.1 exists only on PyPI. Hard dependency — `import clique` at `ftrack_api/session.py:29` |
-| `arrow` 0.17.0 | GitHub `arrow-py/arrow` | See below |
+| `arrow` | 0.17.0 | ftrack pins `<1` for a reason: `ftrack_api/entity/user.py:92` calls `arrow.now().replace(tzinfo="utc")`, which arrow 1.0 removed. `get_versions_for_playlist` reaches it. |
+| `clique` | 1.6.1 | ftrack pins `==1.6.1`; hard import at `ftrack_api/session.py:29` |
+| `pyparsing` | 2.4.7 | ftrack's `<3`, event hub only |
+| `websocket-client` | 0.59.0 | ftrack's `<1`, event hub only |
 
-**arrow is pinned on purpose.** ftrack's `arrow>=0.4.4,<1` is not conservative:
-`ftrack_api/entity/user.py:92` calls `arrow.now().replace(tzinfo="utc")`, and
-arrow 1.0 removed `tzinfo` from `.replace()` (it moved to `.to()`). nixpkgs
-ships arrow 1.4, which would raise at runtime on a code path
-`get_versions_for_playlist` reaches. Do not "upgrade" this without rechecking
-that call.
-
-**pyparsing and websocket-client are relaxed on purpose.** ftrack pins them `<3`
-and `<1`; nixpkgs has 3.3 and 1.9. Both are used only by the event hub
-(`ftrack_api/event/expression.py`, `event/hub.py`), and the provider connects
-with `auto_connect_event_hub=False` — see `FtrackProvider.connect`. They still
-have to import, and they do; only the event-subscription paths would be at risk
-and nothing in DNA reaches them.
-
-**ftrack needs build patching.** Upstream builds through
-`poetry-dynamic-versioning`, which reads the version from a git tag; a source
-tarball has no `.git`, so an unpatched build produces `0.1.0`. The derivation
-pins the version, swaps the backend to plain `poetry-core`, and drops
-`sphinx-notfound-page` — listed as a runtime dependency but docs-only, and it
-would pull all of sphinx into the closure.
+PyPI's ftrack 3.0.6 declares `sphinx-notfound-page` as a runtime dependency, so
+sphinx is in the environment. It was already in every Docker image; the lock
+just makes that visible.
 
 ### Verified
 
-Built and imported successfully on `x86_64-linux`, 2026-09-23:
+On `x86_64-linux`, 2026-09-23:
 
 ```
-python 3.11.16 | shotgun_api3 3.9.2 | ftrack_api 3.0.6
-arrow 0.17.0   | clique 1.6.1
+python 3.11.16 | fastapi 0.104.1 | pydantic 2.13.4 | anthropic 0.125.0
+arrow 0.17.0   | clique 1.6.1    | pyparsing 2.4.7 | websocket-client 0.59.0
 ftrack_api.session, event.hub, event.expression all import
 arrow.now().replace(tzinfo="utc") works
+import dna resolves to backend/src/dna
+pytest (backend): 823 passed
 ```
+
+### Note on mongodb-ce
+
+`mongodb-ce` is SSPL, which nixpkgs classes as unfree, and a flake ignores
+`NIXPKGS_ALLOW_UNFREE` without `--impure`. The first version of the flake
+therefore failed to evaluate. `flake.nix` now allows unfree for that one package
+through `allowUnfreePredicate`, not a blanket `allowUnfree`, so any other unfree
+package still fails loudly. Add to that list deliberately.
 
 ### Note on nodejs
 
