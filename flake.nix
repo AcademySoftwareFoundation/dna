@@ -58,9 +58,16 @@
             ]);
 
         backendEnv = pythonSet.mkVirtualEnv "dna-backend-env" workspace.deps.default;
+
+        stack = import ./nix/stack.nix { inherit pkgs backendEnv; };
       in
       {
         packages.default = backendEnv;
+
+        apps = {
+          dev = { type = "app"; program = "${stack.dev}/bin/dna-dev"; };
+          smoke = { type = "app"; program = "${stack.smoke}/bin/dna-smoke"; };
+        };
 
         devShells.default = pkgs.mkShell {
           name = "dna";
@@ -76,6 +83,8 @@
             pkgs.black
             pkgs.isort
             pkgs.docker-compose
+            pkgs.process-compose
+            pkgs.jq
           ];
 
           env = {
@@ -99,8 +108,22 @@
             echo "  (cd backend && uv lock && uv export --frozen --no-hashes --no-emit-project -o requirements.txt)"
             echo "and re-enter the shell."
             echo
-            echo "Tests still run in Docker (make -C backend test); this shell is for"
-            echo "editing, linting and one-off scripts on the host."
+            echo "Backend checks, as CI runs them:"
+            echo "  (cd backend && pytest --cov-fail-under=90)"
+            echo "  (cd backend && black --check src tests && isort --check-only src tests)"
+            echo
+            echo "Run the whole stack from this checkout (mongo, backend, frontend):"
+            echo "  nix run .#dev      interactive, mock tracker, no auth"
+            echo "  nix run .#smoke    start, check it works end to end, stop"
+
+            # Mark the prompt so it is obvious this shell is active. The hook
+            # runs after ~/.bashrc, so this wins over a prompt set there; the
+            # guard keeps a nested shell from stacking the prefix.
+            export DNA_DEV_SHELL=1
+            case "$PS1" in
+              *"(dna)"*) ;;
+              *) PS1='\[\e[1;35m\](dna)\[\e[0m\] '"$PS1" ;;
+            esac
           '';
         };
 

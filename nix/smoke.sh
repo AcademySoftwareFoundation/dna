@@ -55,7 +55,7 @@ wait_for() {
 }
 
 echo "Starting services (state in $DNA_STATE)"
-mongod --dbpath "$DNA_STATE/mongo" --port "$DNA_MONGO_PORT" --bind_ip 127.0.0.1 \
+mongod --dbpath "$DNA_STATE/mongo" --port "$DNA_MONGO_PORT" --bind_ip 127.0.0.1 --quiet \
   >"$logs/mongo.log" 2>&1 &
 pids+=($!)
 wait_for mongo 60 bash -c "exec 3<>/dev/tcp/127.0.0.1/$DNA_MONGO_PORT"
@@ -65,7 +65,7 @@ wait_for mongo 60 bash -c "exec 3<>/dev/tcp/127.0.0.1/$DNA_MONGO_PORT"
 pids+=($!)
 wait_for api 60 curl -fsS "http://127.0.0.1:$DNA_API_PORT/health"
 
-(cd "$DNA_ROOT/frontend" && exec npm run dev -- \
+(cd "$DNA_ROOT/frontend/packages/app" && exec npm run dev -- \
   --host 127.0.0.1 --port "$DNA_FRONTEND_PORT" --strictPort) >"$logs/frontend.log" 2>&1 &
 pids+=($!)
 wait_for frontend 90 curl -fsS "http://127.0.0.1:$DNA_FRONTEND_PORT/"

@@ -50,7 +50,7 @@ let
       };
 
       frontend = {
-        command = ''cd "$DNA_ROOT/frontend" && exec npm run dev -- --host 127.0.0.1 --port "$DNA_FRONTEND_PORT" --strictPort'';
+        command = ''cd "$DNA_ROOT/frontend/packages/app" && exec npm run dev -- --host 127.0.0.1 --port "$DNA_FRONTEND_PORT" --strictPort'';
         readiness_probe = {
           exec.command = ''curl -fsS "http://127.0.0.1:$DNA_FRONTEND_PORT/"'';
           initial_delay_seconds = 1;

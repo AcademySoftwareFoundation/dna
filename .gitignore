@@ -29,3 +29,4 @@ backend/docker-compose.override.yml
 
 # Cursor files
 *.issue-body-temp.md*
+.dna-dev/
