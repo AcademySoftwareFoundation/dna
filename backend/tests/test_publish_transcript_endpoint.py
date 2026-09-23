@@ -81,6 +81,9 @@ class TestPublishTranscriptEndpoint:
         # version.project.id.
         version.project = {"type": "Project", "id": 1}
         p.get_entity.return_value = version
+        # The endpoint asks the provider where it writes transcripts rather
+        # than reading ShotGrid's env var, so the mock has to answer.
+        p.transcript_entity_type.return_value = "CustomEntity01"
         return p
 
     @pytest.fixture
@@ -343,11 +346,10 @@ class TestPublishTranscriptEndpoint:
         )
         mock_prodtrack.update_transcript.return_value = True
 
-        # Flip the env to CustomEntity05; id 9001 still belongs to CustomEntity01.
-        with mock.patch.dict(
-            os.environ,
-            {**ENABLE_FLAG, "SHOTGRID_TRANSCRIPT_ENTITY": "CustomEntity05"},
-        ):
+        # The provider now reports CustomEntity05; id 9001 still belongs to
+        # CustomEntity01.
+        mock_prodtrack.transcript_entity_type.return_value = "CustomEntity05"
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
                 json={"version_id": 101},
