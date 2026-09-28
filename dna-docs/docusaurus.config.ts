@@ -18,8 +18,8 @@ const config: Config = {
   // Production URL. Configured for a GitHub Pages project site; if you deploy
   // to a custom domain or a host that serves from the root (Netlify, Vercel,
   // Cloudflare Pages), set url to that origin and baseUrl back to '/'.
-  url: 'https://camerontarget14.github.io',
-  baseUrl: '/dna-docs/',
+  url: '*.workers.dev',
+  baseUrl: '/',
 
   // Used by `npm run deploy` to push the build to GitHub Pages.
   organizationName: 'camerontarget14',
