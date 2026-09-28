@@ -385,6 +385,7 @@ interface GeneralTabProps {
   isPending: boolean;
   onSyncProdtrackTabOnVersionChange: (checked: boolean) => void;
   onProdtrackPageTypeChange: (value: 'version' | 'entity') => void;
+  onSettingsReset: () => void;
 }
 
 function GeneralTab({
@@ -394,6 +395,7 @@ function GeneralTab({
   isPending,
   onSyncProdtrackTabOnVersionChange,
   onProdtrackPageTypeChange,
+  onSettingsReset
 }: GeneralTabProps) {
   const { mode, setMode } = useThemeMode();
   const { inReviewEnabled, setInReviewEnabled, inReviewLocked, inReviewLockReason } =
@@ -498,6 +500,40 @@ function GeneralTab({
             </CheckboxContent>
           </RadioItem>
         </RadioGroupRoot>
+      </Section>
+
+      <Section>
+        <SectionTitle>Reset Settings</SectionTitle>
+        <SectionDescription>
+            Resets all user settings excluding QC checks.
+        </SectionDescription>
+        <Flex justify="center">
+          <AlertDialog.Root>
+            <AlertDialog.Trigger>
+              <Button variant="soft" color="red">
+                Reset Settings
+              </Button>
+            </AlertDialog.Trigger>
+            <AlertDialog.Content maxWidth="400px">
+              <AlertDialog.Title>Reset settings?</AlertDialog.Title>
+              <AlertDialog.Description size="2">
+                This will reset all settings to their default values excluding QC checks.
+              </AlertDialog.Description>
+              <Flex gap="3" mt="4" justify="end">
+                <AlertDialog.Cancel>
+                  <Button variant="soft" color="gray">
+                    Cancel
+                  </Button>
+                </AlertDialog.Cancel>
+                <AlertDialog.Action onClick={onSettingsReset}>
+                  <Button variant="solid" color="red">
+                    Reset
+                  </Button>
+                </AlertDialog.Action>
+              </Flex>
+            </AlertDialog.Content>
+          </AlertDialog.Root>
+        </Flex>
       </Section>
     </ModalContent>
   );
@@ -1120,6 +1156,17 @@ export function SettingsModal({
     []
   );
 
+  const handleSettingsReset = useCallback(() => {
+      setNotePrompt(settings?.default_note_prompt ?? '');
+      setPreferredModel('');
+      setRegenerateOnVersionChange(false);
+      setRegenerateOnTranscriptUpdate(false);
+      setSyncProdtrackTabOnVersionChange(true);
+      setProdtrackPageType('version');
+      resetToDefaults(); 
+      setIsDirty(true);
+  }, [settings, resetToDefaults]);
+
   const handleSave = useCallback(() => {
     const toPersisted = (current: string, fallback: string): string => {
       const trimmed = current.trim();
@@ -1176,12 +1223,8 @@ export function SettingsModal({
         <Tabs.Root defaultValue="general" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
           <StyledTabsList>
             <StyledTabsTrigger value="general">General</StyledTabsTrigger>
-            <StyledTabsTrigger value="keybindings">
-              Keybindings
-            </StyledTabsTrigger>
-            <StyledTabsTrigger value="transcription">
-              Transcription
-            </StyledTabsTrigger>
+            <StyledTabsTrigger value="keybindings">Keybindings</StyledTabsTrigger>
+            <StyledTabsTrigger value="transcription">Transcription</StyledTabsTrigger>
             <StyledTabsTrigger value="ai">AI</StyledTabsTrigger>
           </StyledTabsList>
 
@@ -1196,6 +1239,7 @@ export function SettingsModal({
                   handleSyncProdtrackTabOnVersionChange
                 }
                 onProdtrackPageTypeChange={handleProdtrackPageTypeChange}
+                onSettingsReset={handleSettingsReset}
               />
             </TabsContentWrapper>
           </Tabs.Content>
