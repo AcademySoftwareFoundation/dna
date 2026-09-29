@@ -264,6 +264,15 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def transcript_entity_type(self) -> str:
+        """Entity type that publish_transcript writes its rows into.
+
+        Callers record this alongside the returned id so a later
+        update_transcript targets the original row even if the deployment's
+        configured slot changes in between.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def publish_transcript(
         self,
         *,
@@ -310,6 +319,20 @@ def get_prodtrack_provider() -> ProdtrackProviderBase:
         from dna.prodtrack_providers.mock_provider import MockProdtrackProvider
 
         return MockProdtrackProvider()
+
+    if provider_type == "ftrack":
+        ft_url = os.getenv("FTRACK_SERVER")
+        ft_key = os.getenv("FTRACK_API_KEY")
+        ft_user = os.getenv("FTRACK_API_USER")
+        if not all([ft_url, ft_key, ft_user]):
+            raise ValueError(
+                "ftrack credentials not provided. Set FTRACK_SERVER, "
+                "FTRACK_API_KEY, and FTRACK_API_USER, or use "
+                "PRODTRACK_PROVIDER=mock for the mock provider."
+            )
+        from dna.prodtrack_providers.ftrack import FtrackProvider
+
+        return FtrackProvider()
 
     if provider_type == "shotgrid":
         sg_url = os.getenv("SHOTGRID_URL")

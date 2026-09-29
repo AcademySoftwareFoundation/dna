@@ -44,3 +44,4 @@ credentials.json
 
 # Cursor files
 *.issue-body-temp.md*
+.dna-dev/
