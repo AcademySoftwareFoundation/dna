@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/AcademySoftwareFoundation/dna/security/advisories/new
+    about: Privately report a security issue. Do not file a public GitHub issue.

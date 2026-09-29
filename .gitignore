@@ -27,5 +27,20 @@ backend/docker-compose.debug.yml
 backend/docker-compose.vexa.yml
 backend/docker-compose.override.yml
 
+# Packed extension artifacts (build with `make package-extension`)
+dna-extension.zip
+*.crx
+
+# Secrets and credentials
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+credentials.json
+**/serviceAccount*.json
+
 # Cursor files
 *.issue-body-temp.md*

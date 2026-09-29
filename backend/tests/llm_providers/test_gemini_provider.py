@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from dna.llm_providers.gemini_provider import GeminiProvider
 
 
@@ -59,3 +61,16 @@ class TestGeminiProviderInit:
             base_url="https://example.test/custom-openai/",
             timeout=45.0,
         )
+
+    def test_get_provider_client_raises_clear_error_without_api_key(self):
+        """Missing GEMINI_API_KEY should raise a clear, Gemini-specific error.
+
+        Without this check, AsyncOpenAI falls back to looking for an
+        OPENAI_API_KEY env var, producing a confusing error that never
+        mentions Gemini or GEMINI_API_KEY.
+        """
+        with patch.dict("os.environ", {}, clear=True):
+            provider = GeminiProvider(api_key=None)
+
+            with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+                provider._get_provider_client()

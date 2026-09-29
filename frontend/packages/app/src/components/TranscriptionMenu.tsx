@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import styled, { keyframes, useTheme } from 'styled-components';
 import {
   Phone,
@@ -11,12 +11,13 @@ import {
   Play,
 } from 'lucide-react';
 import { Button, TextField, Popover, Text } from '@radix-ui/themes';
-import type { BotStatusEnum } from '@dna/core';
+import type { BotStatusEnum, ExtensionConnectionStatus } from '@dna/core';
 import {
   useTranscription,
   parseMeetingUrl,
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
+  useTranscriptionExtension,
 } from '../hooks';
 import { SplitButton } from './SplitButton';
 
@@ -104,6 +105,70 @@ const ButtonRow = styled.div`
   display: flex;
   gap: 8px;
 `;
+
+const ExtensionSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const InstallLink = styled.a`
+  color: ${({ theme }) => theme.colors.status.error};
+  text-decoration: underline;
+  margin-left: 4px;
+`;
+
+const ConnectionDot = styled.div<{ $connection: ExtensionConnectionStatus }>`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${({ theme, $connection }) => {
+    switch ($connection) {
+      case 'connected':
+        return theme.colors.status.success;
+      case 'connecting':
+      case 'needs_permission':
+        return theme.colors.status.warning;
+      case 'disconnected':
+      default:
+        return theme.colors.status.error;
+    }
+  }};
+  animation: ${({ $connection }) =>
+      $connection === 'connecting' || $connection === 'needs_permission'
+        ? pulse
+        : 'none'}
+    1.5s ease-in-out infinite;
+`;
+
+function getExtensionPhoneStatus(
+  connection: ExtensionConnectionStatus,
+  awaitingExtension: boolean
+): PhoneStatus {
+  if (connection === 'connected') return 'connected';
+  if (
+    connection === 'connecting' ||
+    connection === 'needs_permission' ||
+    awaitingExtension
+  ) {
+    return 'connecting';
+  }
+  return 'disconnected';
+}
+
+function getExtensionStatusLabel(connection: ExtensionConnectionStatus): string {
+  switch (connection) {
+    case 'connected':
+      return 'Connected — sending transcripts';
+    case 'connecting':
+      return 'Extension connecting…';
+    case 'needs_permission':
+      return 'Waiting for extension permission';
+    case 'disconnected':
+    default:
+      return 'Disconnected';
+  }
+}
 
 type PhoneStatus = 'disconnected' | 'connecting' | 'connected';
 
@@ -300,6 +365,32 @@ export function TranscriptionMenu({
   const { data: metadata } = usePlaylistMetadata(playlistId);
   const { mutate: upsertMetadata } = useUpsertPlaylistMetadata(playlistId);
 
+  const {
+    available: extAvailable,
+    installState: extInstallState,
+    connection: extConnection,
+    installUrl: extInstallUrl,
+    isActivating: extActivating,
+    error: extError,
+    activate: activateExtension,
+  } = useTranscriptionExtension(playlistId);
+  const [extPromptPermission, setExtPromptPermission] = useState(false);
+
+  useEffect(() => {
+    if (!extAvailable) return;
+    if (extConnection === 'needs_permission' || extConnection === 'connecting') {
+      setExtPromptPermission(true);
+    } else if (extConnection === 'disconnected') {
+      setExtPromptPermission(false);
+    }
+  }, [extAvailable, extConnection]);
+
+  const handleActivateExtension = useCallback(async () => {
+    const ok = await activateExtension();
+    if (ok) setExtPromptPermission(true);
+    else setExtPromptPermission(false);
+  }, [activateExtension]);
+
   const currentStatus = status?.status ?? session?.status ?? 'idle';
   const isActive = [
     'joining',
@@ -310,17 +401,32 @@ export function TranscriptionMenu({
   const phoneStatus = getPhoneStatus(currentStatus);
   const needsPasscode = parseMeetingUrl(meetingUrl)?.platform === 'teams';
   const isPaused = metadata?.transcription_paused ?? false;
-
   const isLiveButPaused =
     isPaused && ['in_call', 'transcribing'].includes(currentStatus);
   const isAwaitingAdmission = currentStatus === 'waiting_room';
-  const shouldPulseYellow = isLiveButPaused || isAwaitingAdmission;
+
+  const extensionMode = extAvailable;
+  const extAwaiting =
+    extPromptPermission && extConnection !== 'connected';
+  const effectivePhoneStatus = extensionMode
+    ? getExtensionPhoneStatus(extConnection, extAwaiting)
+    : phoneStatus;
+  const isExtConnected = extensionMode && extConnection === 'connected';
+  const showActiveState = extensionMode ? isExtConnected : isActive;
+  const shouldPulseExtension =
+    extensionMode &&
+    (extConnection === 'connecting' ||
+      extConnection === 'needs_permission' ||
+      extAwaiting);
+  const shouldPulseYellow = extensionMode
+    ? shouldPulseExtension
+    : isLiveButPaused || isAwaitingAdmission;
 
   const getPhoneIconColor = () => {
     if (shouldPulseYellow) {
       return theme.colors.status.warning;
     }
-    switch (phoneStatus) {
+    switch (effectivePhoneStatus) {
       case 'connected':
         return theme.colors.status.success;
       case 'connecting':
@@ -368,17 +474,35 @@ export function TranscriptionMenu({
 
   const renderMainButtonContent = () => {
     if (collapsed) {
-      return <PulsingPhone size={18} color={phoneIconColor} $shouldPulse={shouldPulseYellow} />;
+      return (
+        <PulsingPhone
+          size={18}
+          color={phoneIconColor}
+          $shouldPulse={shouldPulseYellow}
+        />
+      );
+    }
+
+    if (extensionMode && isExtConnected) {
+      return (
+        <>
+          <PulsingPhone size={14} color={phoneIconColor} $shouldPulse={false} />
+          <ConnectionDot $connection="connected" />
+          Live
+        </>
+      );
     }
 
     return (
       <>
         <PulsingPhone size={14} color={phoneIconColor} $shouldPulse={shouldPulseYellow} />
-        {isActive ? (
+        {showActiveState && !extensionMode ? (
           <>
             <StatusIndicator $status={currentStatus} />
             {getButtonStatusLabel(currentStatus, isPaused)}
           </>
+        ) : extensionMode && effectivePhoneStatus === 'connecting' ? (
+          'Connecting…'
         ) : (
           'Transcription'
         )}
@@ -387,7 +511,7 @@ export function TranscriptionMenu({
   };
 
   const renderTrigger = () => {
-    if (isActive) {
+    if (showActiveState && !extensionMode) {
       return (
         <SplitButton
           onRightClick={handlePauseToggle}
@@ -400,19 +524,173 @@ export function TranscriptionMenu({
 
     if (collapsed) {
       return (
-        <CollapsedTriggerButton $phoneStatus={phoneStatus}>
-          <Phone size={18} className="phone-icon" />
+        <CollapsedTriggerButton $phoneStatus={effectivePhoneStatus}>
+          {extensionMode ? (
+            <PulsingPhone
+              size={18}
+              color={phoneIconColor}
+              $shouldPulse={shouldPulseYellow}
+            />
+          ) : (
+            <Phone size={18} className="phone-icon" />
+          )}
         </CollapsedTriggerButton>
       );
     }
 
     return (
-      <TriggerButton $isActive={isActive} $phoneStatus={phoneStatus}>
-        <Phone size={14} className="phone-icon" />
-        Transcription
+      <TriggerButton $isActive={showActiveState} $phoneStatus={effectivePhoneStatus}>
+        {extensionMode ? (
+          renderMainButtonContent()
+        ) : (
+          <>
+            <Phone size={14} className="phone-icon" />
+            Transcription
+          </>
+        )}
       </TriggerButton>
     );
   };
+
+  const renderExtensionPanel = () => (
+    <ExtensionSection>
+      <StatusRow>
+        <ConnectionDot $connection={extConnection} />
+        <StatusText>{getExtensionStatusLabel(extConnection)}</StatusText>
+      </StatusRow>
+
+      {extInstallState === 'unknown' && (
+        <Text size="1" color="gray">
+          Looking for the DNA extension…
+        </Text>
+      )}
+
+      {extInstallState === 'not_installed' && (
+        <ErrorMessage>
+          <AlertCircle size={14} />
+          DNA extension not detected.
+          {extInstallUrl && (
+            <InstallLink href={extInstallUrl} target="_blank" rel="noreferrer">
+              Install
+            </InstallLink>
+          )}
+        </ErrorMessage>
+      )}
+
+      {extError && (
+        <ErrorMessage>
+          <AlertCircle size={14} />
+          {extError}
+        </ErrorMessage>
+      )}
+
+      <Button
+        variant="soft"
+        onClick={handleActivateExtension}
+        disabled={extActivating || !playlistId || extConnection === 'connected'}
+      >
+        {extActivating ? (
+          <>
+            <SpinnerIcon size={14} />
+            Activating...
+          </>
+        ) : (
+          <>
+            <Radio size={14} />
+            Transcribe via Extension
+          </>
+        )}
+      </Button>
+
+      {(extConnection === 'needs_permission' || extAwaiting) && (
+        <Text size="1" color="amber">
+          Open the DNA extension from your browser toolbar, select your Google
+          Meet tab, and click &quot;Grant permission &amp; start&quot;.
+        </Text>
+      )}
+    </ExtensionSection>
+  );
+
+  const renderVexaPanel = () => (
+    <>
+      {session && (
+        <StatusRow>
+          <StatusIndicator $status={currentStatus} />
+          {getStatusIcon(currentStatus)}
+          <StatusText>{getStatusLabel(currentStatus, isPaused)}</StatusText>
+        </StatusRow>
+      )}
+
+      {error && (
+        <ErrorMessage>
+          <AlertCircle size={14} />
+          {error.message}
+        </ErrorMessage>
+      )}
+
+      {!isActive && (
+        <InputGroup>
+          <TextField.Root
+            placeholder="Paste meeting URL..."
+            value={meetingUrl}
+            onChange={(e) => setMeetingUrl(e.target.value)}
+            disabled={isDispatching || !playlistId}
+          />
+          {needsPasscode && (
+            <TextField.Root
+              placeholder="Passcode (if required)"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              disabled={isDispatching}
+            />
+          )}
+        </InputGroup>
+      )}
+
+      <ButtonRow>
+        {isActive ? (
+          <Button
+            color="red"
+            variant="soft"
+            onClick={handleStop}
+            disabled={isStopping}
+            style={{ flex: 1 }}
+          >
+            {isStopping ? (
+              <>
+                <SpinnerIcon size={14} />
+                Stopping...
+              </>
+            ) : (
+              <>
+                <PhoneOff size={14} />
+                Stop Transcription
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            variant="solid"
+            onClick={handleDispatch}
+            disabled={isDispatching || !meetingUrl.trim() || !playlistId}
+            style={{ flex: 1 }}
+          >
+            {isDispatching ? (
+              <>
+                <SpinnerIcon size={14} />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Phone size={14} />
+                Start Transcription
+              </>
+            )}
+          </Button>
+        )}
+      </ButtonRow>
+    </>
+  );
 
   return (
     <Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
@@ -422,85 +700,10 @@ export function TranscriptionMenu({
       <Popover.Content side="top" align="start" sideOffset={8}>
         <MenuContainer>
           <Text size="2" weight="medium">
-            Meeting Transcription
+            {extensionMode ? 'Extension Transcription' : 'Meeting Transcription'}
           </Text>
 
-          {session && (
-            <StatusRow>
-              <StatusIndicator $status={currentStatus} />
-              {getStatusIcon(currentStatus)}
-              <StatusText>{getStatusLabel(currentStatus, isPaused)}</StatusText>
-            </StatusRow>
-          )}
-
-          {error && (
-            <ErrorMessage>
-              <AlertCircle size={14} />
-              {error.message}
-            </ErrorMessage>
-          )}
-
-          {!isActive && (
-            <InputGroup>
-              <TextField.Root
-                placeholder="Paste meeting URL..."
-                value={meetingUrl}
-                onChange={(e) => setMeetingUrl(e.target.value)}
-                disabled={isDispatching || !playlistId}
-              />
-              {needsPasscode && (
-                <TextField.Root
-                  placeholder="Passcode (if required)"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  disabled={isDispatching}
-                />
-              )}
-            </InputGroup>
-          )}
-
-          <ButtonRow>
-            {isActive ? (
-              <Button
-                color="red"
-                variant="soft"
-                onClick={handleStop}
-                disabled={isStopping}
-                style={{ flex: 1 }}
-              >
-                {isStopping ? (
-                  <>
-                    <SpinnerIcon size={14} />
-                    Stopping...
-                  </>
-                ) : (
-                  <>
-                    <PhoneOff size={14} />
-                    Stop Transcription
-                  </>
-                )}
-              </Button>
-            ) : (
-              <Button
-                variant="solid"
-                onClick={handleDispatch}
-                disabled={isDispatching || !meetingUrl.trim() || !playlistId}
-                style={{ flex: 1 }}
-              >
-                {isDispatching ? (
-                  <>
-                    <SpinnerIcon size={14} />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <Phone size={14} />
-                    Start Transcription
-                  </>
-                )}
-              </Button>
-            )}
-          </ButtonRow>
+          {extensionMode ? renderExtensionPanel() : renderVexaPanel()}
 
           {!playlistId && (
             <Text size="1" color="gray">

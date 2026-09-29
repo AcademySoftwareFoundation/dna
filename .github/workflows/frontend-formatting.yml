@@ -1,5 +1,8 @@
 name: Frontend Code Formatting and Type Checking
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main, develop ]

@@ -1,10 +1,11 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   openProdtrackVersionInExtension,
   openProdtrackUrlInUncontrolledNewTab,
   openProdtrackVersionViaExtensionOrNewTab,
   pingProdtrackTabExtension,
-} from './sendProdtrackTabSync';
+} from './prodtrackTabSync';
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, 'chrome');
@@ -127,9 +128,13 @@ describe('openProdtrackVersionInExtension', () => {
       },
     };
 
-    await openProdtrackVersionInExtension('abcdefghijklmnopabcdefghijklmnop', 'https://a.com/b', {
-      tabId: 0,
-    });
+    await openProdtrackVersionInExtension(
+      'abcdefghijklmnopabcdefghijklmnop',
+      'https://a.com/b',
+      {
+        tabId: 0,
+      }
+    );
     expect((lastMsg as { tabId?: number }).tabId).toBeUndefined();
   });
 });
@@ -144,7 +149,9 @@ describe('openProdtrackUrlInUncontrolledNewTab', () => {
 
   it('opens http(s) URL in a new tab and clears opener', () => {
     const mockWin = { opener: {} as unknown };
-    const open = vi.spyOn(window, 'open').mockImplementation(() => mockWin as Window);
+    const open = vi
+      .spyOn(window, 'open')
+      .mockImplementation(() => mockWin as Window);
     openProdtrackUrlInUncontrolledNewTab('https://example.com/v/1');
     expect(open).toHaveBeenCalledWith('https://example.com/v/1', '_blank');
     expect(mockWin.opener).toBeNull();
@@ -155,7 +162,9 @@ describe('openProdtrackUrlInUncontrolledNewTab', () => {
 describe('openProdtrackVersionViaExtensionOrNewTab', () => {
   it('opens a new tab when the extension does not respond', async () => {
     const mockWin = { opener: {} as unknown };
-    const open = vi.spyOn(window, 'open').mockImplementation(() => mockWin as Window);
+    const open = vi
+      .spyOn(window, 'open')
+      .mockImplementation(() => mockWin as Window);
     const r = await openProdtrackVersionViaExtensionOrNewTab(
       'abcdefghijklmnopabcdefghijklmnop',
       'https://studio.shotgrid.autodesk.com/detail/Version/1'

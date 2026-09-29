@@ -5,6 +5,8 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import { theme } from '../styles';
 import { AuthProvider } from '../contexts/AuthContext';
+import { EventProvider } from '../contexts/EventContext';
+import { FeatureFlagsProvider } from '../contexts/FeatureFlagsContext';
 import { ThemeModeProvider } from '../contexts/ThemeContext';
 
 interface WrapperProps {
@@ -30,7 +32,11 @@ function AllTheProviders({ children }: WrapperProps) {
       <ThemeProvider theme={theme}>
         <Theme>
           <ThemeModeProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <FeatureFlagsProvider>
+              <EventProvider>
+                <AuthProvider>{children}</AuthProvider>
+              </EventProvider>
+            </FeatureFlagsProvider>
           </ThemeModeProvider>
         </Theme>
       </ThemeProvider>

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { type DefaultTheme } from 'styled-components';
-import { Eye } from 'lucide-react';
+import { Eye, NotebookPen, X } from 'lucide-react';
+import { Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
 
@@ -16,6 +17,12 @@ interface VersionCardProps {
   inReview?: boolean;
   noteStatus?: NoteStatus | null;
   onClick?: () => void;
+  /**
+   * Renders an X where the in-review eye would sit, for tiles that can be
+   * removed instead of reviewed (scratch tiles). Mutually exclusive with the
+   * eye: when set, inReview is ignored.
+   */
+  onRemove?: () => void;
 }
 
 const Card = styled.div<{ $selected?: boolean }>`
@@ -51,6 +58,20 @@ const Thumbnail = styled.div`
   }
 `;
 
+const ScratchThumb = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.text.muted};
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+`;
+
 const Content = styled.div`
   display: flex;
   flex-direction: column;
@@ -83,6 +104,53 @@ const InReviewIcon = styled.span`
   align-items: center;
   justify-content: center;
   color: ${({ theme }) => theme.colors.accent.main};
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+/**
+ * Hidden until the card is hovered, then a muted gray; glows red while the
+ * button itself is hovered or focused.
+ */
+const RemoveToggle = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.text.muted};
+  opacity: 0;
+  transition: opacity ${({ theme }) => theme.transitions.fast},
+    color ${({ theme }) => theme.transitions.fast},
+    filter ${({ theme }) => theme.transitions.fast};
+
+  /* Nested so these keep winning over the card-hover reveal above. */
+  ${Card}:hover & {
+    opacity: 0.5;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.status.error};
+    filter: drop-shadow(0 0 4px ${({ theme }) => theme.colors.status.error});
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid ${({ theme }) => theme.colors.status.error};
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 
   svg {
     width: 16px;
@@ -200,6 +268,7 @@ export function VersionCard({
   inReview = false,
   noteStatus = null,
   onClick,
+  onRemove,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
 
@@ -219,10 +288,39 @@ export function VersionCard({
     }
   };
 
+  const renderRemove = () => (
+    <Tooltip content="Remove scratch pad">
+      <RemoveToggle
+        type="button"
+        aria-label="Remove scratch pad"
+        onClick={(e) => {
+          // Removing shouldn't drag the selection along with it.
+          e.stopPropagation();
+          onRemove?.();
+        }}
+      >
+        <X />
+      </RemoveToggle>
+    </Tooltip>
+  );
+
+  const renderEye = () =>
+    inReview ? (
+      <InReviewIcon>
+        <Eye />
+      </InReviewIcon>
+    ) : null;
+
   return (
     <Card $selected={selected} onClick={onClick}>
       <Thumbnail>
-        {thumbnailUrl && <img src={thumbnailUrl} alt={displayName} />}
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt={displayName} />
+        ) : onRemove ? (
+          <ScratchThumb>
+            <NotebookPen aria-label="Scratch pad" />
+          </ScratchThumb>
+        ) : null}
       </Thumbnail>
       <Content>
         <Title>{displayName}</Title>
@@ -242,11 +340,7 @@ export function VersionCard({
             letter={getStatusLetter(noteStatus)}
           />
         )}
-        {inReview && (
-          <InReviewIcon>
-            <Eye />
-          </InReviewIcon>
-        )}
+        {onRemove ? renderRemove() : renderEye()}
       </IconsContainer>
     </Card>
   );

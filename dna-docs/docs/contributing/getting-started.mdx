@@ -1,0 +1,49 @@
+---
+sidebar_position: 3
+---
+
+# Getting Started
+
+An example hand-written guide, to show that ordinary MDX authoring is unchanged
+by the OpenAPI setup.
+
+## Install
+
+```bash
+npm install
+```
+
+## Run the dev server
+
+```bash
+npm start
+```
+
+## Refresh the API reference
+
+The pages under `/api` are build artifacts derived from the DNA backend's
+OpenAPI schema. Refreshing them is two steps — pull the schema from upstream,
+then regenerate the MDX:
+
+```bash
+./scripts/fetch-openapi.sh    # openapi/backend.json
+npm run regen-api-docs        # api/reference/
+```
+
+`fetch-openapi.sh` needs [uv](https://docs.astral.sh/uv/) and clones the
+backend on demand. Point it at a local checkout to skip the clone:
+
+```bash
+DNA_SRC=~/src/dna ./scripts/fetch-openapi.sh
+```
+
+To remove the generated MDX without regenerating:
+
+```bash
+npm run clean-api-docs
+```
+
+:::note
+`npm run build` does **not** regenerate API docs on its own. Run
+`gen-api-docs` first, or use `npm run build:full`, which chains both.
+:::

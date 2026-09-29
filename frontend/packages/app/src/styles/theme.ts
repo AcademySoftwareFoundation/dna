@@ -85,7 +85,7 @@ export const lightTheme = {
     },
     sidebar: {
       bg: '#e7e7ee',
-      border: '#c8c8d8',
+      border: '#848488',
     },
     text: {
       primary: '#0e0e16',
@@ -94,9 +94,9 @@ export const lightTheme = {
       inverse: '#ffffff',
     },
     border: {
-      subtle: 'rgba(0, 0, 0, 0.12)',
-      default: 'rgba(0, 0, 0, 0.18)',
-      strong: 'rgba(0, 0, 0, 0.28)',
+      subtle: 'rgba(0, 0, 0, 0.25)',
+      default: 'rgba(0, 0, 0, 0.43)',
+      strong: 'rgba(0, 0, 0, 0.55)',
     },
   },
 } as const;
