@@ -1,0 +1,24 @@
+# Dependencies
+/node_modules
+
+# Production
+/build
+
+# Generated files
+.docusaurus
+.cache-loader
+
+# OpenAPI output - regenerate with `npm run gen-api-docs`.
+# Only the generated subfolder is ignored; api/index.mdx is hand-written.
+/api/reference
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,0 +1,45 @@
+---
+sidebar_position: 9
+slug: /9-note-qc
+title: 9 - Note Quality Control
+---
+
+## Creating Rules
+
+In the Note QC section of settings, create checks the LLM runs against your notes. Each check has a name, plain-language instructions describing what to verify, and a severity: Warning, or Error (which blocks publishing). Checks belong to you, so toggle each one on or off with its switch, and edit or delete them whenever a show's needs change.
+
+<Figure
+  src="img/9-note-qc/note-qc.png"
+  width="75%"
+  alt="DNA note qc"
+  caption="Image shows DNA settings modal for note qc."
+/>
+
+<Figure
+  src="img/9-note-qc/edit-check.png"
+  width="75%"
+  alt="DNA note qc"
+  caption="Image shows DNA settings modal for creating rules."
+/>
+
+## Viewing Flags
+
+A Note QC pill on each note shows the result: "All checks pass," or the first unresolved warning or error. Click the pill to see every check, what it flagged, and any suggested fix.
+
+<Figure
+  src="img/9-note-qc/note-qc-in-dialog.png"
+  width="75%"
+  alt="DNA note qc"
+  caption="Image shows DNA note qc feature at work during publishing."
+/>
+
+## Fixing Errors
+
+When a check fails with a suggested fix, DNA shows a diff of the proposed change. Apply it to update the note, or edit the note yourself and let the checks re-run.
+
+<Figure
+  src="img/9-note-qc/note-qc-suggestion.png"
+  width="75%"
+  alt="DNA note qc"
+  caption="Image shows DNA note qc feature suggesting fixes."
+/>
