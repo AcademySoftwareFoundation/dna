@@ -18,6 +18,12 @@ interface VersionCardProps {
   noteStatus?: NoteStatus | null;
   onClick?: () => void;
   /**
+   * Makes the eye a clickable "Set in review" affordance, revealed on card
+   * hover. Omit to render the eye as a non-interactive indicator. The version
+   * already in review always shows the plain indicator.
+   */
+  onSetInReview?: () => void;
+  /**
    * Renders an X where the in-review eye would sit, for tiles that can be
    * removed instead of reviewed (scratch tiles). Mutually exclusive with the
    * eye: when set, inReview is ignored.
@@ -104,6 +110,53 @@ const InReviewIcon = styled.span`
   align-items: center;
   justify-content: center;
   color: ${({ theme }) => theme.colors.accent.main};
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+/**
+ * Hidden until the card is hovered, then a muted gray; glows in the accent
+ * color while the button itself is hovered or focused.
+ */
+const EyeToggle = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.text.muted};
+  opacity: 0;
+  transition: opacity ${({ theme }) => theme.transitions.fast},
+    color ${({ theme }) => theme.transitions.fast},
+    filter ${({ theme }) => theme.transitions.fast};
+
+  /* Nested so these keep winning over the card-hover reveal above. */
+  ${Card}:hover & {
+    opacity: 0.5;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.accent.main};
+    filter: drop-shadow(0 0 4px ${({ theme }) => theme.colors.accent.main});
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid ${({ theme }) => theme.colors.accent.main};
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 
   svg {
     width: 16px;
@@ -268,6 +321,7 @@ export function VersionCard({
   inReview = false,
   noteStatus = null,
   onClick,
+  onSetInReview,
   onRemove,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
@@ -304,12 +358,33 @@ export function VersionCard({
     </Tooltip>
   );
 
-  const renderEye = () =>
-    inReview ? (
-      <InReviewIcon>
-        <Eye />
-      </InReviewIcon>
-    ) : null;
+  const renderEye = () => {
+    // Nothing to do: either setting in review is unavailable, or this version
+    // already holds it.
+    if (!onSetInReview || inReview) {
+      return inReview ? (
+        <InReviewIcon>
+          <Eye />
+        </InReviewIcon>
+      ) : null;
+    }
+
+    return (
+      <Tooltip content="Set in review">
+        <EyeToggle
+          type="button"
+          aria-label="Set in review"
+          onClick={(e) => {
+            // Setting in review shouldn't drag the selection along with it.
+            e.stopPropagation();
+            onSetInReview();
+          }}
+        >
+          <Eye />
+        </EyeToggle>
+      </Tooltip>
+    );
+  };
 
   return (
     <Card $selected={selected} onClick={onClick}>

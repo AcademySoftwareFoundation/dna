@@ -38,3 +38,31 @@ describe('VersionCard scratch removal', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 });
+
+describe('VersionCard in-review eye', () => {
+  it('renders no toggle when setting in review is unavailable', () => {
+    renderCard();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('offers "Set in review" on a version that is not in review', () => {
+    const onSetInReview = vi.fn();
+    renderCard({ onSetInReview });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set in review' }));
+    expect(onSetInReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the version in review as an indicator only', () => {
+    renderCard({ inReview: true, onSetInReview: vi.fn() });
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('does not select the version when setting it in review', () => {
+    const onClick = vi.fn();
+    renderCard({ onClick, onSetInReview: vi.fn() });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set in review' }));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});

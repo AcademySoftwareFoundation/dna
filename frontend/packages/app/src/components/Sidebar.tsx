@@ -28,6 +28,7 @@ import {
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
   usePlaylistDraftNotes,
+  useSetInReview,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
 import { useFeatureFlags } from '../contexts';
@@ -301,6 +302,7 @@ export function Sidebar({
   );
 
   const inReviewVersionId = playlistMetadata?.in_review;
+  const { setInReview } = useSetInReview(playlistId);
 
   // Each is non-null only while its toolbar input should be showing.
   const addVersionPlaylistId =
@@ -481,6 +483,11 @@ export function Sidebar({
                 inReview={inReviewEnabled && inReviewVersionId === version.id}
                 noteStatus={noteStatusFor(version.id)}
                 onClick={() => onVersionSelect?.(version)}
+                onSetInReview={
+                  inReviewEnabled
+                    ? () => void setInReview(version.id)
+                    : undefined
+                }
               />
             </div>
           ))}
