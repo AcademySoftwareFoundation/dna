@@ -279,6 +279,7 @@ class TestPublishNotesEndpoint:
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [edited_note]
         mock_prodtrack.update_note.return_value = True
+        mock_prodtrack.get_entity.return_value = None
 
         response = client.post(
             "/playlists/100/publish-notes",
@@ -297,11 +298,55 @@ class TestPublishNotesEndpoint:
         args = mock_prodtrack.update_note.call_args[1]
         assert args["note_id"] == 505
         assert args["content"] == "Edited content"
+        assert [(l.type, l.id) for l in args["links"]] == [("Playlist", 100)]
 
         mock_storage.upsert_draft_note.assert_called_once()
         call_args = mock_storage.upsert_draft_note.call_args
         assert call_args[1]["data"].published is True
         assert call_args[1]["data"].edited is False
+
+    def test_republish_passes_links_added_after_first_publish(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """A link added to an already-published note reaches update_note (#222)."""
+        edited_note = DraftNote(
+            _id="note4",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=104,
+            content="Edited content",
+            subject="Sub",
+            links=[
+                DraftNoteLink(entity_type="Version", entity_id=104),
+                DraftNoteLink(entity_type="Shot", entity_id=42),
+            ],
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            published=True,
+            published_note_id=505,
+            edited=True,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [edited_note]
+        mock_prodtrack.update_note.return_value = True
+        mock_prodtrack.get_entity.return_value = None
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "targets": _targets(("user@example.com", 104)),
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["republished_count"] == 1
+
+        args = mock_prodtrack.update_note.call_args[1]
+        assert [(l.type, l.id) for l in args["links"]] == [
+            ("Version", 104),
+            ("Shot", 42),
+            ("Playlist", 100),
+        ]
 
     def test_publish_status_only_no_note(
         self, client, mock_storage, mock_prodtrack, override_deps

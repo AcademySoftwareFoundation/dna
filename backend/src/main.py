@@ -643,6 +643,41 @@ async def get_note(
 # -----------------------------------------------------------------------------
 
 
+def _draft_note_links(note: DraftNote) -> list[EntityBase]:
+    """Resolve a draft's links to entity stubs.
+
+    Skips sentinel ids (e.g. the scratch pseudo-version) that don't exist in
+    the tracking system. ENTITY_MODELS is keyed lowercase while links store
+    the capitalized type from search results ("Shot"), so normalise first.
+    """
+    links: list[EntityBase] = []
+    for link in note.links or []:
+        if link.entity_id <= 0:
+            continue
+        model_class = ENTITY_MODELS.get(link.entity_type.lower())
+        if model_class:
+            links.append(model_class(id=link.entity_id))
+    return links
+
+
+def _add_context_links(
+    links: list[EntityBase],
+    note: DraftNote,
+    playlist_id: int,
+    prodtrack: ProdtrackProviderBase,
+) -> None:
+    """Ensure a version note also links its playlist and parent Shot/Asset."""
+    if not any(isinstance(l, Playlist) and l.id == playlist_id for l in links):
+        links.append(_create_stub_entity("Playlist", playlist_id))
+
+    version = prodtrack.get_entity("version", note.version_id, resolve_links=False)
+    if version and version.entity:
+        if not any(
+            l.id == version.entity.id and l.type == version.entity.type for l in links
+        ):
+            links.append(version.entity)
+
+
 def _create_stub_entity(entity_type: str, entity_id: int) -> EntityBase:
     """Create a minimal entity stub for linking purposes."""
     entity_map = {
@@ -1082,12 +1117,16 @@ async def publish_notes(
                     continue
 
                 if not note.published or note.edited:
+                    links = _draft_note_links(note)
+                    if not is_scratch:
+                        _add_context_links(links, note, playlist_id, prodtrack)
                     success = prodtrack.update_note(
                         note_id=note.published_note_id,
                         content=note.content,
                         subject=note.subject,
                         version_id=note.version_id,
                         version_status=status_to_apply,
+                        links=links,
                     )
                     if not success:
                         failed_count += 1
@@ -1111,18 +1150,7 @@ async def publish_notes(
                 )
                 continue
 
-            # Get links, skipping entities with sentinel ids (e.g. the scratch
-            # pseudo-version) that don't exist in the tracking system.
-            # ENTITY_MODELS is keyed lowercase; links store the capitalized
-            # type from search results ("Shot"), so normalise before lookup.
-            links = []
-            if note.links:
-                for link in note.links:
-                    if link.entity_id <= 0:
-                        continue
-                    model_class = ENTITY_MODELS.get(link.entity_type.lower())
-                    if model_class:
-                        links.append(model_class(id=link.entity_id))
+            links = _draft_note_links(note)
 
             if is_scratch:
                 # The provider links the playlist itself; don't pass it twice
@@ -1141,25 +1169,7 @@ async def publish_notes(
                     author_email=note.user_email,
                 )
             else:
-                # Ensure playlist is included in links
-                playlist_link_exists = any(
-                    isinstance(l, Playlist) and l.id == playlist_id for l in links
-                )
-                if not playlist_link_exists:
-                    links.append(_create_stub_entity("Playlist", playlist_id))
-
-                # Ensure version's parent entity (Shot/Asset) is included in links
-                version = prodtrack.get_entity(
-                    "version", note.version_id, resolve_links=False
-                )
-                if version and version.entity:
-                    entity_link_exists = any(
-                        l.id == version.entity.id and l.type == version.entity.type
-                        for l in links
-                    )
-                    if not entity_link_exists:
-                        links.append(version.entity)
-
+                _add_context_links(links, note, playlist_id, prodtrack)
                 note_id = prodtrack.publish_note(
                     version_id=note.version_id,
                     content=note.content,

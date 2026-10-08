@@ -289,6 +289,62 @@ class TestShotgridProviderRefactor:
             "Version", 101, {"sg_status_list": "rev"}
         )
 
+    def test_update_note_without_links_leaves_note_links_alone(
+        self, provider, mock_shotgun
+    ):
+        """No links argument means note_links is not touched."""
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        provider._sudo_connection = None
+
+        result = provider.update_note(note_id=505, content="Body", subject="Sub")
+
+        assert result is True
+        mock_sg_instance.find_one.assert_not_called()
+        mock_sg_instance.update.assert_called_once_with(
+            "Note", 505, {"content": "Body", "subject": "Sub"}
+        )
+
+    def test_update_note_merges_links_with_existing(self, provider, mock_shotgun):
+        """Requested links are unioned with the note's current links (#222)."""
+        from dna.models.entity import Playlist, Shot
+
+        mock_sg_instance = mock_shotgun.return_value
+        provider.sg = mock_sg_instance
+        provider._sudo_connection = None
+        mock_sg_instance.find_one.return_value = {
+            "id": 505,
+            "note_links": [
+                {"type": "Version", "id": 104, "name": "v001"},
+                {"type": "Shot", "id": 7, "name": "added_by_hand"},
+            ],
+        }
+
+        result = provider.update_note(
+            note_id=505,
+            content="Body",
+            version_id=104,
+            links=[Shot(id=42), Playlist(id=100), Shot(id=7)],
+        )
+
+        assert result is True
+        mock_sg_instance.find_one.assert_called_once_with(
+            "Note", [["id", "is", 505]], ["note_links"]
+        )
+        mock_sg_instance.update.assert_called_once_with(
+            "Note",
+            505,
+            {
+                "content": "Body",
+                "note_links": [
+                    {"type": "Version", "id": 104},
+                    {"type": "Shot", "id": 7},
+                    {"type": "Shot", "id": 42},
+                    {"type": "Playlist", "id": 100},
+                ],
+            },
+        )
+
     def test_update_version_status_failure(self, provider, mock_shotgun):
         """Test update_version_status returns False when ShotGrid raises."""
         mock_sg_instance = mock_shotgun.return_value

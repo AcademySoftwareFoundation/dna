@@ -237,6 +237,31 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def update_note(
+        self,
+        note_id: int,
+        content: str,
+        subject: str | None = None,
+        version_id: int | None = None,
+        version_status: str | None = None,
+        links: list["EntityBase"] | None = None,
+    ) -> bool:
+        """Update an already-published note in the production tracking system.
+
+        Args:
+            note_id: The ID of the note to update
+            content: New note content
+            subject: Optional new subject
+            version_id: Optional version ID to update status on
+            version_status: Optional status code to set on the version
+            links: Optional entities to link. Implementations should add
+                these to the note's existing links rather than replace them.
+
+        Returns:
+            True if the update succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def update_version_status(self, version_id: int, status: str) -> bool:
         """Update the status of a version without publishing a note.
 

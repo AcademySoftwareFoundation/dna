@@ -907,6 +907,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         subject: Optional[str] = None,
         version_id: Optional[int] = None,
         version_status: Optional[str] = None,
+        links: Optional[list[EntityBase]] = None,
     ) -> bool:
         """Update an existing note in ShotGrid.
 
@@ -916,6 +917,9 @@ class ShotgridProvider(ProdtrackProviderBase):
             subject: Optional new subject for the note.
             version_id: Optional version ID to update status on.
             version_status: Optional status code to set on the version.
+            links: Optional entities to link. Merged into the note's existing
+                ``note_links`` (never removed), so links added by hand in
+                ShotGrid survive a republish.
 
         Returns:
             True if successful, False otherwise.
@@ -928,6 +932,8 @@ class ShotgridProvider(ProdtrackProviderBase):
             data["subject"] = subject
 
         try:
+            if links is not None:
+                data["note_links"] = self._merge_note_links(note_id, version_id, links)
             self._sg.update("Note", note_id, data)
             if version_status and version_id:
                 self._sg.update(
@@ -937,6 +943,31 @@ class ShotgridProvider(ProdtrackProviderBase):
         except Exception as e:
             print(f"Error updating note {note_id}: {e}")
             return False
+
+    def _merge_note_links(
+        self,
+        note_id: int,
+        version_id: Optional[int],
+        links: list[EntityBase],
+    ) -> list[dict[str, Any]]:
+        """Union of the note's current ``note_links`` and the requested links."""
+        existing = self._sg.find_one("Note", [["id", "is", note_id]], ["note_links"])
+        merged: list[dict[str, Any]] = []
+        seen: set[tuple[str, int]] = set()
+
+        def add(link: dict[str, Any]) -> None:
+            key = (link["type"], link["id"])
+            if key not in seen:
+                seen.add(key)
+                merged.append({"type": link["type"], "id": link["id"]})
+
+        for link in (existing or {}).get("note_links") or []:
+            add(link)
+        if version_id:
+            add({"type": "Version", "id": version_id})
+        for link in self._convert_entities_to_sg_links(links) or []:
+            add(link)
+        return merged
 
     def publish_note(
         self,
