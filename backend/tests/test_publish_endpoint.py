@@ -81,6 +81,52 @@ class TestPublishNotesEndpoint:
         assert call_args[1]["data"].published is True
         assert call_args[1]["data"].published_note_id == 500
 
+    def test_publish_notes_passes_links_regardless_of_type_casing(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Links reach the provider whether entity_type is "Shot" or "shot".
+
+        The frontend stores the capitalized type it gets from search results;
+        ENTITY_MODELS is keyed lowercase. Regression test for #222.
+        """
+        draft_note = DraftNote(
+            _id="note1",
+            user_email="user@example.com",
+            playlist_id=100,
+            version_id=101,
+            content="Fix the comp on the neighbouring shot",
+            subject="Links",
+            links=[
+                DraftNoteLink(entity_type="Shot", entity_id=42),
+                DraftNoteLink(entity_type="version", entity_id=101),
+            ],
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            published=False,
+        )
+        mock_storage.get_draft_notes_for_playlist.return_value = [draft_note]
+        mock_prodtrack.publish_note.return_value = 500
+        mock_prodtrack.get_entity.return_value = None
+
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "targets": _targets(("user@example.com", 101)),
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["published_count"] == 1
+
+        mock_prodtrack.publish_note.assert_called_once()
+        args = mock_prodtrack.publish_note.call_args[1]
+        assert [(l.type, l.id) for l in args["links"]] == [
+            ("Shot", 42),
+            ("Version", 101),
+            ("Playlist", 100),
+        ]
+
     def test_publish_scratch_note_links_playlist(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):

@@ -1112,13 +1112,15 @@ async def publish_notes(
                 continue
 
             # Get links, skipping entities with sentinel ids (e.g. the scratch
-            # pseudo-version) that don't exist in the tracking system
+            # pseudo-version) that don't exist in the tracking system.
+            # ENTITY_MODELS is keyed lowercase; links store the capitalized
+            # type from search results ("Shot"), so normalise before lookup.
             links = []
             if note.links:
                 for link in note.links:
                     if link.entity_id <= 0:
                         continue
-                    model_class = ENTITY_MODELS.get(link.entity_type)
+                    model_class = ENTITY_MODELS.get(link.entity_type.lower())
                     if model_class:
                         links.append(model_class(id=link.entity_id))
 
