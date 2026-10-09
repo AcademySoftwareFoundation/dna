@@ -7,8 +7,8 @@ import { DraftNote } from '@dna/core';
 import { useOtherDraftNotes } from '../hooks';
 
 interface OtherNotesPanelProps {
-  playlistId?: number | null;
-  versionId?: number | null;
+  playlistId?: string | null;
+  versionId?: string | null;
   userEmail?: string | null;
   onInsertNote?: (content: string) => void;
 }

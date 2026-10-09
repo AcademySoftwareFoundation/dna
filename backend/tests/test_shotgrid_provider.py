@@ -153,7 +153,7 @@ class TestShotgridProviderRefactor:
 
         # Execute
         note_id = provider.publish_note(
-            version_id=101,
+            version_id="101",
             content="Test content",
             subject="Test subject",
             to_users=[],
@@ -161,7 +161,7 @@ class TestShotgridProviderRefactor:
             links=[],
         )
 
-        assert note_id == 200
+        assert note_id == "200"
         mock_sg_instance.create.assert_called_once()
         call_args = mock_sg_instance.create.call_args
         assert call_args[0][0] == "Note"
@@ -183,7 +183,7 @@ class TestShotgridProviderRefactor:
         ]
 
         note_id = provider.publish_note(
-            version_id=101,
+            version_id="101",
             content="Check",
             subject="Check",
             to_users=[],
@@ -191,7 +191,7 @@ class TestShotgridProviderRefactor:
             links=[],
         )
 
-        assert note_id == 999
+        assert note_id == "999"
         mock_sg_instance.create.assert_not_called()
 
     def test_publish_note_with_author(self, provider, mock_shotgun):
@@ -223,7 +223,7 @@ class TestShotgridProviderRefactor:
             # We want to verify that create is called on the NEW instance
 
             note_id = provider.publish_note(
-                version_id=101,
+                version_id="101",
                 content="C",
                 subject="S",
                 to_users=[],
@@ -267,7 +267,7 @@ class TestShotgridProviderRefactor:
                 match="Author not found in ShotGrid: unknown@example.com",
             ):
                 provider.publish_note(
-                    version_id=101,
+                    version_id="101",
                     content="Test",
                     subject="Test",
                     to_users=[],
@@ -297,7 +297,7 @@ class TestShotgridProviderRefactor:
         provider.sg = mock_sg_instance
         provider._sudo_connection = None
 
-        result = provider.update_note(note_id=505, content="Body", subject="Sub")
+        result = provider.update_note(note_id="505", content="Body", subject="Sub")
 
         assert result is True
         mock_sg_instance.find_one.assert_not_called()
@@ -321,10 +321,10 @@ class TestShotgridProviderRefactor:
         }
 
         result = provider.update_note(
-            note_id=505,
+            note_id="505",
             content="Body",
-            version_id=104,
-            links=[Shot(id=42), Playlist(id=100), Shot(id=7)],
+            version_id="104",
+            links=[Shot(id="42"), Playlist(id="100"), Shot(id="7")],
         )
 
         assert result is True
@@ -405,7 +405,7 @@ class TestShotgridProviderPublishTranscript:
             body="Cameron: hello",
         )
 
-        assert entity_id == 9001
+        assert entity_id == "9001"
         call_args = mock_sg_instance.create.call_args
         assert call_args[0][0] == "CustomEntity01"
         payload = call_args[0][1]

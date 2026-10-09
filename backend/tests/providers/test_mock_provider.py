@@ -78,22 +78,22 @@ def mock_provider(mock_db_path):
 
 def test_get_entity_project(mock_provider):
     proj = mock_provider.get_entity("project", 1)
-    assert proj.id == 1
+    assert proj.id == "1"
     assert proj.name == "Test Project"
 
 
 def test_get_entity_user(mock_provider):
     user = mock_provider.get_entity("user", 10)
-    assert user.id == 10
+    assert user.id == "10"
     assert user.email == "test@example.com"
     assert user.name == "Test User"
 
 
 def test_get_entity_shot(mock_provider):
     shot = mock_provider.get_entity("shot", 100, resolve_links=True)
-    assert shot.id == 100
+    assert shot.id == "100"
     assert shot.name == "s_001"
-    assert shot.project == {"type": "Project", "id": 1}
+    assert shot.project == {"type": "Project", "id": "1"}
     assert len(shot.tasks) == 1
     assert shot.tasks[0].name == "Animation"
 
@@ -110,7 +110,7 @@ def test_get_entity_user_not_found_raises(mock_provider):
 
 def test_get_entity_asset(mock_provider):
     asset = mock_provider.get_entity("asset", 150, resolve_links=True)
-    assert asset.id == 150
+    assert asset.id == "150"
     assert asset.name == "char_rig"
     assert asset.description == "Character rig"
     assert len(asset.tasks) == 1
@@ -149,32 +149,32 @@ def test_get_entity_note_not_found_raises(mock_provider):
 
 def test_get_entity_task_with_entity_link(mock_provider):
     task = mock_provider.get_entity("task", 200, resolve_links=True)
-    assert task.id == 200
+    assert task.id == "200"
     assert task.entity is not None
-    assert task.entity.id == 100
+    assert task.entity.id == "100"
     assert task.entity.name == "s_001"
 
 
 def test_get_entity_note_with_links(mock_provider):
     note = mock_provider.get_entity("note", 500, resolve_links=True)
-    assert note.id == 500
+    assert note.id == "500"
     assert note.subject == "Note 1"
     assert note.author is not None
-    assert note.author.id == 10
+    assert note.author.id == "10"
     assert len(note.note_links) == 1
-    assert note.note_links[0].id == 300
+    assert note.note_links[0].id == "300"
 
 
 def test_get_entity_version(mock_provider):
     version = mock_provider.get_entity("version", 300, resolve_links=True)
-    assert version.id == 300
+    assert version.id == "300"
     assert version.prodtrack_detail_url == (
         "https://mock-shotgrid.example.com/detail/Version/300"
     )
     assert version.name == "v_001"
     assert version.status == "rev"
     assert version.task is not None
-    assert version.task.id == 200
+    assert version.task.id == "200"
     assert len(version.notes) == 1
     assert version.notes[0].subject == "Note 1"
 
@@ -221,10 +221,10 @@ def test_download_thumbnail_saves_file_and_returns_local_url(tmp_path):
 
 def test_get_entity_playlist(mock_provider):
     playlist = mock_provider.get_entity("playlist", 400, resolve_links=True)
-    assert playlist.id == 400
+    assert playlist.id == "400"
     assert playlist.code == "pl_001"
     assert len(playlist.versions) == 1
-    assert playlist.versions[0].id == 300
+    assert playlist.versions[0].id == "300"
 
 
 def test_get_entity_not_found(mock_provider):
@@ -238,10 +238,10 @@ def test_get_entity_unknown_type(mock_provider):
 
 
 def test_search_asset(mock_provider):
-    results = mock_provider.search("char", ["asset"], project_id=1)
+    results = mock_provider.search("char", ["asset"], project_id="1")
     assert len(results) == 1
     assert results[0]["type"] == "Asset"
-    assert results[0]["id"] == 150
+    assert results[0]["id"] == "150"
     assert results[0]["name"] == "char_rig"
 
 
@@ -249,14 +249,14 @@ def test_search_version(mock_provider):
     results = mock_provider.search("v_001", ["version"], limit=5)
     assert len(results) == 1
     assert results[0]["type"] == "Version"
-    assert results[0]["id"] == 300
+    assert results[0]["id"] == "300"
     assert results[0]["name"] == "v_001"
 
 
 def test_search_version_with_project_id(mock_provider):
-    results = mock_provider.search("v_001", ["version"], project_id=1, limit=5)
+    results = mock_provider.search("v_001", ["version"], project_id="1", limit=5)
     assert len(results) == 1
-    assert results[0]["id"] == 300
+    assert results[0]["id"] == "300"
 
 
 def test_search_unsupported_entity_type_returns_empty(mock_provider):
@@ -265,15 +265,15 @@ def test_search_unsupported_entity_type_returns_empty(mock_provider):
 
 
 def test_search_shot_with_project_id(mock_provider):
-    results = mock_provider.search("s_", ["shot"], project_id=1)
+    results = mock_provider.search("s_", ["shot"], project_id="1")
     assert len(results) == 1
     assert results[0]["type"] == "Shot"
-    assert results[0]["id"] == 100
+    assert results[0]["id"] == "100"
 
 
 def test_get_user_by_email_not_found_returns_synthetic_user(mock_provider):
     user = mock_provider.get_user_by_email("nobody@example.com")
-    assert user.id == -1
+    assert user.id == "-1"
     assert user.email == "nobody@example.com"
     assert user.name == "nobody@example.com"
     assert user.login == "nobody@example.com"
@@ -281,7 +281,7 @@ def test_get_user_by_email_not_found_returns_synthetic_user(mock_provider):
 
 def test_get_user_by_email_returns_user(mock_provider):
     user = mock_provider.get_user_by_email("test@example.com")
-    assert user.id == 10
+    assert user.id == "10"
     assert user.name == "Test User"
 
 
@@ -296,7 +296,7 @@ def test_get_versions_for_playlist_empty(mock_db_path):
 
 
 def test_get_version_statuses_with_project_id(mock_provider):
-    statuses = mock_provider.get_version_statuses(project_id=1)
+    statuses = mock_provider.get_version_statuses(project_id="1")
     assert len(statuses) >= 1
     codes = [s["code"] for s in statuses]
     assert "rev" in codes
@@ -321,7 +321,7 @@ def test_publish_note_raises(mock_provider):
         match="publish_note is not supported",
     ):
         mock_provider.publish_note(
-            version_id=300,
+            version_id="300",
             content="test",
             subject="subj",
             to_users=[],
@@ -352,7 +352,7 @@ def test_find_with_in_operator(mock_provider):
         ],
     )
     assert len(shots) == 1
-    assert shots[0].id == 100
+    assert shots[0].id == "100"
 
 
 def test_find_unsupported_operator_raises(mock_provider):
@@ -364,14 +364,14 @@ def test_find_unsupported_operator_raises(mock_provider):
 
 
 def test_shallow_entity_unknown_type_returns_entity_base():
-    entity = _shallow_entity("unknown_type", 42)
-    assert entity.id == 42
+    entity = _shallow_entity("unknown_type", "42")
+    assert entity.id == "42"
     assert type(entity).__name__ == "EntityBase"
 
 
 def test_shallow_entity_playlist_uses_code():
-    entity = _shallow_entity("playlist", 400, "My Playlist")
-    assert entity.id == 400
+    entity = _shallow_entity("playlist", "400", "My Playlist")
+    assert entity.id == "400"
     assert entity.code == "My Playlist"
 
 
@@ -392,7 +392,7 @@ def test_find_with_filters(mock_provider):
         [{"field": "project", "operator": "is", "value": {"type": "Project", "id": 1}}],
     )
     assert len(shots) == 1
-    assert shots[0].id == 100
+    assert shots[0].id == "100"
     shots = mock_provider.find(
         "shot", [{"field": "name", "operator": "contains", "value": "s_"}]
     )
@@ -407,9 +407,9 @@ def test_find_empty(mock_provider):
 
 
 def test_search(mock_provider):
-    results = mock_provider.search("s_", ["shot"], project_id=1, limit=10)
+    results = mock_provider.search("s_", ["shot"], project_id="1", limit=10)
     assert len(results) >= 1
-    assert any(r["type"] == "Shot" and r["id"] == 100 for r in results)
+    assert any(r["type"] == "Shot" and r["id"] == "100" for r in results)
     results = mock_provider.search("test@", ["user"], limit=10)
     assert len(results) >= 1
     assert any(r.get("email") == "test@example.com" for r in results)
@@ -417,13 +417,13 @@ def test_search(mock_provider):
 
 def test_get_user_by_email(mock_provider):
     user = mock_provider.get_user_by_email("test@example.com")
-    assert user.id == 10
+    assert user.id == "10"
     assert user.login == "testuser"
 
 
 def test_get_user_by_email_not_found(mock_provider):
     user = mock_provider.get_user_by_email("nobody@example.com")
-    assert user.id == -1
+    assert user.id == "-1"
     assert user.email == "nobody@example.com"
 
 
@@ -431,19 +431,19 @@ def test_get_projects_for_user(mock_provider):
     projects = mock_provider.get_projects_for_user("test@example.com")
     assert len(projects) >= 1
     project_ids = [p.id for p in projects]
-    assert 1 in project_ids
+    assert "1" in project_ids
 
 
 def test_get_playlists_for_project(mock_provider):
     playlists = mock_provider.get_playlists_for_project(1)
     assert len(playlists) == 1
-    assert playlists[0].id == 400
+    assert playlists[0].id == "400"
 
 
 def test_get_versions_for_playlist(mock_provider):
     versions = mock_provider.get_versions_for_playlist(400)
     assert len(versions) == 1
-    assert versions[0].id == 300
+    assert versions[0].id == "300"
     assert versions[0].prodtrack_detail_url == (
         "https://mock-shotgrid.example.com/detail/Version/300"
     )
@@ -456,7 +456,7 @@ def test_get_versions_for_playlist_empty(mock_provider):
 
 
 def test_get_version_statuses(mock_provider):
-    statuses = mock_provider.get_version_statuses(project_id=1)
+    statuses = mock_provider.get_version_statuses(project_id="1")
     assert len(statuses) >= 1
     codes = [s["code"] for s in statuses]
     assert "rev" in codes
@@ -467,7 +467,9 @@ def test_add_entity_raises(mock_provider):
     with pytest.raises(NotImplementedError, match="read-only"):
         mock_provider.add_entity(
             "note",
-            Note(id=0, subject="x", content="y", project={"type": "Project", "id": 1}),
+            Note(
+                id="0", subject="x", content="y", project={"type": "Project", "id": 1}
+            ),
         )
 
 
@@ -567,28 +569,48 @@ def test_factory_returns_shotgrid_when_credentials_present():
                 assert provider is mock_sg_class.return_value
 
 
+def test_get_entity_round_trips_non_numeric_string_id(tmp_path):
+    """Mock storage keeps opaque string IDs, including non-numeric ones."""
+    db_path = tmp_path / "mock.db"
+    _create_seeded_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO shots (id, name, description, project_id) VALUES (?, ?, ?, ?)",
+        ("shot-abc", "hero", "A shot", "1"),
+    )
+    conn.commit()
+    conn.close()
+
+    provider = MockProdtrackProvider(db_path=db_path)
+    shot = provider.get_entity("shot", "shot-abc", resolve_links=False)
+
+    assert shot.id == "shot-abc"
+    assert shot.name == "hero"
+    assert shot.project == {"type": "Project", "id": "1"}
+
+
 class TestMockProviderWrites:
     """Tests for the mock provider's supported write operations."""
 
     def test_create_playlist(self, mock_provider):
-        playlist = mock_provider.create_playlist(1, "pl_new")
+        playlist = mock_provider.create_playlist("1", "pl_new")
         assert playlist.code == "pl_new"
         assert playlist.type == "Playlist"
-        codes = [p.code for p in mock_provider.get_playlists_for_project(1)]
+        codes = [p.code for p in mock_provider.get_playlists_for_project("1")]
         assert "pl_new" in codes
         assert mock_provider.get_versions_for_playlist(playlist.id) == []
 
     def test_add_version_to_playlist(self, mock_provider):
-        playlist = mock_provider.create_playlist(1, "pl_target")
-        assert mock_provider.add_version_to_playlist(playlist.id, 300) is True
+        playlist = mock_provider.create_playlist("1", "pl_target")
+        assert mock_provider.add_version_to_playlist(playlist.id, "300") is True
         ids = [v.id for v in mock_provider.get_versions_for_playlist(playlist.id)]
-        assert ids == [300]
+        assert ids == ["300"]
 
     def test_add_version_to_playlist_is_idempotent(self, mock_provider):
-        before = len(mock_provider.get_versions_for_playlist(400))
-        assert mock_provider.add_version_to_playlist(400, 300) is True
-        assert len(mock_provider.get_versions_for_playlist(400)) == before
+        before = len(mock_provider.get_versions_for_playlist("400"))
+        assert mock_provider.add_version_to_playlist("400", "300") is True
+        assert len(mock_provider.get_versions_for_playlist("400")) == before
 
     def test_add_version_to_playlist_missing_playlist_raises(self, mock_provider):
         with pytest.raises(ValueError, match="Playlist 999 not found"):
-            mock_provider.add_version_to_playlist(999, 300)
+            mock_provider.add_version_to_playlist("999", "300")

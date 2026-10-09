@@ -20,8 +20,8 @@ def _segment(
     return StoredSegment(
         _id="mongo_" + segment_id,
         segment_id=segment_id,
-        playlist_id=1,
-        version_id=10,
+        playlist_id="1",
+        version_id="10",
         text=text,
         speaker=speaker,
         language="en",

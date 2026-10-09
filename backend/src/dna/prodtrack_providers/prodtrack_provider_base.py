@@ -45,13 +45,14 @@ class ProdtrackProviderBase:
         return ENTITY_MODELS.get(object_type, EntityBase)
 
     def get_entity(
-        self, entity_type: str, entity_id: int, resolve_links: bool = True
+        self, entity_type: str, entity_id: str, resolve_links: bool = True
     ) -> "EntityBase":
         """Get an entity by its ID.
 
         Args:
             entity_type: The type of entity to fetch
-            entity_id: The ID of the entity
+            entity_id: Opaque entity ID. Providers translate this to their
+                native ID format.
             resolve_links: If True, recursively fetch linked entities.
                 If False, only include shallow links with id/name.
         """
@@ -80,7 +81,7 @@ class ProdtrackProviderBase:
         self,
         query: str,
         entity_types: list[str],
-        project_id: int | None = None,
+        project_id: str | None = None,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
         """Search for entities across multiple entity types.
@@ -88,7 +89,9 @@ class ProdtrackProviderBase:
         Args:
             query: Text to search for (searches name field)
             entity_types: List of entity types to search (e.g., ['user', 'shot', 'asset'])
-            project_id: Optional project ID to scope non-user entities
+            project_id: Optional project ID to scope non-user entities.
+                IDs are opaque strings; providers translate them to their
+                native format.
             limit: Maximum results per entity type
 
         Returns:
@@ -122,7 +125,7 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def get_playlists_for_project(self, project_id: int) -> list["Playlist"]:
+    def get_playlists_for_project(self, project_id: str) -> list["Playlist"]:
         """Get playlists for a project.
 
         Args:
@@ -133,7 +136,7 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def create_playlist(self, project_id: int, name: str) -> "Playlist":
+    def create_playlist(self, project_id: str, name: str) -> "Playlist":
         """Create a new playlist in the production tracking system.
 
         Args:
@@ -145,7 +148,7 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def get_versions_for_playlist(self, playlist_id: int) -> list["Version"]:
+    def get_versions_for_playlist(self, playlist_id: str) -> list["Version"]:
         """Get versions for a playlist.
 
         Args:
@@ -156,7 +159,7 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+    def add_version_to_playlist(self, playlist_id: str, version_id: str) -> bool:
         """Add an existing version to a playlist.
 
         Args:
@@ -169,7 +172,7 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
     def get_version_statuses(
-        self, project_id: int | None = None
+        self, project_id: str | None = None
     ) -> list[dict[str, str]]:
         """Get valid status values for Versions.
 
@@ -183,23 +186,23 @@ class ProdtrackProviderBase:
 
     def publish_note(
         self,
-        version_id: int,
+        version_id: str,
         content: str,
         subject: str,
-        to_users: list[int],
-        cc_users: list[int],
+        to_users: list[str],
+        cc_users: list[str],
         links: list["EntityBase"],
         author_email: str | None = None,
         version_status: str | None = None,
-    ) -> int:
+    ) -> str:
         """Publish a note to the production tracking system.
 
         Args:
             version_id: The ID of the version (or other entity) to link to
             content: Note content
             subject: Note subject
-            to_users: List of user IDs to address
-            cc_users: List of user IDs to CC
+            to_users: List of opaque user IDs to address
+            cc_users: List of opaque user IDs to CC
             links: List of additional entities to link
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
@@ -212,22 +215,22 @@ class ProdtrackProviderBase:
 
     def publish_playlist_note(
         self,
-        playlist_id: int,
+        playlist_id: str,
         content: str,
         subject: str,
-        to_users: list[int],
-        cc_users: list[int],
+        to_users: list[str],
+        cc_users: list[str],
         links: list["EntityBase"],
         author_email: str | None = None,
-    ) -> int:
+    ) -> str:
         """Publish a note linked to a playlist rather than a version.
 
         Args:
             playlist_id: The ID of the playlist to link to
             content: Note content
             subject: Note subject
-            to_users: List of user IDs to address
-            cc_users: List of user IDs to CC
+            to_users: List of opaque user IDs to address
+            cc_users: List of opaque user IDs to CC
             links: List of additional entities to link
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
@@ -239,10 +242,10 @@ class ProdtrackProviderBase:
 
     def update_note(
         self,
-        note_id: int,
+        note_id: str,
         content: str,
         subject: str | None = None,
-        version_id: int | None = None,
+        version_id: str | None = None,
         version_status: str | None = None,
         links: list["EntityBase"] | None = None,
     ) -> bool:
@@ -262,7 +265,7 @@ class ProdtrackProviderBase:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
-    def update_version_status(self, version_id: int, status: str) -> bool:
+    def update_version_status(self, version_id: str, status: str) -> bool:
         """Update the status of a version without publishing a note.
 
         Args:
@@ -275,7 +278,7 @@ class ProdtrackProviderBase:
         raise NotImplementedError("Subclasses must implement this method.")
 
     def attach_file_to_note(
-        self, note_id: int, file_path: str, display_name: str
+        self, note_id: str, file_path: str, display_name: str
     ) -> bool:
         """Upload a local file as an attachment on an existing note.
 
@@ -292,14 +295,14 @@ class ProdtrackProviderBase:
     def publish_transcript(
         self,
         *,
-        project_id: int,
-        playlist_id: int,
-        version_id: int,
+        project_id: str,
+        playlist_id: str,
+        version_id: str,
         meeting_id: str,
         meeting_date: date,
         platform: str,
         body: str,
-    ) -> int:
+    ) -> str:
         """Create a transcript row in the production tracking system.
 
         Returns the entity ID of the newly-created row.
@@ -310,7 +313,7 @@ class ProdtrackProviderBase:
         self,
         *,
         entity_type: str,
-        entity_id: int,
+        entity_id: str,
         body: str,
         meeting_date: date,
     ) -> bool:

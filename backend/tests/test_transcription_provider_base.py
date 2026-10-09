@@ -32,8 +32,8 @@ class TestTranscriptionProviderBase:
             StoredSegment(
                 id="seg1",
                 segment_id="seg1",
-                playlist_id=1,
-                version_id=1,
+                playlist_id="1",
+                version_id="1",
                 text="Hello",
                 speaker="Alice",
                 absolute_start_time="2024-01-01T00:00:00Z",
@@ -44,8 +44,8 @@ class TestTranscriptionProviderBase:
             StoredSegment(
                 id="seg2",
                 segment_id="seg2",
-                playlist_id=1,
-                version_id=1,
+                playlist_id="1",
+                version_id="1",
                 text="Hi there",
                 speaker=None,
                 absolute_start_time="2024-01-01T00:00:01Z",

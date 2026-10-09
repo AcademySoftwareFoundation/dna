@@ -9,7 +9,7 @@ class EntityLink(BaseModel):
     """Reference to an existing entity for linking."""
 
     type: str = Field(description="Entity type (e.g., 'Version', 'Playlist', 'Shot')")
-    id: int = Field(description="Entity ID")
+    id: str = Field(description="Entity ID")
 
 
 class CreateNoteRequest(BaseModel):
@@ -18,7 +18,7 @@ class CreateNoteRequest(BaseModel):
     subject: str = Field(description="Note subject line")
     content: Optional[str] = Field(default=None, description="Note body content")
     project: dict[str, Any] = Field(
-        description="Project reference (e.g., {'type': 'Project', 'id': 85})"
+        description="Project reference (e.g., {'type': 'Project', 'id': '85'})"
     )
     note_links: Optional[list[EntityLink]] = Field(
         default=None, description="Entities to link this note to"
@@ -47,8 +47,8 @@ class FindRequest(BaseModel):
 class GenerateNoteRequest(BaseModel):
     """Request model for generating an AI note suggestion."""
 
-    playlist_id: int = Field(description="Playlist ID")
-    version_id: int = Field(description="Version ID")
+    playlist_id: str = Field(description="Playlist ID")
+    version_id: str = Field(description="Version ID")
     user_email: str = Field(description="User email address")
     additional_instructions: Optional[str] = Field(
         default=None,
@@ -75,7 +75,7 @@ class SearchRequest(BaseModel):
     entity_types: list[str] = Field(
         description="Entity types to search: user, shot, asset, version, task, playlist"
     )
-    project_id: Optional[int] = Field(
+    project_id: Optional[str] = Field(
         default=None,
         description="Scope results to a specific project (recommended for non-user entities)",
     )
@@ -87,7 +87,7 @@ class SearchRequest(BaseModel):
 class AddVersionToPlaylistRequest(BaseModel):
     """Request model for adding an existing version to a playlist."""
 
-    version_id: int = Field(description="ID of an existing version to add")
+    version_id: str = Field(description="ID of an existing version to add")
 
 
 class CreatePlaylistRequest(BaseModel):
@@ -100,7 +100,7 @@ class SearchResult(BaseModel):
     """Lightweight entity representation for search results."""
 
     type: str = Field(description="Entity type (e.g., 'User', 'Shot', 'Asset')")
-    id: int = Field(description="Entity ID")
+    id: str = Field(description="Entity ID")
     name: str = Field(description="Entity name")
     description: Optional[str] = Field(
         default=None, description="Entity description (for shots/assets/versions)"
@@ -122,7 +122,7 @@ class PublishNoteTarget(BaseModel):
     """A single draft note to publish (user + version key)."""
 
     user_email: str
-    version_id: int
+    version_id: str
 
 
 class PublishNotesRequest(BaseModel):
@@ -132,7 +132,7 @@ class PublishNotesRequest(BaseModel):
     targets: list[PublishNoteTarget] = Field(
         description="Only draft notes matching these (user_email, version_id) pairs are published."
     )
-    status_version_ids: Optional[list[int]] = Field(
+    status_version_ids: Optional[list[str]] = Field(
         default=None,
         description=(
             "If provided, draft version_status changes are applied only for "
@@ -145,7 +145,7 @@ class UpdateVersionStatusRequest(BaseModel):
     """Request model for updating a version's status."""
 
     status: str = Field(description="Status code to set on the version")
-    playlist_id: Optional[int] = Field(
+    playlist_id: Optional[str] = Field(
         default=None,
         description=(
             "If provided, pending version_status values on this playlist's "
@@ -174,13 +174,13 @@ class PublishNotesResponse(BaseModel):
 class PublishTranscriptRequest(BaseModel):
     """Request to publish a version's captured transcript."""
 
-    version_id: int = Field(description="Version whose segments to publish")
+    version_id: str = Field(description="Version whose segments to publish")
 
 
 class PublishTranscriptResponse(BaseModel):
     """Response from the publish-transcript endpoint."""
 
-    transcript_entity_id: int = Field(
+    transcript_entity_id: str = Field(
         description="Entity ID of the row in the tracking system"
     )
     outcome: str = Field(description="created | updated | skipped")

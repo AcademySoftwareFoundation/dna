@@ -23,9 +23,9 @@ class TestDraftNoteModels:
 
     def test_draft_note_link_model(self):
         """Test DraftNoteLink model creation."""
-        link = DraftNoteLink(entity_type="Shot", entity_id=123)
+        link = DraftNoteLink(entity_type="Shot", entity_id="123")
         assert link.entity_type == "Shot"
-        assert link.entity_id == 123
+        assert link.entity_id == "123"
 
     def test_draft_note_base_defaults(self):
         """Test DraftNoteBase default values."""
@@ -40,8 +40,8 @@ class TestDraftNoteModels:
     def test_draft_note_base_with_links(self):
         """Test DraftNoteBase with links."""
         links = [
-            DraftNoteLink(entity_type="Shot", entity_id=1),
-            DraftNoteLink(entity_type="Asset", entity_id=2),
+            DraftNoteLink(entity_type="Shot", entity_id="1"),
+            DraftNoteLink(entity_type="Asset", entity_id="2"),
         ]
         base = DraftNoteBase(
             content="Test content",
@@ -56,13 +56,13 @@ class TestDraftNoteModels:
         """Test DraftNoteCreate model."""
         create = DraftNoteCreate(
             user_email="user@example.com",
-            playlist_id=10,
-            version_id=100,
+            playlist_id="10",
+            version_id="100",
             content="Draft content",
         )
         assert create.user_email == "user@example.com"
-        assert create.playlist_id == 10
-        assert create.version_id == 100
+        assert create.playlist_id == "10"
+        assert create.version_id == "100"
         assert create.content == "Draft content"
 
     def test_draft_note_update_model(self):
@@ -82,21 +82,21 @@ class TestDraftNoteModels:
         note = DraftNote(
             _id="abc123",
             user_email="user@example.com",
-            playlist_id=10,
-            version_id=100,
+            playlist_id="10",
+            version_id="100",
             content="Test content",
             subject="Test subject",
             to="recipient@example.com",
             cc="cc@example.com",
-            links=[DraftNoteLink(entity_type="Shot", entity_id=1)],
+            links=[DraftNoteLink(entity_type="Shot", entity_id="1")],
             version_status="pending",
             updated_at=now,
             created_at=now,
         )
         assert note.id == "abc123"
         assert note.user_email == "user@example.com"
-        assert note.playlist_id == 10
-        assert note.version_id == 100
+        assert note.playlist_id == "10"
+        assert note.version_id == "100"
 
 
 class TestDraftNoteEndpoints:
@@ -114,8 +114,8 @@ class TestDraftNoteEndpoints:
             DraftNote(
                 _id="note1",
                 user_email="user1@example.com",
-                playlist_id=10,
-                version_id=100,
+                playlist_id="10",
+                version_id="100",
                 content="Note 1",
                 updated_at=now,
                 created_at=now,
@@ -123,8 +123,8 @@ class TestDraftNoteEndpoints:
             DraftNote(
                 _id="note2",
                 user_email="user2@example.com",
-                playlist_id=10,
-                version_id=100,
+                playlist_id="10",
+                version_id="100",
                 content="Note 2",
                 updated_at=now,
                 created_at=now,
@@ -143,7 +143,7 @@ class TestDraftNoteEndpoints:
             assert data[0]["user_email"] == "user1@example.com"
             assert data[1]["user_email"] == "user2@example.com"
             mock_storage_provider.get_draft_notes_for_version.assert_called_once_with(
-                10, 100
+                "10", "100"
             )
         finally:
             app.dependency_overrides.clear()
@@ -170,8 +170,8 @@ class TestDraftNoteEndpoints:
         mock_storage_provider.get_draft_note.return_value = DraftNote(
             _id="note1",
             user_email="user@example.com",
-            playlist_id=10,
-            version_id=100,
+            playlist_id="10",
+            version_id="100",
             content="User's note",
             subject="Test subject",
             updated_at=now,
@@ -191,7 +191,7 @@ class TestDraftNoteEndpoints:
             assert data["user_email"] == "user@example.com"
             assert data["content"] == "User's note"
             mock_storage_provider.get_draft_note.assert_called_once_with(
-                "user@example.com", 10, 100
+                "user@example.com", "10", "100"
             )
         finally:
             app.dependency_overrides.clear()
@@ -219,8 +219,8 @@ class TestDraftNoteEndpoints:
         mock_storage_provider.upsert_draft_note.return_value = DraftNote(
             _id="note1",
             user_email="user@example.com",
-            playlist_id=10,
-            version_id=100,
+            playlist_id="10",
+            version_id="100",
             content="Updated content",
             subject="Updated subject",
             updated_at=now,
@@ -253,12 +253,12 @@ class TestDraftNoteEndpoints:
         mock_storage_provider.upsert_draft_note.return_value = DraftNote(
             _id="note1",
             user_email="user@example.com",
-            playlist_id=10,
-            version_id=100,
+            playlist_id="10",
+            version_id="100",
             content="Note with links",
             links=[
-                DraftNoteLink(entity_type="Shot", entity_id=123),
-                DraftNoteLink(entity_type="Asset", entity_id=456),
+                DraftNoteLink(entity_type="Shot", entity_id="123"),
+                DraftNoteLink(entity_type="Asset", entity_id="456"),
             ],
             updated_at=now,
             created_at=now,
@@ -274,8 +274,8 @@ class TestDraftNoteEndpoints:
                 json={
                     "content": "Note with links",
                     "links": [
-                        {"entity_type": "Shot", "entity_id": 123},
-                        {"entity_type": "Asset", "entity_id": 456},
+                        {"entity_type": "Shot", "entity_id": "123"},
+                        {"entity_type": "Asset", "entity_id": "456"},
                     ],
                 },
             )
@@ -301,7 +301,7 @@ class TestDraftNoteEndpoints:
             assert response.status_code == 200
             assert response.json() is True
             mock_storage_provider.delete_draft_note.assert_called_once_with(
-                "user@example.com", 10, 100
+                "user@example.com", "10", "100"
             )
         finally:
             app.dependency_overrides.clear()
@@ -396,11 +396,11 @@ class TestMongoDBStorageProvider:
 
     def test_build_query(self, provider_with_mock):
         """Test _build_query returns correct composite key."""
-        query = provider_with_mock._build_query("user@example.com", 10, 100)
+        query = provider_with_mock._build_query("user@example.com", "10", "100")
         assert query == {
             "user_email": "user@example.com",
-            "playlist_id": 10,
-            "version_id": 100,
+            "playlist_id": "10",
+            "version_id": "100",
         }
 
     def test_client_property_creates_client(self):
@@ -448,8 +448,8 @@ class TestMongoDBStorageProvider:
             {
                 "_id": ObjectId(),
                 "user_email": "user1@example.com",
-                "playlist_id": 10,
-                "version_id": 100,
+                "playlist_id": "10",
+                "version_id": "100",
                 "content": "Note 1",
                 "subject": "",
                 "to": "",
@@ -462,8 +462,8 @@ class TestMongoDBStorageProvider:
             {
                 "_id": ObjectId(),
                 "user_email": "user2@example.com",
-                "playlist_id": 10,
-                "version_id": 100,
+                "playlist_id": "10",
+                "version_id": "100",
                 "content": "Note 2",
                 "subject": "",
                 "to": "",
@@ -492,13 +492,13 @@ class TestMongoDBStorageProvider:
 
         mock_collection.find.return_value = MockAsyncCursor(mock_docs)
 
-        result = await provider_with_mock.get_draft_notes_for_version(10, 100)
+        result = await provider_with_mock.get_draft_notes_for_version("10", "100")
 
         assert len(result) == 2
         assert result[0].user_email == "user1@example.com"
         assert result[1].user_email == "user2@example.com"
         mock_collection.find.assert_called_once_with(
-            {"playlist_id": 10, "version_id": 100}
+            {"playlist_id": "10", "version_id": "100"}
         )
 
     @pytest.mark.anyio
@@ -512,8 +512,8 @@ class TestMongoDBStorageProvider:
         mock_doc = {
             "_id": ObjectId(),
             "user_email": "user@example.com",
-            "playlist_id": 10,
-            "version_id": 100,
+            "playlist_id": "10",
+            "version_id": "100",
             "content": "Test note",
             "subject": "",
             "to": "",
@@ -551,8 +551,8 @@ class TestMongoDBStorageProvider:
         mock_result = {
             "_id": ObjectId(),
             "user_email": "user@example.com",
-            "playlist_id": 10,
-            "version_id": 100,
+            "playlist_id": "10",
+            "version_id": "100",
             "content": "Updated content",
             "subject": "Updated subject",
             "to": "",
@@ -612,8 +612,8 @@ class TestMongoDBStorageProvider:
         mock_result = {
             "_id": ObjectId(),
             "user_email": "user@example.com",
-            "playlist_id": 10,
-            "version_id": 100,
+            "playlist_id": "10",
+            "version_id": "100",
             "content": "New content",
             "subject": "",
             "to": "",

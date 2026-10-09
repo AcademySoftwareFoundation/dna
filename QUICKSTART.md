@@ -37,6 +37,8 @@ The app will be available at `http://localhost:5173`.
 ./bootstrap.sh --start
 ```
 
+**Change one setting:** once `backend/docker-compose.local.yml` and `frontend/packages/app/.env` exist, `./bootstrap.sh` opens a settings menu instead of repeating setup. Pick LLM provider, transcription, production tracking, or feature flags, and only that step runs. Choosing production tracking and then ShotGrid prompts for the ShotGrid URL, script name, and API key. Choosing Done recreates the backend container when it is already running, so the new settings load. Restart the frontend dev server separately if you changed a frontend feature flag.
+
 ---
 
 ## Manual Setup

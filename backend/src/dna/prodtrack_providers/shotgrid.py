@@ -225,7 +225,12 @@ class ShotgridProvider(ProdtrackProviderBase):
         # Build DNA field values dict from SG response
         entity_data: dict = {}
         for sg_name, dna_name in entity_mapping["fields"].items():
-            entity_data[dna_name] = sg_entity.get(sg_name)
+            value = sg_entity.get(sg_name)
+            if dna_name == "id" and value is not None:
+                value = str(value)
+            elif isinstance(value, dict):
+                value = _to_dna_link(value)
+            entity_data[dna_name] = value
 
         # Populate linked fields
         for sg_field_name, dna_field_name in linked_fields_map.items():
@@ -262,13 +267,14 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         dna_type = _get_dna_entity_type(sg_type)
         model_class = ENTITY_MODELS[dna_type]
+        dna_id = str(entity_id) if entity_id is not None else ""
 
         if dna_type == "playlist":
-            return model_class(id=entity_id, code=name)
-        return model_class(id=entity_id, name=name)
+            return model_class(id=dna_id, code=name)
+        return model_class(id=dna_id, name=name)
 
     def get_entity(
-        self, entity_type: str, entity_id: int, resolve_links: bool = True
+        self, entity_type: str, entity_id: str, resolve_links: bool = True
     ) -> EntityBase:
         """
         Get an entity by its ID.
@@ -299,7 +305,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         # Query entity from ShotGrid
         sg_entity = self._sg.find_one(
             entity_mapping["entity_id"],
-            filters=[["id", "is", entity_id]],
+            filters=[["id", "is", _to_sg_id(entity_id)]],
             fields=all_field_names,
         )
 
@@ -324,11 +330,13 @@ class ShotgridProvider(ProdtrackProviderBase):
         """Resolve linked entity data by fetching the full entity."""
         if isinstance(data, dict):
             dna_type = _get_dna_entity_type(data["type"])
-            return self.get_entity(dna_type, data["id"], resolve_links=False)
+            return self.get_entity(dna_type, str(data["id"]), resolve_links=False)
         elif isinstance(data, list):
             return [
                 self.get_entity(
-                    _get_dna_entity_type(item["type"]), item["id"], resolve_links=False
+                    _get_dna_entity_type(item["type"]),
+                    str(item["id"]),
+                    resolve_links=False,
                 )
                 for item in data
             ]
@@ -337,10 +345,10 @@ class ShotgridProvider(ProdtrackProviderBase):
     def _convert_entities_to_sg_links(self, entities):
         """Convert DNA entities to ShotGrid link format for creation."""
         if isinstance(entities, EntityBase):
-            return {"type": entities.__class__.__name__, "id": entities.id}
+            return {"type": entities.__class__.__name__, "id": _to_sg_id(entities.id)}
         elif isinstance(entities, list):
             return [
-                {"type": e.__class__.__name__, "id": e.id}
+                {"type": e.__class__.__name__, "id": _to_sg_id(e.id)}
                 for e in entities
                 if isinstance(e, EntityBase)
             ]
@@ -429,7 +437,9 @@ class ShotgridProvider(ProdtrackProviderBase):
                     f"Unknown field '{dna_field}' for entity type '{entity_type}'"
                 )
 
-            sg_filters.append([sg_field, operator, value])
+            sg_filters.append(
+                [sg_field, operator, _to_sg_filter_value(dna_field, value)]
+            )
 
         # Get all DNA fields to request from SG
         sg_fields = list(entity_mapping["fields"].keys())
@@ -456,7 +466,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         self,
         query: str,
         entity_types: list[str],
-        project_id: int | None = None,
+        project_id: str | None = None,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
         """Search for entities across multiple entity types.
@@ -515,7 +525,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             # Add project filter for non-user entities
             if entity_type != "user" and project_id is not None:
                 sg_filters.append(
-                    ["project", "is", {"type": "Project", "id": project_id}]
+                    ["project", "is", {"type": "Project", "id": _to_sg_id(project_id)}]
                 )
 
             # Query ShotGrid directly with minimal fields for performance
@@ -531,9 +541,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             model_class = ENTITY_MODELS.get(entity_type)
             dna_type = model_class.__name__ if model_class else entity_type.capitalize()
             for sg_entity in sg_results:
+                sg_id = sg_entity.get("id")
                 result = {
                     "type": dna_type,
-                    "id": sg_entity.get("id"),
+                    "id": str(sg_id) if sg_id is not None else None,
                     "name": sg_entity.get(name_sg_field),
                 }
 
@@ -550,7 +561,7 @@ class ShotgridProvider(ProdtrackProviderBase):
                     if project_data:
                         result["project"] = {
                             "type": project_data.get("type"),
-                            "id": project_data.get("id"),
+                            "id": str(project_data.get("id")),
                         }
 
                 results.append(result)
@@ -623,7 +634,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             for sg_project in sg_projects
         ]
 
-    def get_playlists_for_project(self, project_id: int) -> list[Playlist]:
+    def get_playlists_for_project(self, project_id: str) -> list[Playlist]:
         """Get playlists for a project.
 
         Args:
@@ -638,7 +649,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         sg_playlists = self._sg.find(
             "Playlist",
             filters=[
-                ["project", "is", {"type": "Project", "id": project_id}],
+                ["project", "is", {"type": "Project", "id": _to_sg_id(project_id)}],
             ],
             fields=["id", "code", "description", "project", "created_at", "updated_at"],
         )
@@ -651,7 +662,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             for sg_playlist in sg_playlists
         ]
 
-    def create_playlist(self, project_id: int, name: str) -> Playlist:
+    def create_playlist(self, project_id: str, name: str) -> Playlist:
         """Create a new playlist in ShotGrid.
 
         Args:
@@ -668,7 +679,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             "Playlist",
             {
                 "code": name,
-                "project": {"type": "Project", "id": project_id},
+                "project": {"type": "Project", "id": _to_sg_id(project_id)},
             },
         )
 
@@ -677,7 +688,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             sg_playlist, entity_mapping, "playlist", resolve_links=False
         )
 
-    def get_versions_for_playlist(self, playlist_id: int) -> list[Version]:
+    def get_versions_for_playlist(self, playlist_id: str) -> list[Version]:
         """Get versions for a playlist.
 
         Args:
@@ -691,7 +702,7 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         sg_playlist = self._sg.find_one(
             "Playlist",
-            filters=[["id", "is", playlist_id]],
+            filters=[["id", "is", _to_sg_id(playlist_id)]],
             fields=["versions"],
         )
 
@@ -739,13 +750,19 @@ class ShotgridProvider(ProdtrackProviderBase):
         # Let's try to get all relevant notes in one or two queries.
 
         # 1. Notes linked to Playlist
-        notes_by_version_id: dict[int, list[EntityBase]] = {}
+        notes_by_version_id: dict[str, list[EntityBase]] = {}
 
         # Strategy: Fetch notes linked to the Playlist. Then check their version links.
         # We assume the user email is available via deep linking in the 'created_by' field.
         sg_notes = self._sg.find(
             "Note",
-            filters=[["note_links", "is", {"type": "Playlist", "id": playlist_id}]],
+            filters=[
+                [
+                    "note_links",
+                    "is",
+                    {"type": "Playlist", "id": _to_sg_id(playlist_id)},
+                ]
+            ],
             fields=[
                 "id",
                 "subject",
@@ -759,7 +776,7 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         # Process notes and assign to versions
         note_mapping = FIELD_MAPPING["note"]
-        notes_by_version_id: dict[int, list[EntityBase]] = {}
+        notes_by_version_id: dict[str, list[EntityBase]] = {}
 
         for sg_note in sg_notes:
             # Convert to DNA Note
@@ -788,9 +805,10 @@ class ShotgridProvider(ProdtrackProviderBase):
 
             for vid in linked_vids:
                 if vid in version_ids:
-                    if vid not in notes_by_version_id:
-                        notes_by_version_id[vid] = []
-                    notes_by_version_id[vid].append(dna_note)
+                    vid_key = str(vid)
+                    if vid_key not in notes_by_version_id:
+                        notes_by_version_id[vid_key] = []
+                    notes_by_version_id[vid_key].append(dna_note)
 
         # Convert versions and enrich with full task data AND notes
         versions = []
@@ -824,7 +842,7 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return versions
 
-    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+    def add_version_to_playlist(self, playlist_id: str, version_id: str) -> bool:
         """Add an existing version to a ShotGrid playlist.
 
         Args:
@@ -837,24 +855,26 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
+        sg_id = _to_sg_id(playlist_id)
+        version_sg_id = _to_sg_id(version_id)
         sg_playlist = self._sg.find_one(
             "Playlist",
-            filters=[["id", "is", playlist_id]],
+            filters=[["id", "is", sg_id]],
             fields=["versions"],
         )
         if not sg_playlist:
             raise ValueError(f"Playlist {playlist_id} not found")
 
         versions = sg_playlist.get("versions") or []
-        if any(v.get("id") == version_id for v in versions):
+        if any(v.get("id") == version_sg_id for v in versions):
             return True
 
-        versions.append({"type": "Version", "id": version_id})
-        self._sg.update("Playlist", playlist_id, {"versions": versions})
+        versions.append({"type": "Version", "id": version_sg_id})
+        self._sg.update("Playlist", sg_id, {"versions": versions})
         return True
 
     def get_version_statuses(
-        self, project_id: int | None = None
+        self, project_id: str | None = None
     ) -> list[dict[str, str]]:
         """Get valid status values for Versions.
 
@@ -868,7 +888,9 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError("Not connected to ShotGrid")
 
         # Get schema for Version.sg_status_list field
-        project_entity = {"type": "Project", "id": project_id} if project_id else None
+        project_entity = (
+            {"type": "Project", "id": _to_sg_id(project_id)} if project_id else None
+        )
         schema = self.sg.schema_field_read("Version", "sg_status_list", project_entity)
 
         if not schema or "sg_status_list" not in schema:
@@ -891,21 +913,23 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return statuses
 
-    def update_version_status(self, version_id: int, status: str) -> bool:
+    def update_version_status(self, version_id: str, status: str) -> bool:
         if not self._sg:
             raise ValueError("Not connected to ShotGrid")
         try:
-            self._sg.update("Version", version_id, {"sg_status_list": status})
+            self._sg.update(
+                "Version", _to_sg_id(version_id), {"sg_status_list": status}
+            )
             return True
         except Exception:
             return False
 
     def update_note(
         self,
-        note_id: int,
+        note_id: str,
         content: str,
         subject: Optional[str] = None,
-        version_id: Optional[int] = None,
+        version_id: Optional[str] = None,
         version_status: Optional[str] = None,
         links: Optional[list[EntityBase]] = None,
     ) -> bool:
@@ -934,10 +958,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         try:
             if links is not None:
                 data["note_links"] = self._merge_note_links(note_id, version_id, links)
-            self._sg.update("Note", note_id, data)
+            self._sg.update("Note", _to_sg_id(note_id), data)
             if version_status and version_id:
                 self._sg.update(
-                    "Version", version_id, {"sg_status_list": version_status}
+                    "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
                 )
             return True
         except Exception as e:
@@ -946,12 +970,14 @@ class ShotgridProvider(ProdtrackProviderBase):
 
     def _merge_note_links(
         self,
-        note_id: int,
-        version_id: Optional[int],
+        note_id: str,
+        version_id: Optional[str],
         links: list[EntityBase],
     ) -> list[dict[str, Any]]:
         """Union of the note's current ``note_links`` and the requested links."""
-        existing = self._sg.find_one("Note", [["id", "is", note_id]], ["note_links"])
+        existing = self._sg.find_one(
+            "Note", [["id", "is", _to_sg_id(note_id)]], ["note_links"]
+        )
         merged: list[dict[str, Any]] = []
         seen: set[tuple[str, int]] = set()
 
@@ -964,22 +990,22 @@ class ShotgridProvider(ProdtrackProviderBase):
         for link in (existing or {}).get("note_links") or []:
             add(link)
         if version_id:
-            add({"type": "Version", "id": version_id})
+            add({"type": "Version", "id": _to_sg_id(version_id)})
         for link in self._convert_entities_to_sg_links(links) or []:
             add(link)
         return merged
 
     def publish_note(
         self,
-        version_id: int,
+        version_id: str,
         content: str,
         subject: str,
-        to_users: list[int],
-        cc_users: list[int],
+        to_users: list[str],
+        cc_users: list[str],
         links: list[EntityBase],
         author_email: Optional[str] = None,
         version_status: Optional[str] = None,
-    ) -> int:
+    ) -> str:
         """Publish a note to ShotGrid.
 
         Args:
@@ -1001,7 +1027,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         # 1. Fetch version to get Project and ensure version exists
         version_data = self._sg.find_one(
             "Version",
-            filters=[["id", "is", version_id]],
+            filters=[["id", "is", _to_sg_id(version_id)]],
             fields=["project"],
         )
         if not version_data:
@@ -1017,7 +1043,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         # Actually usually duplicate check includes author? Let's stick to subject+content+version link for now as per reference
         duplicate_filters = [
             ["project", "is", project],
-            ["note_links", "is", {"type": "Version", "id": version_id}],
+            ["note_links", "is", {"type": "Version", "id": _to_sg_id(version_id)}],
             ["subject", "is", subject],
             ["content", "is", content],
         ]
@@ -1029,12 +1055,12 @@ class ShotgridProvider(ProdtrackProviderBase):
         if existing_note:
             if version_status:
                 self._sg.update(
-                    "Version", version_id, {"sg_status_list": version_status}
+                    "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
                 )
-            return existing_note["id"]
+            return str(existing_note["id"])
 
         # 3. Prepare Note Data
-        note_links = [{"type": "Version", "id": version_id}]
+        note_links = [{"type": "Version", "id": _to_sg_id(version_id)}]
         if links:
             extra_links = self._convert_entities_to_sg_links(links)
             if extra_links:
@@ -1043,8 +1069,10 @@ class ShotgridProvider(ProdtrackProviderBase):
                 elif isinstance(extra_links, list):
                     note_links.extend(extra_links)
 
-        recipient_links = [{"type": "HumanUser", "id": uid} for uid in to_users]
-        cc_links = [{"type": "HumanUser", "id": uid} for uid in cc_users]
+        recipient_links = [
+            {"type": "HumanUser", "id": _to_sg_id(uid)} for uid in to_users
+        ]
+        cc_links = [{"type": "HumanUser", "id": _to_sg_id(uid)} for uid in cc_users]
 
         note_data = {
             "project": project,
@@ -1075,20 +1103,22 @@ class ShotgridProvider(ProdtrackProviderBase):
             result = self._sg.create("Note", note_data)
 
         if version_status:
-            self._sg.update("Version", version_id, {"sg_status_list": version_status})
+            self._sg.update(
+                "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
+            )
 
-        return result["id"]
+        return str(result["id"])
 
     def publish_playlist_note(
         self,
-        playlist_id: int,
+        playlist_id: str,
         content: str,
         subject: str,
-        to_users: list[int],
-        cc_users: list[int],
+        to_users: list[str],
+        cc_users: list[str],
         links: list[EntityBase],
         author_email: Optional[str] = None,
-    ) -> int:
+    ) -> str:
         """Publish a note linked to a playlist (no version) in ShotGrid.
 
         Args:
@@ -1107,9 +1137,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError("Not connected to ShotGrid")
 
         # 1. Fetch playlist to get Project and ensure playlist exists
+        playlist_sg_id = _to_sg_id(playlist_id)
         playlist_data = self._sg.find_one(
             "Playlist",
-            filters=[["id", "is", playlist_id]],
+            filters=[["id", "is", playlist_sg_id]],
             fields=["project"],
         )
         if not playlist_data:
@@ -1122,7 +1153,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         # 2. Check for duplicates: same playlist link, subject, and content
         duplicate_filters = [
             ["project", "is", project],
-            ["note_links", "is", {"type": "Playlist", "id": playlist_id}],
+            ["note_links", "is", {"type": "Playlist", "id": playlist_sg_id}],
             ["subject", "is", subject],
             ["content", "is", content],
         ]
@@ -1130,10 +1161,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             "Note", filters=duplicate_filters, fields=["id"]
         )
         if existing_note:
-            return existing_note["id"]
+            return str(existing_note["id"])
 
         # 3. Prepare Note Data
-        note_links = [{"type": "Playlist", "id": playlist_id}]
+        note_links = [{"type": "Playlist", "id": playlist_sg_id}]
         if links:
             extra_links = self._convert_entities_to_sg_links(links)
             if extra_links:
@@ -1142,8 +1173,10 @@ class ShotgridProvider(ProdtrackProviderBase):
                 elif isinstance(extra_links, list):
                     note_links.extend(extra_links)
 
-        recipient_links = [{"type": "HumanUser", "id": uid} for uid in to_users]
-        cc_links = [{"type": "HumanUser", "id": uid} for uid in cc_users]
+        recipient_links = [
+            {"type": "HumanUser", "id": _to_sg_id(uid)} for uid in to_users
+        ]
+        cc_links = [{"type": "HumanUser", "id": _to_sg_id(uid)} for uid in cc_users]
 
         note_data = {
             "project": project,
@@ -1172,10 +1205,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         else:
             result = self._sg.create("Note", note_data)
 
-        return result["id"]
+        return str(result["id"])
 
     def attach_file_to_note(
-        self, note_id: int, file_path: str, display_name: str
+        self, note_id: str, file_path: str, display_name: str
     ) -> bool:
         """Upload a local file as an attachment on an existing ShotGrid note."""
         if not self._sg:
@@ -1183,7 +1216,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         try:
             self._sg.upload(
                 "Note",
-                note_id,
+                _to_sg_id(note_id),
                 file_path,
                 field_name="attachments",
                 display_name=display_name,
@@ -1195,14 +1228,14 @@ class ShotgridProvider(ProdtrackProviderBase):
     def publish_transcript(
         self,
         *,
-        project_id: int,
-        playlist_id: int,
-        version_id: int,
+        project_id: str,
+        playlist_id: str,
+        version_id: str,
         meeting_id: str,
         meeting_date: date,
         platform: str,
         body: str,
-    ) -> int:
+    ) -> str:
         """Create a transcript row in the configured SG custom entity."""
         if not self._sg:
             raise ValueError("Not connected to ShotGrid")
@@ -1212,22 +1245,22 @@ class ShotgridProvider(ProdtrackProviderBase):
         code = f"transcript-{version_id}-{meeting_date.isoformat()}"
         payload: dict[str, Any] = {
             "code": code,
-            "project": {"type": "Project", "id": project_id},
-            "sg_playlist": {"type": "Playlist", "id": playlist_id},
-            "sg_version_in_review": {"type": "Version", "id": version_id},
+            "project": {"type": "Project", "id": _to_sg_id(project_id)},
+            "sg_playlist": {"type": "Playlist", "id": _to_sg_id(playlist_id)},
+            "sg_version_in_review": {"type": "Version", "id": _to_sg_id(version_id)},
             "sg_meeting_id": meeting_id,
             "sg_meeting_date": meeting_date.isoformat(),
             "sg_platform": platform,
             "sg_transcript_body": body,
         }
         result = self._sg.create(entity_type, payload)
-        return result["id"]
+        return str(result["id"])
 
     def update_transcript(
         self,
         *,
         entity_type: str,
-        entity_id: int,
+        entity_id: str,
         body: str,
         meeting_date: date,
     ) -> bool:
@@ -1237,7 +1270,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         try:
             self._sg.update(
                 entity_type,
-                entity_id,
+                _to_sg_id(entity_id),
                 {
                     "sg_transcript_body": body,
                     "sg_meeting_date": meeting_date.isoformat(),
@@ -1246,6 +1279,32 @@ class ShotgridProvider(ProdtrackProviderBase):
             return True
         except Exception:
             return False
+
+
+def _to_sg_id(entity_id: str) -> int:
+    """Translate an opaque DNA entity ID into a ShotGrid integer ID."""
+    try:
+        return int(entity_id)
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid ShotGrid entity ID: {entity_id!r}")
+
+
+def _to_dna_link(value):
+    """Stringify the `id` of a ShotGrid reference dict (project, step, user)."""
+    if isinstance(value, dict) and "id" in value:
+        return {**value, "id": str(value["id"])}
+    return value
+
+
+def _to_sg_filter_value(dna_field: str, value):
+    """Translate DNA filter values into ShotGrid integer IDs."""
+    if isinstance(value, dict) and "id" in value:
+        return {**value, "id": _to_sg_id(value["id"])}
+    if isinstance(value, list):
+        return [_to_sg_filter_value(dna_field, item) for item in value]
+    if dna_field == "id":
+        return _to_sg_id(value)
+    return value
 
 
 def _get_dna_entity_type(sg_entity_type: str) -> str:

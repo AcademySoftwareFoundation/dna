@@ -117,13 +117,13 @@ class TestDispatchBot:
         result = await vexa_provider.dispatch_bot(
             platform=Platform.GOOGLE_MEET,
             meeting_id="abc-defg-hij",
-            playlist_id=42,
+            playlist_id="42",
         )
 
         assert isinstance(result, BotSession)
         assert result.platform == Platform.GOOGLE_MEET
         assert result.meeting_id == "abc-defg-hij"
-        assert result.playlist_id == 42
+        assert result.playlist_id == "42"
         assert result.status == BotStatusEnum.JOINING
         assert result.vexa_meeting_id == 12345
 
@@ -148,7 +148,7 @@ class TestDispatchBot:
         result = await vexa_provider.dispatch_bot(
             platform=Platform.TEAMS,
             meeting_id="teams-meeting-123",
-            playlist_id=100,
+            playlist_id="100",
             passcode="1234",
             bot_name="DNA Bot",
             language="en-US",

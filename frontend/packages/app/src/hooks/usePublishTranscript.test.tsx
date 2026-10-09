@@ -34,7 +34,7 @@ describe('usePublishTranscript', () => {
 
   it('calls apiHandler.publishTranscript and resolves with the response', async () => {
     mockedApiHandler.publishTranscript.mockResolvedValue({
-      transcript_entity_id: 9001,
+      transcript_entity_id: '9001',
       outcome: 'created',
       segments_count: 5,
     });
@@ -45,15 +45,15 @@ describe('usePublishTranscript', () => {
 
     await act(async () => {
       await result.current.mutateAsync({
-        playlistId: 42,
-        request: { version_id: 101 },
+        playlistId: '42',
+        request: { version_id: '101' },
       });
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApiHandler.publishTranscript).toHaveBeenCalledWith({
-      playlistId: 42,
-      request: { version_id: 101 },
+      playlistId: '42',
+      request: { version_id: '101' },
     });
     expect(result.current.data?.outcome).toBe('created');
   });
@@ -68,8 +68,8 @@ describe('usePublishTranscript', () => {
     await act(async () => {
       try {
         await result.current.mutateAsync({
-          playlistId: 42,
-          request: { version_id: 101 },
+          playlistId: '42',
+          request: { version_id: '101' },
         });
       } catch {
         // expected

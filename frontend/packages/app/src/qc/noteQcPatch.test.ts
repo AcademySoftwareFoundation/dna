@@ -61,13 +61,19 @@ describe('noteQcPatch', () => {
   });
 
   it('fixAllDisabledReason when fewer than two results', () => {
-    expect(fixAllDisabledReason(baseDraft, [result({ check_id: 'a', note_suggestion: 'x' })])).toBeNull();
+    expect(
+      fixAllDisabledReason(baseDraft, [
+        result({ check_id: 'a', note_suggestion: 'x' }),
+      ])
+    ).toBeNull();
   });
 
   it('fixAllDisabledReason when a check has no suggestions', () => {
     const a = result({ check_id: 'a', note_suggestion: 'x' });
     const b = result({ check_id: 'b' });
-    expect(fixAllDisabledReason(baseDraft, [a, b])).toMatch(/no suggested field changes/i);
+    expect(fixAllDisabledReason(baseDraft, [a, b])).toMatch(
+      /no suggested field changes/i
+    );
   });
 
   it('fixAllDisabledReason when fields overlap', () => {
@@ -139,33 +145,46 @@ describe('noteQcPatch', () => {
       check_id: 'b',
       attribute_suggestion: { subject: null, links: null },
     });
-    expect(fixAllDisabledReason(baseDraft, [a, b])).toMatch(/no suggested field changes/i);
+    expect(fixAllDisabledReason(baseDraft, [a, b])).toMatch(
+      /no suggested field changes/i
+    );
   });
 
   it('normalizeQCResult splits embedded JSON note_suggestion', () => {
     const embedded = JSON.stringify({
       content: '@[briana J](user:484) This is looking great!',
       subject: '',
-      to: JSON.stringify([{ type: 'User', id: 17, name: 'Artist 3' }]),
-      cc: JSON.stringify([{ type: 'User', id: 484, name: 'briana J' }]),
+      to: JSON.stringify([{ type: 'User', id: '17', name: 'Artist 3' }]),
+      cc: JSON.stringify([{ type: 'User', id: '484', name: 'briana J' }]),
     });
     const r = result({ check_id: 'q', note_suggestion: embedded });
     const n = normalizeQCResult(r);
-    expect(n.note_suggestion).toBe('@[briana J](user:484) This is looking great!');
-    expect(n.attribute_suggestion?.to).toBe('[{"type":"User","id":17,"name":"Artist 3"}]');
-    expect(n.attribute_suggestion?.cc).toBe('[{"type":"User","id":484,"name":"briana J"}]');
+    expect(n.note_suggestion).toBe(
+      '@[briana J](user:484) This is looking great!'
+    );
+    expect(n.attribute_suggestion?.to).toBe(
+      '[{"type":"User","id":"17","name":"Artist 3"}]'
+    );
+    expect(n.attribute_suggestion?.cc).toBe(
+      '[{"type":"User","id":"484","name":"briana J"}]'
+    );
   });
 
   it('buildLocalPatch omits content when unchanged after embedded split', () => {
     const body = 'same body';
-    const draft: LocalDraftNote = { ...baseDraft, content: body, to: [], cc: [] };
+    const draft: LocalDraftNote = {
+      ...baseDraft,
+      content: body,
+      to: [],
+      cc: [],
+    };
     const embedded = JSON.stringify({
       content: body,
-      to: JSON.stringify([{ type: 'User', id: 17, name: 'Artist 3' }]),
+      to: JSON.stringify([{ type: 'User', id: '17', name: 'Artist 3' }]),
     });
     const p = buildLocalPatch(draft, result({ note_suggestion: embedded }));
     expect(p.content).toBeUndefined();
-    expect(p.to).toEqual([{ type: 'User', id: 17, name: 'Artist 3' }]);
+    expect(p.to).toEqual([{ type: 'User', id: '17', name: 'Artist 3' }]);
     expect(p.edited).toBe(true);
   });
 
@@ -173,13 +192,13 @@ describe('noteQcPatch', () => {
     const draft: LocalDraftNote = {
       ...baseDraft,
       content: 'keep',
-      to: [{ type: 'User', id: 1, name: 'A' }],
+      to: [{ type: 'User', id: '1', name: 'A' }],
     };
     const embedded = JSON.stringify({
       content: 'keep',
       to: JSON.stringify([
-        { type: 'User', id: 1, name: 'A' },
-        { type: 'User', id: 2, name: 'B' },
+        { type: 'User', id: '1', name: 'A' },
+        { type: 'User', id: '2', name: 'B' },
       ]),
     });
     const rows = getQCPreviewRows(draft, result({ note_suggestion: embedded }));

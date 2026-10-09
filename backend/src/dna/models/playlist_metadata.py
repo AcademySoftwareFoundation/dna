@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class PlaylistMetadataUpdate(BaseModel):
     """Model for updating playlist metadata."""
 
-    in_review: Optional[int] = Field(
+    in_review: Optional[str] = Field(
         default=None, description="Version ID currently in review"
     )
     meeting_id: Optional[str] = Field(default=None, description="Associated meeting ID")
@@ -41,8 +41,8 @@ class PlaylistMetadata(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(alias="_id")
-    playlist_id: int
-    in_review: Optional[int] = None
+    playlist_id: str
+    in_review: Optional[str] = None
     meeting_id: Optional[str] = None
     platform: Optional[str] = None
     vexa_meeting_id: Optional[int] = None

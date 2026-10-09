@@ -37,9 +37,9 @@ interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   onPlaylistChange?: (playlist: Playlist) => void;
-  playlistId: number | null;
-  projectId: number | null;
-  selectedVersionId?: number | null;
+  playlistId: string | null;
+  projectId: string | null;
+  selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
   onLogout?: () => void;
@@ -261,7 +261,7 @@ export function Sidebar({
   >('none');
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const versionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const versionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<ExpandableSearchHandle>(null);
 
@@ -376,7 +376,7 @@ export function Sidebar({
     { label: 'Add Scratch Pad', onSelect: handleAddScratch },
   ];
 
-  const noteStatusFor = (versionId: number): NoteStatus | null => {
+  const noteStatusFor = (versionId: string): NoteStatus | null => {
     const note = draftNotes?.find((n) => n.version_id === versionId);
     if (!note) return null;
     if (note.published) return 'published';

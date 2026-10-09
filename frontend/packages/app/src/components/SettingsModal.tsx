@@ -35,7 +35,7 @@ const GLOBAL_GLOSSARY_GITHUB_URL =
 interface SettingsModalProps {
   userEmail: string;
   /** Current ShotGrid project id — scopes the editable project glossary. */
-  projectId: number | null;
+  projectId: string | null;
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -644,7 +644,7 @@ function TranscriptionTab() {
 // The project glossary is stored per ShotGrid project (not in user settings),
 // so it loads/saves itself against the current projectId and is independent of
 // the surrounding settings save-on-close flow.
-function ProjectGlossaryEditor({ projectId }: { projectId: number | null }) {
+function ProjectGlossaryEditor({ projectId }: { projectId: string | null }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -729,7 +729,7 @@ function ProjectGlossaryEditor({ projectId }: { projectId: number | null }) {
 interface AITabProps {
   isLoading: boolean;
   notePrompt: string;
-  projectId: number | null;
+  projectId: string | null;
   preferredModel: string;
   availableModels: AvailableModelsResponse | null;
   regenerateOnVersionChange: boolean;

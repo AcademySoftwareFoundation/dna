@@ -38,8 +38,8 @@ def _sample_draft() -> DraftNote:
     return DraftNote(
         _id="draft1",
         user_email="test@example.com",
-        playlist_id=1,
-        version_id=10,
+        playlist_id="1",
+        version_id="10",
         content="Hello note",
         subject="Subj",
         to="",
@@ -56,7 +56,7 @@ def _sample_draft() -> DraftNote:
 
 def _sample_version() -> Version:
     return Version(
-        id=10,
+        id="10",
         name="v010",
         notes=[],
     )

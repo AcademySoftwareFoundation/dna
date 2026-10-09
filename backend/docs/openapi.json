@@ -7,7 +7,7 @@
           "version_id": {
             "description": "ID of an existing version to add",
             "title": "Version Id",
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
@@ -34,7 +34,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "name": {
             "anyOf": [
@@ -136,7 +136,7 @@
           },
           "playlist_id": {
             "title": "Playlist Id",
-            "type": "integer"
+            "type": "string"
           },
           "status": {
             "$ref": "#/components/schemas/BotStatusEnum"
@@ -252,7 +252,7 @@
           },
           "project": {
             "additionalProperties": true,
-            "description": "Project reference (e.g., {'type': 'Project', 'id': 85})",
+            "description": "Project reference (e.g., {'type': 'Project', 'id': '85'})",
             "title": "Project",
             "type": "object"
           },
@@ -334,7 +334,7 @@
           "playlist_id": {
             "description": "Playlist ID to associate with this meeting",
             "title": "Playlist Id",
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
@@ -395,7 +395,7 @@
           },
           "playlist_id": {
             "title": "Playlist Id",
-            "type": "integer"
+            "type": "string"
           },
           "published": {
             "default": false,
@@ -417,7 +417,7 @@
           "published_note_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -453,7 +453,7 @@
           },
           "version_id": {
             "title": "Version Id",
-            "type": "integer"
+            "type": "string"
           },
           "version_status": {
             "default": "",
@@ -477,7 +477,7 @@
         "properties": {
           "entity_id": {
             "title": "Entity Id",
-            "type": "integer"
+            "type": "string"
           },
           "entity_name": {
             "default": "",
@@ -586,7 +586,7 @@
           "published_note_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -637,7 +637,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "type": {
             "description": "Return the entity type name.",
@@ -659,7 +659,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "type": {
             "description": "Entity type (e.g., 'Version', 'Playlist', 'Shot')",
@@ -753,7 +753,7 @@
           "playlist_id": {
             "description": "Playlist ID",
             "title": "Playlist Id",
-            "type": "integer"
+            "type": "string"
           },
           "user_email": {
             "description": "User email address",
@@ -763,7 +763,7 @@
           "version_id": {
             "description": "Version ID",
             "title": "Version Id",
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
@@ -843,7 +843,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "note_links": {
             "description": "Entities this note is linked to",
@@ -1236,7 +1236,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "project": {
             "anyOf": [
@@ -1304,7 +1304,7 @@
           "in_review": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -1336,7 +1336,7 @@
           },
           "playlist_id": {
             "title": "Playlist Id",
-            "type": "integer"
+            "type": "string"
           },
           "transcription_paused": {
             "default": false,
@@ -1399,7 +1399,7 @@
           "in_review": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -1466,7 +1466,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "name": {
             "anyOf": [
@@ -1513,7 +1513,7 @@
           },
           "project_id": {
             "title": "Project Id",
-            "type": "integer"
+            "type": "string"
           },
           "updated_at": {
             "format": "date-time",
@@ -1552,7 +1552,7 @@
           },
           "version_id": {
             "title": "Version Id",
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
@@ -1569,7 +1569,7 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "integer"
+                  "type": "string"
                 },
                 "type": "array"
               },
@@ -1640,7 +1640,7 @@
           "version_id": {
             "description": "Version whose segments to publish",
             "title": "Version Id",
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
@@ -1675,7 +1675,7 @@
           "transcript_entity_id": {
             "description": "Entity ID of the row in the tracking system",
             "title": "Transcript Entity Id",
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
@@ -1737,7 +1737,7 @@
           "project_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -1789,7 +1789,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "name": {
             "description": "Entity name",
@@ -1841,7 +1841,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "name": {
             "anyOf": [
@@ -1967,7 +1967,7 @@
           },
           "playlist_id": {
             "title": "Playlist Id",
-            "type": "integer"
+            "type": "string"
           },
           "segment_id": {
             "title": "Segment Id",
@@ -2006,7 +2006,7 @@
           },
           "version_id": {
             "title": "Version Id",
-            "type": "integer"
+            "type": "string"
           },
           "vexa_updated_at": {
             "anyOf": [
@@ -2049,7 +2049,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "name": {
             "anyOf": [
@@ -2220,7 +2220,7 @@
           "playlist_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -2273,7 +2273,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "login": {
             "anyOf": [
@@ -2552,7 +2552,7 @@
           "id": {
             "description": "Entity ID",
             "title": "Id",
-            "type": "integer"
+            "type": "string"
           },
           "movie_path": {
             "anyOf": [
@@ -2886,7 +2886,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -2922,7 +2922,7 @@
             "required": true,
             "schema": {
               "title": "Asset Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3164,7 +3164,7 @@
             "required": true,
             "schema": {
               "title": "Note Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3212,7 +3212,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3260,7 +3260,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3312,7 +3312,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3359,7 +3359,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3413,7 +3413,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3471,7 +3471,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3529,7 +3529,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3588,7 +3588,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3638,7 +3638,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3696,7 +3696,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3705,7 +3705,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -3757,7 +3757,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3766,7 +3766,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3822,7 +3822,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3831,7 +3831,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3894,7 +3894,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3903,7 +3903,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3970,7 +3970,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -3979,7 +3979,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4089,7 +4089,7 @@
             "required": true,
             "schema": {
               "title": "Project Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4135,7 +4135,7 @@
             "required": true,
             "schema": {
               "title": "Project Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4193,7 +4193,7 @@
             "required": true,
             "schema": {
               "title": "Project Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4243,7 +4243,7 @@
             "required": true,
             "schema": {
               "title": "Project Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4355,7 +4355,7 @@
             "required": true,
             "schema": {
               "title": "Shot Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4403,7 +4403,7 @@
             "required": true,
             "schema": {
               "title": "Task Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -4635,7 +4635,7 @@
             "required": true,
             "schema": {
               "title": "Playlist Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -4644,7 +4644,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -5175,7 +5175,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -5228,7 +5228,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -5276,7 +5276,7 @@
             "required": true,
             "schema": {
               "title": "Version Id",
-              "type": "integer"
+              "type": "string"
             }
           }
         ],

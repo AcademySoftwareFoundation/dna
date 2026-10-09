@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PlaylistMetadata, PlaylistMetadataUpdate } from '@dna/core';
 import { apiHandler } from '../api';
 
-export function usePlaylistMetadata(playlistId: number | null) {
+export function usePlaylistMetadata(playlistId: string | null) {
   return useQuery<PlaylistMetadata | null, Error>({
     queryKey: ['playlistMetadata', playlistId],
     queryFn: () => apiHandler.getPlaylistMetadata({ playlistId: playlistId! }),
@@ -10,7 +10,7 @@ export function usePlaylistMetadata(playlistId: number | null) {
   });
 }
 
-export function useUpsertPlaylistMetadata(playlistId: number | null) {
+export function useUpsertPlaylistMetadata(playlistId: string | null) {
   const queryClient = useQueryClient();
 
   return useMutation<PlaylistMetadata, Error, PlaylistMetadataUpdate>({
@@ -24,10 +24,10 @@ export function useUpsertPlaylistMetadata(playlistId: number | null) {
   });
 }
 
-export function useSetInReview(playlistId: number | null) {
+export function useSetInReview(playlistId: string | null) {
   const mutation = useUpsertPlaylistMetadata(playlistId);
 
-  const setInReview = (versionId: number) => {
+  const setInReview = (versionId: string) => {
     return mutation.mutateAsync({ in_review: versionId });
   };
 

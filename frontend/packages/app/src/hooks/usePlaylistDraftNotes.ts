@@ -3,7 +3,7 @@ import { DraftNote } from '@dna/core';
 import { apiHandler } from '../api';
 
 export function usePlaylistDraftNotes(
-    playlistId?: number | null
+    playlistId?: string | null
 ) {
     const isEnabled = playlistId != null;
 

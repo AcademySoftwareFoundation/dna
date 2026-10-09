@@ -39,11 +39,11 @@ class TestCreateNoteMocked:
             "project": {"type": "Project", "id": 85},
         }
 
-        version = Version(id=6957, name="test_version")
-        playlist = Playlist(id=6, code="test_playlist")
+        version = Version(id="6957", name="test_version")
+        playlist = Playlist(id="6", code="test_playlist")
 
         note = Note(
-            id=0,
+            id="0",
             subject="Test Note",
             content="Test content",
             project={"type": "Project", "id": 85},
@@ -66,11 +66,11 @@ class TestCreateNoteMocked:
         ]
         assert "id" not in sg_data
 
-        assert created_note.id == 1234
+        assert created_note.id == "1234"
         assert created_note.subject == "Test Note"
         assert len(created_note.note_links) == 2
-        assert created_note.note_links[0].id == 6957
-        assert created_note.note_links[1].id == 6
+        assert created_note.note_links[0].id == "6957"
+        assert created_note.note_links[1].id == "6"
 
     def test_create_note_without_links(self, shotgrid_provider):
         """Test creating a note without any linked entities."""
@@ -85,7 +85,7 @@ class TestCreateNoteMocked:
         }
 
         note = Note(
-            id=0,
+            id="0",
             subject="Simple Note",
             content="Just a note",
             project={"type": "Project", "id": 1},
@@ -93,7 +93,7 @@ class TestCreateNoteMocked:
 
         created_note = shotgrid_provider.add_entity("note", note)
 
-        assert created_note.id == 5678
+        assert created_note.id == "5678"
         assert created_note.subject == "Simple Note"
         assert created_note.content == "Just a note"
 
@@ -109,7 +109,7 @@ class TestCreateNoteMocked:
         }
 
         note = Note(
-            id=0,
+            id="0",
             subject="Minimal Note",
             content=None,
             project={"type": "Project", "id": 1},
@@ -141,11 +141,11 @@ class TestCreateNoteOnVersion:
             ],
         }
 
-        version = Version(id=6957, name="test_version")
-        playlist = Playlist(id=6, code="test_playlist")
+        version = Version(id="6957", name="test_version")
+        playlist = Playlist(id="6", code="test_playlist")
 
         note = Note(
-            id=0,
+            id="0",
             subject="Test Note from DNA Integration Test",
             content="This note was created by the DNA integration test suite.",
             project={"type": "Project", "id": 85},
@@ -156,7 +156,7 @@ class TestCreateNoteOnVersion:
 
         shotgrid_provider.sg.create.assert_called_once()
         assert created_note is not None
-        assert created_note.id == 7890
+        assert created_note.id == "7890"
         assert created_note.subject == "Test Note from DNA Integration Test"
         assert (
             created_note.content
@@ -194,7 +194,7 @@ class TestCreatePlaylistMocked:
                 "project": {"type": "Project", "id": 85},
             },
         )
-        assert playlist.id == 77
+        assert playlist.id == "77"
         assert playlist.code == "Dailies Monday"
 
 

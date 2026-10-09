@@ -11,7 +11,7 @@ export interface UseProdtrackTabSyncParams {
   /** URL to open/steer the production-tracking tab to (version- or entity-scoped). */
   activeProdtrackUrl?: string | null;
   /** Current version id; a change triggers an auto-sync into the controlled tab. */
-  versionId?: number | null;
+  versionId?: string | null;
   /** Whether auto-sync on version change is enabled (per user settings). */
   autoSyncEnabled: boolean;
 }
@@ -49,7 +49,7 @@ export function useProdtrackTabSync({
 
   // Tracks the version id we last reacted to, so we only sync on an actual
   // version change (not on settings/url/mount re-renders for the same version).
-  const lastVersionIdRef = useRef<number | null>(null);
+  const lastVersionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const currentVersionId = versionId ?? null;

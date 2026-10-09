@@ -12,7 +12,7 @@ const REFRESH_MS = 5 * 60 * 1000;
 
 export interface MentionIndexContextValue {
   /** Project this index was built for (null when prefetch disabled). */
-  projectId: number | null;
+  projectId: string | null;
   mergedCandidates: SearchResult[];
   isIndexLoading: boolean;
   isIndexFetching: boolean;
@@ -27,7 +27,7 @@ export function MentionIndexProvider({
   projectId,
   children,
 }: {
-  projectId: number | null;
+  projectId: string | null;
   children: ReactNode;
 }) {
   const pid = projectId;

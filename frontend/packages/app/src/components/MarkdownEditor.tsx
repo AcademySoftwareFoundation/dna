@@ -39,7 +39,7 @@ interface MarkdownEditorProps {
   onToggleAttachmentTray?: () => void;
   placeholder?: string;
   minHeight?: number;
-  projectId?: number | null;
+  projectId?: string | null;
   onMentionInsert?: (entity: SearchResult) => void;
 }
 
@@ -60,9 +60,9 @@ turndownService.addRule('mention', {
   },
 });
 
-const MENTION_REGEX = /@\[([^\]]+)\]\((\w+:\d+)\)/g;
+export const MENTION_REGEX = /@\[([^\]]+)\]\((\w+:[^)]+)\)/g;
 
-function markdownToHtml(markdown: string): string {
+export function markdownToHtml(markdown: string): string {
   if (!markdown) return '';
 
   // Replace mention syntax before other processing
@@ -619,11 +619,13 @@ export function MarkdownEditor({
     mention.command(attrs);
 
     // Parse type and id from "type:id" format and sync to properties panel
-    const [type, idStr] = attrs.id.split(':');
+    const separator = attrs.id.indexOf(':');
+    const type = separator === -1 ? '' : attrs.id.slice(0, separator);
+    const idStr = separator === -1 ? '' : attrs.id.slice(separator + 1);
     if (type && idStr) {
       const entity: SearchResult = {
         type: type.charAt(0).toUpperCase() + type.slice(1),
-        id: parseInt(idStr, 10),
+        id: idStr,
         name: attrs.label,
       };
       onMentionInsertRef.current?.(entity);

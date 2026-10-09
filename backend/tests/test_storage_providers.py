@@ -21,11 +21,11 @@ from dna.storage_providers.storage_provider_base import (
 
 def _transcript_update() -> PublishedTranscriptUpdate:
     return PublishedTranscriptUpdate(
-        playlist_id=42,
-        version_id=7,
+        playlist_id="42",
+        version_id="7",
         meeting_id="meet-abc",
         entity_type="CustomEntity01",
-        entity_id=9001,
+        entity_id="9001",
         author_email="user@test.com",
         body_hash="deadbeef",
         segments_count=12,
@@ -262,12 +262,12 @@ class TestMongoDBStorageProvider:
 
     def test_build_query(self, provider):
         """Test _build_query builds correct query."""
-        query = provider._build_query("user@test.com", 1, 2)
+        query = provider._build_query("user@test.com", "1", "2")
 
         assert query == {
             "user_email": "user@test.com",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
         }
 
     @pytest.mark.asyncio
@@ -280,8 +280,8 @@ class TestMongoDBStorageProvider:
             {
                 "_id": "abc123",
                 "user_email": "user1@test.com",
-                "playlist_id": 1,
-                "version_id": 2,
+                "playlist_id": "1",
+                "version_id": "2",
                 "content": "Note 1",
                 "created_at": now,
                 "updated_at": now,
@@ -289,8 +289,8 @@ class TestMongoDBStorageProvider:
             {
                 "_id": "def456",
                 "user_email": "user2@test.com",
-                "playlist_id": 1,
-                "version_id": 2,
+                "playlist_id": "1",
+                "version_id": "2",
                 "content": "Note 2",
                 "created_at": now,
                 "updated_at": now,
@@ -311,13 +311,13 @@ class TestMongoDBStorageProvider:
         mock_db.draft_notes = mock_collection
         provider._client = mock_client
 
-        result = await provider.get_draft_notes_for_version(1, 2)
+        result = await provider.get_draft_notes_for_version("1", "2")
 
         assert len(result) == 2
         assert result[0].content == "Note 1"
         assert result[1].content == "Note 2"
         mock_collection.find.assert_called_once_with(
-            {"playlist_id": 1, "version_id": 2}
+            {"playlist_id": "1", "version_id": "2"}
         )
 
     @pytest.mark.asyncio
@@ -329,8 +329,8 @@ class TestMongoDBStorageProvider:
         doc = {
             "_id": "abc123",
             "user_email": "user@test.com",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
             "content": "Test content",
             "created_at": now,
             "updated_at": now,
@@ -375,8 +375,8 @@ class TestMongoDBStorageProvider:
         result_doc = {
             "_id": "abc123",
             "user_email": "user@test.com",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
             "content": "Updated content",
             "created_at": now,
             "updated_at": now,
@@ -406,11 +406,11 @@ class TestMongoDBStorageProvider:
         result_doc = {
             "_id": "abc123",
             "user_email": "user@test.com",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
             "content": "New content",
             "published": False,
-            "published_note_id": 500,  # Should be preserved
+            "published_note_id": "500",  # Should be preserved
             "created_at": now,
             "updated_at": now,
         }
@@ -430,7 +430,7 @@ class TestMongoDBStorageProvider:
         # Verify returned object has the field
         assert result.content == "New content"
         assert result.published is False
-        assert result.published_note_id == 500
+        assert result.published_note_id == "500"
 
         # Verify the update call used $set correctly (partial update)
         mock_collection.find_one_and_update.assert_called_once()
@@ -486,7 +486,7 @@ class TestMongoDBStorageProvider:
 
         doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "meeting_id": "abc-123",
             "platform": "google_meet",
         }
@@ -527,7 +527,7 @@ class TestMongoDBStorageProvider:
 
         doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "meeting_id": "abc-123",
             "platform": "google_meet",
         }
@@ -543,7 +543,7 @@ class TestMongoDBStorageProvider:
         result = await provider.get_playlist_metadata_by_meeting_id("abc-123")
 
         assert result is not None
-        assert result.playlist_id == 1
+        assert result.playlist_id == "1"
 
     @pytest.mark.asyncio
     async def test_get_playlist_metadata_by_meeting_id_not_found(self, provider):
@@ -568,7 +568,7 @@ class TestMongoDBStorageProvider:
 
         result_doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "meeting_id": "abc-123",
             "platform": "google_meet",
         }
@@ -597,13 +597,13 @@ class TestMongoDBStorageProvider:
 
         existing_doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "transcription_paused": True,
         }
 
         result_doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "transcription_paused": False,
             "transcription_resumed_at": datetime.now(timezone.utc),
         }
@@ -633,13 +633,13 @@ class TestMongoDBStorageProvider:
 
         existing_doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "transcription_paused": False,
         }
 
         result_doc = {
             "_id": "abc123",
-            "playlist_id": 1,
+            "playlist_id": "1",
             "transcription_paused": False,
         }
 
@@ -704,8 +704,8 @@ class TestMongoDBStorageProvider:
         result_doc = {
             "_id": "abc123",
             "segment_id": "seg-1",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
             "text": "Hello",
             "speaker": "John",
             "absolute_start_time": "2024-01-01T00:00:00Z",
@@ -744,15 +744,15 @@ class TestMongoDBStorageProvider:
         existing_doc = {
             "_id": "abc123",
             "segment_id": "seg-1",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
             "text": "Old text",
         }
         result_doc = {
             "_id": "abc123",
             "segment_id": "seg-1",
-            "playlist_id": 1,
-            "version_id": 2,
+            "playlist_id": "1",
+            "version_id": "2",
             "text": "Updated text",
             "speaker": "John",
             "absolute_start_time": "2024-01-01T00:00:00Z",
@@ -792,8 +792,8 @@ class TestMongoDBStorageProvider:
             {
                 "_id": "abc123",
                 "segment_id": "seg-1",
-                "playlist_id": 1,
-                "version_id": 2,
+                "playlist_id": "1",
+                "version_id": "2",
                 "text": "Hello",
                 "speaker": "John",
                 "absolute_start_time": "2024-01-01T00:00:00Z",
@@ -804,8 +804,8 @@ class TestMongoDBStorageProvider:
             {
                 "_id": "def456",
                 "segment_id": "seg-2",
-                "playlist_id": 1,
-                "version_id": 2,
+                "playlist_id": "1",
+                "version_id": "2",
                 "text": "World",
                 "speaker": "Jane",
                 "absolute_start_time": "2024-01-01T00:00:01Z",
@@ -856,11 +856,11 @@ class TestMongoDBStorageProvider:
         now = datetime.now(timezone.utc)
         doc = {
             "_id": "mongo-id-1",
-            "playlist_id": 42,
-            "version_id": 7,
+            "playlist_id": "42",
+            "version_id": "7",
             "meeting_id": "meet-abc",
             "entity_type": "CustomEntity01",
-            "entity_id": 9001,
+            "entity_id": "9001",
             "author_email": "user@test.com",
             "body_hash": "deadbeef",
             "segments_count": 12,
@@ -874,12 +874,12 @@ class TestMongoDBStorageProvider:
         mock_db.published_transcripts = mock_collection
         provider._client = mock_client
 
-        result = await provider.get_published_transcript(42, 7, "meet-abc")
+        result = await provider.get_published_transcript("42", "7", "meet-abc")
 
         assert isinstance(result, PublishedTranscript)
-        assert result.entity_id == 9001
+        assert result.entity_id == "9001"
         mock_collection.find_one.assert_awaited_once_with(
-            {"playlist_id": 42, "version_id": 7, "meeting_id": "meet-abc"}
+            {"playlist_id": "42", "version_id": "7", "meeting_id": "meet-abc"}
         )
 
     @pytest.mark.asyncio
@@ -904,11 +904,11 @@ class TestMongoDBStorageProvider:
         now = datetime.now(timezone.utc)
         result_doc = {
             "_id": "mongo-id-2",
-            "playlist_id": 42,
-            "version_id": 7,
+            "playlist_id": "42",
+            "version_id": "7",
             "meeting_id": "meet-abc",
             "entity_type": "CustomEntity01",
-            "entity_id": 9001,
+            "entity_id": "9001",
             "author_email": "user@test.com",
             "body_hash": "deadbeef",
             "segments_count": 12,
@@ -925,25 +925,25 @@ class TestMongoDBStorageProvider:
         result = await provider.upsert_published_transcript(_transcript_update())
 
         assert isinstance(result, PublishedTranscript)
-        assert result.entity_id == 9001
+        assert result.entity_id == "9001"
 
         call_args = mock_collection.find_one_and_update.call_args
         query = call_args[0][0]
         assert query == {
-            "playlist_id": 42,
-            "version_id": 7,
+            "playlist_id": "42",
+            "version_id": "7",
             "meeting_id": "meet-abc",
         }
         update = call_args[0][1]
         # Composite key only on $setOnInsert; $set must not duplicate the query fields.
         assert update["$set"]["body_hash"] == "deadbeef"
-        assert update["$set"]["entity_id"] == 9001
+        assert update["$set"]["entity_id"] == "9001"
         assert "updated_at" in update["$set"]
         assert "playlist_id" not in update["$set"]
         assert "version_id" not in update["$set"]
         assert "meeting_id" not in update["$set"]
-        assert update["$setOnInsert"]["playlist_id"] == 42
-        assert update["$setOnInsert"]["version_id"] == 7
+        assert update["$setOnInsert"]["playlist_id"] == "42"
+        assert update["$setOnInsert"]["version_id"] == "7"
         assert update["$setOnInsert"]["meeting_id"] == "meet-abc"
         assert update["$setOnInsert"]["created_at"] is not None
         assert call_args[1]["upsert"] is True

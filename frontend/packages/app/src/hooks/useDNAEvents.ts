@@ -56,8 +56,8 @@ export function useConnectionStatus(): {
 export function useTranscriptEvents(
   callback: EventCallback<TranscriptEventPayload>,
   options: UseDNAEventsOptions & {
-    playlistId?: number | null;
-    versionId?: number | null;
+    playlistId?: string | null;
+    versionId?: string | null;
   } = {}
 ): void {
   const client = useEventClient();

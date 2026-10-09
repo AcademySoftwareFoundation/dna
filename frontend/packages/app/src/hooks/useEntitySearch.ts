@@ -9,7 +9,7 @@ import { apiHandler } from '../api';
 
 interface UseEntitySearchOptions {
   entityTypes: SearchableEntityType[];
-  projectId?: number;
+  projectId?: string;
   limit?: number;
   debounceMs?: number;
   /** When false, never hits the network (e.g. local mention index is authoritative). */

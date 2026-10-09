@@ -11,8 +11,8 @@ import { apiHandler } from '../api';
 import { useTranscriptEvents } from './useDNAEvents';
 
 export interface UseAISuggestionOptions {
-  playlistId: number | null;
-  versionId: number | null;
+  playlistId: string | null;
+  versionId: string | null;
   userEmail: string | null;
   enabled?: boolean;
 }
@@ -63,7 +63,7 @@ export function useAISuggestion({
       mutationKey: ['upsertUserSettings', userEmail ?? ''],
     }) > 0 && userEmail != null;
 
-  const prevVersionRef = useRef<number | null>(null);
+  const prevVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isEnabled) {

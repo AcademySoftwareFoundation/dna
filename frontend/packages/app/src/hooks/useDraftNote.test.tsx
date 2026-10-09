@@ -58,11 +58,10 @@ function createWrapperWithClient() {
 }
 
 const mockDraftNote: DraftNote = {
-  id: 1,
   _id: 'abc123',
   user_email: 'test@example.com',
-  playlist_id: 1,
-  version_id: 2,
+  playlist_id: '1',
+  version_id: '2',
   content: 'Test content',
   subject: 'Test subject',
   to: 'recipient@example.com',
@@ -72,25 +71,25 @@ const mockDraftNote: DraftNote = {
   published: false,
   edited: false,
   published_note_id: null,
+  attachment_ids: [],
   updated_at: '2025-01-15T00:00:00Z',
   created_at: '2025-01-15T00:00:00Z',
-  attachment_ids: [],
 };
 
 describe('backendToLocal', () => {
   it('parses to and cc JSON like the editor stores them', () => {
-    const to = JSON.stringify([{ type: 'User', id: 1, name: 'A' }]);
-    const cc = JSON.stringify([{ type: 'User', id: 2, name: 'B' }]);
+    const to = JSON.stringify([{ type: 'User', id: '1', name: 'A' }]);
+    const cc = JSON.stringify([{ type: 'User', id: '2', name: 'B' }]);
     const note: DraftNote = {
       _id: 'x',
       user_email: 'u@test.com',
-      playlist_id: 1,
-      version_id: 2,
+      playlist_id: '1',
+      version_id: '2',
       content: 'c',
       subject: 's',
       to,
       cc,
-      links: [{ entity_type: 'Version', entity_id: 9, entity_name: 'v' }],
+      links: [{ entity_type: 'Version', entity_id: '9', entity_name: 'v' }],
       version_status: 'ip',
       published: false,
       edited: false,
@@ -102,9 +101,9 @@ describe('backendToLocal', () => {
     expect(backendToLocal(note)).toEqual({
       content: 'c',
       subject: 's',
-      to: [{ type: 'User', id: 1, name: 'A' }],
-      cc: [{ type: 'User', id: 2, name: 'B' }],
-      links: [{ type: 'Version', id: 9, name: 'v' }],
+      to: [{ type: 'User', id: '1', name: 'A' }],
+      cc: [{ type: 'User', id: '2', name: 'B' }],
+      links: [{ type: 'Version', id: '9', name: 'v' }],
       versionStatus: 'ip',
       published: false,
       edited: false,
@@ -141,8 +140,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -153,8 +152,8 @@ describe('useDraftNote', () => {
     });
 
     expect(mockedApiHandler.getDraftNote).toHaveBeenCalledWith({
-      playlistId: 1,
-      versionId: 2,
+      playlistId: '1',
+      versionId: '2',
       userEmail: 'test@example.com',
     });
 
@@ -178,8 +177,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -214,8 +213,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -243,8 +242,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -266,8 +265,8 @@ describe('useDraftNote', () => {
     );
 
     expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
-      playlistId: 1,
-      versionId: 2,
+      playlistId: '1',
+      versionId: '2',
       userEmail: 'test@example.com',
       data: {
         content: 'New content',
@@ -288,8 +287,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -318,8 +317,8 @@ describe('useDraftNote', () => {
 
     await waitFor(() => {
       expect(mockedApiHandler.deleteDraftNote).toHaveBeenCalledWith({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'test@example.com',
       });
     });
@@ -352,8 +351,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -390,8 +389,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -407,8 +406,8 @@ describe('useDraftNote', () => {
 
     expect(result.current.draftNote?.versionStatus).toBe('apr');
     expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
-      playlistId: 1,
-      versionId: 2,
+      playlistId: '1',
+      versionId: '2',
       userEmail: 'test@example.com',
       data: { version_status: 'apr' },
     });
@@ -421,8 +420,8 @@ describe('useDraftNote', () => {
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: createWrapper() }
@@ -472,16 +471,16 @@ describe('useDraftNote', () => {
     );
 
     const { Wrapper, queryClient } = createWrapperWithClient();
-    const draftKey = ['draftNote', 1, 2, 'test@example.com'];
+    const draftKey = ['draftNote', '1', '2', 'test@example.com'];
 
     const { result, rerender } = renderHook(
-      (props: { versionId: number }) =>
+      (props: { versionId: string }) =>
         useDraftNote({
-          playlistId: 1,
+          playlistId: '1',
           versionId: props.versionId,
           userEmail: 'test@example.com',
         }),
-      { wrapper: Wrapper, initialProps: { versionId: 2 } }
+      { wrapper: Wrapper, initialProps: { versionId: '2' } }
     );
 
     await waitFor(() => {
@@ -499,18 +498,18 @@ describe('useDraftNote', () => {
     });
 
     mockedApiHandler.getDraftNote.mockImplementation(async (params) => {
-      if (params.versionId === 2) {
+      if (params.versionId === '2') {
         return mockDraftNote;
       }
       return null;
     });
 
-    rerender({ versionId: 3 });
+    rerender({ versionId: '3' });
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    rerender({ versionId: 2 });
+    rerender({ versionId: '2' });
     await waitFor(() => {
       expect(result.current.draftNote?.versionStatus).toBe('apr');
     });
@@ -522,16 +521,18 @@ describe('useDraftNote', () => {
 
   it('rolls back draftNote query cache when version_status save fails', async () => {
     mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
-    mockedApiHandler.upsertDraftNote.mockRejectedValue(new Error('save failed'));
+    mockedApiHandler.upsertDraftNote.mockRejectedValue(
+      new Error('save failed')
+    );
 
     const { Wrapper, queryClient } = createWrapperWithClient();
-    const draftKey = ['draftNote', 1, 2, 'test@example.com'];
+    const draftKey = ['draftNote', '1', '2', 'test@example.com'];
 
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         }),
       { wrapper: Wrapper }
@@ -556,14 +557,14 @@ describe('useDraftNote', () => {
     mockedApiHandler.getDraftNote.mockResolvedValue(null);
     mockedApiHandler.upsertDraftNote.mockResolvedValue(mockDraftNote);
 
-    const currentVersion = { type: 'Version', id: 2, name: 'shot_v1' };
-    const submitter = { type: 'User', id: 7, name: 'Artist' };
+    const currentVersion = { type: 'Version', id: '2', name: 'shot_v1' };
+    const submitter = { type: 'User', id: '7', name: 'Artist' };
 
     const { result } = renderHook(
       () =>
         useDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
           currentVersion,
           submitter,
@@ -582,15 +583,17 @@ describe('useDraftNote', () => {
     // A brand-new draft keeps the submitter in To and the version in Links, so
     // the main UI shows the same thing it would after a status pick made there
     expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith({
-      playlistId: 1,
-      versionId: 2,
+      playlistId: '1',
+      versionId: '2',
       userEmail: 'test@example.com',
       data: {
         content: '',
         subject: '',
         to: JSON.stringify([submitter]),
         cc: '',
-        links: [{ entity_type: 'Version', entity_id: 2, entity_name: 'shot_v1' }],
+        links: [
+          { entity_type: 'Version', entity_id: '2', entity_name: 'shot_v1' },
+        ],
         version_status: 'apr',
         edited: false,
       },

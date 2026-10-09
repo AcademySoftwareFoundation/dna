@@ -16,7 +16,7 @@ export interface AISuggestionManagerOptions {
 
 type StateMap = Map<string, AISuggestionState>;
 
-function buildKey(playlistId: number, versionId: number): string {
+function buildKey(playlistId: string, versionId: string): string {
   return `${playlistId}-${versionId}`;
 }
 
@@ -46,7 +46,7 @@ export class AISuggestionManager {
     this.debounceMs = options.debounceMs ?? 1000;
   }
 
-  private getState(playlistId: number, versionId: number): AISuggestionState {
+  private getState(playlistId: string, versionId: string): AISuggestionState {
     const key = buildKey(playlistId, versionId);
     let state = this.states.get(key);
     if (!state) {
@@ -57,8 +57,8 @@ export class AISuggestionManager {
   }
 
   private setState(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     updates: Partial<AISuggestionState>
   ): void {
     const key = buildKey(playlistId, versionId);
@@ -69,8 +69,8 @@ export class AISuggestionManager {
   }
 
   private notifyListeners(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     state: AISuggestionState
   ): void {
     for (const callback of this.listeners) {
@@ -82,15 +82,15 @@ export class AISuggestionManager {
     }
   }
 
-  getSuggestion(playlistId: number, versionId: number): string | null {
+  getSuggestion(playlistId: string, versionId: string): string | null {
     return this.getState(playlistId, versionId).suggestion;
   }
 
-  getFullState(playlistId: number, versionId: number): AISuggestionState {
+  getFullState(playlistId: string, versionId: string): AISuggestionState {
     return this.getState(playlistId, versionId);
   }
 
-  clearSuggestion(playlistId: number, versionId: number): void {
+  clearSuggestion(playlistId: string, versionId: string): void {
     this.setState(playlistId, versionId, {
       suggestion: null,
       error: null,
@@ -98,8 +98,8 @@ export class AISuggestionManager {
   }
 
   async generateSuggestion(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     userEmail: string,
     additionalInstructions?: string,
     model?: string
@@ -146,8 +146,8 @@ export class AISuggestionManager {
   }
 
   scheduleRegeneration(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     userEmail: string,
     additionalInstructions?: string,
     model?: string
@@ -182,7 +182,7 @@ export class AISuggestionManager {
     };
   }
 
-  getSnapshot(playlistId: number, versionId: number): AISuggestionState {
+  getSnapshot(playlistId: string, versionId: string): AISuggestionState {
     return this.getState(playlistId, versionId);
   }
 

@@ -19,7 +19,7 @@ import { useFeatureFlags } from '../contexts';
 interface ContentAreaProps {
   version?: Version | null;
   versions?: Version[];
-  playlistId?: number | null;
+  playlistId?: string | null;
   userEmail?: string | null;
   onVersionSelect?: (version: Version) => void;
   onRefresh?: () => void;

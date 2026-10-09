@@ -19,7 +19,7 @@ class EntityBase(BaseModel):
         from_attributes=True,
         populate_by_name=True,
     )
-    id: int = Field(description="Entity ID")
+    id: str = Field(description="Entity ID")
 
     @computed_field
     @property

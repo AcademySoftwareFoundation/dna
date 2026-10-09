@@ -33,7 +33,7 @@ const validPayload: ExtensionActivationPayload = {
   dnaApiUrl: 'http://localhost:8000',
   dnaIngestWsUrl: 'ws://localhost:8000/transcription/extension/ingest',
   whisperLiveUrl: 'ws://localhost:9090',
-  playlistId: 42,
+  playlistId: '42',
   token: 'user@test.com',
 };
 
@@ -92,8 +92,8 @@ describe('activateTranscriptionExtension', () => {
     });
   });
 
-  it('returns invalid_payload when playlistId is not a number', async () => {
-    const bad = { ...validPayload, playlistId: NaN };
+  it('returns invalid_payload when playlistId is empty', async () => {
+    const bad = { ...validPayload, playlistId: '  ' };
     expect(await activateTranscriptionExtension(EXT_ID, bad)).toEqual({
       ok: false,
       reason: 'invalid_payload',
@@ -124,7 +124,7 @@ describe('activateTranscriptionExtension', () => {
     const r = await activateTranscriptionExtension(EXT_ID, validPayload);
     expect(r).toEqual({ ok: true });
     expect(sent.type).toBe('ACTIVATE_TRANSCRIPTION');
-    expect(sent.playlistId).toBe(42);
+    expect(sent.playlistId).toBe('42');
     expect(sent.whisperLiveUrl).toBe('ws://localhost:9090');
     expect(sent.token).toBe('user@test.com');
   });

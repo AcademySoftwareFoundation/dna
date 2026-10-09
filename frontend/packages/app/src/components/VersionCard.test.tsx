@@ -6,7 +6,7 @@ import type { Version } from '@dna/core';
 import { darkTheme } from '../styles/theme';
 import { VersionCard } from './VersionCard';
 
-const version = { id: 7190, name: 'TST_010_0010_comp_v001' } as Version;
+const version = { id: '7190', name: 'TST_010_0010_comp_v001' } as Version;
 
 function renderCard(props: Partial<Parameters<typeof VersionCard>[0]> = {}) {
   return render(

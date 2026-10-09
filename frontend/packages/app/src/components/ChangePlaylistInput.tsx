@@ -7,9 +7,9 @@ import { Playlist } from '@dna/core';
 import { apiHandler, useGetPlaylistsForProject } from '../api';
 
 export interface ChangePlaylistInputProps {
-  projectId: number;
+  projectId: string;
   /** Current playlist (hidden from results) */
-  currentPlaylistId?: number;
+  currentPlaylistId?: string;
   onSelect: (playlist: Playlist) => void;
   onClose: () => void;
 }

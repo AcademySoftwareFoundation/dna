@@ -20,8 +20,8 @@ def _segment(start: str, text: str, speaker: str = "A") -> StoredSegment:
     return StoredSegment(
         _id="mongo_" + start,
         segment_id="seg-" + start,
-        playlist_id=42,
-        version_id=101,
+        playlist_id="42",
+        version_id="101",
         text=text,
         speaker=speaker,
         language="en",
@@ -38,7 +38,7 @@ def _metadata(
 ) -> PlaylistMetadata:
     return PlaylistMetadata(
         _id="meta-id",
-        playlist_id=42,
+        playlist_id="42",
         meeting_id=meeting_id,
         platform=platform,
     )
@@ -48,11 +48,11 @@ def _published(body_hash: str) -> PublishedTranscript:
     now = datetime.now(timezone.utc)
     return PublishedTranscript(
         _id="pt-id",
-        playlist_id=42,
-        version_id=101,
+        playlist_id="42",
+        version_id="101",
         meeting_id="m-abc",
         entity_type="CustomEntity01",
-        entity_id=9001,
+        entity_id="9001",
         author_email="user@test.com",
         body_hash=body_hash,
         segments_count=1,
@@ -98,7 +98,7 @@ class TestPublishTranscriptEndpoint:
             os.environ.pop("DNA_ENABLE_TRANSCRIPT_PUBLISH", None)
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 404
@@ -112,25 +112,25 @@ class TestPublishTranscriptEndpoint:
             _segment("2026-04-15T10:00:00Z", "hello")
         ]
         mock_storage.get_published_transcript.return_value = None
-        mock_prodtrack.publish_transcript.return_value = 9001
+        mock_prodtrack.publish_transcript.return_value = "9001"
 
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 200
         data = response.json()
         assert data["outcome"] == "created"
-        assert data["transcript_entity_id"] == 9001
+        assert data["transcript_entity_id"] == "9001"
         assert data["segments_count"] == 1
 
         mock_prodtrack.publish_transcript.assert_called_once()
         kwargs = mock_prodtrack.publish_transcript.call_args.kwargs
         assert kwargs["project_id"] == 1
-        assert kwargs["playlist_id"] == 42
-        assert kwargs["version_id"] == 101
+        assert kwargs["playlist_id"] == "42"
+        assert kwargs["version_id"] == "101"
         assert kwargs["meeting_id"] == "m-abc"
         assert kwargs["platform"] == "google_meet"
         assert "A: hello" in kwargs["body"]
@@ -156,13 +156,13 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 200
         data = response.json()
         assert data["outcome"] == "skipped"
-        assert data["transcript_entity_id"] == 9001
+        assert data["transcript_entity_id"] == "9001"
         mock_prodtrack.publish_transcript.assert_not_called()
         mock_prodtrack.update_transcript.assert_not_called()
 
@@ -180,18 +180,18 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 200
         data = response.json()
         assert data["outcome"] == "updated"
-        assert data["transcript_entity_id"] == 9001
+        assert data["transcript_entity_id"] == "9001"
 
         mock_prodtrack.publish_transcript.assert_not_called()
         mock_prodtrack.update_transcript.assert_called_once()
         kwargs = mock_prodtrack.update_transcript.call_args.kwargs
-        assert kwargs["entity_id"] == 9001
+        assert kwargs["entity_id"] == "9001"
         assert "A: new content" in kwargs["body"]
 
     def test_missing_playlist_metadata_is_422(
@@ -202,7 +202,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 422
@@ -216,7 +216,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 422
@@ -237,7 +237,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 501
@@ -258,7 +258,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 404
@@ -279,7 +279,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 404
@@ -298,7 +298,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 502
@@ -313,7 +313,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 422
@@ -330,11 +330,11 @@ class TestPublishTranscriptEndpoint:
         # Bookkeeping row was created against CustomEntity01.
         mock_storage.get_published_transcript.return_value = PublishedTranscript(
             _id="pt-id",
-            playlist_id=42,
-            version_id=101,
+            playlist_id="42",
+            version_id="101",
             meeting_id="m-abc",
             entity_type="CustomEntity01",
-            entity_id=9001,
+            entity_id="9001",
             author_email="user@test.com",
             body_hash="old-hash",
             segments_count=1,
@@ -350,7 +350,7 @@ class TestPublishTranscriptEndpoint:
         ):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 200
@@ -371,7 +371,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 422
@@ -388,7 +388,7 @@ class TestPublishTranscriptEndpoint:
             _segment("2026-04-15T10:00:00Z", "hi")
         ]
         mock_storage.get_published_transcript.return_value = None
-        mock_prodtrack.publish_transcript.return_value = 9001
+        mock_prodtrack.publish_transcript.return_value = "9001"
         mock_storage.upsert_published_transcript.side_effect = RuntimeError(
             "mongo connection lost"
         )
@@ -396,7 +396,7 @@ class TestPublishTranscriptEndpoint:
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
                 "/playlists/42/publish-transcript",
-                json={"version_id": 101},
+                json={"version_id": "101"},
             )
 
         assert response.status_code == 500

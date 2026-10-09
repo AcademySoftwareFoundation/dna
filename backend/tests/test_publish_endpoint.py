@@ -10,8 +10,8 @@ from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 from dna.models.draft_note import SCRATCH_VERSION_ID, DraftNote, DraftNoteLink
 
 
-def _targets(*pairs: tuple[str, int]) -> list[dict[str, str | int]]:
-    return [{"user_email": email, "version_id": vid} for email, vid in pairs]
+def _targets(*pairs: tuple[str, str | int]) -> list[dict[str, str]]:
+    return [{"user_email": email, "version_id": str(vid)} for email, vid in pairs]
 
 
 class TestPublishNotesEndpoint:
@@ -45,8 +45,8 @@ class TestPublishNotesEndpoint:
         draft_note = DraftNote(
             _id="note1",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=101,
+            playlist_id="100",
+            version_id="101",
             content="Test note",
             subject="Test subject",
             created_at=datetime.now(timezone.utc),
@@ -54,7 +54,7 @@ class TestPublishNotesEndpoint:
             published=False,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [draft_note]
-        mock_prodtrack.publish_note.return_value = 500
+        mock_prodtrack.publish_note.return_value = "500"
 
         response = client.post(
             "/playlists/100/publish-notes",
@@ -71,7 +71,7 @@ class TestPublishNotesEndpoint:
 
         mock_prodtrack.publish_note.assert_called_once()
         args = mock_prodtrack.publish_note.call_args[1]
-        assert args["version_id"] == 101
+        assert args["version_id"] == "101"
         assert args["content"] == "Test note"
         assert args["author_email"] == "user@example.com"
 
@@ -79,7 +79,7 @@ class TestPublishNotesEndpoint:
         call_args = mock_storage.upsert_draft_note.call_args
         assert call_args[1]["user_email"] == "user@example.com"
         assert call_args[1]["data"].published is True
-        assert call_args[1]["data"].published_note_id == 500
+        assert call_args[1]["data"].published_note_id == "500"
 
     def test_publish_notes_passes_links_regardless_of_type_casing(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -92,20 +92,20 @@ class TestPublishNotesEndpoint:
         draft_note = DraftNote(
             _id="note1",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=101,
+            playlist_id="100",
+            version_id="101",
             content="Fix the comp on the neighbouring shot",
             subject="Links",
             links=[
-                DraftNoteLink(entity_type="Shot", entity_id=42),
-                DraftNoteLink(entity_type="version", entity_id=101),
+                DraftNoteLink(entity_type="Shot", entity_id="42"),
+                DraftNoteLink(entity_type="version", entity_id="101"),
             ],
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             published=False,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [draft_note]
-        mock_prodtrack.publish_note.return_value = 500
+        mock_prodtrack.publish_note.return_value = "500"
         mock_prodtrack.get_entity.return_value = None
 
         response = client.post(
@@ -122,9 +122,9 @@ class TestPublishNotesEndpoint:
         mock_prodtrack.publish_note.assert_called_once()
         args = mock_prodtrack.publish_note.call_args[1]
         assert [(l.type, l.id) for l in args["links"]] == [
-            ("Shot", 42),
-            ("Version", 101),
-            ("Playlist", 100),
+            ("Shot", "42"),
+            ("Version", "101"),
+            ("Playlist", "100"),
         ]
 
     def test_publish_scratch_note_links_playlist(
@@ -134,21 +134,21 @@ class TestPublishNotesEndpoint:
         draft_note = DraftNote(
             _id="scratch1",
             user_email="user@example.com",
-            playlist_id=100,
+            playlist_id="100",
             version_id=SCRATCH_VERSION_ID,
             content="Playlist-wide observation",
             subject="Scratch",
             version_status="rev",  # must be ignored: there is no version
             links=[
                 DraftNoteLink(entity_type="version", entity_id=SCRATCH_VERSION_ID),
-                DraftNoteLink(entity_type="shot", entity_id=42),
+                DraftNoteLink(entity_type="shot", entity_id="42"),
             ],
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             published=False,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [draft_note]
-        mock_prodtrack.publish_playlist_note.return_value = 600
+        mock_prodtrack.publish_playlist_note.return_value = "600"
 
         response = client.post(
             "/playlists/100/publish-notes",
@@ -168,16 +168,16 @@ class TestPublishNotesEndpoint:
 
         mock_prodtrack.publish_playlist_note.assert_called_once()
         args = mock_prodtrack.publish_playlist_note.call_args[1]
-        assert args["playlist_id"] == 100
+        assert args["playlist_id"] == "100"
         assert args["content"] == "Playlist-wide observation"
         assert args["author_email"] == "user@example.com"
         # The scratch pseudo-version link is dropped; real links pass through
-        assert [(l.type, l.id) for l in args["links"]] == [("Shot", 42)]
+        assert [(l.type, l.id) for l in args["links"]] == [("Shot", "42")]
 
         call_args = mock_storage.upsert_draft_note.call_args
         assert call_args[1]["version_id"] == SCRATCH_VERSION_ID
         assert call_args[1]["data"].published is True
-        assert call_args[1]["data"].published_note_id == 600
+        assert call_args[1]["data"].published_note_id == "600"
 
     def test_publish_notes_skips_published(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -186,14 +186,14 @@ class TestPublishNotesEndpoint:
         published_note = DraftNote(
             _id="note2",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=102,
+            playlist_id="100",
+            version_id="102",
             content="Already published",
             subject="Sub",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             published=True,
-            published_note_id=123,
+            published_note_id="123",
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [published_note]
 
@@ -221,8 +221,8 @@ class TestPublishNotesEndpoint:
         a = DraftNote(
             _id="a1",
             user_email="a@example.com",
-            playlist_id=100,
-            version_id=301,
+            playlist_id="100",
+            version_id="301",
             content="A",
             subject="S",
             created_at=now,
@@ -232,8 +232,8 @@ class TestPublishNotesEndpoint:
         b = DraftNote(
             _id="b1",
             user_email="b@example.com",
-            playlist_id=100,
-            version_id=302,
+            playlist_id="100",
+            version_id="302",
             content="B",
             subject="S",
             created_at=now,
@@ -241,7 +241,7 @@ class TestPublishNotesEndpoint:
             published=False,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [a, b]
-        mock_prodtrack.publish_note.return_value = 700
+        mock_prodtrack.publish_note.return_value = "700"
 
         response = client.post(
             "/playlists/100/publish-notes",
@@ -258,7 +258,7 @@ class TestPublishNotesEndpoint:
         mock_prodtrack.publish_note.assert_called_once()
         args = mock_prodtrack.publish_note.call_args[1]
         assert args["author_email"] == "b@example.com"
-        assert args["version_id"] == 302
+        assert args["version_id"] == "302"
 
     def test_publish_notes_republishes_edited(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -267,14 +267,14 @@ class TestPublishNotesEndpoint:
         edited_note = DraftNote(
             _id="note4",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=104,
+            playlist_id="100",
+            version_id="104",
             content="Edited content",
             subject="Sub",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             published=True,
-            published_note_id=505,
+            published_note_id="505",
             edited=True,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [edited_note]
@@ -296,9 +296,9 @@ class TestPublishNotesEndpoint:
 
         mock_prodtrack.update_note.assert_called_once()
         args = mock_prodtrack.update_note.call_args[1]
-        assert args["note_id"] == 505
+        assert args["note_id"] == "505"
         assert args["content"] == "Edited content"
-        assert [(l.type, l.id) for l in args["links"]] == [("Playlist", 100)]
+        assert [(l.type, l.id) for l in args["links"]] == [("Playlist", "100")]
 
         mock_storage.upsert_draft_note.assert_called_once()
         call_args = mock_storage.upsert_draft_note.call_args
@@ -312,18 +312,18 @@ class TestPublishNotesEndpoint:
         edited_note = DraftNote(
             _id="note4",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=104,
+            playlist_id="100",
+            version_id="104",
             content="Edited content",
             subject="Sub",
             links=[
-                DraftNoteLink(entity_type="Version", entity_id=104),
-                DraftNoteLink(entity_type="Shot", entity_id=42),
+                DraftNoteLink(entity_type="Version", entity_id="104"),
+                DraftNoteLink(entity_type="Shot", entity_id="42"),
             ],
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             published=True,
-            published_note_id=505,
+            published_note_id="505",
             edited=True,
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [edited_note]
@@ -343,9 +343,9 @@ class TestPublishNotesEndpoint:
 
         args = mock_prodtrack.update_note.call_args[1]
         assert [(l.type, l.id) for l in args["links"]] == [
-            ("Version", 104),
-            ("Shot", 42),
-            ("Playlist", 100),
+            ("Version", "104"),
+            ("Shot", "42"),
+            ("Playlist", "100"),
         ]
 
     def test_publish_status_only_no_note(
@@ -356,8 +356,8 @@ class TestPublishNotesEndpoint:
         status_only_note = DraftNote(
             _id="note5",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=105,
+            playlist_id="100",
+            version_id="105",
             content="",
             subject="",
             version_status="rev",
@@ -380,7 +380,7 @@ class TestPublishNotesEndpoint:
         data = response.json()
         assert data["published_count"] == 0
         mock_prodtrack.publish_note.assert_not_called()
-        mock_prodtrack.update_version_status.assert_called_once_with(105, "rev")
+        mock_prodtrack.update_version_status.assert_called_once_with("105", "rev")
         mock_storage.upsert_draft_note.assert_not_called()
 
     def test_publish_already_published_with_status_change(
@@ -391,8 +391,8 @@ class TestPublishNotesEndpoint:
         published_with_status = DraftNote(
             _id="note6",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=106,
+            playlist_id="100",
+            version_id="106",
             content="Some note",
             subject="Sub",
             version_status="cmpt",
@@ -400,7 +400,7 @@ class TestPublishNotesEndpoint:
             updated_at=datetime.now(timezone.utc),
             published=True,
             edited=False,
-            published_note_id=600,
+            published_note_id="600",
         )
         mock_storage.get_draft_notes_for_playlist.return_value = [published_with_status]
         mock_prodtrack.update_version_status.return_value = True
@@ -418,7 +418,7 @@ class TestPublishNotesEndpoint:
         assert data["skipped_count"] == 1
         mock_prodtrack.publish_note.assert_not_called()
         mock_prodtrack.update_note.assert_not_called()
-        mock_prodtrack.update_version_status.assert_called_once_with(106, "cmpt")
+        mock_prodtrack.update_version_status.assert_called_once_with("106", "cmpt")
 
     def test_publish_notes_status_allowlist_suppresses_status(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -429,8 +429,8 @@ class TestPublishNotesEndpoint:
         note_with_status = DraftNote(
             _id="note7",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=107,
+            playlist_id="100",
+            version_id="107",
             content="Body",
             subject="Sub",
             version_status="rev",
@@ -441,8 +441,8 @@ class TestPublishNotesEndpoint:
         status_only = DraftNote(
             _id="note8",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=108,
+            playlist_id="100",
+            version_id="108",
             content="",
             subject="",
             version_status="rev",
@@ -454,7 +454,7 @@ class TestPublishNotesEndpoint:
             note_with_status,
             status_only,
         ]
-        mock_prodtrack.publish_note.return_value = 800
+        mock_prodtrack.publish_note.return_value = "800"
 
         response = client.post(
             "/playlists/100/publish-notes",
@@ -483,8 +483,8 @@ class TestPublishNotesEndpoint:
         listed = DraftNote(
             _id="note9",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=109,
+            playlist_id="100",
+            version_id="109",
             content="",
             subject="",
             version_status="rev",
@@ -495,8 +495,8 @@ class TestPublishNotesEndpoint:
         unlisted = DraftNote(
             _id="note10",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=110,
+            playlist_id="100",
+            version_id="110",
             content="",
             subject="",
             version_status="cmpt",
@@ -514,12 +514,12 @@ class TestPublishNotesEndpoint:
                 "targets": _targets(
                     ("user@example.com", 109), ("user@example.com", 110)
                 ),
-                "status_version_ids": [109],
+                "status_version_ids": ["109"],
             },
         )
 
         assert response.status_code == 200
-        mock_prodtrack.update_version_status.assert_called_once_with(109, "rev")
+        mock_prodtrack.update_version_status.assert_called_once_with("109", "rev")
 
     def test_publish_notes_targets_empty_publishes_nothing(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -529,8 +529,8 @@ class TestPublishNotesEndpoint:
         draft = DraftNote(
             _id="d1",
             user_email="user@example.com",
-            playlist_id=100,
-            version_id=203,
+            playlist_id="100",
+            version_id="203",
             content="Body",
             subject="S",
             created_at=now,
@@ -582,7 +582,7 @@ class TestUpdateVersionStatusEndpoint:
 
         assert response.status_code == 200
         assert response.json() == {"success": True}
-        mock_prodtrack.update_version_status.assert_called_once_with(101, "rev")
+        mock_prodtrack.update_version_status.assert_called_once_with("101", "rev")
         mock_storage.clear_draft_version_status.assert_not_called()
 
     def test_update_version_status_clears_draft_intents(
@@ -592,11 +592,11 @@ class TestUpdateVersionStatusEndpoint:
         mock_prodtrack.update_version_status.return_value = True
 
         response = client.patch(
-            "/versions/101/status", json={"status": "rev", "playlist_id": 100}
+            "/versions/101/status", json={"status": "rev", "playlist_id": "100"}
         )
 
         assert response.status_code == 200
-        mock_storage.clear_draft_version_status.assert_awaited_once_with(100, 101)
+        mock_storage.clear_draft_version_status.assert_awaited_once_with("100", "101")
 
     def test_update_version_status_failure(
         self, client, mock_prodtrack, mock_storage, override_deps

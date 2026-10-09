@@ -22,14 +22,14 @@ describe('AISuggestionManager', () => {
 
   describe('getSuggestion', () => {
     it('returns null for non-existent key', () => {
-      const result = manager.getSuggestion(1, 1);
+      const result = manager.getSuggestion('1', '1');
       expect(result).toBeNull();
     });
   });
 
   describe('getFullState', () => {
     it('returns initial state for new key', () => {
-      const state = manager.getFullState(1, 1);
+      const state = manager.getFullState('1', '1');
       expect(state).toEqual({
         suggestion: null,
         prompt: null,
@@ -50,15 +50,15 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      const result = await manager.generateSuggestion(1, 1, 'test@example.com');
+      const result = await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(result).toBe('Generated note');
       expect(mockApiHandler.generateNote).toHaveBeenCalledWith({
-        playlistId: 1,
-        versionId: 1,
+        playlistId: "1",
+        versionId: "1",
         userEmail: 'test@example.com',
       });
-      expect(manager.getSuggestion(1, 1)).toBe('Generated note');
+      expect(manager.getSuggestion('1', '1')).toBe('Generated note');
     });
 
     it('sets loading state during API call', async () => {
@@ -85,8 +85,8 @@ describe('AISuggestionManager', () => {
       });
 
       const generatePromise = manager.generateSuggestion(
-        1,
-        1,
+        '1',
+        '1',
         'test@example.com'
       );
 
@@ -105,10 +105,10 @@ describe('AISuggestionManager', () => {
       ).mockRejectedValue(error);
 
       await expect(
-        manager.generateSuggestion(1, 1, 'test@example.com')
+        manager.generateSuggestion('1', '1', 'test@example.com')
       ).rejects.toThrow('API Error');
 
-      const state = manager.getFullState(1, 1);
+      const state = manager.getFullState('1', '1');
       expect(state.error?.message).toBe('API Error');
       expect(state.isLoading).toBe(false);
     });
@@ -124,12 +124,12 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
-      expect(manager.getSuggestion(1, 1)).toBe('Note');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
+      expect(manager.getSuggestion('1', '1')).toBe('Note');
 
-      manager.clearSuggestion(1, 1);
+      manager.clearSuggestion('1', '1');
 
-      expect(manager.getSuggestion(1, 1)).toBeNull();
+      expect(manager.getSuggestion('1', '1')).toBeNull();
     });
   });
 
@@ -146,12 +146,12 @@ describe('AISuggestionManager', () => {
       const callback = vi.fn();
       const unsubscribe = manager.onStateChange(callback);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(callback).toHaveBeenCalled();
       expect(callback).toHaveBeenCalledWith(
-        1,
-        1,
+        '1',
+        '1',
         expect.objectContaining({ suggestion: 'Note' })
       );
 
@@ -172,7 +172,7 @@ describe('AISuggestionManager', () => {
 
       unsubscribe();
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(callback).not.toHaveBeenCalled();
     });
@@ -190,9 +190,9 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      manager.scheduleRegeneration(1, 1, 'test@example.com');
-      manager.scheduleRegeneration(1, 1, 'test@example.com');
-      manager.scheduleRegeneration(1, 1, 'test@example.com');
+      manager.scheduleRegeneration('1', '1', 'test@example.com');
+      manager.scheduleRegeneration('1', '1', 'test@example.com');
+      manager.scheduleRegeneration('1', '1', 'test@example.com');
 
       expect(mockApiHandler.generateNote).not.toHaveBeenCalled();
 
@@ -217,12 +217,12 @@ describe('AISuggestionManager', () => {
       const callback = vi.fn();
       manager.onStateChange(callback);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
       callback.mockClear();
 
       manager.destroy();
 
-      expect(manager.getSuggestion(1, 1)).toBeNull();
+      expect(manager.getSuggestion('1', '1')).toBeNull();
     });
   });
 });

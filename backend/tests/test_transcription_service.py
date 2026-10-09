@@ -62,7 +62,7 @@ class TestSubscribeToMeeting:
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
-            playlist_id=42,
+            playlist_id="42",
         )
 
         mock_transcription_provider.subscribe_to_meeting.assert_called_once()
@@ -77,10 +77,10 @@ class TestSubscribeToMeeting:
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
-            playlist_id=42,
+            playlist_id="42",
         )
 
-        assert service._meeting_to_playlist["google_meet:abc-def-ghi"] == 42
+        assert service._meeting_to_playlist["google_meet:abc-def-ghi"] == "42"
 
     @pytest.mark.asyncio
     async def test_tracks_subscribed_meetings(self, service):
@@ -88,7 +88,7 @@ class TestSubscribeToMeeting:
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
-            playlist_id=42,
+            playlist_id="42",
         )
 
         assert "google_meet:abc-def-ghi" in service._subscribed_meetings
@@ -101,12 +101,12 @@ class TestSubscribeToMeeting:
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
-            playlist_id=42,
+            playlist_id="42",
         )
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
-            playlist_id=42,
+            playlist_id="42",
         )
 
         assert mock_transcription_provider.subscribe_to_meeting.call_count == 1
@@ -119,7 +119,7 @@ class TestSubscribeToMeeting:
         await service.subscribe_to_meeting(
             platform="google_meet",
             meeting_id="abc-def-ghi",
-            playlist_id=42,
+            playlist_id="42",
         )
 
         assert "Transcription provider not initialized" in caplog.text
@@ -250,8 +250,8 @@ class TestResubscribeToActiveMeetings:
         """Sample playlist metadata."""
         return PlaylistMetadata(
             _id="meta123",
-            playlist_id=42,
-            in_review=5,
+            playlist_id="42",
+            in_review="5",
             meeting_id="abc-def-ghi",
             platform="google_meet",
             vexa_meeting_id=123,
@@ -317,8 +317,8 @@ class TestResubscribeToActiveMeetings:
         ]
         metadata = PlaylistMetadata(
             _id="meta123",
-            playlist_id=42,
-            in_review=5,
+            playlist_id="42",
+            in_review="5",
             meeting_id="abc-def-ghi",
         )
         mock_storage_provider.get_playlist_metadata_by_meeting_id.return_value = (
@@ -353,7 +353,7 @@ class TestResubscribeToActiveMeetings:
 
         await service.resubscribe_to_active_meetings()
 
-        assert service._meeting_to_playlist["google_meet:abc-def-ghi"] == 42
+        assert service._meeting_to_playlist["google_meet:abc-def-ghi"] == "42"
 
     @pytest.mark.asyncio
     async def test_skips_completed_bots(
@@ -502,7 +502,7 @@ class TestResubscribeToActiveMeetings:
             {
                 "platform": "google_meet",
                 "meeting_id": "abc-def-ghi",
-                "playlist_id": 42,
+                "playlist_id": "42",
                 "status": "in_meeting",
                 "recovered": True,
             },
@@ -519,16 +519,16 @@ class TestResubscribeToActiveMeetings:
         """Test that recovery publishes status for each active bot."""
         metadata1 = PlaylistMetadata(
             _id="meta1",
-            playlist_id=42,
-            in_review=5,
+            playlist_id="42",
+            in_review="5",
             meeting_id="abc-def-ghi",
             platform="google_meet",
             vexa_meeting_id=123,
         )
         metadata2 = PlaylistMetadata(
             _id="meta2",
-            playlist_id=43,
-            in_review=6,
+            playlist_id="43",
+            in_review="6",
             meeting_id="123456789",
             platform="zoom",
             vexa_meeting_id=456,
@@ -571,15 +571,15 @@ class TestOnTranscriptionUpdated:
             storage_provider=mock_storage_provider,
             event_publisher=mock_event_publisher,
         )
-        svc._meeting_to_playlist["google_meet:abc-def"] = 42
+        svc._meeting_to_playlist["google_meet:abc-def"] = "42"
         return svc
 
     @pytest.fixture
     def metadata(self):
         return PlaylistMetadata(
             _id="meta1",
-            playlist_id=42,
-            in_review=7,
+            playlist_id="42",
+            in_review="7",
             transcription_paused=False,
         )
 
@@ -623,8 +623,8 @@ class TestOnTranscriptionUpdated:
 
         mock_storage_provider.upsert_segment.assert_called_once()
         kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
-        assert kwargs["playlist_id"] == 42
-        assert kwargs["version_id"] == 7
+        assert kwargs["playlist_id"] == "42"
+        assert kwargs["version_id"] == "7"
         assert kwargs["segment_id"] == "abc:speaker-0:1"
         assert kwargs["data"].segment_id == "abc:speaker-0:1"
         assert kwargs["data"].completed is True
@@ -636,8 +636,8 @@ class TestOnTranscriptionUpdated:
         assert msg["speaker"] == "Alice"
         assert msg["confirmed"] == [seg]
         assert msg["pending"] == [{"segment_id": "p1"}]
-        assert msg["playlist_id"] == 42
-        assert msg["version_id"] == 7
+        assert msg["playlist_id"] == "42"
+        assert msg["version_id"] == "7"
         assert msg["ts"] == "2026-04-20T19:00:00.000Z"
 
     @pytest.mark.asyncio
@@ -678,7 +678,7 @@ class TestOnTranscriptionUpdated:
         self, service_ready, mock_storage_provider, mock_event_publisher
     ):
         mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
-            _id="m", playlist_id=42, in_review=None
+            _id="m", playlist_id="42", in_review=None
         )
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg()])
@@ -691,7 +691,7 @@ class TestOnTranscriptionUpdated:
         self, service_ready, mock_storage_provider, mock_event_publisher
     ):
         mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
-            _id="m", playlist_id=42, in_review=7, transcription_paused=True
+            _id="m", playlist_id="42", in_review="7", transcription_paused=True
         )
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg()])
@@ -707,8 +707,8 @@ class TestOnTranscriptionUpdated:
 
         mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
             _id="m",
-            playlist_id=42,
-            in_review=7,
+            playlist_id="42",
+            in_review="7",
             transcription_resumed_at=datetime(
                 2026, 4, 20, 19, 0, 30, tzinfo=timezone.utc
             ),
@@ -738,8 +738,8 @@ class TestOnTranscriptionUpdated:
 
         mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
             _id="m",
-            playlist_id=42,
-            in_review=7,
+            playlist_id="42",
+            in_review="7",
             transcription_resumed_at=datetime(2026, 4, 20, 19, 0, 30),
         )
 
@@ -762,8 +762,8 @@ class TestOnTranscriptionUpdated:
 
         mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
             _id="m",
-            playlist_id=42,
-            in_review=7,
+            playlist_id="42",
+            in_review="7",
             transcription_resumed_at=datetime(
                 2026, 4, 20, 19, 0, 30, tzinfo=timezone.utc
             ),
@@ -883,8 +883,8 @@ class TestIngestExtensionTranscript:
     def metadata(self):
         return PlaylistMetadata(
             _id="meta1",
-            playlist_id=42,
-            in_review=7,
+            playlist_id="42",
+            in_review="7",
             transcription_paused=False,
         )
 
@@ -928,15 +928,15 @@ class TestIngestExtensionTranscript:
 
         assert stored == 1
         kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
-        assert kwargs["playlist_id"] == 42
-        assert kwargs["version_id"] == 7
+        assert kwargs["playlist_id"] == "42"
+        assert kwargs["version_id"] == "7"
         assert kwargs["segment_id"] == "ext:speaker-0:1"
         assert kwargs["data"].speaker == "Alice"
 
         msg = mock_event_publisher.ws_manager.broadcast.call_args.args[0]
         assert msg["type"] == "transcript"
-        assert msg["playlist_id"] == 42
-        assert msg["version_id"] == 7
+        assert msg["playlist_id"] == "42"
+        assert msg["version_id"] == "7"
         assert msg["confirmed"] == [seg]
         assert msg["pending"] == [{"segment_id": "p1"}]
 
@@ -948,7 +948,7 @@ class TestIngestExtensionTranscript:
         await service_ready.ingest_extension_transcript(
             self._payload(playlist_id="42", confirmed=[self._seg()])
         )
-        mock_storage_provider.get_playlist_metadata.assert_awaited_with(42)
+        mock_storage_provider.get_playlist_metadata.assert_awaited_with("42")
 
     @pytest.mark.asyncio
     async def test_returns_zero_when_providers_missing(self, service_ready, caplog):
@@ -985,7 +985,7 @@ class TestIngestExtensionTranscript:
         self, service_ready, mock_storage_provider, mock_event_publisher
     ):
         mock_storage_provider.get_playlist_metadata.return_value = PlaylistMetadata(
-            _id="m", playlist_id=42, in_review=7, transcription_paused=True
+            _id="m", playlist_id="42", in_review="7", transcription_paused=True
         )
         stored = await service_ready.ingest_extension_transcript(
             self._payload(confirmed=[self._seg()])

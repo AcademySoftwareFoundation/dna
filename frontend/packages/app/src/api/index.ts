@@ -13,7 +13,7 @@ function useGetProjectsForUser(userEmail: string | null) {
   });
 }
 
-function useGetPlaylistsForProject(projectId: number | null) {
+function useGetPlaylistsForProject(projectId: string | null) {
   return useQuery<Playlist[], Error>({
     queryKey: ['playlists', projectId],
     queryFn: () => apiHandler.getPlaylistsForProject({ projectId: projectId! }),
@@ -21,7 +21,7 @@ function useGetPlaylistsForProject(projectId: number | null) {
   });
 }
 
-function useGetVersionsForPlaylist(playlistId: number | null) {
+function useGetVersionsForPlaylist(playlistId: string | null) {
   return useQuery<Version[], Error>({
     queryKey: ['versions', playlistId],
     queryFn: () =>

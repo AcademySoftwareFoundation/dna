@@ -4,12 +4,12 @@ import { EntityPill } from "./EntityPill";
 
 describe("EntityPill", () => {
     it("renders the entity name", () => {
-        render(<EntityPill entity={{ type: "user", id: 1, name: "John Smith" }} />);
+        render(<EntityPill entity={{ type: "user", id: "1", name: "John Smith" }} />);
         expect(screen.getByText("John Smith")).toBeInTheDocument();
     });
 
     it("does not show remove button when onRemove is undefined", () => {
-        render(<EntityPill entity={{ type: "user", id: 1, name: "John Smith" }} />);
+        render(<EntityPill entity={{ type: "user", id: "1", name: "John Smith" }} />);
         expect(screen.queryByLabelText("Remove John Smith")).toBeNull();
     });
 
@@ -17,7 +17,7 @@ describe("EntityPill", () => {
         const onRemove = vi.fn();
         render(
             <EntityPill
-                entity={{ type: "user", id: 1, name: "John Smith" }}
+                entity={{ type: "user", id: "1", name: "John Smith" }}
                 onRemove={onRemove}
             />
         );

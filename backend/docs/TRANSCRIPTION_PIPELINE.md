@@ -195,7 +195,7 @@ The central orchestrator for transcription logic. It bridges the Vexa provider w
 **Internal state:**
 ```
 _subscribed_meetings: set[str]          # e.g. {"google_meet:abc-def-ghi"}
-_meeting_to_playlist: dict[str, int]    # e.g. {"google_meet:abc-def-ghi": 42}
+_meeting_to_playlist: dict[str, str]    # e.g. {"google_meet:abc-def-ghi": "42"}
 ```
 
 **Key methods:**
@@ -548,7 +548,7 @@ Emitted whenever the bot's status changes throughout its lifecycle.
 | **Publisher** | API layer (on dispatch/stop), `TranscriptionService._on_vexa_event()` (on Vexa status updates), `resubscribe_to_active_meetings()` (on recovery) |
 | **Consumer** | Frontend `useTranscription` hook via `eventClient.subscribe('bot.status_changed', ...)` |
 | **Trigger** | Vexa `meeting.status` WebSocket message, API dispatch/stop calls, recovery resubscription |
-| **Payload** | `{platform: string, meeting_id: string, playlist_id?: number, status: string, recovered?: boolean, timestamp?: string}` |
+| **Payload** | `{platform: string, meeting_id: string, playlist_id?: string, status: string, recovered?: boolean, timestamp?: string}` |
 | **Downstream effects** | Frontend updates `BotSession` state; React Query cache for `['botStatus', platform, meetingId]` is updated; toast notifications for `waiting_room` status |
 
 #### `segment.created`
@@ -560,7 +560,7 @@ Emitted when a new transcript segment is persisted for the first time.
 | **Publisher** | `TranscriptionService.on_transcription_updated()` when `upsert_segment()` returns `is_new=True` |
 | **Consumer** | Frontend `useSegments` hook via `eventClient.subscribeToSegmentEvents()` |
 | **Trigger** | A new Vexa `transcript.mutable` segment with a `segment_id` not yet in MongoDB |
-| **Payload** | `{segment_id: string, playlist_id: number, version_id: number, text: string, speaker: string, absolute_start_time: string, absolute_end_time: string}` |
+| **Payload** | `{segment_id: string, playlist_id: string, version_id: string, text: string, speaker: string, absolute_start_time: string, absolute_end_time: string}` |
 | **Downstream effects** | Frontend appends the segment to the displayed transcript list |
 
 #### `segment.updated`
@@ -720,7 +720,7 @@ All events broadcast to the frontend follow this JSON format:
   "payload": {
     "platform": "google_meet",
     "meeting_id": "abc-def-ghi",
-    "playlist_id": 42,
+    "playlist_id": "42",
     "status": "transcribing",
     "recovered": false
   }
@@ -733,8 +733,8 @@ All events broadcast to the frontend follow this JSON format:
   "type": "segment.created",
   "payload": {
     "segment_id": "a3f2b1c4d5e6f7a8",
-    "playlist_id": 42,
-    "version_id": 5,
+    "playlist_id": "42",
+    "version_id": "5",
     "text": "Hello, this is a test.",
     "speaker": "John Doe",
     "absolute_start_time": "2026-01-23T04:00:00.000Z",
@@ -964,8 +964,8 @@ Links a playlist to its associated meeting and controls transcription behavior.
 ```python
 class PlaylistMetadata(BaseModel):
     id: str                                  # MongoDB _id
-    playlist_id: int                         # Unique playlist identifier
-    in_review: int | None                    # Version ID currently in review (segments target this version)
+    playlist_id: str                         # Unique playlist identifier
+    in_review: str | None                    # Version ID currently in review (segments target this version)
     meeting_id: str | None                   # Native meeting ID (e.g., "abc-def-ghi")
     platform: str | None                     # "google_meet" or "teams"
     vexa_meeting_id: int | None              # Vexa's internal meeting ID (for WebSocket routing)
@@ -979,7 +979,7 @@ Used when updating playlist metadata fields.
 
 ```python
 class PlaylistMetadataUpdate(BaseModel):
-    in_review: int | None
+    in_review: str | None
     meeting_id: str | None
     platform: str | None
     vexa_meeting_id: int | None
@@ -995,8 +995,8 @@ A persisted transcript segment in MongoDB.
 class StoredSegment(BaseModel):
     id: str                     # MongoDB _id
     segment_id: str             # Deterministic hash ID (16 hex chars)
-    playlist_id: int
-    version_id: int
+    playlist_id: str
+    version_id: str
     text: str                   # Transcript text content
     speaker: str | None         # Speaker name (may be reassigned by Vexa)
     language: str | None        # Language code (e.g., "en")
@@ -1029,7 +1029,7 @@ Returned from the dispatch endpoint and used as the primary bot state in the fro
 class BotSession(BaseModel):
     platform: Platform          # "google_meet" or "teams"
     meeting_id: str             # Native meeting ID
-    playlist_id: int
+    playlist_id: str
     status: BotStatusEnum       # Current lifecycle state
     vexa_meeting_id: int | None # Vexa's internal meeting ID
     bot_name: str | None        # Custom bot display name
@@ -1059,7 +1059,7 @@ Request body for dispatching a bot.
 class DispatchBotRequest(BaseModel):
     platform: Platform          # "google_meet" or "teams"
     meeting_id: str             # Native meeting ID for the platform
-    playlist_id: int            # Playlist to associate with this meeting
+    playlist_id: str            # Playlist to associate with this meeting
     passcode: str | None        # Passcode for Teams meetings
     bot_name: str | None        # Custom bot display name
     language: str | None        # Transcription language preference
@@ -1086,7 +1086,7 @@ Dispatch a transcription bot to a meeting.
 {
   "platform": "google_meet",
   "meeting_id": "abc-def-ghi",
-  "playlist_id": 42,
+  "playlist_id": "42",
   "passcode": null,
   "bot_name": "DNA Bot",
   "language": "en"
@@ -1098,7 +1098,7 @@ Dispatch a transcription bot to a meeting.
 {
   "platform": "google_meet",
   "meeting_id": "abc-def-ghi",
-  "playlist_id": 42,
+  "playlist_id": "42",
   "status": "joining",
   "vexa_meeting_id": 123,
   "bot_name": "DNA Bot",
@@ -1162,8 +1162,8 @@ Get stored segments for a specific playlist version.
   {
     "_id": "mongo_object_id",
     "segment_id": "a3f2b1c4d5e6f7a8",
-    "playlist_id": 42,
-    "version_id": 5,
+    "playlist_id": "42",
+    "version_id": "5",
     "text": "Hello, this is a test.",
     "speaker": "John Doe",
     "language": "en",

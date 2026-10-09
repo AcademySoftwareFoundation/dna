@@ -13,7 +13,7 @@ vi.mock('../api', () => ({
 
 const mockedSearch = vi.mocked(apiHandler.searchEntities);
 
-function createWrapper(projectId: number | null) {
+function createWrapper(projectId: string | null) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0 },
@@ -39,7 +39,7 @@ describe('MentionIndexProvider', () => {
   it('prefetches one search per entity type when projectId is set', async () => {
     mockedSearch.mockResolvedValue([]);
     const { result } = renderHook(() => useMentionIndex(), {
-      wrapper: createWrapper(42),
+      wrapper: createWrapper('42'),
     });
 
     await waitFor(() => expect(mockedSearch).toHaveBeenCalledTimes(5));
@@ -47,7 +47,7 @@ describe('MentionIndexProvider', () => {
     expect(mockedSearch).toHaveBeenCalledWith(
       expect.objectContaining({
         query: '',
-        projectId: 42,
+        projectId: "42",
       })
     );
   });

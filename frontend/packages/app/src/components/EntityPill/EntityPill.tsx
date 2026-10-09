@@ -25,7 +25,7 @@ export type EntityType =
 
 export interface EntityPillEntity {
     type: EntityType;
-    id: number;
+    id: string;
     name: string;
 }
 

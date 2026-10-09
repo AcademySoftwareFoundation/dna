@@ -25,7 +25,7 @@ export interface StagedAttachment {
 }
 
 interface NoteEditorProps {
-  projectId?: number | null;
+  projectId?: string | null;
   currentVersion?: Version | null;
   draftNote: LocalDraftNote | null;
   updateDraftNote: (updates: Partial<LocalDraftNote>) => void;
@@ -362,7 +362,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
     const attachmentsRef = useRef<StagedAttachment[]>([]);
     const attachmentsByVersion = useRef<
-      Map<number | null | undefined, StagedAttachment[]>
+      Map<string | null | undefined, StagedAttachment[]>
     >(new Map());
     const versionIdRef = useRef(currentVersion?.id);
 
