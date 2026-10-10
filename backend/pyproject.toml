@@ -1,3 +1,34 @@
+[project]
+name = "dna-backend"
+version = "0.0.0"
+# Matches backend/Dockerfile (python:3.11-slim).
+requires-python = "==3.11.*"
+dependencies = [
+    "fastapi==0.104.1",
+    "uvicorn[standard]==0.24.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.8.1",
+    "instructor==1.15.1",
+    "pytest==7.4.3",
+    "pytest-cov==4.1.0",
+    "pytest-asyncio==0.21.1",
+    "httpx==0.25.2",
+    "shotgun_api3==3.9.2",
+    "ftrack-python-api==3.0.6",
+    "pymongo==4.10.1",
+    "websockets==12.0",
+    "openai==2.36.0",
+    "anthropic>=0.49,<1.0",
+    "google-auth==2.0.0",
+    "requests==2.32.3",
+    "python-multipart==0.0.9",
+    "PyYAML==6.0.1",
+]
+
+[tool.uv]
+# The backend runs from src/ on PYTHONPATH; it is not an installable package.
+package = false
+
 [tool.isort]
 profile = "black"
 src_paths = ["dna", "tests"]

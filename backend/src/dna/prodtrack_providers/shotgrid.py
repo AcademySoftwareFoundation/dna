@@ -1192,6 +1192,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         except Exception:
             return False
 
+    def transcript_entity_type(self) -> str:
+        """Site-specific custom-entity slot transcripts are written into."""
+        return _transcript_entity_type()
+
     def publish_transcript(
         self,
         *,

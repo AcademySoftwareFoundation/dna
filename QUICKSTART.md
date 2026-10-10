@@ -278,7 +278,16 @@ The React app will be available at `http://localhost:5173`.
 | `SHOTGRID_URL` | Yes\* | - | ShotGrid site URL (required when using ShotGrid) |
 | `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
 | `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
-| `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
+| `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid`, `ftrack` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
+| `FTRACK_SERVER` | Yes\* | - | ftrack server URL (required when `PRODTRACK_PROVIDER=ftrack`) |
+| `FTRACK_API_KEY` | Yes\* | - | ftrack API key (required when `PRODTRACK_PROVIDER=ftrack`) |
+| `FTRACK_API_USER` | Yes\* | - | ftrack API user (required when `PRODTRACK_PROVIDER=ftrack`) |
+| `FTRACK_PLAYLIST_ENTITY` | No | `AssetVersionList` | Which ftrack entity acts as a playlist: `AssetVersionList` (Lists) or `ReviewSession` (Client Reviews) |
+| `FTRACK_ID_MAP` | No | `mongodb` | Where the ftrack UUID-to-int id map is persisted: `mongodb`, `sqlite` or `memory` |
+| `FTRACK_ID_MAP_PATH` | No | `/tmp/dna_ftrack_id_map.db` | SQLite file for the id map when `FTRACK_ID_MAP=sqlite` |
+| `FTRACK_CACHE_SECONDS` | No | `300` | How long ftrack project and version-status lookups are reused; `0` disables |
+| `FTRACK_MOVIE_COMPONENTS` | No | - | Component names to resolve `movie_path` from, most preferred first (e.g. `movie,main`); empty means no path |
+| `FTRACK_FRAME_COMPONENTS` | No | - | Component names to resolve `frame_path` from, most preferred first |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |
