@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import {
   PanelLeftClose,
   PanelLeft,
@@ -25,7 +25,13 @@ import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { scopePublishToVersion } from './publishScope';
-import { buildReviewRows, chooseCsvDestination, toCsv } from './reviewCsv';
+import { toCsv } from './reviewCsv';
+import {
+  CSV_FILE,
+  PDF_FILE,
+  buildReviewRows,
+  chooseSaveDestination,
+} from './reviewExport';
 import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
@@ -377,18 +383,24 @@ export function Sidebar({
   };
 
   const { showToast } = useToast();
-  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const theme = useTheme();
+  const [exportingFormat, setExportingFormat] = useState<
+    'csv' | 'pdf' | null
+  >(null);
 
-  const handleExportCsv = async () => {
+  const handleExport = async (format: 'csv' | 'pdf') => {
     if (!playlistId) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const label = format.toUpperCase();
+    const exportedAt = new Date();
+    const today = exportedAt.toISOString().slice(0, 10);
     try {
       // The save dialog needs the click's user gesture, so it goes first.
-      const write = await chooseCsvDestination(
-        `dna-review-playlist-${playlistId}-${today}.csv`
+      const write = await chooseSaveDestination(
+        `dna-review-playlist-${playlistId}-${today}.${format}`,
+        format === 'csv' ? CSV_FILE : PDF_FILE
       );
       if (!write) return;
-      setIsExportingCsv(true);
+      setExportingFormat(format);
 
       const exportVersions = [
         ...(hasScratch ? [scratchVersion] : []),
@@ -416,20 +428,41 @@ export function Sidebar({
         new Map(segmentEntries),
         userEmail
       );
-      await write(toCsv(rows));
+      if (format === 'csv') {
+        await write(
+          new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' })
+        );
+      } else {
+        const [{ renderReviewPdf, loadThumbnails }, statuses] =
+          await Promise.all([
+            import('./reviewPdf'),
+            // Display names are a nicety; fall back to status codes.
+            apiHandler
+              .getVersionStatuses({ projectId: projectId ?? undefined })
+              .catch(() => []),
+          ]);
+        const blob = await renderReviewPdf(rows, {
+          title: `Playlist ${playlistId}`,
+          exportedAt,
+          accent: theme.colors.accent.main,
+          statusNames: new Map(statuses.map((s) => [s.code, s.name])),
+          thumbnails: await loadThumbnails(rows),
+        });
+        await write(blob);
+      }
       showToast({
-        title: 'CSV exported',
+        title: `${label} exported`,
         description: `${rows.length} version${rows.length === 1 ? '' : 's'} saved.`,
         type: 'success',
       });
     } catch (err) {
       showToast({
-        title: 'CSV export failed',
+        title: `${label} export failed`,
         description: err instanceof Error ? err.message : String(err),
         type: 'error',
       });
     } finally {
-      setIsExportingCsv(false);
+      setExportingFormat(null);
     }
   };
 
@@ -617,10 +650,20 @@ export function Sidebar({
                       Publish Selected
                     </DropdownMenu.Item>
                     <DropdownMenu.Item
-                      disabled={!playlistId || isExportingCsv}
-                      onSelect={() => void handleExportCsv()}
+                      disabled={!playlistId || exportingFormat !== null}
+                      onSelect={() => void handleExport('csv')}
                     >
-                      {isExportingCsv ? 'Exporting CSV…' : 'Export CSV'}
+                      {exportingFormat === 'csv'
+                        ? 'Exporting CSV…'
+                        : 'Export CSV'}
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      disabled={!playlistId || exportingFormat !== null}
+                      onSelect={() => void handleExport('pdf')}
+                    >
+                      {exportingFormat === 'pdf'
+                        ? 'Exporting PDF…'
+                        : 'Export PDF'}
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
