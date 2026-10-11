@@ -25,6 +25,7 @@ import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { scopePublishToVersion } from './publishScope';
+import { buildReviewRows, chooseCsvDestination, toCsv } from './reviewCsv';
 import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
@@ -33,7 +34,7 @@ import {
   useSetInReview,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
-import { useFeatureFlags } from '../contexts';
+import { useFeatureFlags, useToast } from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -375,6 +376,63 @@ export function Sidebar({
     onVersionSelect?.(scratchVersion);
   };
 
+  const { showToast } = useToast();
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    if (!playlistId) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      // The save dialog needs the click's user gesture, so it goes first.
+      const write = await chooseCsvDestination(
+        `dna-review-playlist-${playlistId}-${today}.csv`
+      );
+      if (!write) return;
+      setIsExportingCsv(true);
+
+      const exportVersions = [
+        ...(hasScratch ? [scratchVersion] : []),
+        ...(versions ?? []),
+      ];
+      // Fetched fresh so the file reflects the latest saved notes.
+      const [notes, segmentEntries] = await Promise.all([
+        apiHandler.getPlaylistDraftNotes(playlistId),
+        Promise.all(
+          exportVersions.map(async (v) => {
+            const segments = transcriptionEnabled
+              ? await apiHandler.getSegmentsForVersion({
+                  playlistId,
+                  versionId: v.id,
+                })
+              : [];
+            return [v.id, segments] as const;
+          })
+        ),
+      ]);
+
+      const rows = buildReviewRows(
+        exportVersions,
+        notes,
+        new Map(segmentEntries),
+        userEmail
+      );
+      await write(toCsv(rows));
+      showToast({
+        title: 'CSV exported',
+        description: `${rows.length} version${rows.length === 1 ? '' : 's'} saved.`,
+        type: 'success',
+      });
+    } catch (err) {
+      showToast({
+        title: 'CSV export failed',
+        description: err instanceof Error ? err.message : String(err),
+        type: 'error',
+      });
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
   const handleRemoveScratch = () => {
     if (!playlistId) return;
     void upsertPlaylistMetadata.mutateAsync({ has_scratch: false });
@@ -557,6 +615,12 @@ export function Sidebar({
                       onSelect={() => setPublishScope('selected')}
                     >
                       Publish Selected
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      disabled={!playlistId || isExportingCsv}
+                      onSelect={() => void handleExportCsv()}
+                    >
+                      {isExportingCsv ? 'Exporting CSV…' : 'Export CSV'}
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
