@@ -45,37 +45,41 @@ export const ACCENTS = {
       gradient: 'linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%)',
     },
   },
+  // Blue, green and pink take their values straight from the Radix scale so
+  // styled-components and Radix controls match: main = step 9 (solid),
+  // hover = light-mode step 10, gradient runs to dark-mode step 10.
   blue: {
     label: 'Blue',
-    radix: 'blue',
+    // Radix's 'blue' solid is a bright #0090ff; indigo is the deeper blue.
+    radix: 'indigo',
     colors: {
-      main: '#3b82f6',
-      hover: '#2563eb',
-      subtle: 'rgba(59, 130, 246, 0.12)',
-      glow: 'rgba(59, 130, 246, 0.25)',
-      gradient: 'linear-gradient(135deg, #3b82f6 0%, #38bdf8 100%)',
+      main: '#3e63dd',
+      hover: '#3358d4',
+      subtle: 'rgba(62, 99, 221, 0.12)',
+      glow: 'rgba(62, 99, 221, 0.25)',
+      gradient: 'linear-gradient(135deg, #3e63dd 0%, #5472e4 100%)',
     },
   },
   green: {
     label: 'Green',
     radix: 'jade',
     colors: {
-      main: '#10b981',
-      hover: '#059669',
-      subtle: 'rgba(16, 185, 129, 0.12)',
-      glow: 'rgba(16, 185, 129, 0.25)',
-      gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+      main: '#29a383',
+      hover: '#26997b',
+      subtle: 'rgba(41, 163, 131, 0.12)',
+      glow: 'rgba(41, 163, 131, 0.25)',
+      gradient: 'linear-gradient(135deg, #29a383 0%, #27b08b 100%)',
     },
   },
   pink: {
     label: 'Pink',
     radix: 'crimson',
     colors: {
-      main: '#f43f5e',
-      hover: '#e11d48',
-      subtle: 'rgba(244, 63, 94, 0.12)',
-      glow: 'rgba(244, 63, 94, 0.25)',
-      gradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 100%)',
+      main: '#e93d82',
+      hover: '#df3478',
+      subtle: 'rgba(233, 61, 130, 0.12)',
+      glow: 'rgba(233, 61, 130, 0.25)',
+      gradient: 'linear-gradient(135deg, #e93d82 0%, #ee518a 100%)',
     },
   },
 } as const;
