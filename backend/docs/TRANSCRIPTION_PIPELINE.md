@@ -1374,14 +1374,15 @@ POST /playlists/{playlist_id}/publish-transcript {version_id}
 ### ShotGrid side
 
 Publishes a row into `SHOTGRID_TRANSCRIPT_ENTITY` (default `CustomEntity01`).
-Payload mapping:
+Site setup (entity, fields, permissions) is in the
+[ShotGrid Configuration Guide](SHOTGRID_SETUP.md). Payload mapping:
 
 | DNA field | ShotGrid field |
 |-----------|----------------|
 | `code` (auto) | `code` |
 | `project_id` | `project` |
 | `playlist_id` | `sg_playlist` |
-| `[version_id]` | `sg_versions` |
+| `version_id` | `sg_version_in_review` |
 | `meeting_id` | `sg_meeting_id` |
 | `meeting_date` | `sg_meeting_date` |
 | `platform` | `sg_platform` |
