@@ -123,7 +123,8 @@
 
   function updateBadge() {
     const action = chrome.action;
-    if (!action) return;
+    // No tabCapture (e.g. Firefox): transcription can't run, so no status dot.
+    if (!action || !chrome.tabCapture) return;
     stopBlink();
     const colors = {
       connected: '#22c55e',

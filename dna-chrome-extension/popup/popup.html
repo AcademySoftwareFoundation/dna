@@ -10,8 +10,8 @@
     <header class="header">
       <img class="logo" src="../icons/icon32.png" alt="DNA" />
       <div class="header-text">
-        <div class="title">DNA Transcription</div>
-        <div class="status-line">
+        <div id="title" class="title">DNA Transcription</div>
+        <div id="statusLine" class="status-line">
           <span id="statusDot" class="dot dot-disconnected"></span>
           <span id="statusLabel">Disconnected</span>
         </div>
@@ -26,32 +26,48 @@
     <main>
       <section id="tab-status" class="panel panel-active">
         <div class="row">
-          <label for="dnaKey">DNA key</label>
+          <label for="dnaUrl">DNA app URL</label>
           <input
-            id="dnaKey"
-            type="password"
+            id="dnaUrl"
+            type="url"
             autocomplete="off"
-            placeholder="Paste your DNA extension key"
+            placeholder="https://dna.example.com"
           />
-          <button id="saveKey" class="btn btn-ghost" title="Save key">Save</button>
-        </div>
-        <p id="keyHint" class="hint"></p>
-
-        <div class="row">
-          <label for="meetTab">Google Meet tab</label>
-          <select id="meetTab">
-            <option value="">No Meet tabs found</option>
-          </select>
-          <button id="refreshTabs" class="btn btn-ghost" title="Refresh">
-            &#x21bb;
+          <button id="saveDnaUrl" class="btn btn-ghost" title="Save DNA URL">
+            Save
           </button>
         </div>
+        <p id="dnaUrlHint" class="hint"></p>
 
-        <button id="grantBtn" class="btn btn-primary">
-          Grant permission &amp; start
-        </button>
+        <div id="transcriptionControls">
+          <div class="row">
+            <label for="dnaKey">DNA key</label>
+            <input
+              id="dnaKey"
+              type="password"
+              autocomplete="off"
+              placeholder="Paste your DNA extension key"
+            />
+            <button id="saveKey" class="btn btn-ghost" title="Save key">Save</button>
+          </div>
+          <p id="keyHint" class="hint"></p>
 
-        <p id="hint" class="hint"></p>
+          <div class="row">
+            <label for="meetTab">Google Meet tab</label>
+            <select id="meetTab">
+              <option value="">No Meet tabs found</option>
+            </select>
+            <button id="refreshTabs" class="btn btn-ghost" title="Refresh">
+              &#x21bb;
+            </button>
+          </div>
+
+          <button id="grantBtn" class="btn btn-primary">
+            Grant permission &amp; start
+          </button>
+
+          <p id="hint" class="hint"></p>
+        </div>
       </section>
 
       <section id="tab-debug" class="panel">

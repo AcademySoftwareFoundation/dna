@@ -1446,6 +1446,13 @@ Both routes coexist and reuse the same storage + `/ws` broadcast, so the
 frontend `TranscriptManager` consumes identical `{type:"transcript", ...}`
 frames regardless of source.
 
+**Browser support:** this route is Chrome-only. It depends on `tabCapture` and
+offscreen documents, which Firefox doesn't provide. The same extension runs in
+Firefox for production-tracking tab sync only, and its popup hides the
+transcription controls there. The `PING_TRANSCRIPTION` / `ACTIVATE_TRANSCRIPTION`
+handshake goes only through `externally_connectable`; it is not relayed through
+the Firefox page bridge (see `dna-chrome-extension/README.md`).
+
 ### Data flow
 
 ```mermaid
@@ -1497,7 +1504,7 @@ healthy and streaming).
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_TRANSCRIPTION_EXTENSION_ID` | Chrome extension ID (enables the extension UI). |
+| `VITE_TRANSCRIPTION_EXTENSION_ID` | Chrome extension ID (enables the extension UI; transcription is Chrome-only). |
 | `VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL` | Install link shown when the extension is not detected. |
 | `VITE_WHISPERLIVE_URL` | WhisperLive WS URL the extension streams audio to (e.g. `ws://localhost:9090`). |
 | `VITE_FEATURE_EXTENSION_TRANSCRIPTION` | Optional lock for the extension UI. |

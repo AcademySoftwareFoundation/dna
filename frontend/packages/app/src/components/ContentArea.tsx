@@ -207,7 +207,7 @@ export function ContentArea({
       ? (version?.prodtrack_entity_detail_url ?? version?.prodtrack_detail_url)
       : version?.prodtrack_detail_url;
 
-  const { extensionId, syncProdtrackTab: handleSyncProdtrackTab } =
+  const { extensionAvailable, syncProdtrackTab: handleSyncProdtrackTab } =
     useProdtrackTabSync({
       activeProdtrackUrl,
       versionId: version?.id ?? null,
@@ -216,7 +216,7 @@ export function ContentArea({
 
   const syncProdtrackTitle = !activeProdtrackUrl
     ? 'Production tracking URL is not available for this version.'
-    : extensionId
+    : extensionAvailable
       ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
       : 'Open production tracking in a new browser tab.';
 
@@ -283,8 +283,10 @@ export function ContentArea({
         onSetInReview={handleSetInReview}
         onVersionStatusChange={handleVersionStatusChange}
         prodtrackDetailUrl={activeProdtrackUrl}
-        prodtrackTabUsesExtension={!!extensionId}
-        onSyncProdtrackTab={extensionId ? handleSyncProdtrackTab : undefined}
+        prodtrackTabUsesExtension={extensionAvailable}
+        onSyncProdtrackTab={
+          extensionAvailable ? handleSyncProdtrackTab : undefined
+        }
         syncProdtrackDisabled={syncProdtrackDisabled}
         syncProdtrackTitle={syncProdtrackTitle}
         canGoBack={canGoBack}
