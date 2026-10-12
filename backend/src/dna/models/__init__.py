@@ -34,6 +34,7 @@ from dna.models.project_glossary import (
 )
 from dna.models.published_transcript import (
     PublishedTranscript,
+    PublishedTranscriptSummary,
     PublishedTranscriptUpdate,
 )
 from dna.models.qc_check import (
@@ -129,6 +130,7 @@ __all__ = [
     "ProjectGlossary",
     "ProjectGlossaryUpdate",
     "PublishedTranscript",
+    "PublishedTranscriptSummary",
     "PublishedTranscriptUpdate",
     "StoredSegment",
     "StoredSegmentCreate",

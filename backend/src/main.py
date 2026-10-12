@@ -57,6 +57,7 @@ from dna.models import (
     Project,
     ProjectGlossary,
     ProjectGlossaryUpdate,
+    PublishedTranscriptSummary,
     PublishedTranscriptUpdate,
     PublishNotesRequest,
     PublishNotesResponse,
@@ -1242,7 +1243,10 @@ async def publish_transcript(
     if not _transcript_publish_enabled():
         raise HTTPException(status_code=404, detail="Not Found")
 
-    from dna.transcription_publish import build_transcript_payload
+    from dna.transcription_publish import (
+        build_transcript_payload,
+        transcript_entity_name,
+    )
 
     metadata = await storage.get_playlist_metadata(playlist_id)
     if metadata is None or not metadata.meeting_id:
@@ -1337,6 +1341,10 @@ async def publish_transcript(
         raise HTTPException(status_code=501, detail=str(e))
 
     entity_type = os.getenv("SHOTGRID_TRANSCRIPT_ENTITY", "CustomEntity01")
+    # The row keeps the name it was created with; updates don't rename it.
+    name = (existing.name if existing else None) or transcript_entity_name(
+        request.version_id, payload.meeting_date
+    )
     try:
         await storage.upsert_published_transcript(
             PublishedTranscriptUpdate(
@@ -1345,6 +1353,7 @@ async def publish_transcript(
                 meeting_id=metadata.meeting_id,
                 entity_type=entity_type,
                 entity_id=entity_id,
+                name=name,
                 author_email=current_user,
                 body_hash=payload.body_hash,
                 segments_count=payload.segments_count,
@@ -1377,6 +1386,52 @@ async def publish_transcript(
         outcome=outcome,
         segments_count=payload.segments_count,
     )
+
+
+@app.get(
+    "/playlists/{playlist_id}/published-transcripts",
+    tags=["Playlists", "Transcription"],
+    summary="List a playlist's published transcripts",
+    description=(
+        "Transcript rows already pushed to the production tracking system for "
+        "this playlist, with their names. Empty when none were published."
+    ),
+    response_model=list[PublishedTranscriptSummary],
+)
+async def get_published_transcripts(
+    playlist_id: str,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> list[PublishedTranscriptSummary]:
+    """List published transcript rows for a playlist."""
+    from dna.transcription_publish import (
+        build_transcript_payload,
+        transcript_entity_name,
+    )
+
+    summaries = []
+    for row in await storage.get_published_transcripts_for_playlist(playlist_id):
+        name = row.name
+        if not name:
+            # Published before names were recorded: rebuild it the way the row
+            # was named, from the first segment's date.
+            segments = await storage.get_segments_for_version(
+                playlist_id, row.version_id
+            )
+            name = transcript_entity_name(
+                row.version_id, build_transcript_payload(segments).meeting_date
+            )
+        summaries.append(
+            PublishedTranscriptSummary(
+                version_id=row.version_id,
+                meeting_id=row.meeting_id,
+                entity_type=row.entity_type,
+                entity_id=row.entity_id,
+                name=name,
+                updated_at=row.updated_at,
+            )
+        )
+    return summaries
 
 
 # -----------------------------------------------------------------------------

@@ -548,6 +548,17 @@ export interface PublishTranscriptParams {
   request: PublishTranscriptRequest;
 }
 
+/** A transcript row already pushed to the production tracking system. */
+export interface PublishedTranscriptSummary {
+  version_id: string;
+  meeting_id: string;
+  entity_type: string;
+  entity_id: string;
+  /** Row name in the tracking system, e.g. "transcript-7056-2026-08-12". */
+  name: string;
+  updated_at: string;
+}
+
 export type NoteQCSeverity = 'warning' | 'error';
 
 export interface NoteQCCheck {

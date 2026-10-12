@@ -144,6 +144,12 @@ class StorageProviderBase:
         """Get the published-transcript record for a (playlist, version, meeting)."""
         raise NotImplementedError()
 
+    async def get_published_transcripts_for_playlist(
+        self, playlist_id: str
+    ) -> list["PublishedTranscript"]:
+        """Get every published-transcript record for a playlist."""
+        raise NotImplementedError()
+
     async def upsert_published_transcript(
         self, data: "PublishedTranscriptUpdate"
     ) -> "PublishedTranscript":

@@ -66,6 +66,11 @@ def build_transcript_payload(segments: list[StoredSegment]) -> TranscriptPayload
     )
 
 
+def transcript_entity_name(version_id: str, meeting_date: date) -> str:
+    """Human-readable name (SG ``code``) of a version's transcript row."""
+    return f"transcript-{version_id}-{meeting_date.isoformat()}"
+
+
 def _first_segment_date(ordered: list[StoredSegment]) -> date:
     if not ordered:
         return datetime.now(timezone.utc).date()

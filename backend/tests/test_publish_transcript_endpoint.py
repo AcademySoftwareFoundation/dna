@@ -44,7 +44,7 @@ def _metadata(
     )
 
 
-def _published(body_hash: str) -> PublishedTranscript:
+def _published(body_hash: str, name: str | None = None) -> PublishedTranscript:
     now = datetime.now(timezone.utc)
     return PublishedTranscript(
         _id="pt-id",
@@ -53,6 +53,7 @@ def _published(body_hash: str) -> PublishedTranscript:
         meeting_id="m-abc",
         entity_type="CustomEntity01",
         entity_id="9001",
+        name=name,
         author_email="user@test.com",
         body_hash=body_hash,
         segments_count=1,
@@ -136,6 +137,8 @@ class TestPublishTranscriptEndpoint:
         assert "A: hello" in kwargs["body"]
 
         mock_storage.upsert_published_transcript.assert_awaited_once()
+        stored = mock_storage.upsert_published_transcript.call_args.args[0]
+        assert stored.name == "transcript-101-2026-04-15"
 
     def test_republish_same_body_skips(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -193,6 +196,29 @@ class TestPublishTranscriptEndpoint:
         kwargs = mock_prodtrack.update_transcript.call_args.kwargs
         assert kwargs["entity_id"] == "9001"
         assert "A: new content" in kwargs["body"]
+
+    def test_republish_keeps_the_original_name(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Updates don't rename the SG row, so the stored name must not change."""
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-16T10:00:00Z", "later content")
+        ]
+        mock_storage.get_published_transcript.return_value = _published(
+            "old-hash", name="transcript-101-2026-04-15"
+        )
+        mock_prodtrack.update_transcript.return_value = True
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": "101"},
+            )
+
+        assert response.status_code == 200
+        stored = mock_storage.upsert_published_transcript.call_args.args[0]
+        assert stored.name == "transcript-101-2026-04-15"
 
     def test_missing_playlist_metadata_is_422(
         self, client, mock_storage, mock_prodtrack, override_deps
@@ -402,3 +428,64 @@ class TestPublishTranscriptEndpoint:
         assert response.status_code == 500
         # entity_id must be in the message so the operator can find the SG row.
         assert "9001" in response.json()["detail"]
+
+
+class TestGetPublishedTranscriptsEndpoint:
+    """Behavior tests for GET /playlists/{id}/published-transcripts."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    @pytest.fixture
+    def mock_storage(self):
+        return mock.AsyncMock()
+
+    @pytest.fixture
+    def override_deps(self, mock_storage):
+        app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
+        yield
+        app.dependency_overrides.clear()
+
+    def test_lists_rows_with_their_names(self, client, mock_storage, override_deps):
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _published("hash", name="transcript-101-2026-04-15")
+        ]
+
+        response = client.get("/playlists/42/published-transcripts")
+
+        assert response.status_code == 200
+        [row] = response.json()
+        assert row["version_id"] == "101"
+        assert row["entity_type"] == "CustomEntity01"
+        assert row["entity_id"] == "9001"
+        assert row["name"] == "transcript-101-2026-04-15"
+        mock_storage.get_published_transcripts_for_playlist.assert_awaited_once_with(
+            "42"
+        )
+        mock_storage.get_segments_for_version.assert_not_called()
+
+    def test_rebuilds_the_name_for_rows_published_before_it_was_stored(
+        self, client, mock_storage, override_deps
+    ):
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _published("hash")
+        ]
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "hello")
+        ]
+
+        response = client.get("/playlists/42/published-transcripts")
+
+        assert response.status_code == 200
+        assert response.json()[0]["name"] == "transcript-101-2026-04-15"
+
+    def test_empty_when_nothing_was_published(
+        self, client, mock_storage, override_deps
+    ):
+        mock_storage.get_published_transcripts_for_playlist.return_value = []
+
+        response = client.get("/playlists/42/published-transcripts")
+
+        assert response.status_code == 200
+        assert response.json() == []

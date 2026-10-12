@@ -22,6 +22,9 @@ class PublishedTranscriptUpdate(BaseModel):
         description="Custom entity type in the tracking system (e.g. CustomEntity01)"
     )
     entity_id: str = Field(description="ID of the row created in tracking system")
+    name: Optional[str] = Field(
+        default=None, description="Row name in the tracking system (SG code)"
+    )
     author_email: str
     body_hash: str = Field(description="sha256 of the published body for idempotence")
     segments_count: int
@@ -38,8 +41,21 @@ class PublishedTranscript(BaseModel):
     meeting_id: str
     entity_type: str
     entity_id: str
+    # Absent on rows published before the name was recorded.
+    name: Optional[str] = None
     author_email: str
     body_hash: str
     segments_count: int
     created_at: datetime
+    updated_at: datetime
+
+
+class PublishedTranscriptSummary(BaseModel):
+    """A playlist's published transcript, as listed for clients."""
+
+    version_id: str
+    meeting_id: str
+    entity_type: str
+    entity_id: str
+    name: str = Field(description="Row name in the tracking system (SG code)")
     updated_at: datetime

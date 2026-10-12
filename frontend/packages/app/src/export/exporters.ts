@@ -2,6 +2,7 @@ import {
   CSV_FIELD_NAMES,
   createCsvExporter,
   parseCsvColumns,
+  type CsvColumn,
   type ExportFileType,
   type Exporter,
 } from '@dna/core';
@@ -28,8 +29,11 @@ export function createPdfExporter({ accent }: { accent: string }): Exporter {
   };
 }
 
-/** CSV columns from VITE_REVIEW_CSV_COLUMNS (see .env.example), else defaults. */
-function csvColumnsFromEnv() {
+/**
+ * CSV columns from VITE_REVIEW_CSV_COLUMNS (see .env.example). Unset (empty):
+ * ShotGrid's Note columns.
+ */
+function csvColumnsFromEnv(): CsvColumn[] {
   const { columns, unknown } = parseCsvColumns(
     import.meta.env.VITE_REVIEW_CSV_COLUMNS
   );

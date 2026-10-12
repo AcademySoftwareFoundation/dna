@@ -30,6 +30,7 @@ import {
   PublishNotesResponse,
   PublishTranscriptParams,
   PublishTranscriptResponse,
+  PublishedTranscriptSummary,
   UpdateVersionStatusParams,
   UpdateVersionStatusResponse,
   DraftNote,
@@ -391,6 +392,14 @@ class ApiHandler {
     return this.post<PublishTranscriptResponse>(
       `/playlists/${params.playlistId}/publish-transcript`,
       params.request
+    );
+  }
+
+  async getPublishedTranscripts(
+    playlistId: string
+  ): Promise<PublishedTranscriptSummary[]> {
+    return this.get<PublishedTranscriptSummary[]>(
+      `/playlists/${encodeURIComponent(playlistId)}/published-transcripts`
     );
   }
 

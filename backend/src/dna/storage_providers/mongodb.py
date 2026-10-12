@@ -434,6 +434,19 @@ class MongoDBStorageProvider(StorageProviderBase):
             return PublishedTranscript(**doc)
         return None
 
+    async def get_published_transcripts_for_playlist(
+        self, playlist_id: str
+    ) -> list[PublishedTranscript]:
+        """Fetch every bookkeeping row for transcripts published on a playlist."""
+        cursor = self.published_transcripts_collection.find(
+            {"playlist_id": playlist_id}
+        )
+        results: list[PublishedTranscript] = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(PublishedTranscript(**doc))
+        return results
+
     async def upsert_published_transcript(
         self, data: PublishedTranscriptUpdate
     ) -> PublishedTranscript:

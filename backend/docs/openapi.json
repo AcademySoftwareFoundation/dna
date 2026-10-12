@@ -1686,6 +1686,47 @@
         "title": "PublishTranscriptResponse",
         "type": "object"
       },
+      "PublishedTranscriptSummary": {
+        "description": "A playlist's published transcript, as listed for clients.",
+        "properties": {
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "meeting_id": {
+            "title": "Meeting Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Row name in the tracking system (SG code)",
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version_id": {
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id",
+          "meeting_id",
+          "entity_type",
+          "entity_id",
+          "name",
+          "updated_at"
+        ],
+        "title": "PublishedTranscriptSummary",
+        "type": "object"
+      },
       "RunQCChecksRequest": {
         "description": "Body for run-qc-checks; playlist/version are path params.",
         "properties": {
@@ -3571,6 +3612,59 @@
           }
         ],
         "summary": "Publish a version's captured transcript",
+        "tags": [
+          "Playlists",
+          "Transcription"
+        ]
+      }
+    },
+    "/playlists/{playlist_id}/published-transcripts": {
+      "get": {
+        "description": "Transcript rows already pushed to the production tracking system for this playlist, with their names. Empty when none were published.",
+        "operationId": "get_published_transcripts_playlists__playlist_id__published_transcripts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublishedTranscriptSummary"
+                  },
+                  "title": "Response Get Published Transcripts Playlists  Playlist Id  Published Transcripts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List a playlist's published transcripts",
         "tags": [
           "Playlists",
           "Transcription"

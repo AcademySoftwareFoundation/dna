@@ -19,6 +19,7 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     UserNotFoundError,
 )
+from dna.transcription_publish import transcript_entity_name
 
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
@@ -1241,10 +1242,9 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError("Not connected to ShotGrid")
 
         entity_type = _transcript_entity_type()
-        # Human-readable code so the row is identifiable on the SG entity page.
-        code = f"transcript-{version_id}-{meeting_date.isoformat()}"
         payload: dict[str, Any] = {
-            "code": code,
+            # Human-readable code so the row is identifiable on the SG entity page.
+            "code": transcript_entity_name(version_id, meeting_date),
             "project": {"type": "Project", "id": _to_sg_id(project_id)},
             "sg_playlist": {"type": "Playlist", "id": _to_sg_id(playlist_id)},
             "sg_version_in_review": {"type": "Version", "id": _to_sg_id(version_id)},

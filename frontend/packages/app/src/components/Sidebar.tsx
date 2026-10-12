@@ -11,7 +11,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Button, DropdownMenu, Tooltip } from '@radix-ui/themes';
-import { SCRATCH_VERSION_ID, buildReviewRows } from '@dna/core';
+import { SCRATCH_VERSION_ID } from '@dna/core';
 import type { Version, DraftNote, Playlist, Exporter } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
@@ -26,6 +26,7 @@ import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { scopePublishToVersion } from './publishScope';
 import { createReviewExporters } from '../export/exporters';
+import { loadReviewExportData } from '../export/loadReviewExportData';
 import { chooseSaveDestination } from '../export/saveDestination';
 import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
@@ -388,8 +389,7 @@ export function Sidebar({
   const handleExport = async (exporter: Exporter) => {
     if (!playlistId) return;
     const { label, extension } = exporter.fileType;
-    const exportedAt = new Date();
-    const today = exportedAt.toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
     try {
       // The save dialog needs the click's user gesture, so it goes first.
       const destination = await chooseSaveDestination(
@@ -399,48 +399,22 @@ export function Sidebar({
       if (!destination) return;
       setExportingLabel(label);
 
-      const exportVersions = [
-        ...(hasScratch ? [scratchVersion] : []),
-        ...(versions ?? []),
-      ];
-      // Fetched fresh so the file reflects the latest saved notes.
-      const [notes, segmentEntries, statuses] = await Promise.all([
-        apiHandler.getPlaylistDraftNotes(playlistId),
-        Promise.all(
-          exportVersions.map(async (v) => {
-            const segments = transcriptionEnabled
-              ? await apiHandler.getSegmentsForVersion({
-                  playlistId,
-                  versionId: v.id,
-                })
-              : [];
-            return [v.id, segments] as const;
-          })
-        ),
-        // Display names are a nicety; fall back to status codes.
-        apiHandler
-          .getVersionStatuses({ projectId: projectId ?? undefined })
-          .catch(() => []),
-      ]);
-
-      const rows = buildReviewRows(
-        exportVersions,
-        notes,
-        new Map(segmentEntries),
-        userEmail
-      );
-      await exporter.export(
-        {
-          rows,
-          title: `Playlist ${playlistId}`,
-          exportedAt,
-          statusNames: new Map(statuses.map((s) => [s.code, s.name])),
-        },
-        destination
-      );
+      const data = await loadReviewExportData({
+        playlistId,
+        projectId,
+        versions: [
+          ...(hasScratch ? [scratchVersion] : []),
+          ...(versions ?? []),
+        ],
+        userEmail,
+        transcriptionEnabled,
+        queryClient,
+      });
+      await exporter.export(data, destination);
+      const count = data.rows.length;
       showToast({
         title: `${label} exported`,
-        description: `${rows.length} version${rows.length === 1 ? '' : 's'} saved.`,
+        description: `${count} version${count === 1 ? '' : 's'} saved.`,
         type: 'success',
       });
     } catch (err) {
