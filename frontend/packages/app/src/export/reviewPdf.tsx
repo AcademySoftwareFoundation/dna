@@ -1,6 +1,6 @@
 /**
- * Review PDF export. Imported lazily from the Sidebar so @react-pdf/renderer
- * only loads when someone exports.
+ * Review PDF rendering. Imported lazily by the PDF exporter so
+ * @react-pdf/renderer only loads when someone exports.
  */
 import {
   Document,
@@ -11,15 +11,15 @@ import {
   View,
   pdf,
 } from '@react-pdf/renderer';
-import { summarizeReview, type ReviewRow } from './reviewExport';
+import {
+  summarizeReview,
+  type ReviewExportData,
+  type ReviewRow,
+} from '@dna/core';
 
 export interface ReviewPdfOptions {
-  title: string;
-  exportedAt: Date;
   /** Hex accent color from the user's theme. */
   accent: string;
-  /** Status code → display name; unknown codes are shown as-is. */
-  statusNames: Map<string, string>;
   /** Version ID → JPEG data URL, from `loadThumbnails`. */
   thumbnails: Map<string, string>;
 }
@@ -141,13 +141,15 @@ function Summary({ rows, accent }: { rows: ReviewRow[]; accent: string }) {
 
 function VersionCard({
   row,
+  statusNames,
   options,
 }: {
   row: ReviewRow;
+  statusNames: Map<string, string>;
   options: ReviewPdfOptions;
 }) {
   const thumbnail = options.thumbnails.get(row.versionId);
-  const statusLabel = options.statusNames.get(row.status) ?? row.status;
+  const statusLabel = statusNames.get(row.status) ?? row.status;
   return (
     <View style={styles.card}>
       {/*
@@ -210,33 +212,38 @@ function VersionCard({
 }
 
 export function ReviewPdfDocument({
-  rows,
+  data,
   options,
 }: {
-  rows: ReviewRow[];
+  data: ReviewExportData;
   options: ReviewPdfOptions;
 }) {
-  const date = options.exportedAt.toLocaleDateString(undefined, {
+  const date = data.exportedAt.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
   return (
-    <Document title={`Review: ${options.title}`} creator="DNA">
+    <Document title={`Review: ${data.title}`} creator="DNA">
       <Page size="LETTER" style={styles.page}>
         <View style={[styles.accentBar, { backgroundColor: options.accent }]} />
         <Text style={styles.title}>Review</Text>
         <Text style={styles.subtitle}>
-          {options.title} · Exported {date}
+          {data.title} · Exported {date}
         </Text>
-        <Summary rows={rows} accent={options.accent} />
+        <Summary rows={data.rows} accent={options.accent} />
 
-        {rows.map((row) => (
-          <VersionCard key={row.versionId} row={row} options={options} />
+        {data.rows.map((row) => (
+          <VersionCard
+            key={row.versionId}
+            row={row}
+            statusNames={data.statusNames}
+            options={options}
+          />
         ))}
 
         <View style={styles.footer} fixed>
-          <Text>DNA review · {options.title}</Text>
+          <Text>DNA review · {data.title}</Text>
           <Text
             render={({ pageNumber, totalPages }) =>
               `Page ${pageNumber} of ${totalPages}`
@@ -249,10 +256,10 @@ export function ReviewPdfDocument({
 }
 
 export async function renderReviewPdf(
-  rows: ReviewRow[],
+  data: ReviewExportData,
   options: ReviewPdfOptions
 ): Promise<Blob> {
-  return pdf(<ReviewPdfDocument rows={rows} options={options} />).toBlob();
+  return pdf(<ReviewPdfDocument data={data} options={options} />).toBlob();
 }
 
 /**

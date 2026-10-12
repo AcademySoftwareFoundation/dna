@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { DraftNote, StoredSegment, Version } from '@dna/core';
-import {
-  buildReviewRows,
-  summarizeReview,
-  type ReviewRow,
-} from './reviewExport';
+import type { DraftNote, StoredSegment, Version } from '../interfaces';
+import { buildReviewRows, summarizeReview, type ReviewRow } from './reviewData';
 
 const ME = 'me@x.com';
 

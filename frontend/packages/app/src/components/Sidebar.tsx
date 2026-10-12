@@ -11,8 +11,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Button, DropdownMenu, Tooltip } from '@radix-ui/themes';
-import { SCRATCH_VERSION_ID } from '@dna/core';
-import type { Version, DraftNote, Playlist } from '@dna/core';
+import { SCRATCH_VERSION_ID, buildReviewRows } from '@dna/core';
+import type { Version, DraftNote, Playlist, Exporter } from '@dna/core';
 import { Logo } from './Logo';
 import { UserAvatar } from './UserAvatar';
 import { SplitButton } from './SplitButton';
@@ -25,13 +25,8 @@ import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { scopePublishToVersion } from './publishScope';
-import { toCsv } from './reviewCsv';
-import {
-  CSV_FILE,
-  PDF_FILE,
-  buildReviewRows,
-  chooseSaveDestination,
-} from './reviewExport';
+import { createReviewExporters } from '../export/exporters';
+import { chooseSaveDestination } from '../export/saveDestination';
 import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
@@ -384,30 +379,32 @@ export function Sidebar({
 
   const { showToast } = useToast();
   const theme = useTheme();
-  const [exportingFormat, setExportingFormat] = useState<
-    'csv' | 'pdf' | null
-  >(null);
+  const exporters = useMemo(
+    () => createReviewExporters({ accent: theme.colors.accent.main }),
+    [theme.colors.accent.main]
+  );
+  const [exportingLabel, setExportingLabel] = useState<string | null>(null);
 
-  const handleExport = async (format: 'csv' | 'pdf') => {
+  const handleExport = async (exporter: Exporter) => {
     if (!playlistId) return;
-    const label = format.toUpperCase();
+    const { label, extension } = exporter.fileType;
     const exportedAt = new Date();
     const today = exportedAt.toISOString().slice(0, 10);
     try {
       // The save dialog needs the click's user gesture, so it goes first.
-      const write = await chooseSaveDestination(
-        `dna-review-playlist-${playlistId}-${today}.${format}`,
-        format === 'csv' ? CSV_FILE : PDF_FILE
+      const destination = await chooseSaveDestination(
+        `dna-review-playlist-${playlistId}-${today}${extension}`,
+        exporter.fileType
       );
-      if (!write) return;
-      setExportingFormat(format);
+      if (!destination) return;
+      setExportingLabel(label);
 
       const exportVersions = [
         ...(hasScratch ? [scratchVersion] : []),
         ...(versions ?? []),
       ];
       // Fetched fresh so the file reflects the latest saved notes.
-      const [notes, segmentEntries] = await Promise.all([
+      const [notes, segmentEntries, statuses] = await Promise.all([
         apiHandler.getPlaylistDraftNotes(playlistId),
         Promise.all(
           exportVersions.map(async (v) => {
@@ -420,6 +417,10 @@ export function Sidebar({
             return [v.id, segments] as const;
           })
         ),
+        // Display names are a nicety; fall back to status codes.
+        apiHandler
+          .getVersionStatuses({ projectId: projectId ?? undefined })
+          .catch(() => []),
       ]);
 
       const rows = buildReviewRows(
@@ -428,28 +429,15 @@ export function Sidebar({
         new Map(segmentEntries),
         userEmail
       );
-      if (format === 'csv') {
-        await write(
-          new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' })
-        );
-      } else {
-        const [{ renderReviewPdf, loadThumbnails }, statuses] =
-          await Promise.all([
-            import('./reviewPdf'),
-            // Display names are a nicety; fall back to status codes.
-            apiHandler
-              .getVersionStatuses({ projectId: projectId ?? undefined })
-              .catch(() => []),
-          ]);
-        const blob = await renderReviewPdf(rows, {
+      await exporter.export(
+        {
+          rows,
           title: `Playlist ${playlistId}`,
           exportedAt,
-          accent: theme.colors.accent.main,
           statusNames: new Map(statuses.map((s) => [s.code, s.name])),
-          thumbnails: await loadThumbnails(rows),
-        });
-        await write(blob);
-      }
+        },
+        destination
+      );
       showToast({
         title: `${label} exported`,
         description: `${rows.length} version${rows.length === 1 ? '' : 's'} saved.`,
@@ -462,7 +450,7 @@ export function Sidebar({
         type: 'error',
       });
     } finally {
-      setExportingFormat(null);
+      setExportingLabel(null);
     }
   };
 
@@ -649,22 +637,20 @@ export function Sidebar({
                     >
                       Publish Selected
                     </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      disabled={!playlistId || exportingFormat !== null}
-                      onSelect={() => void handleExport('csv')}
-                    >
-                      {exportingFormat === 'csv'
-                        ? 'Exporting CSV…'
-                        : 'Export CSV'}
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      disabled={!playlistId || exportingFormat !== null}
-                      onSelect={() => void handleExport('pdf')}
-                    >
-                      {exportingFormat === 'pdf'
-                        ? 'Exporting PDF…'
-                        : 'Export PDF'}
-                    </DropdownMenu.Item>
+                    {exporters.map((exporter) => {
+                      const { label } = exporter.fileType;
+                      return (
+                        <DropdownMenu.Item
+                          key={label}
+                          disabled={!playlistId || exportingLabel !== null}
+                          onSelect={() => void handleExport(exporter)}
+                        >
+                          {exportingLabel === label
+                            ? `Exporting ${label}…`
+                            : `Export ${label}`}
+                        </DropdownMenu.Item>
+                      );
+                    })}
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </PublishSplit>

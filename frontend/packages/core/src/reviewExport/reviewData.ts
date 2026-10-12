@@ -1,6 +1,6 @@
-import type { DraftNote, StoredSegment, Version } from '@dna/core';
+import type { DraftNote, StoredSegment, Version } from '../interfaces';
 
-/** One version of the review, shared by the CSV and PDF exports. */
+/** One version of the review, shared by every exporter. */
 export interface ReviewRow {
   versionId: string;
   version: string;
@@ -12,6 +12,16 @@ export interface ReviewRow {
   note: string;
   transcript: string;
   thumbnailUrl?: string;
+}
+
+/** Everything an exporter gets: the rows plus review-wide details. */
+export interface ReviewExportData {
+  rows: ReviewRow[];
+  /** Human-readable name of what was reviewed, e.g. "Playlist 42". */
+  title: string;
+  exportedAt: Date;
+  /** Status code → display name; unknown codes are shown as-is. */
+  statusNames: Map<string, string>;
 }
 
 /** The current user's drafts first, then the rest by author. */
@@ -90,77 +100,4 @@ export function summarizeReview(rows: ReviewRow[]) {
     notes: rows.filter((r) => r.note).length,
     statusChanges: rows.filter((r) => r.statusChanged).length,
   };
-}
-
-export interface SaveFileType {
-  description: string;
-  mimeType: string;
-  extension: string;
-}
-
-export const CSV_FILE: SaveFileType = {
-  description: 'CSV file',
-  mimeType: 'text/csv',
-  extension: '.csv',
-};
-
-export const PDF_FILE: SaveFileType = {
-  description: 'PDF document',
-  mimeType: 'application/pdf',
-  extension: '.pdf',
-};
-
-type SaveFilePicker = (options: {
-  suggestedName: string;
-  types: { description: string; accept: Record<string, string[]> }[];
-}) => Promise<{
-  createWritable: () => Promise<{
-    write: (data: Blob) => Promise<void>;
-    close: () => Promise<void>;
-  }>;
-}>;
-
-/**
- * Ask where to save, returning a writer, or null if the user cancelled.
- * Must run straight from the click: browsers only show the save dialog with a
- * fresh user gesture, so call this before any slow work. Browsers without the
- * File System Access API (Firefox, Safari) fall back to a normal download.
- */
-export async function chooseSaveDestination(
-  suggestedName: string,
-  fileType: SaveFileType
-): Promise<((data: Blob) => Promise<void>) | null> {
-  const picker = (window as unknown as { showSaveFilePicker?: SaveFilePicker })
-    .showSaveFilePicker;
-
-  if (!picker) {
-    return async (data) => {
-      const url = URL.createObjectURL(data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = suggestedName;
-      link.click();
-      URL.revokeObjectURL(url);
-    };
-  }
-
-  try {
-    const handle = await picker({
-      suggestedName,
-      types: [
-        {
-          description: fileType.description,
-          accept: { [fileType.mimeType]: [fileType.extension] },
-        },
-      ],
-    });
-    return async (data) => {
-      const writable = await handle.createWritable();
-      await writable.write(data);
-      await writable.close();
-    };
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') return null;
-    throw err;
-  }
 }
