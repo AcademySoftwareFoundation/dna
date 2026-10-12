@@ -8,8 +8,9 @@ import {
   Upload,
   Loader2,
   AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
-import { Button, Tooltip } from '@radix-ui/themes';
+import { Button, DropdownMenu, Tooltip } from '@radix-ui/themes';
 import { SCRATCH_VERSION_ID } from '@dna/core';
 import type { Version, DraftNote, Playlist } from '@dna/core';
 import { Logo } from './Logo';
@@ -23,6 +24,7 @@ import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
+import { scopePublishToVersion } from './publishScope';
 import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
@@ -75,6 +77,23 @@ const HeaderActions = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+`;
+
+/** Solid Publish button with a joined chevron, the same split shape as Reload Playlist. */
+const PublishSplit = styled.div`
+  display: flex;
+
+  & > button:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  & > button:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    padding: 0 6px;
+    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.25);
+  }
 `;
 
 const CollapseButton = styled.button`
@@ -259,7 +278,10 @@ export function Sidebar({
   const [toolbarInput, setToolbarInput] = useState<
     'none' | 'add-version' | 'change-playlist'
   >('none');
-  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  // null = closed; 'selected' limits the dialog to the selected version.
+  const [publishScope, setPublishScope] = useState<'all' | 'selected' | null>(
+    null
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -299,6 +321,18 @@ export function Sidebar({
         return hasContent && needsPublishing;
       }),
     [draftNotes]
+  );
+
+  const publishDialogInput = useMemo(
+    () =>
+      publishScope === 'selected'
+        ? scopePublishToVersion(
+            publishDialogNotes,
+            versions ?? [],
+            selectedVersionId
+          )
+        : { notes: publishDialogNotes, versions: versions ?? [] },
+    [publishScope, publishDialogNotes, versions, selectedVersionId]
   );
 
   const inReviewVersionId = playlistMetadata?.in_review;
@@ -503,13 +537,30 @@ export function Sidebar({
         <HeaderActions>
           {!collapsed && (
             <>
-              <Button
-                size="2"
-                variant="solid"
-                onClick={() => setIsPublishDialogOpen(true)}
-              >
-                Publish
-              </Button>
+              <PublishSplit>
+                <Button
+                  size="2"
+                  variant="solid"
+                  onClick={() => setPublishScope('all')}
+                >
+                  Publish
+                </Button>
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger>
+                    <Button size="2" variant="solid" aria-label="More publish options">
+                      <ChevronDown size={14} />
+                    </Button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content align="end">
+                    <DropdownMenu.Item
+                      disabled={!selectedVersionId}
+                      onSelect={() => setPublishScope('selected')}
+                    >
+                      Publish Selected
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Root>
+              </PublishSplit>
               <UserAvatar
                 name={user?.name ?? userEmail}
                 size="2"
@@ -584,7 +635,7 @@ export function Sidebar({
         <CollapsedFooter>
           <SquareButton
             variant="cta"
-            onClick={() => setIsPublishDialogOpen(true)}
+            onClick={() => setPublishScope('all')}
           >
             <Upload />
             Publish
@@ -624,12 +675,12 @@ export function Sidebar({
 
       {playlistId && (
         <PublishDialog
-          open={isPublishDialogOpen}
-          onClose={() => setIsPublishDialogOpen(false)}
+          open={publishScope !== null}
+          onClose={() => setPublishScope(null)}
           playlistId={playlistId}
           userEmail={userEmail}
-          notes={publishDialogNotes}
-          versions={versions || []}
+          notes={publishDialogInput.notes}
+          versions={publishDialogInput.versions}
         />
       )}
     </SidebarWrapper>
