@@ -8,8 +8,14 @@ const CONNECTION_LABELS = {
 };
 
 const els = {
+  title: document.getElementById('title'),
+  statusLine: document.getElementById('statusLine'),
   statusDot: document.getElementById('statusDot'),
   statusLabel: document.getElementById('statusLabel'),
+  dnaUrl: document.getElementById('dnaUrl'),
+  saveDnaUrl: document.getElementById('saveDnaUrl'),
+  dnaUrlHint: document.getElementById('dnaUrlHint'),
+  transcriptionControls: document.getElementById('transcriptionControls'),
   dnaKey: document.getElementById('dnaKey'),
   saveKey: document.getElementById('saveKey'),
   keyHint: document.getElementById('keyHint'),
@@ -54,6 +60,10 @@ function originForWsUrl(u) {
   } catch {
     return null;
   }
+}
+
+function originForHttpUrl(u) {
+  return /^https?:\/\//i.test(u) ? originForWsUrl(u) : null;
 }
 
 function originsForServerInfo(info) {
@@ -247,6 +257,65 @@ els.grantBtn.addEventListener('click', () => {
   }
 });
 
+// --- DNA app URL (tab-sync page bridge) -------------------------------------
+//
+// Browsers without externally_connectable for web pages (Firefox) reach the
+// extension through a content script on the DNA origin. The background
+// registers it once the URL is saved and host access is granted.
+
+function renderDnaUrlState(resp) {
+  if (!resp?.ok) {
+    els.dnaUrlHint.textContent = `Could not save URL: ${resp?.error || 'unknown'}`;
+    return;
+  }
+  els.dnaUrl.value = resp.url || '';
+  if (!resp.url) {
+    els.dnaUrlHint.textContent =
+      'Enter your DNA app URL so DNA can open production tracking tabs.';
+  } else if (resp.active) {
+    els.dnaUrlHint.textContent = 'Tab sync connected to this DNA app.';
+  } else {
+    els.dnaUrlHint.textContent =
+      'Click Save and allow access to the DNA site to connect tab sync.';
+  }
+}
+
+els.saveDnaUrl.addEventListener('click', () => {
+  const url = els.dnaUrl.value.trim();
+  if (!url) {
+    chrome.runtime.sendMessage(
+      { type: 'POPUP_SET_DNA_URL', url: '' },
+      renderDnaUrlState
+    );
+    return;
+  }
+  const origin = originForHttpUrl(url);
+  if (!origin) {
+    els.dnaUrlHint.textContent = 'Enter an http(s) URL, e.g. https://dna.example.com';
+    return;
+  }
+  // Save before requesting access: Firefox closes the popup when its
+  // permission prompt opens, and the background finishes registration on
+  // permissions.onAdded. permissions.request must stay in this click handler.
+  chrome.runtime.sendMessage({ type: 'POPUP_SET_DNA_URL', url }, renderDnaUrlState);
+  chrome.permissions.request({ origins: [origin] }, (granted) => {
+    if (chrome.runtime.lastError || !granted) {
+      els.dnaUrlHint.textContent =
+        'Access to the DNA site is required for tab sync.';
+      return;
+    }
+    chrome.runtime.sendMessage({ type: 'POPUP_SET_DNA_URL', url }, renderDnaUrlState);
+  });
+});
+
+// Transcription needs Chrome's tabCapture + offscreen APIs; elsewhere (Firefox)
+// the popup only offers tab-sync setup.
+if (!chrome.tabCapture) {
+  els.title.textContent = 'DNA Tab Sync';
+  els.statusLine.style.display = 'none';
+  els.transcriptionControls.style.display = 'none';
+}
+
 els.clearLogs.addEventListener('click', () => {
   els.logs.innerHTML = '';
 });
@@ -273,5 +342,7 @@ chrome.runtime.sendMessage({ type: 'POPUP_GET_STATE' }, (resp) => {
     renderStatus(resp.status);
   }
 });
+
+chrome.runtime.sendMessage({ type: 'POPUP_GET_DNA_URL' }, renderDnaUrlState);
 
 loadMeetTabs();

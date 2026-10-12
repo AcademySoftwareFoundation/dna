@@ -9,6 +9,114 @@ import {
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, 'chrome');
+  delete document.documentElement.dataset.dnaExtensionBridge;
+});
+
+/**
+ * Stands in for the extension's content-script bridge: marks the page and
+ * answers `dna-page` postMessages via `respond`. Returns a teardown and the
+ * messages it received.
+ */
+function installFakePageBridge(
+  respond: (message: Record<string, unknown>) => {
+    response?: unknown;
+    error?: string;
+  } | null
+) {
+  const received: Record<string, unknown>[] = [];
+  const onMessage = (event: MessageEvent) => {
+    const data = event.data as {
+      source?: string;
+      id?: string;
+      message?: Record<string, unknown>;
+    };
+    if (data?.source !== 'dna-page' || !data.message) return;
+    received.push(data.message);
+    const reply = respond(data.message);
+    if (reply) {
+      window.postMessage(
+        { source: 'dna-extension', id: data.id, ...reply },
+        '*'
+      );
+    }
+  };
+  document.documentElement.dataset.dnaExtensionBridge = '1';
+  window.addEventListener('message', onMessage);
+  return {
+    received,
+    remove: () => window.removeEventListener('message', onMessage),
+  };
+}
+
+describe('page bridge transport', () => {
+  it('opens a version through the bridge without an extension id', async () => {
+    const bridge = installFakePageBridge(() => ({
+      response: { ok: true, tabId: 7 },
+    }));
+    const r = await openProdtrackVersionInExtension(
+      '',
+      'https://studio.shotgrid.autodesk.com/detail/Version/1',
+      { tabId: 5 }
+    );
+    bridge.remove();
+    expect(r).toEqual({ ok: true, tabId: 7 });
+    expect(bridge.received).toEqual([
+      {
+        type: 'OPEN_VERSION',
+        url: 'https://studio.shotgrid.autodesk.com/detail/Version/1',
+        tabId: 5,
+      },
+    ]);
+  });
+
+  it('uses the bridge when an id is configured but chrome.runtime is missing', async () => {
+    const bridge = installFakePageBridge(() => ({ response: { ok: true } }));
+    const r = await pingProdtrackTabExtension(
+      'abcdefghijklmnopabcdefghijklmnop'
+    );
+    bridge.remove();
+    expect(r).toEqual({ ok: true });
+    expect(bridge.received).toEqual([{ type: 'PING' }]);
+  });
+
+  it('prefers externally_connectable when an id and chrome.runtime exist', async () => {
+    const bridge = installFakePageBridge(() => ({ response: { ok: true } }));
+    const sendMessage = vi.fn(
+      (_id: string, _msg: object, cb: (r: unknown) => void) =>
+        cb({ ok: true, tabId: 3 })
+    );
+    (globalThis as { chrome?: unknown }).chrome = {
+      runtime: { sendMessage, lastError: undefined },
+    };
+    const r = await openProdtrackVersionInExtension(
+      'abcdefghijklmnopabcdefghijklmnop',
+      'https://a.com/b'
+    );
+    bridge.remove();
+    expect(r).toEqual({ ok: true, tabId: 3 });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(bridge.received).toEqual([]);
+  });
+
+  it('returns error with detail when the bridge reports an error', async () => {
+    const bridge = installFakePageBridge(() => ({
+      error: 'Could not establish connection',
+    }));
+    const r = await openProdtrackVersionInExtension('', 'https://a.com/b');
+    bridge.remove();
+    expect(r).toEqual({
+      ok: false,
+      reason: 'error',
+      detail: 'Could not establish connection',
+    });
+  });
+
+  it('returns no_extension when the bridge does not answer in time', async () => {
+    const bridge = installFakePageBridge(() => null);
+    const r = await pingProdtrackTabExtension('', 20);
+    bridge.remove();
+    expect(r).toEqual({ ok: false, reason: 'no_extension' });
+  });
 });
 
 describe('openProdtrackVersionInExtension', () => {
