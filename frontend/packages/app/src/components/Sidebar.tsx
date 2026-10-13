@@ -25,12 +25,9 @@ import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
 import { PublishDialog } from './PublishDialog';
 import { scopePublishToVersion } from './publishScope';
-<<<<<<< HEAD
 import { createReviewExporters } from '../export/exporters';
 import { loadReviewExportData } from '../export/loadReviewExportData';
 import { chooseSaveDestination } from '../export/saveDestination';
-=======
->>>>>>> origin/main
 import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
@@ -614,7 +611,6 @@ export function Sidebar({
                     >
                       Publish Selected
                     </DropdownMenu.Item>
-<<<<<<< HEAD
                     {exporters.map((exporter) => {
                       const { label } = exporter.fileType;
                       return (
@@ -629,8 +625,6 @@ export function Sidebar({
                         </DropdownMenu.Item>
                       );
                     })}
-=======
->>>>>>> origin/main
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </PublishSplit>
