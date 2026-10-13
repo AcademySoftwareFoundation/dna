@@ -33,7 +33,7 @@ class TranscriptionService:
         self.storage_provider = storage_provider
         self.event_publisher = event_publisher
         self._subscribed_meetings: set[str] = set()
-        self._meeting_to_playlist: dict[str, int] = {}
+        self._meeting_to_playlist: dict[str, str] = {}
 
     async def init_providers(self) -> None:
         """Initialize providers if not already set."""
@@ -181,7 +181,7 @@ class TranscriptionService:
             logger.warning("Unknown Vexa event type: %s", event_type)
 
     async def subscribe_to_meeting(
-        self, platform: str, meeting_id: str, playlist_id: int
+        self, platform: str, meeting_id: str, playlist_id: str
     ) -> None:
         """Subscribe to Vexa updates for a meeting."""
         if self.transcription_provider is None:
@@ -266,12 +266,12 @@ class TranscriptionService:
         ts = payload.get("ts")
 
         return await self._store_and_broadcast(
-            int(playlist_id), speaker, confirmed, pending, ts
+            str(playlist_id), speaker, confirmed, pending, ts
         )
 
     async def _store_and_broadcast(
         self,
-        playlist_id: int,
+        playlist_id: str,
         speaker: Any,
         confirmed: list[dict[str, Any]],
         pending: list[dict[str, Any]],

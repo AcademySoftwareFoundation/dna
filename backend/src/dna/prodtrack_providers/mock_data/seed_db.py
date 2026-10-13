@@ -24,6 +24,13 @@ from pathlib import Path
 LOG = logging.getLogger(__name__)
 
 
+def _as_text(value) -> str | None:
+    """Store ShotGrid integer IDs as opaque strings in the mock database."""
+    if value is None:
+        return None
+    return str(value)
+
+
 def _link_id(link) -> int | None:
     if isinstance(link, dict) and "id" in link:
         return link["id"]
@@ -141,7 +148,7 @@ def extract_and_seed(
 
     conn.execute(
         "INSERT INTO projects (id, name) VALUES (?, ?)",
-        (project["id"], project.get("name") or ""),
+        (_as_text(project["id"]), project.get("name") or ""),
     )
     counts["projects"] = 1
 
@@ -156,7 +163,7 @@ def extract_and_seed(
         conn.execute(
             "INSERT OR REPLACE INTO users (id, name, email, login) VALUES (?, ?, ?, ?)",
             (
-                u["id"],
+                _as_text(u["id"]),
                 u.get("name") or "",
                 u.get("email") or "",
                 u.get("login") or "",
@@ -164,7 +171,7 @@ def extract_and_seed(
         )
         conn.execute(
             "INSERT OR IGNORE INTO project_users (project_id, user_id) VALUES (?, ?)",
-            (project_id, u["id"]),
+            (_as_text(project_id), _as_text(u["id"])),
         )
 
     extra_user_ids: set[int] = set()
@@ -177,10 +184,10 @@ def extract_and_seed(
         conn.execute(
             "INSERT INTO shots (id, name, description, project_id) VALUES (?, ?, ?, ?)",
             (
-                row["id"],
+                _as_text(row["id"]),
                 row.get("code") or "",
                 row.get("description") or "",
-                project_id,
+                _as_text(project_id),
             ),
         )
     counts["shots"] = conn.execute("SELECT COUNT(*) FROM shots").fetchone()[0]
@@ -193,10 +200,10 @@ def extract_and_seed(
         conn.execute(
             "INSERT INTO assets (id, name, description, project_id) VALUES (?, ?, ?, ?)",
             (
-                row["id"],
+                _as_text(row["id"]),
                 row.get("code") or "",
                 row.get("description") or "",
-                project_id,
+                _as_text(project_id),
             ),
         )
     counts["assets"] = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
@@ -212,14 +219,14 @@ def extract_and_seed(
             """INSERT INTO tasks (id, name, status, pipeline_step_id, pipeline_step_name, project_id, entity_type, entity_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                row["id"],
+                _as_text(row["id"]),
                 row.get("content") or "",
                 row.get("sg_status_list") or "",
-                _link_id(step),
+                _as_text(_link_id(step)),
                 _link_name(step),
-                project_id,
+                _as_text(project_id),
                 _link_type(entity) if entity else None,
-                _link_id(entity),
+                _as_text(_link_id(entity)),
             ),
         )
     counts["tasks"] = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
@@ -267,20 +274,20 @@ def extract_and_seed(
                movie_path, frame_path, thumbnail, project_id, entity_type, entity_id, task_id)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                row["id"],
+                _as_text(row["id"]),
                 row.get("code") or "",
                 row.get("description") or "",
                 row.get("sg_status_list") or "",
-                user_id,
+                _as_text(user_id),
                 _serialize_dt(row.get("created_at")),
                 _serialize_dt(row.get("updated_at")),
                 row.get("sg_path_to_movie"),
                 row.get("sg_path_to_frames"),
                 thumbnail_value,
-                project_id,
+                _as_text(project_id),
                 _link_type(entity) if entity else None,
-                _link_id(entity),
-                task_id,
+                _as_text(_link_id(entity)),
+                _as_text(task_id),
             ),
         )
     counts["versions"] = conn.execute("SELECT COUNT(*) FROM versions").fetchone()[0]
@@ -302,10 +309,10 @@ def extract_and_seed(
             """INSERT INTO playlists (id, code, description, project_id, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (
-                row["id"],
+                _as_text(row["id"]),
                 row.get("code") or "",
                 row.get("description") or "",
-                project_id,
+                _as_text(project_id),
                 _serialize_dt(row.get("created_at")),
                 _serialize_dt(row.get("updated_at")),
             ),
@@ -315,7 +322,7 @@ def extract_and_seed(
             if vid:
                 conn.execute(
                     "INSERT OR IGNORE INTO playlist_versions (playlist_id, version_id) VALUES (?, ?)",
-                    (row["id"], vid),
+                    (_as_text(row["id"]), _as_text(vid)),
                 )
     counts["playlists"] = conn.execute("SELECT COUNT(*) FROM playlists").fetchone()[0]
 
@@ -331,18 +338,18 @@ def extract_and_seed(
         conn.execute(
             "INSERT INTO notes (id, subject, content, project_id, author_id) VALUES (?, ?, ?, ?, ?)",
             (
-                row["id"],
+                _as_text(row["id"]),
                 row.get("subject") or "",
                 row.get("content") or "",
-                project_id,
-                author_id,
+                _as_text(project_id),
+                _as_text(author_id),
             ),
         )
         for link in row.get("note_links") or []:
             if isinstance(link, dict) and link.get("type") and link.get("id"):
                 conn.execute(
                     "INSERT OR IGNORE INTO note_links (note_id, entity_type, entity_id) VALUES (?, ?, ?)",
-                    (row["id"], link["type"], link["id"]),
+                    (_as_text(row["id"]), link["type"], _as_text(link["id"])),
                 )
     counts["notes"] = conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
 
@@ -356,7 +363,7 @@ def extract_and_seed(
             conn.execute(
                 "INSERT OR REPLACE INTO users (id, name, email, login) VALUES (?, ?, ?, ?)",
                 (
-                    u["id"],
+                    _as_text(u["id"]),
                     u.get("name") or "",
                     u.get("email") or "",
                     u.get("login") or "",
@@ -374,7 +381,7 @@ def extract_and_seed(
         for code in valid:
             conn.execute(
                 "INSERT INTO version_statuses (code, name, project_id) VALUES (?, ?, ?)",
-                (code, display.get(code, code), project_id),
+                (code, display.get(code, code), _as_text(project_id)),
             )
     counts["version_statuses"] = conn.execute(
         "SELECT COUNT(*) FROM version_statuses"

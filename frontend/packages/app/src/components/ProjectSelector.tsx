@@ -338,7 +338,7 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   } = useGetPlaylistsForProject(selectedProject?.id ?? null);
 
   const handleProjectSelect = (projectId: string) => {
-    const project = projects?.find((p) => p.id.toString() === projectId);
+    const project = projects?.find((p) => p.id === projectId);
     if (project) {
       setSelectedProject(project);
       saveProject(project);

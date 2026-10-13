@@ -6,7 +6,7 @@ import { PublishNotesTabContent } from './PublishNotesDialog';
 export interface PublishDialogProps {
   open: boolean;
   onClose: () => void;
-  playlistId: number;
+  playlistId: string;
   userEmail: string;
   notes: DraftNote[];
   versions?: Version[];

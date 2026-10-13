@@ -209,7 +209,7 @@ class TestExtractAndSeed:
         conn = sqlite3.connect(db_path)
         proj = conn.execute("SELECT id, name FROM projects WHERE id = 1").fetchone()
         conn.close()
-        assert proj == (1, "Test Project")
+        assert proj == ("1", "Test Project")
 
     def test_extract_and_seed_with_versions_and_playlists(self, tmp_path):
         db_path = tmp_path / "mock.db"
@@ -296,4 +296,4 @@ class TestExtractAndSeed:
             "SELECT id, name, thumbnail FROM versions WHERE id = 100"
         ).fetchone()
         conn.close()
-        assert row == (100, "v1", "http://localhost:8000/api/mock-thumbnails/100")
+        assert row == ("100", "v1", "http://localhost:8000/api/mock-thumbnails/100")

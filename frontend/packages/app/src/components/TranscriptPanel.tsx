@@ -5,8 +5,8 @@ import { useSegments } from '../hooks';
 import { useConnectionStatus } from '../hooks/useDNAEvents';
 
 interface TranscriptPanelProps {
-  playlistId: number | null;
-  versionId: number | null;
+  playlistId: string | null;
+  versionId: string | null;
 }
 
 const PanelContainer = styled.div`

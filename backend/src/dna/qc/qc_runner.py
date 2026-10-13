@@ -80,7 +80,7 @@ def _draft_note_payload(draft: DraftNote) -> dict[str, Any]:
 
 def _make_tool_executor(
     prodtrack_provider: ProdtrackProviderBase,
-    default_project_id: int | None,
+    default_project_id: str | None,
 ) -> Any:
     async def tool_executor(name: str, args: dict[str, Any]) -> str:
         if name == "search_entities":
@@ -96,7 +96,7 @@ def _make_tool_executor(
         if name == "get_entity":
             entity = prodtrack_provider.get_entity(
                 entity_type=str(args["entity_type"]).lower(),
-                entity_id=int(args["entity_id"]),
+                entity_id=str(args["entity_id"]),
                 resolve_links=False,
             )
             return json.dumps(entity.model_dump(mode="json"))
@@ -130,11 +130,11 @@ async def _run_one_check(
 ) -> NoteQCResult:
     version_context = ProdtrackProviderBase.build_version_context(version)
     draft_json = json.dumps(_draft_note_payload(draft), indent=2)
-    project_id: int | None = None
+    project_id: str | None = None
     if version.project and isinstance(version.project, dict):
         pid = version.project.get("id")
-        if isinstance(pid, int):
-            project_id = pid
+        if isinstance(pid, (int, str)) and str(pid) != "":
+            project_id = str(pid)
 
     system_prompt = build_qc_system_prompt(version_context, transcript_text, draft_json)
     user_message = f"Check name: {check.name}\n\nCheck instructions:\n{check.prompt}"

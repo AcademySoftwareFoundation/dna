@@ -15,7 +15,7 @@ import { EntityPill, type EntityType } from './EntityPill/EntityPill';
 
 export interface EntitySearchInputProps {
   entityTypes: SearchableEntityType[];
-  projectId?: number;
+  projectId?: string;
   value: SearchResult[];
   onChange: (entities: SearchResult[]) => void;
   placeholder?: string;

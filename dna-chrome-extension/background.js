@@ -1,9 +1,13 @@
 // Load the transcription capability (registers its own popup/log listeners and
 // exposes self.DNATranscription for the external-message delegation below).
-try {
-  importScripts('transcription.js', 'capture.js');
-} catch (e) {
-  console.error('Failed to load transcription/capture scripts', e);
+// Firefox runs this as a background page (manifest `background.scripts`), which
+// loads those files itself and has no importScripts.
+if (typeof importScripts === 'function') {
+  try {
+    importScripts('transcription.js', 'capture.js');
+  } catch (e) {
+    console.error('Failed to load transcription/capture scripts', e);
+  }
 }
 
 let controlledTabId = null;
@@ -252,24 +256,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   if (tabId === controlledTabId) controlledTabId = null;
 });
 
-chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  if (!message || typeof message !== 'object') {
-    reply(sendResponse, { ok: false, error: 'invalid_message' });
-    return;
-  }
-
-  // Delegate transcription handshake messages to the transcription module.
-  if (
-    self.DNATranscription &&
-    self.DNATranscription.EXTERNAL_TYPES.has(message.type)
-  ) {
-    return self.DNATranscription.handleExternalMessage(
-      message,
-      sender,
-      sendResponse
-    );
-  }
-
+/** PING / OPEN_VERSION from DNA, via externally_connectable or the page bridge. */
+function handleTabSyncMessage(message, sender, sendResponse) {
   if (message.type === 'PING') {
     reply(sendResponse, { ok: true, pong: true });
     return true;
@@ -300,4 +288,194 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 
   reply(sendResponse, { ok: false, error: 'unknown_type' });
   return true;
+}
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (!message || typeof message !== 'object') {
+    reply(sendResponse, { ok: false, error: 'invalid_message' });
+    return;
+  }
+
+  // Delegate transcription handshake messages to the transcription module.
+  if (
+    self.DNATranscription &&
+    self.DNATranscription.EXTERNAL_TYPES.has(message.type)
+  ) {
+    return self.DNATranscription.handleExternalMessage(
+      message,
+      sender,
+      sendResponse
+    );
+  }
+
+  return handleTabSyncMessage(message, sender, sendResponse);
 });
+
+// --- Page bridge (browsers without externally_connectable, e.g. Firefox) ----
+//
+// The user saves their DNA app URL in the popup and grants host access to it;
+// content/dnaBridge.js is then registered on that origin and relays the same
+// PING / OPEN_VERSION protocol over window.postMessage. Transcription stays on
+// externally_connectable only (it needs Chrome's tabCapture/offscreen APIs).
+
+const DNA_URL_STORAGE = 'dnaAppUrl';
+const BRIDGE_SCRIPT_ID = 'dna-page-bridge';
+const BRIDGE_SCRIPT_FILE = 'content/dnaBridge.js';
+
+// Host-permission / content-script match pattern for a DNA URL. Match patterns
+// can't carry a port, so the hostname (which matches any port) is used.
+function originPatternForUrl(u) {
+  try {
+    const url = new URL(u);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return `${url.protocol}//${url.hostname}/*`;
+  } catch {
+    return null;
+  }
+}
+
+async function getStoredDnaUrl() {
+  try {
+    const out = await chrome.storage.local.get(DNA_URL_STORAGE);
+    const u = out?.[DNA_URL_STORAGE];
+    return typeof u === 'string' && u.length > 0 ? u : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getRegisteredBridge() {
+  try {
+    const [script] = await chrome.scripting.getRegisteredContentScripts({
+      ids: [BRIDGE_SCRIPT_ID],
+    });
+    return script ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function injectBridgeIntoOpenTabs(pattern) {
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: pattern });
+  } catch {
+    return;
+  }
+  for (const tab of tabs) {
+    if (typeof tab.id !== 'number') continue;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: [BRIDGE_SCRIPT_FILE],
+      });
+    } catch {
+      /* tab not scriptable (discarded, error page, …) */
+    }
+  }
+}
+
+/**
+ * Make the registered bridge match the stored DNA URL and granted permission:
+ * (re)register it when both are present, unregister it otherwise. Newly
+ * registered bridges are also injected into DNA tabs that are already open.
+ */
+async function syncPageBridgeNow() {
+  if (!chrome.scripting?.registerContentScripts) return;
+  const url = await getStoredDnaUrl();
+  const pattern = url ? originPatternForUrl(url) : null;
+  let granted = false;
+  if (pattern) {
+    try {
+      granted = await chrome.permissions.contains({ origins: [pattern] });
+    } catch {
+      granted = false;
+    }
+  }
+  const wanted = granted ? pattern : null;
+
+  const existing = await getRegisteredBridge();
+  const existingPattern = existing?.matches?.[0] ?? null;
+  if (existingPattern === wanted) return;
+
+  if (existing) {
+    try {
+      await chrome.scripting.unregisterContentScripts({ ids: [BRIDGE_SCRIPT_ID] });
+    } catch {
+      /* already gone */
+    }
+  }
+  if (!wanted) return;
+
+  await chrome.scripting.registerContentScripts([
+    {
+      id: BRIDGE_SCRIPT_ID,
+      matches: [wanted],
+      js: [BRIDGE_SCRIPT_FILE],
+      runAt: 'document_start',
+    },
+  ]);
+  await injectBridgeIntoOpenTabs(wanted);
+}
+
+// Serialised so startup, popup saves and permission events can't race on the
+// same content-script id.
+let bridgeSync = Promise.resolve();
+function syncPageBridge() {
+  bridgeSync = bridgeSync
+    .then(syncPageBridgeNow)
+    .catch((e) => console.error('Failed to sync DNA page bridge', e));
+  return bridgeSync;
+}
+
+async function bridgeState() {
+  const url = await getStoredDnaUrl();
+  const registered = await getRegisteredBridge();
+  return { ok: true, url, active: !!registered };
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || typeof message !== 'object') return false;
+
+  switch (message.type) {
+    case 'DNA_PAGE_MESSAGE': {
+      // Only accept relays from our own content script running in a tab.
+      if (sender?.id !== chrome.runtime.id || !sender?.tab) return false;
+      const inner = message.message;
+      if (!inner || typeof inner !== 'object') {
+        reply(sendResponse, { ok: false, error: 'invalid_message' });
+        return false;
+      }
+      return handleTabSyncMessage(inner, sender, sendResponse);
+    }
+    case 'POPUP_GET_DNA_URL':
+      bridgeState().then((s) => reply(sendResponse, s));
+      return true;
+    case 'POPUP_SET_DNA_URL': {
+      const raw = typeof message.url === 'string' ? message.url.trim() : '';
+      if (raw && !originPatternForUrl(raw)) {
+        reply(sendResponse, { ok: false, error: 'invalid_url' });
+        return false;
+      }
+      const write = raw
+        ? chrome.storage.local.set({ [DNA_URL_STORAGE]: raw })
+        : chrome.storage.local.remove(DNA_URL_STORAGE);
+      write
+        .then(syncPageBridge)
+        .then(bridgeState)
+        .then((s) => reply(sendResponse, s))
+        .catch((e) => reply(sendResponse, { ok: false, error: String(e) }));
+      return true;
+    }
+    default:
+      return false;
+  }
+});
+
+// The popup requests host access after saving the URL; Firefox closes the
+// popup when its permission prompt opens, so registration is driven from here.
+chrome.permissions.onAdded.addListener(() => syncPageBridge());
+chrome.permissions.onRemoved.addListener(() => syncPageBridge());
+chrome.runtime.onInstalled.addListener(() => syncPageBridge());
+chrome.runtime.onStartup.addListener(() => syncPageBridge());
+syncPageBridge();

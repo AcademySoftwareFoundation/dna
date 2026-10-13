@@ -6,9 +6,9 @@ import { Sidebar } from './Sidebar';
 interface LayoutProps {
   children: ReactNode;
   onPlaylistChange?: (playlist: Playlist) => void;
-  playlistId: number | null;
-  projectId: number | null;
-  selectedVersionId?: number | null;
+  playlistId: string | null;
+  projectId: string | null;
+  selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
   onLogout?: () => void;

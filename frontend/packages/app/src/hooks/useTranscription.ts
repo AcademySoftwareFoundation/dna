@@ -50,7 +50,7 @@ export function parseMeetingUrl(url: string): ParsedMeetingUrl | null {
 }
 
 export interface UseTranscriptionOptions {
-  playlistId: number | null;
+  playlistId: string | null;
 }
 
 export interface UseTranscriptionReturn {

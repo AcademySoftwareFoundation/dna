@@ -3,8 +3,8 @@ import { DraftNote } from '@dna/core';
 import { apiHandler } from '../api';
 
 export interface UseOtherDraftNotesParams {
-  playlistId: number | null | undefined;
-  versionId: number | null | undefined;
+  playlistId: string | null | undefined;
+  versionId: string | null | undefined;
   currentUserEmail: string | null | undefined;
 }
 

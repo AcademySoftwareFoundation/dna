@@ -8,11 +8,11 @@ import { apiHandler } from '../api';
 import { useEntitySearch } from '../hooks/useEntitySearch';
 
 export interface AddVersionInputProps {
-  playlistId: number;
+  playlistId: string;
   /** Project ID for scoping the version search */
-  projectId?: number;
+  projectId?: string;
   /** Versions already in the playlist (hidden from results) */
-  existingVersionIds?: number[];
+  existingVersionIds?: string[];
   onClose: () => void;
   onVersionAdded?: (version: Version) => void;
 }
@@ -178,7 +178,7 @@ export function AddVersionInput({
     error,
     reset: resetAdd,
   } = useMutation({
-    mutationFn: (versionId: number) =>
+    mutationFn: (versionId: string) =>
       apiHandler.addVersionToPlaylist({ playlistId, versionId }),
     onSuccess: (version) => {
       queryClient.invalidateQueries({ queryKey: ['versions', playlistId] });
@@ -200,7 +200,7 @@ export function AddVersionInput({
   const showDropdown =
     (isOpen && trimmedQuery.length > 0) || isPending || isError;
 
-  function handleSelect(versionId: number) {
+  function handleSelect(versionId: string) {
     if (isPending) return;
     addVersion(versionId);
   }

@@ -21,7 +21,7 @@ interface VersionHeaderProps {
   submittedByImageUrl?: string;
   dateSubmitted?: string;
   versionStatus?: string;
-  projectId?: number;
+  projectId?: string;
   thumbnailUrl?: string;
   links?: string[];
   onBack?: () => void;

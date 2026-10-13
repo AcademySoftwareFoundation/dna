@@ -15,7 +15,7 @@ interface NoteOptionsInlineProps {
   /** Selected entities for Links field */
   linksValue?: SearchResult[];
   /** Project ID for scoping entity search */
-  projectId?: number;
+  projectId?: string;
   /** Current version to auto-add to links (non-removable) */
   currentVersion?: SearchResult;
   /** Version submitter shown as locked (non-removable) To recipient */

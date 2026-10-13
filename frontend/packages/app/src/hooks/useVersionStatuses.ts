@@ -3,7 +3,7 @@ import { StatusOption } from '@dna/core';
 import { apiHandler } from '../api';
 
 export interface UseVersionStatusesParams {
-  projectId?: number;
+  projectId?: string;
 }
 
 export interface UseVersionStatusesResult {

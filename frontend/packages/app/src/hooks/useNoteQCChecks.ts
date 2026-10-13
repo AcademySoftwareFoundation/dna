@@ -15,7 +15,7 @@ function draftsIdentityFingerprint(drafts: DraftNote[]): string {
   return [...drafts]
     .map(
       (d) =>
-        `${String(d._id)}\0${String(d.user_email).toLowerCase()}\0${Number(d.version_id)}`
+        `${String(d._id)}\0${String(d.user_email).toLowerCase()}\0${String(d.version_id)}`
     )
     .sort((a, b) => a.localeCompare(b))
     .join('|');
@@ -23,17 +23,26 @@ function draftsIdentityFingerprint(drafts: DraftNote[]): string {
 
 export interface UseNoteQCChecksOptions {
   open: boolean;
-  playlistId: number;
+  playlistId: string;
   drafts: DraftNote[];
 }
 
-export function useNoteQCChecks({ open, playlistId, drafts }: UseNoteQCChecksOptions) {
+export function useNoteQCChecks({
+  open,
+  playlistId,
+  drafts,
+}: UseNoteQCChecksOptions) {
   const [results, setResults] = useState<Record<string, NoteQCResult[]>>({});
   const [loading, setLoading] = useState(false);
   const [ignored, setIgnored] = useState<Set<string>>(() => new Set());
-  const [refreshingDraftKey, setRefreshingDraftKey] = useState<string | null>(null);
+  const [refreshingDraftKey, setRefreshingDraftKey] = useState<string | null>(
+    null
+  );
 
-  const fingerprint = useMemo(() => draftsIdentityFingerprint(drafts), [drafts]);
+  const fingerprint = useMemo(
+    () => draftsIdentityFingerprint(drafts),
+    [drafts]
+  );
 
   const lastCompletedBulkKeyRef = useRef<string | null>(null);
 

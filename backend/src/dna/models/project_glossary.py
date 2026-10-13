@@ -26,7 +26,7 @@ class ProjectGlossary(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(alias="_id")
-    project_id: int
+    project_id: str
     content: str = ""
     updated_at: datetime
     created_at: datetime

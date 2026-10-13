@@ -35,7 +35,7 @@ class DispatchBotRequest(BaseModel):
 
     platform: Platform
     meeting_id: str = Field(..., description="Native meeting ID for the platform")
-    playlist_id: int = Field(
+    playlist_id: str = Field(
         ..., description="Playlist ID to associate with this meeting"
     )
     passcode: Optional[str] = Field(
@@ -60,7 +60,7 @@ class BotSession(BaseModel):
 
     platform: Platform
     meeting_id: str
-    playlist_id: int
+    playlist_id: str
     status: BotStatusEnum
     vexa_meeting_id: Optional[int] = None
     bot_name: Optional[str] = None

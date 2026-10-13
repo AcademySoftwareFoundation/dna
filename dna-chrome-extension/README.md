@@ -1,28 +1,54 @@
-# DNA Production Tracking Tab Sync (Chrome extension)
+# DNA Production Tracking Tab Sync (Chrome / Firefox extension)
 
-Chrome extension (Manifest V3) that pairs with the DNA web app ([issue #136](https://github.com/AcademySoftwareFoundation/dna/issues/136)): DNA sends the ShotGrid / production-tracking version detail URL, and this extension opens or updates a **single controlled tab** next to your DNA tab when possible.
+Browser extension (Manifest V3, Chrome and Firefox) that pairs with the DNA web app ([issue #136](https://github.com/AcademySoftwareFoundation/dna/issues/136)): DNA sends the ShotGrid / production-tracking version detail URL, and this extension opens or updates a **single controlled tab** next to your DNA tab when possible.
 
 This extension also provides an optional **browser transcription route**: it
 captures Google Meet **tab audio**, transcribes it via a **WhisperLive** service,
 and streams segments directly into DNA — an alternative to the server-side Vexa
 bot. See [Transcription capability](#transcription-capability) below.
+Transcription is **Chrome-only** (it needs `tabCapture` and offscreen documents);
+in Firefox the popup only shows tab-sync setup.
 
 ## Install (development)
+
+### Chrome
 
 1. Open Chrome → **Extensions** → enable **Developer mode**.
 2. **Load unpacked** → select this folder `dna-chrome-extension/`.
 3. Copy the extension **ID** from the card (32-char string).
 4. In DNA frontend, set `VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID` to that ID in `frontend/packages/app/.env` and restart the dev server.
 
+(Alternatively, skip the ID and use the [page bridge](#page-bridge-firefox) as in Firefox.)
+
+### Firefox (128+)
+
+1. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → select `manifest.json` in this folder.
+2. Open the extension popup, enter your **DNA app URL** (e.g. `http://localhost:5173`), click **Save** and allow access to that site.
+3. No extension ID is needed in DNA. Open DNA tabs pick the bridge up immediately.
+
+## Page bridge (Firefox)
+
+Firefox doesn't support [`externally_connectable`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/externally_connectable) for web pages, so DNA can't call `runtime.sendMessage(extensionId, …)` there. Instead:
+
+- The DNA app URL saved in the popup is stored in `storage.local`, and host access to that origin (any port) is requested as an optional permission.
+- Once granted, the background registers [`content/dnaBridge.js`](./content/dnaBridge.js) on that origin (`scripting.registerContentScripts`) and injects it into DNA tabs already open.
+- The bridge relays `window.postMessage({ source: 'dna-page', id, message })` to the background and posts back `{ source: 'dna-extension', id, response | error }`. It marks the page with `<html data-dna-extension-bridge="1">` so DNA can detect it.
+- Only `PING` and `OPEN_VERSION` are accepted over the bridge; transcription messages stay on `externally_connectable`.
+
+DNA prefers `externally_connectable` when `VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID` is set and the page has `chrome.runtime`; otherwise it uses the bridge if present.
+
 ## Package (distribution)
 
 From the repository root:
 
 ```bash
-make package-extension
+make package-extension          # Chrome
+make package-extension-firefox  # Firefox
 ```
 
-This writes `dist/dna-chrome-extension-<version>.zip` (version from `manifest.json`). Upload that zip to the Chrome Web Store, or unzip and load the folder unpacked for testing.
+`package-extension` writes `dist/dna-chrome-extension-<version>.zip` (version from `manifest.json`). Upload that zip to the Chrome Web Store, or unzip and load the folder unpacked for testing.
+
+`package-extension-firefox` writes `dist/dna-firefox-extension-<version>.zip` with Chrome-only manifest keys and permissions (`service_worker`, `externally_connectable`, `offscreen`, `tabCapture`, the Meet content script) stripped by [`scripts/firefox_extension_manifest.py`](../scripts/firefox_extension_manifest.py). Upload it to [addons.mozilla.org](https://addons.mozilla.org/developers/) for signing. The add-on ID is `browser_specific_settings.gecko.id` in `manifest.json`.
 
 ## Allow DNA origins
 

@@ -34,7 +34,7 @@ export interface UseTranscriptionExtensionResult {
 }
 
 export function useTranscriptionExtension(
-  playlistId: number | null
+  playlistId: string | null
 ): UseTranscriptionExtensionResult {
   const { token } = useAuth();
   const available = EXTENSION_ID.trim().length > 0;

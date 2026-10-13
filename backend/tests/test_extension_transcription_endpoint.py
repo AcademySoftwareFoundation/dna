@@ -100,7 +100,7 @@ class TestExtensionIngestWebSocket:
                     ws.receive_json()
 
     def test_connect_sends_handshake_and_acks_and_broadcasts(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         _, storage = self._prepare_service(metadata)
         client = TestClient(app)
 
@@ -129,13 +129,13 @@ class TestExtensionIngestWebSocket:
 
                     broadcast = ws_broadcast.receive_json()
                     assert broadcast["type"] == "transcript"
-                    assert broadcast["playlist_id"] == 42
-                    assert broadcast["version_id"] == 7
+                    assert broadcast["playlist_id"] == "42"
+                    assert broadcast["version_id"] == "7"
 
         storage.upsert_segment.assert_awaited_once()
 
     def test_ping_pong(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         self._prepare_service(metadata)
         client = TestClient(app)
 
@@ -147,7 +147,7 @@ class TestExtensionIngestWebSocket:
                 assert pong == {"type": "pong", "ts": "t1"}
 
     def test_unknown_type_and_invalid_messages(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         self._prepare_service(metadata)
         client = TestClient(app)
 
@@ -165,7 +165,7 @@ class TestExtensionIngestWebSocket:
                 assert ingest.receive_json()["error"] == "invalid_json"
 
     def test_missing_key_closes_when_key_required(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         self._prepare_service(metadata)
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
@@ -176,7 +176,7 @@ class TestExtensionIngestWebSocket:
                     ingest.receive_json()
 
     def test_wrong_key_closes_when_key_required(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         self._prepare_service(metadata)
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
@@ -187,7 +187,7 @@ class TestExtensionIngestWebSocket:
                     ingest.receive_json()
 
     def test_correct_key_connects_when_key_required(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         self._prepare_service(metadata)
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
@@ -198,7 +198,7 @@ class TestExtensionIngestWebSocket:
                 assert hello["type"] == "connected"
 
     def test_ingest_error_is_reported(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id=42, in_review=7)
+        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         svc, storage = self._prepare_service(metadata)
         storage.upsert_segment.side_effect = None
         # Force the service call to raise.

@@ -42,42 +42,51 @@ const mockDraftNotes: DraftNote[] = [
   {
     _id: 'abc123',
     user_email: 'current@example.com',
-    playlist_id: 1,
-    version_id: 2,
+    playlist_id: "1",
+    version_id: "2",
     content: 'Current user note',
     subject: '',
     to: '',
     cc: '',
     links: [],
     version_status: '',
+    published: false,
+    edited: false,
+    attachment_ids: [],
     updated_at: '2025-01-15T00:00:00Z',
     created_at: '2025-01-15T00:00:00Z',
   },
   {
     _id: 'def456',
     user_email: 'other@example.com',
-    playlist_id: 1,
-    version_id: 2,
+    playlist_id: "1",
+    version_id: "2",
     content: 'Other user note',
     subject: 'Subject',
     to: '',
     cc: '',
     links: [],
     version_status: 'pending',
+    published: false,
+    edited: false,
+    attachment_ids: [],
     updated_at: '2025-01-15T00:00:00Z',
     created_at: '2025-01-15T00:00:00Z',
   },
   {
     _id: 'ghi789',
     user_email: 'another@example.com',
-    playlist_id: 1,
-    version_id: 2,
+    playlist_id: "1",
+    version_id: "2",
     content: 'Another user note',
     subject: '',
     to: '',
     cc: '',
     links: [],
     version_status: '',
+    published: false,
+    edited: false,
+    attachment_ids: [],
     updated_at: '2025-01-15T00:00:00Z',
     created_at: '2025-01-15T00:00:00Z',
   },
@@ -110,8 +119,8 @@ describe('useOtherDraftNotes', () => {
     const { result } = renderHook(
       () =>
         useOtherDraftNotes({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: "1",
+          versionId: "2",
           currentUserEmail: 'current@example.com',
         }),
       { wrapper: createWrapper() }
@@ -122,8 +131,8 @@ describe('useOtherDraftNotes', () => {
     });
 
     expect(mockedApiHandler.getAllDraftNotes).toHaveBeenCalledWith({
-      playlistId: 1,
-      versionId: 2,
+      playlistId: "1",
+      versionId: "2",
     });
 
     expect(result.current.otherNotes).toHaveLength(2);
@@ -137,8 +146,8 @@ describe('useOtherDraftNotes', () => {
     const { result } = renderHook(
       () =>
         useOtherDraftNotes({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: "1",
+          versionId: "2",
           currentUserEmail: 'current@example.com',
         }),
       { wrapper: createWrapper() }
@@ -158,8 +167,8 @@ describe('useOtherDraftNotes', () => {
     const { result } = renderHook(
       () =>
         useOtherDraftNotes({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: "1",
+          versionId: "2",
           currentUserEmail: 'current@example.com',
         }),
       { wrapper: createWrapper() }
@@ -174,8 +183,8 @@ describe('useOtherDraftNotes', () => {
     });
 
     expect(mockedApiHandler.deleteDraftNote).toHaveBeenCalledWith({
-      playlistId: 1,
-      versionId: 2,
+      playlistId: "1",
+      versionId: "2",
       userEmail: 'other@example.com',
     });
   });
@@ -193,8 +202,8 @@ describe('useOtherDraftNotes', () => {
     const { result } = renderHook(
       () =>
         useOtherDraftNotes({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: "1",
+          versionId: "2",
           currentUserEmail: 'current@example.com',
         }),
       { wrapper: createWrapper() }

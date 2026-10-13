@@ -44,13 +44,13 @@ def test_get_version(shotgrid_provider):
     }
 
     version = shotgrid_provider.get_entity("version", 1)
-    assert version.id == 1
+    assert version.id == "1"
     assert version.name == "V001"
     assert version.description == "Version 1"
     assert version.status == "Completed"
     assert version.movie_path == "path/to/movie"
     assert version.frame_path == "path/to/frames"
-    assert version.project == {"type": "Project", "id": 1, "name": "Project 1"}
+    assert version.project == {"type": "Project", "id": "1", "name": "Project 1"}
 
 
 def test_missing_credentials_raises_error():
@@ -129,11 +129,11 @@ def test_version_with_linked_shot_entity(shotgrid_provider):
 
     version = shotgrid_provider.get_entity("version", 673)
 
-    assert version.id == 673
+    assert version.id == "673"
     assert version.name == "bunny_080_0010_layout_v001"
     # The linked entity should be a Shot object
     assert version.entity is not None
-    assert version.entity.id == 1002
+    assert version.entity.id == "1002"
     assert version.entity.name == "bunny_080_0010"
 
 
@@ -165,7 +165,7 @@ def test_version_with_linked_asset_entity(shotgrid_provider):
     version = shotgrid_provider.get_entity("version", 100)
 
     assert version.entity is not None
-    assert version.entity.id == 500
+    assert version.entity.id == "500"
     assert version.entity.name == "hero_character"
 
 
@@ -189,7 +189,7 @@ def test_version_with_null_linked_entity(shotgrid_provider):
 
     version = shotgrid_provider.get_entity("version", 200)
 
-    assert version.id == 200
+    assert version.id == "200"
     assert version.entity is None
 
 
@@ -245,13 +245,13 @@ def test_playlist_with_linked_versions_list(shotgrid_provider):
 
     playlist = shotgrid_provider.get_entity("playlist", 50)
 
-    assert playlist.id == 50
+    assert playlist.id == "50"
     assert playlist.code == "dailies_review_2021"
     assert playlist.versions is not None
     assert len(playlist.versions) == 2
-    assert playlist.versions[0].id == 101
+    assert playlist.versions[0].id == "101"
     assert playlist.versions[0].name == "shot_010_anim_v001"
-    assert playlist.versions[1].id == 102
+    assert playlist.versions[1].id == "102"
     assert playlist.versions[1].name == "shot_020_anim_v002"
 
 
@@ -272,7 +272,7 @@ def test_playlist_with_empty_versions_list(shotgrid_provider):
 
     playlist = shotgrid_provider.get_entity("playlist", 60)
 
-    assert playlist.id == 60
+    assert playlist.id == "60"
     assert playlist.versions == []
 
 
@@ -300,7 +300,7 @@ def test_entity_to_dict_basic_attributes(shotgrid_provider):
     result = version.__to_dict__()
 
     assert result["type"] == "Version"
-    assert result["id"] == 1
+    assert result["id"] == "1"
     assert result["name"] == "V001"
     assert result["description"] == "Version 1"
     assert result["status"] == "Completed"
@@ -361,7 +361,7 @@ def test_entity_to_dict_with_nested_entity(shotgrid_provider):
     # The nested entity should be serialized as a dict, not an object
     assert isinstance(result["entity"], dict)
     assert result["entity"]["type"] == "Shot"
-    assert result["entity"]["id"] == 1002
+    assert result["entity"]["id"] == "1002"
     assert result["entity"]["name"] == "bunny_080_0010"
     # Nested entity should also exclude internal attributes
     assert "provider" not in result["entity"]
@@ -427,11 +427,11 @@ def test_entity_to_dict_with_list_of_entities(shotgrid_provider):
 
     # Each version should be serialized
     assert result["versions"][0]["type"] == "Version"
-    assert result["versions"][0]["id"] == 101
+    assert result["versions"][0]["id"] == "101"
     assert result["versions"][0]["name"] == "shot_010_anim_v001"
 
     assert result["versions"][1]["type"] == "Version"
-    assert result["versions"][1]["id"] == 102
+    assert result["versions"][1]["id"] == "102"
     assert result["versions"][1]["name"] == "shot_020_anim_v002"
 
 
@@ -610,10 +610,10 @@ class TestProdtrackProviderBase:
     """Tests for the ProdtrackProviderBase class."""
 
     def test_build_version_context_with_shot_task_status(self):
-        shot = Shot(id=2, name="SH010")
-        task = Task(id=3, name="Lighting", pipeline_step={"name": "LGT"})
+        shot = Shot(id="2", name="SH010")
+        task = Task(id="3", name="Lighting", pipeline_step={"name": "LGT"})
         version = Version(
-            id=1,
+            id="1",
             name="v001",
             entity=shot,
             task=task,
@@ -630,7 +630,7 @@ class TestProdtrackProviderBase:
         assert "Description: WIP" in out
 
     def test_build_version_context_empty_version(self):
-        version = Version(id=1, notes=[])
+        version = Version(id="1", notes=[])
         assert (
             ProdtrackProviderBase.build_version_context(version)
             == "No version context available."
@@ -659,7 +659,7 @@ class TestProdtrackProviderBase:
     def test_add_entity_raises_not_implemented(self):
         """Test that add_entity raises NotImplementedError."""
         provider = ProdtrackProviderBase()
-        shot = Shot(id=1, name="test")
+        shot = Shot(id="1", name="test")
         with pytest.raises(NotImplementedError, match="Subclasses must implement"):
             provider.add_entity("shot", shot)
 
@@ -704,7 +704,7 @@ class TestProdtrackProviderBase:
         provider = ProdtrackProviderBase()
         with pytest.raises(NotImplementedError, match="Subclasses must implement"):
             provider.publish_note(
-                version_id=1,
+                version_id="1",
                 content="c",
                 subject="s",
                 to_users=[],
@@ -767,7 +767,7 @@ class TestShotgridEdgeCases:
 
     def test_add_entity_unknown_type_raises_error(self, shotgrid_provider):
         """Test that add_entity raises ValueError for unknown entity type."""
-        shot = Shot(id=1, name="test")
+        shot = Shot(id="1", name="test")
         with pytest.raises(ValueError, match="Unknown entity type: unknown_type"):
             shotgrid_provider.add_entity("unknown_type", shot)
 
@@ -783,14 +783,14 @@ class TestShotgridEdgeCases:
 
     def test_convert_entities_to_sg_links_with_single_entity(self, shotgrid_provider):
         """Test _convert_entities_to_sg_links with a single EntityBase."""
-        version = Version(id=123, name="test_version")
+        version = Version(id="123", name="test_version")
         result = shotgrid_provider._convert_entities_to_sg_links(version)
         assert result == {"type": "Version", "id": 123}
 
     def test_convert_entities_to_sg_links_with_list(self, shotgrid_provider):
         """Test _convert_entities_to_sg_links with a list of entities."""
-        version1 = Version(id=1, name="v001")
-        version2 = Version(id=2, name="v002")
+        version1 = Version(id="1", name="v001")
+        version2 = Version(id="2", name="v002")
         result = shotgrid_provider._convert_entities_to_sg_links([version1, version2])
         assert result == [{"type": "Version", "id": 1}, {"type": "Version", "id": 2}]
 
@@ -811,7 +811,7 @@ class TestShotgridEdgeCases:
         self, shotgrid_provider
     ):
         """Test _convert_entities_to_sg_links filters non-entity items from list."""
-        version = Version(id=1, name="v001")
+        version = Version(id="1", name="v001")
         result = shotgrid_provider._convert_entities_to_sg_links(
             [version, "not_an_entity", 123]
         )
@@ -830,7 +830,7 @@ class TestShotgridEdgeCases:
         }
 
         version = Version(
-            id=0,
+            id="0",
             name="test_v001",
             description="Test version",
             status="wip",
@@ -844,7 +844,7 @@ class TestShotgridEdgeCases:
         sg_data = call_args[0][1]
         assert "entity" not in sg_data
         assert "sg_task" not in sg_data
-        assert created_version.id == 500
+        assert created_version.id == "500"
 
 
 class TestGetDnaEntityType:
@@ -911,7 +911,7 @@ class TestShotgridProviderSearch:
         shotgrid_provider.search(
             "",
             ["shot"],
-            project_id=42,
+            project_id="42",
             limit=100,
         )
 
@@ -937,7 +937,7 @@ class TestShotgridProviderSearch:
     def test_search_non_empty_query_includes_contains_filter(self, shotgrid_provider):
         shotgrid_provider.sg.find.return_value = []
 
-        shotgrid_provider.search("hero", ["shot"], project_id=1, limit=10)
+        shotgrid_provider.search("hero", ["shot"], project_id="1", limit=10)
 
         filters = shotgrid_provider.sg.find.call_args[1]["filters"]
         assert any(
@@ -984,9 +984,9 @@ class TestShotgridProviderFind:
         results = shotgrid_provider.find("project", [])
 
         assert len(results) == 2
-        assert results[0].id == 1
+        assert results[0].id == "1"
         assert results[0].name == "Project One"
-        assert results[1].id == 2
+        assert results[1].id == "2"
         assert results[1].name == "Project Two"
 
     def test_find_converts_dna_filters_to_sg_filters(self, shotgrid_provider):
@@ -1105,10 +1105,10 @@ class TestShotgridProviderFind:
 
         assert len(results) == 1
         shot = results[0]
-        assert shot.id == 100
+        assert shot.id == "100"
         assert shot.name == "shot_010"
         assert shot.description == "First shot"
-        assert shot.project == {"type": "Project", "id": 1, "name": "Test"}
+        assert shot.project == {"type": "Project", "id": "1", "name": "Test"}
 
 
 # ============================================================================
@@ -1146,9 +1146,9 @@ class TestShotgridProviderGetProjectsForUser:
         results = shotgrid_provider.get_projects_for_user("test@example.com")
 
         assert len(results) == 2
-        assert results[0].id == 10
+        assert results[0].id == "10"
         assert results[0].name == "Project Alpha"
-        assert results[1].id == 20
+        assert results[1].id == "20"
         assert results[1].name == "Project Beta"
 
     def test_get_projects_for_user_queries_correct_user(self, shotgrid_provider):
@@ -1245,9 +1245,9 @@ class TestShotgridProviderGetPlaylistsForProject:
         results = shotgrid_provider.get_playlists_for_project(1)
 
         assert len(results) == 2
-        assert results[0].id == 10
+        assert results[0].id == "10"
         assert results[0].code == "Dailies Review"
-        assert results[1].id == 20
+        assert results[1].id == "20"
         assert results[1].code == "Final Review"
 
     def test_get_playlists_for_project_filters_by_project(self, shotgrid_provider):
@@ -1327,9 +1327,9 @@ class TestShotgridProviderGetVersionsForPlaylist:
         results = shotgrid_provider.get_versions_for_playlist(1)
 
         assert len(results) == 2
-        assert results[0].id == 10
+        assert results[0].id == "10"
         assert results[0].name == "shot_010_v001"
-        assert results[1].id == 20
+        assert results[1].id == "20"
         assert results[1].name == "shot_020_v002"
 
     def test_get_versions_for_playlist_queries_playlist_first(self, shotgrid_provider):
@@ -1450,7 +1450,7 @@ class TestShotgridProviderGetVersionsForPlaylist:
 
         assert len(results) == 1
         assert results[0].task is not None
-        assert results[0].task.id == 500
+        assert results[0].task.id == "500"
         assert results[0].task.name == "Animation"
 
 
@@ -1485,7 +1485,7 @@ class TestShotgridProviderGetUserByEmail:
 
         result = shotgrid_provider.get_user_by_email("jdoe@example.com")
 
-        assert result.id == 42
+        assert result.id == "42"
         assert result.name == "John Doe"
         assert result.email == "jdoe@example.com"
         assert result.login == "jdoe"
@@ -1537,7 +1537,7 @@ class TestShotgridProviderShallowLinks:
         result = shotgrid_provider._convert_shallow_link(data)
 
         assert result is not None
-        assert result.id == 100
+        assert result.id == "100"
         assert result.name == "shot_010"
 
     def test_convert_shallow_link_with_list(self, shotgrid_provider):
@@ -1550,8 +1550,8 @@ class TestShotgridProviderShallowLinks:
 
         assert isinstance(result, list)
         assert len(result) == 2
-        assert result[0].id == 1
-        assert result[1].id == 2
+        assert result[0].id == "1"
+        assert result[1].id == "2"
 
     def test_convert_shallow_link_with_none(self, shotgrid_provider):
         """Test _convert_shallow_link with None."""
@@ -1574,7 +1574,7 @@ class TestShotgridProviderShallowLinks:
         data = {"type": "Playlist", "id": 50, "name": "Daily Review"}
         result = shotgrid_provider._create_shallow_entity(data)
 
-        assert result.id == 50
+        assert result.id == "50"
         assert result.code == "Daily Review"
 
     def test_create_shallow_entity_for_non_playlist(self, shotgrid_provider):
@@ -1582,7 +1582,7 @@ class TestShotgridProviderShallowLinks:
         data = {"type": "Shot", "id": 100, "name": "shot_010"}
         result = shotgrid_provider._create_shallow_entity(data)
 
-        assert result.id == 100
+        assert result.id == "100"
         assert result.name == "shot_010"
 
 
@@ -1645,7 +1645,7 @@ class TestShotgridProviderGetVersionStatuses:
             }
         }
 
-        shotgrid_provider.get_version_statuses(project_id=124)
+        shotgrid_provider.get_version_statuses(project_id="124")
 
         shotgrid_provider.sg.schema_field_read.assert_called_once_with(
             "Version", "sg_status_list", {"type": "Project", "id": 124}
@@ -1688,3 +1688,66 @@ class TestShotgridProviderGetVersionStatuses:
         )
         with pytest.raises(ValueError, match="Not connected to ShotGrid"):
             provider.get_version_statuses()
+
+
+def test_get_entity_translates_string_id_to_shotgrid_int(shotgrid_provider):
+    """DNA string IDs are converted to ShotGrid ints and stringified on the way out."""
+    shotgrid_provider.sg.find_one.return_value = {
+        "id": 123,
+        "code": "V001",
+        "project": {"type": "Project", "id": 85, "name": "Project"},
+        "user": {"type": "HumanUser", "id": 9, "name": "Ada"},
+    }
+
+    version = shotgrid_provider.get_entity("version", "123", resolve_links=False)
+
+    assert version.id == "123"
+    assert version.project["id"] == "85"
+    assert version.user["id"] == "9"
+    assert shotgrid_provider.sg.find_one.call_args[1]["filters"] == [["id", "is", 123]]
+
+
+def test_get_task_stringifies_pipeline_step_id(shotgrid_provider):
+    shotgrid_provider.sg.find_one.return_value = {
+        "id": 4,
+        "content": "Anim",
+        "sg_status_list": "ip",
+        "step": {"type": "Step", "id": 12, "name": "Anim"},
+        "project": {"type": "Project", "id": 85, "name": "Project"},
+    }
+
+    task = shotgrid_provider.get_entity("task", "4", resolve_links=False)
+
+    assert task.id == "4"
+    assert task.pipeline_step["id"] == "12"
+    assert task.project["id"] == "85"
+
+
+def test_publish_note_returns_string_id_and_sends_int_links(shotgrid_provider):
+    linked = Version(id="55", name="v001")
+    shotgrid_provider.sg.find_one.side_effect = [
+        {"id": 101, "project": {"type": "Project", "id": 85}},
+        None,
+    ]
+    shotgrid_provider.sg.create.return_value = {"id": 200}
+
+    note_id = shotgrid_provider.publish_note(
+        version_id="101",
+        content="Note body",
+        subject="Subject",
+        to_users=["7"],
+        cc_users=["8"],
+        links=[linked],
+    )
+
+    assert note_id == "200"
+    data = shotgrid_provider.sg.create.call_args[0][1]
+    assert {"type": "Version", "id": 101} in data["note_links"]
+    assert {"type": "Version", "id": 55} in data["note_links"]
+    assert data["addressings_to"] == [{"type": "HumanUser", "id": 7}]
+    assert data["addressings_cc"] == [{"type": "HumanUser", "id": 8}]
+
+
+def test_get_entity_rejects_non_numeric_id(shotgrid_provider):
+    with pytest.raises(ValueError, match="Invalid ShotGrid entity ID"):
+        shotgrid_provider.get_entity("version", "abc")

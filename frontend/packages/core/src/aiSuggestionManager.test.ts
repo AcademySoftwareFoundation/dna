@@ -29,7 +29,7 @@ describe('AISuggestionManager', () => {
 
   describe('getGenerationState', () => {
     it('returns idle state for new key', () => {
-      const state = manager.getGenerationState(1, 1);
+      const state = manager.getGenerationState('1', '1');
       expect(state).toEqual({
         isLoading: false,
         error: null,
@@ -43,15 +43,15 @@ describe('AISuggestionManager', () => {
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValue(mockResponse);
 
-      const result = await manager.generateSuggestion(1, 1, 'test@example.com');
+      const result = await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(result).toEqual(mockResponse);
       expect(mockApiHandler.generateNote).toHaveBeenCalledWith({
-        playlistId: 1,
-        versionId: 1,
+        playlistId: '1',
+        versionId: '1',
         userEmail: 'test@example.com',
       });
-      expect(manager.getGenerationState(1, 1)).toEqual({
+      expect(manager.getGenerationState('1', '1')).toEqual({
         isLoading: false,
         error: null,
       });
@@ -73,8 +73,8 @@ describe('AISuggestionManager', () => {
       });
 
       const generatePromise = manager.generateSuggestion(
-        1,
-        1,
+        '1',
+        '1',
         'test@example.com'
       );
 
@@ -96,8 +96,8 @@ describe('AISuggestionManager', () => {
         promise
       );
 
-      const first = manager.generateSuggestion(1, 1, 'test@example.com');
-      const second = manager.generateSuggestion(1, 1, 'test@example.com');
+      const first = manager.generateSuggestion('1', '1', 'test@example.com');
+      const second = manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(mockApiHandler.generateNote).toHaveBeenCalledTimes(1);
       expect(second).toBe(first);
@@ -113,10 +113,10 @@ describe('AISuggestionManager', () => {
       ).mockRejectedValue(apiError);
 
       await expect(
-        manager.generateSuggestion(1, 1, 'test@example.com')
+        manager.generateSuggestion('1', '1', 'test@example.com')
       ).rejects.toThrow('API Error');
 
-      const state = manager.getGenerationState(1, 1);
+      const state = manager.getGenerationState('1', '1');
       expect(state.error?.message).toBe('API Error');
       expect(state.isLoading).toBe(false);
     });
@@ -130,9 +130,9 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
-      const state = manager.getGenerationState(1, 1);
+      const state = manager.getGenerationState('1', '1');
       expect(state.error?.message).toBe('Generated note was empty');
       expect(state.isLoading).toBe(false);
     });
@@ -146,9 +146,9 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
-      const state = manager.getGenerationState(1, 1);
+      const state = manager.getGenerationState('1', '1');
       expect(state.error?.message).toBe('The model had no new notes to add');
     });
 
@@ -157,7 +157,7 @@ describe('AISuggestionManager', () => {
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValueOnce(mockResponse);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       (
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
@@ -167,9 +167,9 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
-      const state = manager.getGenerationState(1, 1);
+      const state = manager.getGenerationState('1', '1');
       expect(state.error).toBeNull();
       expect(state.isLoading).toBe(false);
     });
@@ -179,7 +179,7 @@ describe('AISuggestionManager', () => {
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValueOnce(mockResponse);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       (
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
@@ -189,11 +189,11 @@ describe('AISuggestionManager', () => {
         context: 'Test context',
       });
 
-      await manager.generateSuggestion(1, 1, 'test@example.com', undefined, {
+      await manager.generateSuggestion('1', '1', 'test@example.com', undefined, {
         requireFresh: true,
       });
 
-      const state = manager.getGenerationState(1, 1);
+      const state = manager.getGenerationState('1', '1');
       expect(state.error?.message).toBe('The model had no new notes to add');
       expect(state.isLoading).toBe(false);
     });
@@ -203,7 +203,7 @@ describe('AISuggestionManager', () => {
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValueOnce(mockResponse);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       let resolvePromise: (value: GenerateNoteResponse) => void;
       const promise = new Promise<GenerateNoteResponse>((resolve) => {
@@ -215,19 +215,19 @@ describe('AISuggestionManager', () => {
       );
 
       const generatePromise = manager.generateSuggestion(
-        1,
-        1,
+        '1',
+        '1',
         'test@example.com',
         'Regenerate all notes',
         { requireFresh: true }
       );
 
-      expect(manager.getGenerationState(1, 1).isLoading).toBe(true);
+      expect(manager.getGenerationState('1', '1').isLoading).toBe(true);
 
       resolvePromise!(mockResponse);
       await generatePromise;
 
-      expect(manager.getGenerationState(1, 1)).toEqual({
+      expect(manager.getGenerationState('1', '1')).toEqual({
         isLoading: false,
         error: null,
       });
@@ -243,12 +243,12 @@ describe('AISuggestionManager', () => {
       const callback = vi.fn();
       const unsubscribe = manager.onGenerationStateChange(callback);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(callback).toHaveBeenCalled();
       expect(callback).toHaveBeenCalledWith(
-        1,
-        1,
+        '1',
+        '1',
         expect.objectContaining({
           isLoading: false,
           error: null,
@@ -268,7 +268,7 @@ describe('AISuggestionManager', () => {
 
       unsubscribe();
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(callback).not.toHaveBeenCalled();
     });
@@ -283,9 +283,9 @@ describe('AISuggestionManager', () => {
       const callback = vi.fn();
       const unsubscribe = manager.onGenerationSuccess(callback);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
-      expect(callback).toHaveBeenCalledWith(1, 1, mockResponse);
+      expect(callback).toHaveBeenCalledWith('1', '1', mockResponse);
 
       unsubscribe();
     });
@@ -300,7 +300,7 @@ describe('AISuggestionManager', () => {
 
       unsubscribe();
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
 
       expect(callback).not.toHaveBeenCalled();
     });
@@ -314,9 +314,9 @@ describe('AISuggestionManager', () => {
         mockApiHandler.generateNote as ReturnType<typeof vi.fn>
       ).mockResolvedValue(mockResponse);
 
-      manager.scheduleRegeneration(1, 1, 'test@example.com');
-      manager.scheduleRegeneration(1, 1, 'test@example.com');
-      manager.scheduleRegeneration(1, 1, 'test@example.com');
+      manager.scheduleRegeneration('1', '1', 'test@example.com');
+      manager.scheduleRegeneration('1', '1', 'test@example.com');
+      manager.scheduleRegeneration('1', '1', 'test@example.com');
 
       expect(mockApiHandler.generateNote).not.toHaveBeenCalled();
 
@@ -337,12 +337,12 @@ describe('AISuggestionManager', () => {
       const callback = vi.fn();
       manager.onGenerationStateChange(callback);
 
-      await manager.generateSuggestion(1, 1, 'test@example.com');
+      await manager.generateSuggestion('1', '1', 'test@example.com');
       callback.mockClear();
 
       manager.destroy();
 
-      expect(manager.getGenerationState(1, 1)).toEqual({
+      expect(manager.getGenerationState('1', '1')).toEqual({
         isLoading: false,
         error: null,
       });

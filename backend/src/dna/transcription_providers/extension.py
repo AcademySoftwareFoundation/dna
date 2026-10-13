@@ -37,7 +37,7 @@ class ExtensionTranscriptionProvider(TranscriptionProviderBase):
         self,
         platform: "Platform",
         meeting_id: str,
-        playlist_id: int,
+        playlist_id: str,
         passcode: Optional[str] = None,
         bot_name: Optional[str] = None,
         language: Optional[str] = None,

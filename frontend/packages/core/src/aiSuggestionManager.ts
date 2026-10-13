@@ -30,13 +30,13 @@ type LatestSuggestion = {
 const NO_OP_SUGGESTION_PATTERN =
   /^(?:there are )?no new notes?[\s.!]*$|^(?:there are )?no notes? (?:to add|generated|available)[\s.!]*$/i;
 
-function buildKey(playlistId: number, versionId: number): string {
+function buildKey(playlistId: string, versionId: string): string {
   return `${playlistId}-${versionId}`;
 }
 
 function buildRequestKey(
-  playlistId: number,
-  versionId: number,
+  playlistId: string,
+  versionId: string,
   additionalInstructions?: string
 ): string {
   const instructionsKey = additionalInstructions?.trim() ?? '';
@@ -99,7 +99,7 @@ export class AISuggestionManager {
     this.debounceMs = options.debounceMs ?? 1000;
   }
 
-  private getGeneration(playlistId: number, versionId: number) {
+  private getGeneration(playlistId: string, versionId: string) {
     const key = buildKey(playlistId, versionId);
     let state = this.generationByKey.get(key);
     if (!state) {
@@ -109,7 +109,7 @@ export class AISuggestionManager {
     return state;
   }
 
-  private getLatest(playlistId: number, versionId: number): LatestSuggestion {
+  private getLatest(playlistId: string, versionId: string): LatestSuggestion {
     return (
       this.latestByKey.get(buildKey(playlistId, versionId)) ??
       idleLatestSuggestion()
@@ -117,16 +117,16 @@ export class AISuggestionManager {
   }
 
   private setLatest(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     latest: LatestSuggestion
   ): void {
     this.latestByKey.set(buildKey(playlistId, versionId), latest);
   }
 
   private setGeneration(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     updates: Partial<AISuggestionGenerationState>
   ): void {
     const key = buildKey(playlistId, versionId);
@@ -137,8 +137,8 @@ export class AISuggestionManager {
   }
 
   private notifyGeneration(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     state: AISuggestionGenerationState
   ): void {
     for (const callback of this.generationListeners) {
@@ -150,8 +150,8 @@ export class AISuggestionManager {
   }
 
   private notifySuccess(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     response: GenerateNoteResponse
   ): void {
     for (const callback of this.successListeners) {
@@ -163,8 +163,8 @@ export class AISuggestionManager {
   }
 
   getGenerationState(
-    playlistId: number,
-    versionId: number
+    playlistId: string,
+    versionId: string
   ): AISuggestionGenerationState {
     const snapshot = this.getGeneration(playlistId, versionId);
     return { ...snapshot };
@@ -189,8 +189,8 @@ export class AISuggestionManager {
   }
 
   generateSuggestion(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     userEmail: string,
     additionalInstructions?: string,
     options: GenerateSuggestionOptions = {}
@@ -282,8 +282,8 @@ export class AISuggestionManager {
   }
 
   scheduleRegeneration(
-    playlistId: number,
-    versionId: number,
+    playlistId: string,
+    versionId: string,
     userEmail: string,
     additionalInstructions?: string
   ): void {

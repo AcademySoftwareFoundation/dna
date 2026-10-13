@@ -8,7 +8,7 @@
 # and starts the full DNA stack.
 #
 # Usage:
-#   ./bootstrap.sh           # first-time setup
+#   ./bootstrap.sh           # first-time setup, or change one setting if already configured
 #   ./bootstrap.sh --start   # day-to-day: start services without re-running setup
 #
 # Supported platforms: macOS, Linux
@@ -27,6 +27,7 @@ VEXA_LOCAL_EMAIL="dna-local@example.com"
 # local Vexa container and transcription-backend setup are then skipped.
 VEXA_HOSTED=false
 VEXA_CLOUD_URL="https://api.cloud.vexa.ai"
+VEXA_LOCAL_URL="http://vexa:8056"
 
 # Set by choose_transcription_route: "vexa" (default) or "extension"
 TRANSCRIPTION_ROUTE="vexa"
@@ -71,22 +72,55 @@ safe_copy() {
     ok "$(basename "$src") → $(basename "$dst")"
 }
 
-# In-place sed replacement: replace every occurrence of KEY=<anything> with KEY=VALUE.
-# Uses a backup suffix then deletes it, which works on both macOS and Linux.
+# Docker Compose interpolates $VAR and ${VAR} in environment values. A literal
+# dollar sign in a secret has to be written as $$.
+escape_compose_value() {
+    local value="$1"
+    printf '%s' "${value//\$/\$\$}"
+}
+
+# Replace `- KEY=...` environment entries. Comments that mention KEY= are left
+# alone so a value cannot truncate the rest of the line.
 set_env_var() {
     local key="$1" value="$2" file="$3"
-    sed -i.bak "s|${key}=.*|${key}=${value}|g" "$file"
-    rm -f "${file}.bak"
+    local escaped
+    escaped="$(escape_compose_value "$value")"
+    python3 - "$file" "$key" "$escaped" <<'PYEOF'
+import sys
+
+path, key, value = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f:
+    lines = f.readlines()
+
+prefix = f"{key}="
+changed = False
+for i, line in enumerate(lines):
+    stripped = line.lstrip()
+    if not stripped.startswith("- "):
+        continue
+    body = stripped[2:]
+    if not body.startswith(prefix):
+        continue
+    indent = line[: len(line) - len(stripped)]
+    lines[i] = f"{indent}- {prefix}{value}\n"
+    changed = True
+
+if changed:
+    with open(path, "w") as f:
+        f.writelines(lines)
+PYEOF
 }
 
 # Set KEY=VALUE in a compose environment block, appending if the key is absent.
 ensure_env_var() {
     local key="$1" value="$2" file="$3"
-    if grep -qF "${key}=" "$file" 2>/dev/null; then
+    if grep -qE "^[[:space:]]*-[[:space:]]*${key}=" "$file" 2>/dev/null; then
         set_env_var "$key" "$value" "$file"
         return
     fi
-    python3 - "$file" "$key" "$value" <<'PYEOF'
+    local escaped
+    escaped="$(escape_compose_value "$value")"
+    python3 - "$file" "$key" "$escaped" <<'PYEOF'
 import sys
 
 path, key, value = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -152,6 +186,168 @@ normalize_flag() {
         f|[oO][fF][fF]) echo "false" ;;
         *)            echo "" ;;
     esac
+}
+
+# True once bootstrap has written the env files a later run should edit in place.
+env_is_initialized() {
+    [[ -f "$BACKEND_DIR/docker-compose.local.yml" && -f "$FRONTEND_ENV" ]]
+}
+
+# Read KEY from a compose `- KEY=value` line. Empty when the key is absent.
+read_compose_value() {
+    local key="$1" file="$2" line
+    line="$(grep -E "^[[:space:]]*-[[:space:]]*${key}=" "$file" 2>/dev/null | tail -n1 || true)"
+    if [[ -z "$line" ]]; then
+        echo ""
+        return 0
+    fi
+    echo "$line" | sed -E "s/.*${key}=//" | tr -d ' "'
+}
+
+# Read an active (uncommented) KEY=value from a dotenv file.
+read_active_dotenv() {
+    local key="$1" file="$2" line
+    line="$(grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 || true)"
+    if [[ -z "$line" ]]; then
+        echo ""
+        return 0
+    fi
+    echo "${line#*=}"
+}
+
+current_llm_label() {
+    local provider
+    provider="$(read_compose_value LLM_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    echo "${provider:-openai}"
+}
+
+current_transcription_label() {
+    if [[ "$(detect_transcription_route)" == "extension" ]]; then
+        echo "browser extension"
+        return 0
+    fi
+    local url
+    url="$(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml")"
+    if [[ "$url" == "$VEXA_CLOUD_URL" ]]; then
+        echo "Vexa hosted"
+    else
+        echo "Vexa self-hosted"
+    fi
+}
+
+current_prodtrack_label() {
+    local provider
+    provider="$(read_compose_value PRODTRACK_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    echo "${provider:-mock}"
+}
+
+current_feature_flags_label() {
+    local in_review trans ai
+    in_review="$(read_active_dotenv VITE_FEATURE_IN_REVIEW "$FRONTEND_ENV")"
+    trans="$(read_active_dotenv VITE_FEATURE_TRANSCRIPTION "$FRONTEND_ENV")"
+    ai="$(read_active_dotenv VITE_FEATURE_AI "$FRONTEND_ENV")"
+    if [[ -z "$in_review" && -z "$trans" && -z "$ai" ]]; then
+        echo "user-controlled"
+        return 0
+    fi
+    echo "in-review=${in_review:-user}, transcription=${trans:-user}, ai=${ai:-user}"
+}
+
+# Comment a frontend flag back out so each user controls it again.
+clear_feature_flag() {
+    local key="$1" file="$2"
+    if grep -qE "^#? *${key}=" "$file"; then
+        sed -i.bak -E "s|^#? *${key}=.*|# ${key}=|" "$file"
+        rm -f "${file}.bak"
+    fi
+}
+
+# Replace every LLM provider entry in the compose file with the given KEY=VALUE
+# pairs. Old provider keys are removed so switching providers does not leave
+# the previous provider selected.
+write_llm_block() {
+    local needs_extra_hosts="$1"
+    shift
+    local file="$BACKEND_DIR/docker-compose.local.yml"
+    local payload="" spec key value
+    for spec in "$@"; do
+        key="${spec%%=*}"
+        value="${spec#*=}"
+        payload+="${key}=$(escape_compose_value "$value")"$'\n'
+    done
+    python3 - "$file" "$needs_extra_hosts" "$payload" <<'PY'
+import sys
+
+path, needs_extra_hosts, payload = sys.argv[1], sys.argv[2] == "true", sys.argv[3]
+LLM_KEYS = {
+    "LLM_PROVIDER",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL",
+    "GEMINI_API_KEY",
+    "CUSTOM_LLM_URL",
+    "CUSTOM_LLM_MODEL",
+    "CUSTOM_LLM_API_KEY",
+}
+new_entries = [line for line in payload.splitlines() if "=" in line]
+
+with open(path) as f:
+    lines = f.readlines()
+
+def llm_key(line):
+    stripped = line.lstrip()
+    if not stripped.startswith("- "):
+        return None
+    body = stripped[2:].strip()
+    key = body.split("=", 1)[0].strip()
+    return key if key in LLM_KEYS else None
+
+kept = []
+insert_at = None
+indent = "      "
+for line in lines:
+    if llm_key(line):
+        if insert_at is None:
+            insert_at = len(kept)
+            indent = line[: len(line) - len(line.lstrip())]
+        continue
+    kept.append(line)
+
+if insert_at is None:
+    insert_at = len(kept)
+    for i, line in enumerate(kept):
+        stripped = line.lstrip()
+        if stripped.startswith("- ") and "=" in stripped:
+            insert_at = i + 1
+            indent = line[: len(line) - len(stripped)]
+
+block = [f"{indent}- {entry}\n" for entry in new_entries]
+out = kept[:insert_at] + block + kept[insert_at:]
+
+if needs_extra_hosts and not any(line.lstrip().startswith("extra_hosts:") for line in out):
+    env_idx = next(
+        (i for i, line in enumerate(out) if line.lstrip().startswith("environment:")),
+        None,
+    )
+    if env_idx is not None:
+        env_indent = len(out[env_idx]) - len(out[env_idx].lstrip())
+        at = env_idx + 1
+        while at < len(out):
+            raw = out[at]
+            if raw.strip() == "" or raw.lstrip().startswith("#"):
+                at += 1
+                continue
+            if len(raw) - len(raw.lstrip()) > env_indent:
+                at += 1
+                continue
+            break
+        pad = " " * env_indent
+        out.insert(at, f"{pad}extra_hosts:\n")
+        out.insert(at + 1, f'{pad}  - "host.docker.internal:host-gateway"\n')
+
+with open(path, "w") as f:
+    f.writelines(out)
+PY
 }
 
 # Apply one feature flag: write it to the frontend .env, or report it as left
@@ -241,27 +437,10 @@ configure_llm() {
         2|[aA]nthropic|[cC]laude)
             read -r -p "  Anthropic API key: " anthropic_key
             if [[ -n "$anthropic_key" ]]; then
-                # The example file has an OPENAI_API_KEY line; replace it with
-                # the Anthropic key and insert LLM_PROVIDER=anthropic above it.
-                python3 - "$BACKEND_DIR/docker-compose.local.yml" "$anthropic_key" <<'PYEOF'
-import sys
-
-path, key = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    lines = f.readlines()
-out = []
-for line in lines:
-    stripped = line.lstrip()
-    if stripped.startswith('- OPENAI_API_KEY='):
-        indent = line[: len(line) - len(stripped)]
-        out.append(f"{indent}- LLM_PROVIDER=anthropic\n")
-        out.append(f"{indent}- ANTHROPIC_API_KEY={key}\n")
-        out.append(f"{indent}- ANTHROPIC_MODEL=claude-opus-4-8\n")
-    else:
-        out.append(line)
-with open(path, 'w') as f:
-    f.writelines(out)
-PYEOF
+                write_llm_block false \
+                    "LLM_PROVIDER=anthropic" \
+                    "ANTHROPIC_API_KEY=${anthropic_key}" \
+                    "ANTHROPIC_MODEL=claude-opus-4-8"
                 ok "Anthropic API key written to backend/docker-compose.local.yml"
             else
                 warn "Skipped — set ANTHROPIC_API_KEY and LLM_PROVIDER=anthropic in backend/docker-compose.local.yml"
@@ -270,26 +449,9 @@ PYEOF
         3|[gG]emini)
             read -r -p "  Gemini API key: " gemini_key
             if [[ -n "$gemini_key" ]]; then
-                # The example file has an OPENAI_API_KEY line; replace it with
-                # the Gemini key and insert LLM_PROVIDER=gemini above it.
-                python3 - "$BACKEND_DIR/docker-compose.local.yml" "$gemini_key" <<'PYEOF'
-import sys
-
-path, key = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    lines = f.readlines()
-out = []
-for line in lines:
-    stripped = line.lstrip()
-    if stripped.startswith('- OPENAI_API_KEY='):
-        indent = line[: len(line) - len(stripped)]
-        out.append(f"{indent}- LLM_PROVIDER=gemini\n")
-        out.append(f"{indent}- GEMINI_API_KEY={key}\n")
-    else:
-        out.append(line)
-with open(path, 'w') as f:
-    f.writelines(out)
-PYEOF
+                write_llm_block false \
+                    "LLM_PROVIDER=gemini" \
+                    "GEMINI_API_KEY=${gemini_key}"
                 ok "Gemini API key written to backend/docker-compose.local.yml"
             else
                 warn "Skipped — set GEMINI_API_KEY and LLM_PROVIDER=gemini in backend/docker-compose.local.yml"
@@ -320,70 +482,20 @@ PYEOF
                 read -r -p "  Custom LLM API key: " custom_api_key
             fi
 
-            # Detect OS and handle extra_hosts for Linux
-            local os_type
-            os_type="$(uname -s)"
             local needs_extra_hosts=false
-            if [[ "$os_type" == "Linux" ]] && [[ "$custom_url" =~ host\.docker\.internal ]]; then
+            if [[ "$(uname -s)" == "Linux" ]] && [[ "$custom_url" =~ host\.docker\.internal ]]; then
                 needs_extra_hosts=true
             fi
 
-            python3 - "$BACKEND_DIR/docker-compose.local.yml" "$custom_url" "$custom_model" "$custom_api_key" "$needs_extra_hosts" <<'PYEOF'
-import sys
-
-path, url, model, api_key, needs_extra_hosts = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] == "true"
-with open(path) as f:
-    lines = f.readlines()
-
-out = []
-for line in lines:
-    stripped = line.lstrip()
-    if stripped.startswith('- OPENAI_API_KEY='):
-        indent = line[: len(line) - len(stripped)]
-        out.append(f"{indent}- LLM_PROVIDER=custom\n")
-        out.append(f"{indent}- CUSTOM_LLM_URL={url}\n")
-        out.append(f"{indent}- CUSTOM_LLM_MODEL={model}\n")
-        if api_key:
-            out.append(f"{indent}- CUSTOM_LLM_API_KEY={api_key}\n")
-    else:
-        out.append(line)
-
-if needs_extra_hosts:
-    # Find the environment block and add extra_hosts after the last env var
-    new_lines = []
-    in_environment = False
-    environment_indent = ""
-    last_env_idx = -1
-    for i, line in enumerate(out):
-        stripped = line.lstrip()
-        if 'environment:' in stripped:
-            in_environment = True
-            environment_indent = line[: len(line) - len(stripped)]
-            new_lines.append(line)
-            continue
-        if in_environment:
-            if stripped.startswith('- ') and '=' in stripped:
-                last_env_idx = len(new_lines)
-                new_lines.append(line)
-                continue
-            if stripped and not stripped.startswith('#'):
-                in_environment = False
-            if not stripped:
-                new_lines.append(line)
-                continue
-        new_lines.append(line)
-
-    if last_env_idx >= 0:
-        extra_indent = environment_indent + "  "
-        new_lines.insert(last_env_idx + 1, f"{extra_indent}extra_hosts:\n")
-        new_lines.insert(last_env_idx + 2, f"{extra_indent}  - \"host.docker.internal:host-gateway\"\n")
-
-    with open(path, 'w') as f:
-        f.writelines(new_lines)
-else:
-    with open(path, 'w') as f:
-        f.writelines(out)
-PYEOF
+            local -a llm_entries=(
+                "LLM_PROVIDER=custom"
+                "CUSTOM_LLM_URL=${custom_url}"
+                "CUSTOM_LLM_MODEL=${custom_model}"
+            )
+            if [[ -n "$custom_api_key" ]]; then
+                llm_entries+=("CUSTOM_LLM_API_KEY=${custom_api_key}")
+            fi
+            write_llm_block "$needs_extra_hosts" "${llm_entries[@]}"
 
             if [[ -n "$custom_api_key" ]]; then
                 ok "Custom LLM configured in backend/docker-compose.local.yml (URL, model, and API key)"
@@ -401,7 +513,7 @@ PYEOF
         *)
             read -r -p "  OpenAI API key: " openai_key
             if [[ -n "$openai_key" ]]; then
-                set_env_var "OPENAI_API_KEY" "$openai_key" "$BACKEND_DIR/docker-compose.local.yml"
+                write_llm_block false "OPENAI_API_KEY=${openai_key}"
                 ok "OpenAI API key written to backend/docker-compose.local.yml"
             else
                 warn "Skipped — set OPENAI_API_KEY in backend/docker-compose.local.yml"
@@ -468,6 +580,9 @@ configure_vexa() {
             ;;
         *)
             VEXA_HOSTED=false
+            ensure_env_var "VEXA_API_URL" "$VEXA_LOCAL_URL" \
+                "$BACKEND_DIR/docker-compose.local.yml"
+            ok "Vexa API URL set to ${VEXA_LOCAL_URL}"
             ;;
     esac
 }
@@ -506,6 +621,7 @@ configure_extension_transcription() {
         "$BACKEND_DIR/docker-compose.local.yml"
     set_feature_flag "VITE_TRANSCRIPTION_EXTENSION_KEY" "$EXTENSION_KEY" "$FRONTEND_ENV"
     ok "Generated shared extension key → backend/docker-compose.local.yml + frontend/packages/app/.env"
+    echo -e "  DNA extension key (paste into the extension popup): ${BOLD}${EXTENSION_KEY}${NC}"
 
     set_feature_flag "VITE_WHISPERLIVE_URL" "$wl_url" "$FRONTEND_ENV"
     ok "VITE_WHISPERLIVE_URL=${wl_url} in frontend/packages/app/.env"
@@ -608,6 +724,39 @@ configure_transcription() {
             fi
             ;;
     esac
+}
+
+# Copy the Vexa override only when this install does not have one yet, so a
+# route change does not wipe an existing transcription key.
+ensure_vexa_compose_file() {
+    local dst="$BACKEND_DIR/docker-compose.local.vexa.yml"
+    if [[ -f "$dst" ]]; then
+        return 0
+    fi
+    info "Creating Vexa compose overrides..."
+    cp "$BACKEND_DIR/example.docker-compose.local.vexa.yml" "$dst"
+    ok "example.docker-compose.local.vexa.yml → docker-compose.local.vexa.yml"
+}
+
+# Run the prompts that belong to the transcription route chosen in
+# choose_transcription_route. Switching back to Vexa turns the extension route off.
+apply_transcription_route() {
+    if [[ "$TRANSCRIPTION_ROUTE" == "extension" ]]; then
+        configure_extension_transcription
+        return 0
+    fi
+    if [[ "$(detect_transcription_route)" == "extension" ]]; then
+        ensure_env_var "DNA_ENABLE_EXTENSION_TRANSCRIPTION" "false" \
+            "$BACKEND_DIR/docker-compose.local.yml"
+        ensure_env_var "TRANSCRIPTION_PROVIDER" "vexa" \
+            "$BACKEND_DIR/docker-compose.local.yml"
+        ok "Extension transcription disabled"
+    fi
+    ensure_vexa_compose_file
+    configure_vexa
+    if [[ "$VEXA_HOSTED" != "true" ]]; then
+        configure_transcription
+    fi
 }
 
 # ── step 5: production tracking provider ──────────────────────────────────────
@@ -721,7 +870,10 @@ configure_feature_flags() {
             configure_feature_flags_individually
             ;;
         *)
-            ok "Feature flags left user-controlled (VITE_FEATURE_* stay unset)"
+            clear_feature_flag "VITE_FEATURE_IN_REVIEW" "$FRONTEND_ENV"
+            clear_feature_flag "VITE_FEATURE_TRANSCRIPTION" "$FRONTEND_ENV"
+            clear_feature_flag "VITE_FEATURE_AI" "$FRONTEND_ENV"
+            ok "Feature flags left user-controlled (VITE_FEATURE_* unset)"
             ;;
     esac
 }
@@ -928,7 +1080,7 @@ print_summary() {
         echo ""
     else
         echo "  Optional — browser-extension transcription route (instead of the Vexa bot):"
-        echo "    Re-run ./bootstrap.sh and choose option 2 under Transcription route."
+        echo "    Run ./bootstrap.sh and choose Transcription."
         echo "    Details: backend/docs/TRANSCRIPTION_PIPELINE.md"
         echo ""
     fi
@@ -970,6 +1122,137 @@ print_summary() {
     fi
 }
 
+# ── settings menu ──────────────────────────────────────────────────────────────
+
+remind_restart() {
+    echo ""
+    info "Choose Done to reload the backend if it is already running."
+    info "If the frontend dev server is running, restart it so it reloads .env."
+}
+
+# docker restart keeps the env the container was created with. Recreate the api
+# service from the current compose files so edited settings are what it loads.
+restart_backend_if_running() {
+    local container="${BACKEND_CONTAINER:-dna-backend}"
+    local running
+    running="$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)"
+    if [[ "$running" != "true" ]]; then
+        info "Backend is not running. Start it with ./bootstrap.sh --start when you want these settings."
+        return 0
+    fi
+
+    local route compose_cmd
+    route="$(detect_transcription_route)"
+    compose_cmd="$(get_compose_cmd)"
+    if grep -qF "VEXA_API_URL=${VEXA_CLOUD_URL}" \
+            "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+        VEXA_HOSTED=true
+    else
+        VEXA_HOSTED=false
+    fi
+
+    local -a compose_files=(-f docker-compose.yml)
+    if [[ "$route" == "extension" ]]; then
+        compose_files+=(-f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml)
+    else
+        [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.vexa.yml)
+        compose_files+=(-f docker-compose.debug.yml -f docker-compose.local.yml)
+        [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.local.vexa.yml)
+    fi
+
+    info "Restarting ${container} so it loads the updated settings..."
+    (
+        cd "$BACKEND_DIR"
+        $compose_cmd "${compose_files[@]}" up -d --no-deps --force-recreate api
+    )
+    ok "${container} restarted"
+}
+
+# Self-hosted Vexa needs a generated API key. First-time setup does this while
+# starting the stack; a later route change has to do it on its own when the
+# compose file still has the example placeholder.
+maybe_bootstrap_vexa_key() {
+    if [[ "$TRANSCRIPTION_ROUTE" == "extension" || "$VEXA_HOSTED" == "true" ]]; then
+        return 0
+    fi
+    local key
+    key="$(read_compose_value VEXA_API_KEY "$BACKEND_DIR/docker-compose.local.yml")"
+    if [[ -n "$key" && "$key" != *"*"* ]]; then
+        return 0
+    fi
+    if ! docker info &>/dev/null; then
+        warn "VEXA_API_KEY is still a placeholder. Start Docker, then choose Transcription again to generate a local Vexa API key."
+        return 0
+    fi
+    info "Local Vexa has no API key yet — generating one."
+    bootstrap_vexa
+}
+
+change_settings() {
+    command -v python3 &>/dev/null \
+        || die "python3 not found. Install Python 3: https://www.python.org/downloads/"
+
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}${BLUE}  DNA — Settings${NC}"
+    echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    info "Existing config found. Choose one setting to change."
+    echo ""
+
+    while true; do
+        local llm_label route_label pt_label flags_label settings_choice
+        llm_label="$(current_llm_label)"
+        route_label="$(current_transcription_label)"
+        pt_label="$(current_prodtrack_label)"
+        flags_label="$(current_feature_flags_label)"
+
+        echo -e "${BOLD}Settings${NC}"
+        echo "  1) LLM provider            (${llm_label})"
+        echo "  2) Transcription           (${route_label})"
+        echo "  3) Production tracking     (${pt_label})"
+        echo "  4) Feature flags           (${flags_label})"
+        echo "  5) Done"
+        echo ""
+        if ! read -r -p "  Choice: " settings_choice; then
+            echo ""
+            ok "No further changes."
+            restart_backend_if_running
+            return 0
+        fi
+        echo ""
+
+        case "$settings_choice" in
+            1)
+                configure_llm
+                remind_restart
+                ;;
+            2)
+                choose_transcription_route
+                apply_transcription_route
+                maybe_bootstrap_vexa_key
+                remind_restart
+                ;;
+            3)
+                configure_prodtrack
+                remind_restart
+                ;;
+            4)
+                configure_feature_flags
+                remind_restart
+                ;;
+            5|[dD]one|[qQ]|[qQ]uit)
+                ok "No further changes."
+                restart_backend_if_running
+                return 0
+                ;;
+            *)
+                warn "Enter 1-5."
+                ;;
+        esac
+        echo ""
+    done
+}
+
 # ── main ───────────────────────────────────────────────────────────────────────
 
 main() {
@@ -994,6 +1277,8 @@ main() {
         echo ""
         wait_for_dna "$TRANSCRIPTION_ROUTE"
         print_summary "DNA is running!" "$TRANSCRIPTION_ROUTE"
+    elif env_is_initialized; then
+        change_settings
     else
         echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${BOLD}${BLUE}  DNA — Bootstrap${NC}"
@@ -1005,14 +1290,7 @@ main() {
         copy_config_files
         echo ""
         configure_llm
-        if [[ "$TRANSCRIPTION_ROUTE" == "extension" ]]; then
-            configure_extension_transcription
-        else
-            configure_vexa
-            if [[ "$VEXA_HOSTED" != "true" ]]; then
-                configure_transcription
-            fi
-        fi
+        apply_transcription_route
         configure_prodtrack
         configure_feature_flags
         install_frontend
@@ -1030,4 +1308,6 @@ main() {
     fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

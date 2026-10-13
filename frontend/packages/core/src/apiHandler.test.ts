@@ -317,7 +317,7 @@ describe('ApiHandler', () => {
       ];
       mockAxiosInstance.get.mockResolvedValue({ data: mockPlaylists });
 
-      const result = await api.getPlaylistsForProject({ projectId: 42 });
+      const result = await api.getPlaylistsForProject({ projectId: '42' });
 
       expect(mockAxiosInstance.get).toHaveBeenCalledWith(
         '/projects/42/playlists',
@@ -330,7 +330,7 @@ describe('ApiHandler', () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });
       mockAxiosInstance.get.mockResolvedValue({ data: [] });
 
-      const result = await api.getPlaylistsForProject({ projectId: 999 });
+      const result = await api.getPlaylistsForProject({ projectId: '999' });
 
       expect(result).toEqual([]);
     });
@@ -341,7 +341,7 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockRejectedValue(error);
 
       await expect(
-        api.getPlaylistsForProject({ projectId: 999 })
+        api.getPlaylistsForProject({ projectId: '999' })
       ).rejects.toThrow('Project not found');
     });
   });
@@ -355,7 +355,7 @@ describe('ApiHandler', () => {
       ];
       mockAxiosInstance.get.mockResolvedValue({ data: mockVersions });
 
-      const result = await api.getVersionsForPlaylist({ playlistId: 42 });
+      const result = await api.getVersionsForPlaylist({ playlistId: '42' });
 
       expect(mockAxiosInstance.get).toHaveBeenCalledWith(
         '/playlists/42/versions',
@@ -368,7 +368,7 @@ describe('ApiHandler', () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });
       mockAxiosInstance.get.mockResolvedValue({ data: [] });
 
-      const result = await api.getVersionsForPlaylist({ playlistId: 999 });
+      const result = await api.getVersionsForPlaylist({ playlistId: '999' });
 
       expect(result).toEqual([]);
     });
@@ -379,7 +379,7 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockRejectedValue(error);
 
       await expect(
-        api.getVersionsForPlaylist({ playlistId: 999 })
+        api.getVersionsForPlaylist({ playlistId: '999' })
       ).rejects.toThrow('Playlist not found');
     });
   });
@@ -424,8 +424,8 @@ describe('ApiHandler', () => {
       const mockDraftNote = {
         _id: 'abc123',
         user_email: 'test@example.com',
-        playlist_id: 1,
-        version_id: 2,
+        playlist_id: '1',
+        version_id: '2',
         content: 'Test content',
         subject: 'Test subject',
         to: '',
@@ -438,8 +438,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockResolvedValue({ data: mockDraftNote });
 
       const result = await api.getDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'test@example.com',
       });
 
@@ -455,8 +455,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockResolvedValue({ data: null });
 
       const result = await api.getDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'test@example.com',
       });
 
@@ -468,8 +468,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockResolvedValue({ data: null });
 
       await api.getDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'user+test@example.com',
       });
 
@@ -486,8 +486,8 @@ describe('ApiHandler', () => {
       const mockDraftNote = {
         _id: 'abc123',
         user_email: 'test@example.com',
-        playlist_id: 1,
-        version_id: 2,
+        playlist_id: '1',
+        version_id: '2',
         content: 'Updated content',
         subject: 'Updated subject',
         to: '',
@@ -506,8 +506,8 @@ describe('ApiHandler', () => {
       };
 
       const result = await api.upsertDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'test@example.com',
         data: updateData,
       });
@@ -525,8 +525,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.put.mockResolvedValue({ data: {} });
 
       await api.upsertDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'user+test@example.com',
         data: { content: 'test' },
       });
@@ -545,8 +545,8 @@ describe('ApiHandler', () => {
 
       await expect(
         api.upsertDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
           data: { content: 'test' },
         })
@@ -560,8 +560,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.delete.mockResolvedValue({ data: true });
 
       const result = await api.deleteDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'test@example.com',
       });
 
@@ -577,8 +577,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.delete.mockResolvedValue({ data: true });
 
       await api.deleteDraftNote({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'user+test@example.com',
       });
 
@@ -595,8 +595,8 @@ describe('ApiHandler', () => {
 
       await expect(
         api.deleteDraftNote({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
           userEmail: 'test@example.com',
         })
       ).rejects.toThrow('Not found');
@@ -610,8 +610,8 @@ describe('ApiHandler', () => {
         {
           _id: 'abc123',
           user_email: 'user1@example.com',
-          playlist_id: 1,
-          version_id: 2,
+          playlist_id: '1',
+          version_id: '2',
           content: 'Note 1',
           subject: '',
           to: '',
@@ -624,8 +624,8 @@ describe('ApiHandler', () => {
         {
           _id: 'def456',
           user_email: 'user2@example.com',
-          playlist_id: 1,
-          version_id: 2,
+          playlist_id: '1',
+          version_id: '2',
           content: 'Note 2',
           subject: '',
           to: '',
@@ -639,8 +639,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockResolvedValue({ data: mockDraftNotes });
 
       const result = await api.getAllDraftNotes({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
       });
 
       expect(mockAxiosInstance.get).toHaveBeenCalledWith(
@@ -655,8 +655,8 @@ describe('ApiHandler', () => {
       mockAxiosInstance.get.mockResolvedValue({ data: [] });
 
       const result = await api.getAllDraftNotes({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
       });
 
       expect(result).toEqual([]);
@@ -669,8 +669,8 @@ describe('ApiHandler', () => {
 
       await expect(
         api.getAllDraftNotes({
-          playlistId: 1,
-          versionId: 2,
+          playlistId: '1',
+          versionId: '2',
         })
       ).rejects.toThrow('Server error');
     });
@@ -689,13 +689,13 @@ describe('ApiHandler', () => {
       });
 
       const result = await api.publishTranscript({
-        playlistId: 42,
-        request: { version_id: 101 },
+        playlistId: '42',
+        request: { version_id: '101' },
       });
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/playlists/42/publish-transcript',
-        { version_id: 101 },
+        { version_id: '101' },
         undefined
       );
       expect(result.outcome).toBe('created');
@@ -746,8 +746,8 @@ describe('ApiHandler', () => {
       });
 
       const results = await api.runQCChecks({
-        playlistId: 1,
-        versionId: 2,
+        playlistId: '1',
+        versionId: '2',
         userEmail: 'u@x.com',
       });
       expect(results).toHaveLength(1);

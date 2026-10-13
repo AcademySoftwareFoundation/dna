@@ -1,10 +1,20 @@
 {
   "manifest_version": 3,
   "name": "DNA Production Tracking Tab Sync",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Syncs a ShotGrid tab with DNA and (optionally) transcribes Google Meet calls straight into DNA.",
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["transcription.js", "capture.js", "background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dna-tab-sync@aswf.io",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
   },
   "action": {
     "default_popup": "popup/popup.html",
@@ -27,7 +37,8 @@
     "activeTab",
     "offscreen",
     "tabCapture",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [

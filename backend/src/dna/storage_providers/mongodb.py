@@ -105,7 +105,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return self.db.project_glossaries
 
     def _build_query(
-        self, user_email: str, playlist_id: int, version_id: int
+        self, user_email: str, playlist_id: str, version_id: str
     ) -> dict[str, Any]:
         """Build the composite key query."""
         return {
@@ -115,7 +115,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         }
 
     async def get_draft_notes_for_version(
-        self, playlist_id: int, version_id: int
+        self, playlist_id: str, version_id: str
     ) -> list[DraftNote]:
         """Get all draft notes for a playlist/version (all users)."""
         query = {"playlist_id": playlist_id, "version_id": version_id}
@@ -126,7 +126,7 @@ class MongoDBStorageProvider(StorageProviderBase):
             results.append(DraftNote(**doc))
         return results
 
-    async def get_draft_notes_for_playlist(self, playlist_id: int) -> list[DraftNote]:
+    async def get_draft_notes_for_playlist(self, playlist_id: str) -> list[DraftNote]:
         """Get all draft notes for a playlist (all users, all versions)."""
         query = {"playlist_id": playlist_id}
         cursor = self.draft_notes.find(query)
@@ -137,7 +137,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return results
 
     async def get_draft_note(
-        self, user_email: str, playlist_id: int, version_id: int
+        self, user_email: str, playlist_id: str, version_id: str
     ) -> Optional[DraftNote]:
         query = {
             **self._build_query(user_email, playlist_id, version_id),
@@ -149,7 +149,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return None
 
     async def upsert_draft_note(
-        self, user_email: str, playlist_id: int, version_id: int, data: DraftNoteUpdate
+        self, user_email: str, playlist_id: str, version_id: str, data: DraftNoteUpdate
     ) -> DraftNote:
         now = datetime.now(timezone.utc)
         query = {
@@ -177,7 +177,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return DraftNote(**result)
 
     async def clear_draft_version_status(
-        self, playlist_id: int, version_id: int
+        self, playlist_id: str, version_id: str
     ) -> int:
         now = datetime.now(timezone.utc)
         result = await self.draft_notes.update_many(
@@ -191,7 +191,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return result.modified_count
 
     async def upsert_published_note(
-        self, user_email: str, playlist_id: int, version_id: int, data: DraftNoteUpdate
+        self, user_email: str, playlist_id: str, version_id: str, data: DraftNoteUpdate
     ) -> DraftNote:
         now = datetime.now(timezone.utc)
         # Query for the note (same query as upsert_draft_note, no "published: True" filter)
@@ -226,14 +226,14 @@ class MongoDBStorageProvider(StorageProviderBase):
         return DraftNote(**result)
 
     async def delete_draft_note(
-        self, user_email: str, playlist_id: int, version_id: int
+        self, user_email: str, playlist_id: str, version_id: str
     ) -> bool:
         query = self._build_query(user_email, playlist_id, version_id)
         result = await self.draft_notes.delete_one(query)
         return result.deleted_count > 0
 
     async def get_playlist_metadata(
-        self, playlist_id: int
+        self, playlist_id: str
     ) -> Optional[PlaylistMetadata]:
         query = {"playlist_id": playlist_id}
         doc = await self.playlist_metadata_collection.find_one(query)
@@ -253,7 +253,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return None
 
     async def upsert_playlist_metadata(
-        self, playlist_id: int, data: PlaylistMetadataUpdate
+        self, playlist_id: str, data: PlaylistMetadataUpdate
     ) -> PlaylistMetadata:
         query = {"playlist_id": playlist_id}
         update_fields = {
@@ -284,15 +284,15 @@ class MongoDBStorageProvider(StorageProviderBase):
         result["_id"] = str(result["_id"])
         return PlaylistMetadata(**result)
 
-    async def delete_playlist_metadata(self, playlist_id: int) -> bool:
+    async def delete_playlist_metadata(self, playlist_id: str) -> bool:
         query = {"playlist_id": playlist_id}
         result = await self.playlist_metadata_collection.delete_one(query)
         return result.deleted_count > 0
 
     async def upsert_segment(
         self,
-        playlist_id: int,
-        version_id: int,
+        playlist_id: str,
+        version_id: str,
         segment_id: str,
         data: StoredSegmentCreate,
     ) -> tuple[StoredSegment, bool]:
@@ -330,7 +330,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return StoredSegment(**result), is_new
 
     async def get_segments_for_version(
-        self, playlist_id: int, version_id: int
+        self, playlist_id: str, version_id: str
     ) -> list[StoredSegment]:
         """Get all segments for a version, ordered by start time."""
         query = {"playlist_id": playlist_id, "version_id": version_id}
@@ -391,7 +391,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         result = await self.user_settings_collection.delete_one(query)
         return result.deleted_count > 0
 
-    async def get_project_glossary(self, project_id: int) -> Optional[ProjectGlossary]:
+    async def get_project_glossary(self, project_id: str) -> Optional[ProjectGlossary]:
         """Get the glossary for a project by id."""
         doc = await self.project_glossaries_collection.find_one(
             {"project_id": project_id}
@@ -402,7 +402,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return None
 
     async def upsert_project_glossary(
-        self, project_id: int, data: ProjectGlossaryUpdate
+        self, project_id: str, data: ProjectGlossaryUpdate
     ) -> ProjectGlossary:
         """Create or update the glossary for a project."""
         now = datetime.now(timezone.utc)
@@ -420,7 +420,7 @@ class MongoDBStorageProvider(StorageProviderBase):
         return ProjectGlossary(**result)
 
     async def get_published_transcript(
-        self, playlist_id: int, version_id: int, meeting_id: str
+        self, playlist_id: str, version_id: str, meeting_id: str
     ) -> Optional[PublishedTranscript]:
         """Fetch the bookkeeping row for a previously published transcript."""
         query = {

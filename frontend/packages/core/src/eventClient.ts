@@ -21,15 +21,15 @@ export interface TranscriptEventPayload {
   speaker?: string;
   confirmed?: Array<Record<string, unknown>>;
   pending?: Array<Record<string, unknown>>;
-  playlist_id: number;
-  version_id: number;
+  playlist_id: string;
+  version_id: string;
   ts?: string;
 }
 
 export interface BotStatusEventPayload {
   platform: string;
   meeting_id: string;
-  playlist_id?: number;
+  playlist_id?: string;
   status: string;
   message?: string;
   recovered?: boolean;

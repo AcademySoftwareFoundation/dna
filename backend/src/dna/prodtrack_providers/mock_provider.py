@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -34,12 +35,12 @@ _SG_TYPE_TO_DNA: dict[str, str] = {
 }
 
 
-def _project_link(project_id: int) -> dict[str, Any]:
+def _project_link(project_id: str) -> dict[str, Any]:
     return {"type": "Project", "id": project_id}
 
 
 def _shallow_entity(
-    entity_type: str, entity_id: int, name: Optional[str] = None
+    entity_type: str, entity_id: str, name: Optional[str] = None
 ) -> EntityBase:
     model_class = ENTITY_MODELS.get(entity_type)
     if not model_class:
@@ -94,7 +95,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         )
 
     def _shot_from_row(
-        self, row: sqlite3.Row, project_id: int, tasks: Optional[list[Task]] = None
+        self, row: sqlite3.Row, project_id: str, tasks: Optional[list[Task]] = None
     ) -> Shot:
         return Shot(
             id=row["id"],
@@ -105,7 +106,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         )
 
     def _asset_from_row(
-        self, row: sqlite3.Row, project_id: int, tasks: Optional[list[Task]] = None
+        self, row: sqlite3.Row, project_id: str, tasks: Optional[list[Task]] = None
     ) -> Asset:
         return Asset(
             id=row["id"],
@@ -116,7 +117,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         )
 
     def _task_from_row(
-        self, row: sqlite3.Row, project_id: int, entity: Optional[EntityBase] = None
+        self, row: sqlite3.Row, project_id: str, entity: Optional[EntityBase] = None
     ) -> Task:
         step = None
         if row["pipeline_step_id"] or row["pipeline_step_name"]:
@@ -131,7 +132,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         )
 
     def _note_from_row(
-        self, row: sqlite3.Row, project_id: int, author: Optional[User] = None
+        self, row: sqlite3.Row, project_id: str, author: Optional[User] = None
     ) -> Note:
         return Note(
             id=row["id"],
@@ -145,7 +146,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
     def _version_from_row(
         self,
         row: sqlite3.Row,
-        project_id: int,
+        project_id: str,
         entity: Optional[EntityBase] = None,
         task: Optional[Task] = None,
         notes: Optional[list[Note]] = None,
@@ -182,7 +183,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
     def _playlist_from_row(
         self,
         row: sqlite3.Row,
-        project_id: int,
+        project_id: str,
         versions: Optional[list[Version]] = None,
     ) -> Playlist:
         return Playlist(
@@ -196,7 +197,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         )
 
     def get_entity(
-        self, entity_type: str, entity_id: int, resolve_links: bool = True
+        self, entity_type: str, entity_id: str, resolve_links: bool = True
     ) -> EntityBase:
         conn = self._get_conn()
         if entity_type == "project":
@@ -442,7 +443,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         self,
         query: str,
         entity_types: list[str],
-        project_id: int | None = None,
+        project_id: str | None = None,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
         conn = self._get_conn()
@@ -532,7 +533,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         ).fetchone()
         if not row:
             return User(
-                id=-1,
+                id="-1",
                 name=user_email,
                 email=user_email,
                 login=user_email,
@@ -544,7 +545,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         rows = conn.execute("SELECT id, name FROM projects").fetchall()
         return [self._project_from_row(r) for r in rows]
 
-    def get_playlists_for_project(self, project_id: int) -> list[Playlist]:
+    def get_playlists_for_project(self, project_id: str) -> list[Playlist]:
         conn = self._get_conn()
         rows = conn.execute(
             "SELECT id, code, description, project_id, created_at, updated_at FROM playlists WHERE project_id = ?",
@@ -552,22 +553,22 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         ).fetchall()
         return [self._playlist_from_row(r, r["project_id"]) for r in rows]
 
-    def create_playlist(self, project_id: int, name: str) -> Playlist:
+    def create_playlist(self, project_id: str, name: str) -> Playlist:
         now = datetime.now(timezone.utc).isoformat()
+        playlist_id = str(uuid.uuid4())
         conn = self._get_rw_conn()
         try:
-            cur = conn.execute(
-                "INSERT INTO playlists (code, project_id, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?)",
-                (name, project_id, now, now),
+            conn.execute(
+                "INSERT INTO playlists (id, code, project_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (playlist_id, name, project_id, now, now),
             )
             conn.commit()
-            playlist_id = cur.lastrowid
         finally:
             conn.close()
         return self.get_entity("playlist", playlist_id, resolve_links=False)
 
-    def get_versions_for_playlist(self, playlist_id: int) -> list[Version]:
+    def get_versions_for_playlist(self, playlist_id: str) -> list[Version]:
         conn = self._get_conn()
         row = conn.execute(
             "SELECT id FROM playlists WHERE id = ?", (playlist_id,)
@@ -588,7 +589,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             versions.append(self.get_entity("version", vid, resolve_links=True))
         return versions
 
-    def add_version_to_playlist(self, playlist_id: int, version_id: int) -> bool:
+    def add_version_to_playlist(self, playlist_id: str, version_id: str) -> bool:
         conn = self._get_rw_conn()
         try:
             row = conn.execute(
@@ -607,7 +608,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         return True
 
     def get_version_statuses(
-        self, project_id: int | None = None
+        self, project_id: str | None = None
     ) -> list[dict[str, str]]:
         conn = self._get_conn()
         if project_id is not None:
@@ -627,28 +628,28 @@ class MockProdtrackProvider(ProdtrackProviderBase):
 
     def publish_note(
         self,
-        version_id: int,
+        version_id: str,
         content: str,
         subject: str,
-        to_users: list[int],
-        cc_users: list[int],
+        to_users: list[str],
+        cc_users: list[str],
         links: list[EntityBase],
         author_email: Optional[str] = None,
         version_status: Optional[str] = None,
-    ) -> int:
+    ) -> str:
         raise NotImplementedError(
             "MockProdtrackProvider is read-only. publish_note is not supported."
         )
 
-    def update_version_status(self, version_id: int, status: str) -> bool:
+    def update_version_status(self, version_id: str, status: str) -> bool:
         return True
 
     def attach_file_to_note(
-        self, note_id: int, file_path: str, display_name: str
+        self, note_id: str, file_path: str, display_name: str
     ) -> bool:
         return True
 
-    def publish_transcript(self, **_: object) -> int:
+    def publish_transcript(self, **_: object) -> str:
         raise NotImplementedError(
             "Transcript publishing requires a live ShotGrid connection. "
             "Set PRODTRACK_PROVIDER=shotgrid to use it."

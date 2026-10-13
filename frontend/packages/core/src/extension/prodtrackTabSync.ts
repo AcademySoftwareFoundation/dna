@@ -5,16 +5,25 @@
  *   - PING          -> is the tab-sync capability installed?
  *   - OPEN_VERSION  -> open/steer the controlled tab to a version URL
  *
+ * Messages go over `externally_connectable` when an extension id is configured
+ * (Chrome) or the extension's page bridge when it is injected (Firefox, or
+ * Chrome without a configured id). See `chromeMessaging.ts`.
+ *
  * These are pure functions with no framework dependency; React orchestration
  * lives in the `useProdtrackTabSync` hook in the app package.
  */
 
-import { getChromeRuntime, sendExternalMessage } from './chromeMessaging';
+import { getExtensionTransport, sendExtensionMessage } from './chromeMessaging';
 
 export type ProdtrackTabSyncResult =
   | { ok: true; tabId?: number }
   | {
       ok: false;
+      /**
+       * `no_extension_id`: no id configured and no page bridge.
+       * `no_chrome`: id configured but the page can't reach the extension
+       * (no `chrome.runtime` and no page bridge).
+       */
       reason:
         | 'no_chrome'
         | 'no_extension_id'
@@ -63,16 +72,19 @@ export async function pingProdtrackTabExtension(
   extensionId: string,
   timeoutMs = 400
 ): Promise<ProdtrackTabSyncResult> {
-  const trimmed = extensionId.trim();
-  if (!trimmed) {
-    return { ok: false, reason: 'no_extension_id' };
-  }
-  const runtime = getChromeRuntime();
-  if (!runtime?.sendMessage) {
-    return { ok: false, reason: 'no_chrome' };
+  const transport = getExtensionTransport(extensionId);
+  if (!transport) {
+    return {
+      ok: false,
+      reason: extensionId.trim() ? 'no_chrome' : 'no_extension_id',
+    };
   }
 
-  const raw = await sendExternalMessage(trimmed, { type: 'PING' }, timeoutMs);
+  const raw = await sendExtensionMessage(
+    extensionId,
+    { type: 'PING' },
+    timeoutMs
+  );
   if (raw && typeof raw === 'object' && '__error' in raw) {
     return {
       ok: false,
@@ -95,15 +107,14 @@ export async function openProdtrackVersionInExtension(
   url: string,
   timeoutOrOptions: number | OpenVersionOptions = 800
 ): Promise<ProdtrackTabSyncResult> {
-  const trimmed = extensionId.trim();
-  if (!trimmed) {
+  const transport = getExtensionTransport(extensionId);
+  if (!transport && !extensionId.trim()) {
     return { ok: false, reason: 'no_extension_id' };
   }
   if (!url.startsWith('http')) {
     return { ok: false, reason: 'invalid_url' };
   }
-  const runtime = getChromeRuntime();
-  if (!runtime?.sendMessage) {
+  if (!transport) {
     return { ok: false, reason: 'no_chrome' };
   }
 
@@ -122,7 +133,7 @@ export async function openProdtrackVersionInExtension(
     message.tabId = lastKnownTabId;
   }
 
-  const raw = await sendExternalMessage(trimmed, message, timeoutMs);
+  const raw = await sendExtensionMessage(extensionId, message, timeoutMs);
 
   if (raw && typeof raw === 'object' && '__error' in raw) {
     return {

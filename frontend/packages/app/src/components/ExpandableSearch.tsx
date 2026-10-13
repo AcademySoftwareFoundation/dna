@@ -10,7 +10,7 @@ export interface ExpandableSearchHandle {
 interface ExpandableSearchProps {
   placeholder?: string;
   versions?: Version[];
-  selectedVersionId?: number | null;
+  selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
   onExpandedChange?: (isExpanded: boolean) => void;
 }

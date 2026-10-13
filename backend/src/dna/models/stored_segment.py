@@ -50,8 +50,8 @@ class StoredSegment(BaseModel):
 
     id: str = Field(alias="_id")
     segment_id: str
-    playlist_id: int
-    version_id: int
+    playlist_id: str
+    version_id: str
     text: str
     speaker: Optional[str] = None
     language: Optional[str] = None

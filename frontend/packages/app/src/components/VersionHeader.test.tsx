@@ -20,7 +20,7 @@ describe('VersionHeader', () => {
         <VersionHeader
           shotCode="SHOT"
           versionNumber="v001"
-          projectId={1}
+          projectId="1"
           prodtrackDetailUrl="https://studio.shotgrid.autodesk.com/detail/Version/1"
           prodtrackTabUsesExtension
           onSyncProdtrackTab={onSync}
@@ -37,7 +37,7 @@ describe('VersionHeader', () => {
         <VersionHeader
           shotCode="SHOT"
           versionNumber="v001"
-          projectId={1}
+          projectId="1"
           prodtrackDetailUrl="https://studio.shotgrid.autodesk.com/detail/Version/2"
           prodtrackTabUsesExtension={false}
           syncProdtrackDisabled={false}

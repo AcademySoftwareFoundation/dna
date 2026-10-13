@@ -32,7 +32,7 @@ export interface ExtensionActivationPayload {
   /** WhisperLive WebSocket URL the extension streams audio to */
   whisperLiveUrl: string;
   /** Playlist currently being viewed in DNA */
-  playlistId: number;
+  playlistId: string;
   /** Logged-in user's auth token, forwarded to DNA as a bearer credential */
   token?: string | null;
   /**
@@ -97,8 +97,8 @@ function validateActivationPayload(
 ): boolean {
   if (!payload) return false;
   if (
-    typeof payload.playlistId !== 'number' ||
-    !Number.isFinite(payload.playlistId)
+    typeof payload.playlistId !== 'string' ||
+    payload.playlistId.trim() === ''
   ) {
     return false;
   }

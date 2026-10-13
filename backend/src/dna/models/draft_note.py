@@ -11,14 +11,14 @@ from pydantic import BaseModel, ConfigDict, Field
 # Sentinel version_id for a playlist-level "scratch" note: the draft belongs to
 # the playlist itself rather than any version, and publishes as a note linked
 # only to the Playlist entity.
-SCRATCH_VERSION_ID = -1
+SCRATCH_VERSION_ID = "-1"
 
 
 class DraftNoteLink(BaseModel):
     """Reference to a DNA entity to link to the note."""
 
     entity_type: str
-    entity_id: int
+    entity_id: str
     entity_name: str = ""
 
 
@@ -34,7 +34,7 @@ class DraftNoteBase(BaseModel):
     published: bool = False
     edited: bool = False
     published_at: Optional[datetime] = None
-    published_note_id: Optional[int] = None
+    published_note_id: Optional[str] = None
     attachment_ids: list[str] = Field(default_factory=list)
 
 
@@ -42,8 +42,8 @@ class DraftNoteCreate(DraftNoteBase):
     """Model for creating a new draft note."""
 
     user_email: str
-    playlist_id: int
-    version_id: int
+    playlist_id: str
+    version_id: str
 
 
 class DraftNote(DraftNoteBase):
@@ -53,8 +53,8 @@ class DraftNote(DraftNoteBase):
 
     id: str = Field(alias="_id")
     user_email: str
-    playlist_id: int
-    version_id: int
+    playlist_id: str
+    version_id: str
     updated_at: datetime
     created_at: datetime
 
@@ -71,5 +71,5 @@ class DraftNoteUpdate(BaseModel):
     published: Optional[bool] = None
     edited: Optional[bool] = None
     published_at: Optional[datetime] = None
-    published_note_id: Optional[int] = None
+    published_note_id: Optional[str] = None
     attachment_ids: Optional[list[str]] = None

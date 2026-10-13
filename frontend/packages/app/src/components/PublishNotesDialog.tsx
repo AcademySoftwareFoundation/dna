@@ -50,7 +50,7 @@ import { useFeatureFlags } from '../contexts';
 interface PublishNotesDialogProps {
   open: boolean;
   onClose: () => void;
-  playlistId: number;
+  playlistId: string;
   userEmail: string;
   notes: DraftNote[];
   versions?: Version[];
@@ -59,7 +59,7 @@ interface PublishNotesDialogProps {
 export interface PublishNotesTabContentProps {
   open: boolean;
   onClose: () => void;
-  playlistId: number;
+  playlistId: string;
   userEmail: string;
   notes: DraftNote[];
   versions?: Version[];
@@ -283,14 +283,12 @@ function displayNameFromEmail(email: string): string {
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function fallbackVersion(versionId: number): Version {
+function fallbackVersion(versionId: string): Version {
   return {
     type: 'Version',
     id: versionId,
     name:
-      versionId === SCRATCH_VERSION_ID
-        ? 'SCRATCH PAD'
-        : `Version ${versionId}`,
+      versionId === SCRATCH_VERSION_ID ? 'SCRATCH PAD' : `Version ${versionId}`,
     notes: [],
   };
 }
@@ -300,7 +298,7 @@ const RegisterFlushContext = createContext<
 >(() => () => {});
 
 interface PublishNoteRowProps {
-  playlistId: number;
+  playlistId: string;
   version: Version;
   draftOwnerEmail: string;
   rowDraft: DraftNote;
@@ -487,8 +485,8 @@ function VersionTranscriptRow({
   checked,
   onCheckedChange,
 }: {
-  playlistId: number;
-  versionId: number;
+  playlistId: string;
+  versionId: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
@@ -569,7 +567,7 @@ function VersionStatusRow({
   onValueChange,
   onCheckedChange,
 }: {
-  projectId?: number;
+  projectId?: string;
   currentStatus?: string;
   value: string;
   checked: boolean;
@@ -623,7 +621,7 @@ function VersionStatusRow({
 }
 
 interface VersionPublishCardProps {
-  playlistId: number;
+  playlistId: string;
   version: Version;
   drafts: DraftNote[];
   currentUserEmail: string;
@@ -799,14 +797,14 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [transcriptSelected, setTranscriptSelected] = useState<
-    Record<number, boolean>
+    Record<string, boolean>
   >({});
   // Explicit user overrides for the per-version status rows; effective values
   // fall back to the pending status from draft notes, then the version itself.
-  const [statusSelected, setStatusSelected] = useState<Record<number, boolean>>(
+  const [statusSelected, setStatusSelected] = useState<Record<string, boolean>>(
     {}
   );
-  const [statusValues, setStatusValues] = useState<Record<number, string>>({});
+  const [statusValues, setStatusValues] = useState<Record<string, string>>({});
   const [successSummary, setSuccessSummary] = useState<{
     publishedCount: number;
     republishedCount: number;
@@ -869,7 +867,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   );
 
   const pendingStatusByVersion = useMemo(() => {
-    const map = new Map<number, string>();
+    const map = new Map<string, string>();
     const drafts = [...allDraftNotes].sort((a, b) => {
       const aMine = a.user_email === userEmail;
       const bMine = b.user_email === userEmail;
@@ -921,7 +919,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   }, [open, notesFingerprint, notes]);
 
   const versionCards = useMemo(() => {
-    const byVid = new Map<number, DraftNote[]>();
+    const byVid = new Map<string, DraftNote[]>();
     for (const d of notes) {
       const arr = byVid.get(d.version_id) ?? [];
       arr.push(d);
@@ -929,7 +927,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     }
 
     const ordered: { version: Version; drafts: DraftNote[] }[] = [];
-    const seen = new Set<number>();
+    const seen = new Set<string>();
 
     for (const v of versions) {
       const drafts = byVid.get(v.id);
@@ -963,7 +961,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   useEffect(() => {
     if (!open) return;
     setTranscriptSelected((prev) => {
-      const next: Record<number, boolean> = {};
+      const next: Record<string, boolean> = {};
       for (const { version } of versionCards) {
         next[version.id] = prev[version.id] ?? true;
       }
@@ -1027,14 +1025,14 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   }, []);
 
   const handleTranscriptToggle = useCallback(
-    (versionId: number, checked: boolean) => {
+    (versionId: string, checked: boolean) => {
       setTranscriptSelected((prev) => ({ ...prev, [versionId]: checked }));
     },
     []
   );
 
   const handleStatusValueChange = useCallback(
-    (versionId: number, value: string) => {
+    (versionId: string, value: string) => {
       setStatusValues((prev) => ({ ...prev, [versionId]: value }));
       setStatusSelected((prev) => ({ ...prev, [versionId]: true }));
     },
@@ -1042,14 +1040,14 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   );
 
   const handleStatusToggle = useCallback(
-    (versionId: number, checked: boolean) => {
+    (versionId: string, checked: boolean) => {
       setStatusSelected((prev) => ({ ...prev, [versionId]: checked }));
     },
     []
   );
 
   const handleBatchTranscriptSelect = useCallback(() => {
-    const next: Record<number, boolean> = {};
+    const next: Record<string, boolean> = {};
     for (const { version } of versionCards) {
       next[version.id] = !allTranscriptsSelected;
     }

@@ -5,8 +5,8 @@ import { apiHandler, aiSuggestionManager } from '../api';
 import { useTranscriptEvents } from './useDNAEvents';
 
 export interface UseAISuggestionOptions {
-  playlistId: number | null;
-  versionId: number | null;
+  playlistId: string | null;
+  versionId: string | null;
   userEmail: string | null;
   enabled?: boolean;
 }
@@ -63,17 +63,17 @@ export function useAISuggestion({
     enabled && playlistId != null && versionId != null && userEmail != null;
 
   const [notesByVersionId, setNotesByVersionId] = useState<
-    Record<number, string[]>
+    Record<string, string[]>
   >({});
   const [indexByVersionId, setIndexByVersionId] = useState<
-    Record<number, number>
+    Record<string, number>
   >({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [lastPrompt, setLastPrompt] = useState<string | null>(null);
   const [lastContext, setLastContext] = useState<string | null>(null);
 
-  const prevVersionRef = useRef<number | null>(null);
+  const prevVersionRef = useRef<string | null>(null);
 
   const { data: userSettings } = useQuery<UserSettings>({
     queryKey: ['userSettings', userEmail],
