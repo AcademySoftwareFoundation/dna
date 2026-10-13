@@ -21,7 +21,10 @@ from dna.models.entity import (
     User,
     Version,
 )
-from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBase
+from dna.prodtrack_providers.prodtrack_provider_base import (
+    EntityRef,
+    ProdtrackProviderBase,
+)
 
 _SG_TYPE_TO_DNA: dict[str, str] = {
     "Project": "project",
@@ -636,6 +639,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         links: list[EntityBase],
         author_email: Optional[str] = None,
         version_status: Optional[str] = None,
+        transcript: Optional[EntityRef] = None,
     ) -> str:
         raise NotImplementedError(
             "MockProdtrackProvider is read-only. publish_note is not supported."
@@ -647,6 +651,9 @@ class MockProdtrackProvider(ProdtrackProviderBase):
     def attach_file_to_note(
         self, note_id: str, file_path: str, display_name: str
     ) -> bool:
+        return True
+
+    def set_note_transcript(self, note_id: str, transcript: EntityRef) -> bool:
         return True
 
     def publish_transcript(self, **_: object) -> str:

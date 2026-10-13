@@ -1360,8 +1360,33 @@ POST /playlists/{playlist_id}/publish-transcript {version_id}
      / prodtrack.update_transcript(entity_type=existing.sg_entity_type, ...)
        # update path: honours the bookkeeping row, not the current env
   -> storage.upsert_published_transcript(...)
+  -> on create: prodtrack.set_note_transcript(...) for the version's
+       already-published notes                            # best effort
   -> { transcript_entity_id, outcome: created | updated | skipped }
 ```
+
+### Linking notes to their transcript
+
+Published notes point at their version's transcript row through the Note
+field `SHOTGRID_NOTE_TRANSCRIPT_FIELD` (default `sg_linked_transcript`):
+
+- `POST /playlists/{id}/publish-notes` reads the playlist's
+  `published_transcripts` rows (latest per version, with that row's own
+  `entity_type`) and passes the link to `publish_note` / `update_note`, so a
+  new note is created already linked. Scratch notes get no link, and a
+  republish without a transcript leaves the field alone.
+- Creating a transcript row back-fills the link on that version's notes that
+  were published earlier.
+- The Publish dialog publishes transcripts **before** notes (status updates
+  run alongside), so notes from the same publish see their transcript's row.
+- The ShotGrid provider writes the link as the script user in a separate
+  `update` after the (sudo'd, as-author) `create`, so authors need no edit
+  permission on the field and a failed link never fails the note.
+- It checks the field exists (`schema_field_read`, cached for
+  `NOTE_TRANSCRIPT_FIELD_CHECK_TTL` = 60 s); if it doesn't, it logs a warning
+  and publishes notes unlinked until the field appears.
+
+Site setup: [ShotGrid Configuration Guide](SHOTGRID_SETUP.md#3-add-sg_linked_transcript-to-note).
 
 ### Collections touched
 

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 from dna.models.draft_note import SCRATCH_VERSION_ID, DraftNote, DraftNoteLink
+from dna.models.published_transcript import PublishedTranscript
 
 
 def _targets(*pairs: tuple[str, str | int]) -> list[dict[str, str]]:
@@ -616,3 +617,191 @@ class TestUpdateVersionStatusEndpoint:
         response = client.patch("/versions/101/status", json={"status": "nope"})
 
         assert response.status_code == 400
+
+
+def _draft(version_id: str, **over) -> DraftNote:
+    now = datetime.now(timezone.utc)
+    fields = {
+        "_id": f"note-{version_id}",
+        "user_email": "user@example.com",
+        "playlist_id": "100",
+        "version_id": version_id,
+        "content": "Note body",
+        "subject": "Subject",
+        "created_at": now,
+        "updated_at": now,
+        "published": False,
+        **over,
+    }
+    return DraftNote(**fields)
+
+
+def _transcript_row(
+    version_id: str,
+    entity_id: str,
+    updated_at: datetime,
+    entity_type: str = "CustomEntity01",
+) -> PublishedTranscript:
+    return PublishedTranscript(
+        _id=f"pt-{entity_id}",
+        playlist_id="100",
+        version_id=version_id,
+        meeting_id=f"m-{entity_id}",
+        entity_type=entity_type,
+        entity_id=entity_id,
+        author_email="user@example.com",
+        body_hash="hash",
+        segments_count=1,
+        created_at=updated_at,
+        updated_at=updated_at,
+    )
+
+
+class TestPublishNotesTranscriptLinks:
+    """Notes are linked to their version's published transcript row."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    @pytest.fixture
+    def mock_storage(self):
+        storage = mock.AsyncMock()
+        storage.get_published_transcripts_for_playlist.return_value = []
+        return storage
+
+    @pytest.fixture
+    def mock_prodtrack(self):
+        prodtrack = mock.Mock()
+        prodtrack.get_entity.return_value = None
+        prodtrack.publish_note.return_value = "500"
+        prodtrack.update_note.return_value = True
+        return prodtrack
+
+    @pytest.fixture
+    def override_deps(self, mock_storage, mock_prodtrack):
+        app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        yield
+        app.dependency_overrides.clear()
+
+    def _publish(self, client, *version_ids: str):
+        response = client.post(
+            "/playlists/100/publish-notes",
+            json={
+                "user_email": "user@example.com",
+                "targets": _targets(*(("user@example.com", v) for v in version_ids)),
+            },
+        )
+        assert response.status_code == 200
+        return response.json()
+
+    def test_new_note_links_its_versions_transcript(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_draft_notes_for_playlist.return_value = [_draft("101")]
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _transcript_row("101", "9001", datetime(2026, 8, 12, tzinfo=timezone.utc))
+        ]
+
+        self._publish(client, "101")
+
+        kwargs = mock_prodtrack.publish_note.call_args.kwargs
+        assert kwargs["transcript"] == {"type": "CustomEntity01", "id": "9001"}
+        mock_storage.get_published_transcripts_for_playlist.assert_awaited_once_with(
+            "100"
+        )
+
+    def test_note_without_a_transcript_gets_no_link(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_draft_notes_for_playlist.return_value = [_draft("101")]
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _transcript_row("999", "9001", datetime(2026, 8, 12, tzinfo=timezone.utc))
+        ]
+
+        self._publish(client, "101")
+
+        assert mock_prodtrack.publish_note.call_args.kwargs["transcript"] is None
+
+    def test_latest_transcript_wins_and_keeps_its_entity_type(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """A re-recorded version links its newest row, in that row's own slot."""
+        mock_storage.get_draft_notes_for_playlist.return_value = [_draft("101")]
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _transcript_row(
+                "101",
+                "9002",
+                datetime(2026, 8, 13, tzinfo=timezone.utc),
+                entity_type="CustomEntity05",
+            ),
+            _transcript_row("101", "9001", datetime(2026, 8, 12, tzinfo=timezone.utc)),
+        ]
+
+        self._publish(client, "101")
+
+        assert mock_prodtrack.publish_note.call_args.kwargs["transcript"] == {
+            "type": "CustomEntity05",
+            "id": "9002",
+        }
+
+    def test_republished_note_links_its_transcript(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_draft_notes_for_playlist.return_value = [
+            _draft("101", published=True, published_note_id="505", edited=True)
+        ]
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _transcript_row("101", "9001", datetime(2026, 8, 12, tzinfo=timezone.utc))
+        ]
+
+        self._publish(client, "101")
+
+        assert mock_prodtrack.update_note.call_args.kwargs["transcript"] == {
+            "type": "CustomEntity01",
+            "id": "9001",
+        }
+
+    def test_republish_without_a_transcript_leaves_the_link_alone(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """None tells the provider not to touch the field (no clearing)."""
+        mock_storage.get_draft_notes_for_playlist.return_value = [
+            _draft("101", published=True, published_note_id="505", edited=True)
+        ]
+
+        self._publish(client, "101")
+
+        assert mock_prodtrack.update_note.call_args.kwargs["transcript"] is None
+
+    def test_scratch_note_gets_no_link(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_draft_notes_for_playlist.return_value = [
+            _draft(SCRATCH_VERSION_ID)
+        ]
+        mock_storage.get_published_transcripts_for_playlist.return_value = [
+            _transcript_row(
+                SCRATCH_VERSION_ID, "9001", datetime(2026, 8, 12, tzinfo=timezone.utc)
+            )
+        ]
+        mock_prodtrack.publish_playlist_note.return_value = "600"
+
+        self._publish(client, SCRATCH_VERSION_ID)
+
+        mock_prodtrack.publish_playlist_note.assert_called_once()
+        assert "transcript" not in mock_prodtrack.publish_playlist_note.call_args.kwargs
+
+    def test_transcript_lookup_failure_still_publishes_notes(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_draft_notes_for_playlist.return_value = [_draft("101")]
+        mock_storage.get_published_transcripts_for_playlist.side_effect = RuntimeError(
+            "mongo down"
+        )
+
+        data = self._publish(client, "101")
+
+        assert data["published_count"] == 1
+        assert mock_prodtrack.publish_note.call_args.kwargs["transcript"] is None

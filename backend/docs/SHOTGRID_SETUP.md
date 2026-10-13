@@ -71,6 +71,15 @@ On the **Note** entity, create:
 - DNA fills the field when it publishes a note on a version whose transcript
   has been published. When no transcript was recorded or published, it stays
   blank.
+- Notes published **before** their transcript are linked when the transcript
+  is published.
+- Republishing a note without a transcript leaves the field alone, so a link
+  set by hand survives.
+- DNA writes the link as the **script user**, after the note is created as its
+  author, so authors' permission groups don't need edit rights on this field.
+- If the field doesn't exist, DNA logs a warning and publishes notes without
+  the link; nothing fails. It re-checks about once a minute, so adding the
+  field takes effect without restarting the API.
 - The review CSV export (**Publish → Export CSV**) shows the same transcript
   name in its **Linked Transcript** column.
 
@@ -87,6 +96,7 @@ SHOTGRID_TRANSCRIPT_ENTITY=CustomEntity01   # the slot from step 1
 |----------|---------|---------|
 | `DNA_ENABLE_TRANSCRIPT_PUBLISH` | `false` | Turns on `POST /playlists/{id}/publish-transcript`. Off, that endpoint returns 404: notes still publish, transcripts don't. |
 | `SHOTGRID_TRANSCRIPT_ENTITY` | `CustomEntity01` | API name of the transcript custom entity. |
+| `SHOTGRID_NOTE_TRANSCRIPT_FIELD` | `sg_linked_transcript` | Note field that links a note to its transcript (step 3). Set it empty to turn linking off. |
 
 These are on top of the usual ShotGrid connection settings (`SHOTGRID_URL`,
 `SHOTGRID_SCRIPT_NAME`, `SHOTGRID_API_KEY`; see

@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
+from dna.models.draft_note import DraftNote
 from dna.models.playlist_metadata import PlaylistMetadata
 from dna.models.published_transcript import PublishedTranscript
 from dna.models.stored_segment import StoredSegment
@@ -428,6 +429,82 @@ class TestPublishTranscriptEndpoint:
         assert response.status_code == 500
         # entity_id must be in the message so the operator can find the SG row.
         assert "9001" in response.json()["detail"]
+
+    def _published_draft(self, version_id: str, note_id: str | None):
+        now = datetime.now(timezone.utc)
+        return DraftNote(
+            _id=f"draft-{version_id}-{note_id}",
+            user_email="user@test.com",
+            playlist_id="42",
+            version_id=version_id,
+            content="Note",
+            created_at=now,
+            updated_at=now,
+            published=note_id is not None,
+            published_note_id=note_id,
+        )
+
+    def _create_transcript(self, client, mock_storage, mock_prodtrack):
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "hello")
+        ]
+        mock_storage.get_published_transcript.return_value = None
+        mock_prodtrack.publish_transcript.return_value = "9001"
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            return client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": "101"},
+            )
+
+    def test_create_links_the_versions_published_notes(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        """Notes published before the transcript get linked once it exists."""
+        mock_storage.get_draft_notes_for_playlist.return_value = [
+            self._published_draft("101", "500"),
+            self._published_draft("101", None),  # not published yet
+            self._published_draft("102", "501"),  # another version
+        ]
+
+        response = self._create_transcript(client, mock_storage, mock_prodtrack)
+
+        assert response.status_code == 200
+        mock_prodtrack.set_note_transcript.assert_called_once_with(
+            "500", {"type": "CustomEntity01", "id": "9001"}
+        )
+
+    def test_link_failure_still_returns_success(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_draft_notes_for_playlist.return_value = [
+            self._published_draft("101", "500")
+        ]
+        mock_prodtrack.set_note_transcript.side_effect = RuntimeError("SG down")
+
+        response = self._create_transcript(client, mock_storage, mock_prodtrack)
+
+        assert response.status_code == 200
+        assert response.json()["outcome"] == "created"
+
+    def test_update_does_not_relink_notes(
+        self, client, mock_storage, mock_prodtrack, override_deps
+    ):
+        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_segments_for_version.return_value = [
+            _segment("2026-04-15T10:00:00Z", "changed")
+        ]
+        mock_storage.get_published_transcript.return_value = _published("old-hash")
+        mock_prodtrack.update_transcript.return_value = True
+
+        with mock.patch.dict(os.environ, ENABLE_FLAG):
+            response = client.post(
+                "/playlists/42/publish-transcript",
+                json={"version_id": "101"},
+            )
+
+        assert response.json()["outcome"] == "updated"
+        mock_prodtrack.set_note_transcript.assert_not_called()
 
 
 class TestGetPublishedTranscriptsEndpoint:

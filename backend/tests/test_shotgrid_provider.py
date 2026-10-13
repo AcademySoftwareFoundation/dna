@@ -4,7 +4,7 @@ import os
 from unittest import mock
 
 import pytest
-from shotgun_api3 import Shotgun
+from shotgun_api3 import Fault, Shotgun
 
 from dna.prodtrack_providers.prodtrack_provider_base import UserNotFoundError
 from dna.prodtrack_providers.shotgrid import ShotgridProvider
@@ -521,3 +521,195 @@ class TestShotgridProviderPublishTranscript:
         )
 
         assert ok is False
+
+
+class TestShotgridProviderNoteTranscriptLink:
+    """Notes link to their transcript row via SHOTGRID_NOTE_TRANSCRIPT_FIELD."""
+
+    TRANSCRIPT = {"type": "CustomEntity01", "id": "9001"}
+    SG_TRANSCRIPT = {"type": "CustomEntity01", "id": 9001}
+
+    @pytest.fixture
+    def mock_shotgun(self):
+        with mock.patch("dna.prodtrack_providers.shotgrid.Shotgun") as mock_sg:
+            yield mock_sg
+
+    @pytest.fixture
+    def env(self):
+        return {
+            "SHOTGRID_URL": "https://test.shotgunstudio.com",
+            "SHOTGRID_SCRIPT_NAME": "test_script",
+            "SHOTGRID_API_KEY": "test_key",
+        }
+
+    @pytest.fixture
+    def provider(self, mock_shotgun, env):
+        with mock.patch.dict(os.environ, env):
+            os.environ.pop("SHOTGRID_NOTE_TRANSCRIPT_FIELD", None)
+            yield ShotgridProvider(connect=True)
+
+    @pytest.fixture
+    def sg(self, provider, mock_shotgun):
+        provider._sudo_connection = None
+        return mock_shotgun.return_value
+
+    def _publish(self, provider, sg, existing_note=None):
+        sg.find_one.side_effect = [
+            {"id": 101, "project": {"type": "Project", "id": 1}},
+            existing_note,
+        ]
+        sg.create.return_value = {"id": 200}
+        return provider.publish_note(
+            version_id="101",
+            content="Body",
+            subject="Sub",
+            to_users=[],
+            cc_users=[],
+            links=[],
+            transcript=self.TRANSCRIPT,
+        )
+
+    def test_publish_note_links_the_new_note_after_creating_it(self, provider, sg):
+        note_id = self._publish(provider, sg)
+
+        assert note_id == "200"
+        assert "sg_linked_transcript" not in sg.create.call_args[0][1]
+        sg.update.assert_called_once_with(
+            "Note", 200, {"sg_linked_transcript": self.SG_TRANSCRIPT}
+        )
+        sg.schema_field_read.assert_called_once_with("Note", "sg_linked_transcript")
+
+    def test_link_is_written_by_the_script_user_not_the_author(
+        self, provider, sg, mock_shotgun
+    ):
+        """The sudo'd create carries no link; the script connection sets it."""
+        sudo_conn = mock.MagicMock()
+        mock_shotgun.side_effect = [sudo_conn]
+        sg.find_one.side_effect = [
+            {"id": 101, "project": {"type": "Project", "id": 1}},
+            None,
+        ]
+        sudo_conn.create.return_value = {"id": 200}
+        author = mock.Mock(login="author_login")
+
+        with mock.patch.object(provider, "get_user_by_email", return_value=author):
+            provider.publish_note(
+                version_id="101",
+                content="Body",
+                subject="Sub",
+                to_users=[],
+                cc_users=[],
+                links=[],
+                author_email="auth@ex.com",
+                transcript=self.TRANSCRIPT,
+            )
+
+        assert mock_shotgun.call_args.kwargs["sudo_as_login"] == "author_login"
+        sudo_conn.create.assert_called_once()
+        assert "sg_linked_transcript" not in sudo_conn.create.call_args[0][1]
+        sudo_conn.update.assert_not_called()
+        sg.update.assert_called_once_with(
+            "Note", 200, {"sg_linked_transcript": self.SG_TRANSCRIPT}
+        )
+
+    def test_publish_note_without_transcript_skips_the_field_and_schema(
+        self, provider, sg
+    ):
+        sg.find_one.side_effect = [
+            {"id": 101, "project": {"type": "Project", "id": 1}},
+            None,
+        ]
+        sg.create.return_value = {"id": 200}
+
+        provider.publish_note(
+            version_id="101",
+            content="Body",
+            subject="Sub",
+            to_users=[],
+            cc_users=[],
+            links=[],
+        )
+
+        assert "sg_linked_transcript" not in sg.create.call_args[0][1]
+        sg.schema_field_read.assert_not_called()
+
+    def test_duplicate_note_gets_the_link(self, provider, sg):
+        note_id = self._publish(provider, sg, existing_note={"id": 999})
+
+        assert note_id == "999"
+        sg.create.assert_not_called()
+        sg.update.assert_called_once_with(
+            "Note", 999, {"sg_linked_transcript": self.SG_TRANSCRIPT}
+        )
+
+    def test_update_note_sets_the_link(self, provider, sg):
+        provider.update_note(note_id="505", content="Body", transcript=self.TRANSCRIPT)
+
+        sg.update.assert_called_once_with(
+            "Note",
+            505,
+            {"content": "Body", "sg_linked_transcript": self.SG_TRANSCRIPT},
+        )
+
+    def test_set_note_transcript(self, provider, sg):
+        assert provider.set_note_transcript("505", self.TRANSCRIPT) is True
+        sg.update.assert_called_once_with(
+            "Note", 505, {"sg_linked_transcript": self.SG_TRANSCRIPT}
+        )
+
+    def test_missing_field_is_skipped_with_one_warning(self, provider, sg, caplog):
+        """Sites without the field keep publishing notes, unlinked."""
+        sg.schema_field_read.side_effect = Fault("field does not exist")
+
+        with caplog.at_level("WARNING"):
+            self._publish(provider, sg)
+            assert provider.set_note_transcript("505", self.TRANSCRIPT) is False
+
+        assert "sg_linked_transcript" not in sg.create.call_args[0][1]
+        sg.update.assert_not_called()
+        sg.schema_field_read.assert_called_once()
+        assert len([r for r in caplog.records if "not found" in r.message]) == 1
+
+    def test_schema_is_rechecked_after_the_ttl(self, provider, sg):
+        """A field added on the site is picked up without an API restart."""
+        sg.schema_field_read.side_effect = [Fault("field does not exist"), {}]
+        clock = mock.Mock(side_effect=[0.0, 1.0, 61.0, 62.0])
+
+        with mock.patch("dna.prodtrack_providers.shotgrid.time.monotonic", clock):
+            assert provider.set_note_transcript("505", self.TRANSCRIPT) is False
+            assert provider.set_note_transcript("505", self.TRANSCRIPT) is False
+            assert provider.set_note_transcript("505", self.TRANSCRIPT) is True
+            assert provider.set_note_transcript("505", self.TRANSCRIPT) is True
+
+        assert sg.schema_field_read.call_count == 2
+        assert sg.update.call_count == 2
+
+    def test_transient_schema_error_retries_next_time(self, provider, sg):
+        sg.schema_field_read.side_effect = [ConnectionError("timeout"), {}]
+
+        assert provider.set_note_transcript("505", self.TRANSCRIPT) is False
+        assert provider.set_note_transcript("505", self.TRANSCRIPT) is True
+        assert sg.schema_field_read.call_count == 2
+
+    def test_field_name_comes_from_env(self, mock_shotgun, env):
+        with mock.patch.dict(
+            os.environ, {**env, "SHOTGRID_NOTE_TRANSCRIPT_FIELD": "sg_transcript"}
+        ):
+            provider = ShotgridProvider(connect=True)
+        sg = mock_shotgun.return_value
+
+        provider.set_note_transcript("505", self.TRANSCRIPT)
+
+        sg.schema_field_read.assert_called_once_with("Note", "sg_transcript")
+        sg.update.assert_called_once_with(
+            "Note", 505, {"sg_transcript": self.SG_TRANSCRIPT}
+        )
+
+    def test_empty_field_name_turns_linking_off(self, mock_shotgun, env):
+        with mock.patch.dict(os.environ, {**env, "SHOTGRID_NOTE_TRANSCRIPT_FIELD": ""}):
+            provider = ShotgridProvider(connect=True)
+        sg = mock_shotgun.return_value
+
+        assert provider.set_note_transcript("505", self.TRANSCRIPT) is False
+        sg.schema_field_read.assert_not_called()
+        sg.update.assert_not_called()

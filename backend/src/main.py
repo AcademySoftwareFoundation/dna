@@ -83,6 +83,7 @@ from dna.models import (
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.note_prompt_config import get_default_note_prompt
 from dna.prodtrack_providers.prodtrack_provider_base import (
+    EntityRef,
     ProdtrackProviderBase,
     get_prodtrack_provider,
 )
@@ -646,6 +647,63 @@ async def get_note(
 # -----------------------------------------------------------------------------
 
 
+async def _published_transcripts_by_version(
+    storage: StorageProviderBase, playlist_id: str
+) -> dict[str, EntityRef]:
+    """Version ID → its published transcript row, to link notes to.
+
+    A version transcribed in several meetings has several rows; the most
+    recently published wins. The row's own entity_type is used, not the
+    current env, so links survive a custom-entity slot migration. Lookup
+    failures return no links rather than blocking note publishing.
+    """
+    try:
+        rows = await storage.get_published_transcripts_for_playlist(playlist_id)
+    except Exception:
+        logger.exception(
+            "Could not load published transcripts for playlist %s; "
+            "publishing notes without transcript links",
+            playlist_id,
+        )
+        return {}
+    return {
+        row.version_id: EntityRef(type=row.entity_type, id=row.entity_id)
+        for row in sorted(rows, key=lambda r: r.updated_at)
+    }
+
+
+async def _link_published_notes_to_transcript(
+    storage: StorageProviderBase,
+    prodtrack: ProdtrackProviderBase,
+    playlist_id: str,
+    version_id: str,
+    transcript: EntityRef,
+) -> None:
+    """Link a version's already-published notes to its new transcript row.
+
+    Best effort: the transcript is published by now, so failures are logged
+    rather than raised.
+    """
+    try:
+        drafts = await storage.get_draft_notes_for_playlist(playlist_id)
+    except Exception:
+        logger.exception(
+            "Could not load notes to link to transcript %s", transcript["id"]
+        )
+        return
+    for draft in drafts:
+        if draft.version_id != version_id or not draft.published_note_id:
+            continue
+        try:
+            prodtrack.set_note_transcript(draft.published_note_id, transcript)
+        except Exception:
+            logger.exception(
+                "Could not link note %s to transcript %s",
+                draft.published_note_id,
+                transcript["id"],
+            )
+
+
 def _draft_note_links(note: DraftNote) -> list[EntityBase]:
     """Resolve a draft's links to entity stubs.
 
@@ -1051,6 +1109,8 @@ async def publish_notes(
 
         notes_to_publish.append(most_recent)
 
+    transcripts = await _published_transcripts_by_version(storage, playlist_id)
+
     # 3. Publish each note
     published_count = 0
     republished_count = 0
@@ -1093,6 +1153,7 @@ async def publish_notes(
             # version status to apply.
             is_scratch = note.version_id == SCRATCH_VERSION_ID
             status_to_apply = None if is_scratch else _status_to_apply(note)
+            transcript = None if is_scratch else transcripts.get(note.version_id)
 
             # Skip notes with no meaningful content to publish
             has_body = (note.content and note.content.strip()) or (
@@ -1130,6 +1191,7 @@ async def publish_notes(
                         version_id=note.version_id,
                         version_status=status_to_apply,
                         links=links,
+                        transcript=transcript,
                     )
                     if not success:
                         failed_count += 1
@@ -1182,6 +1244,7 @@ async def publish_notes(
                     links=links,
                     author_email=note.user_email,
                     version_status=status_to_apply,
+                    transcript=transcript,
                 )
 
             if note.attachment_ids:
@@ -1379,6 +1442,18 @@ async def publish_transcript(
                 f"system but local bookkeeping failed ({e.__class__.__name__}). "
                 f"Do not retry blindly; reconcile the row manually."
             ),
+        )
+
+    if outcome == "created":
+        # Notes published before this transcript existed have no link yet.
+        # An update reuses the row, which notes linked to when it was created
+        # or when they were published after it.
+        await _link_published_notes_to_transcript(
+            storage,
+            prodtrack,
+            playlist_id,
+            request.version_id,
+            EntityRef(type=entity_type, id=entity_id),
         )
 
     return PublishTranscriptResponse(

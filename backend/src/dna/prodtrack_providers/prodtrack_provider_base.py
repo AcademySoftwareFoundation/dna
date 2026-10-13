@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
+
+
+class EntityRef(TypedDict):
+    """A link to a tracking-system entity, e.g. a published transcript row."""
+
+    type: str
+    id: str
 
 
 class UserNotFoundError(Exception):
@@ -194,6 +201,7 @@ class ProdtrackProviderBase:
         links: list["EntityBase"],
         author_email: str | None = None,
         version_status: str | None = None,
+        transcript: EntityRef | None = None,
     ) -> str:
         """Publish a note to the production tracking system.
 
@@ -207,6 +215,7 @@ class ProdtrackProviderBase:
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
             version_status: Optional status code to set on the version.
+            transcript: Optional published transcript row to link the note to.
 
         Returns:
             The ID of the created note
@@ -248,6 +257,7 @@ class ProdtrackProviderBase:
         version_id: str | None = None,
         version_status: str | None = None,
         links: list["EntityBase"] | None = None,
+        transcript: EntityRef | None = None,
     ) -> bool:
         """Update an already-published note in the production tracking system.
 
@@ -259,9 +269,20 @@ class ProdtrackProviderBase:
             version_status: Optional status code to set on the version
             links: Optional entities to link. Implementations should add
                 these to the note's existing links rather than replace them.
+            transcript: Optional published transcript row to link the note
+                to. None leaves any existing link in place.
 
         Returns:
             True if the update succeeded, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def set_note_transcript(self, note_id: str, transcript: EntityRef) -> bool:
+        """Link an already-published note to a published transcript row.
+
+        Returns:
+            True if the link was set, False if it failed or linking is
+            unavailable (e.g. the tracking system has no field for it).
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

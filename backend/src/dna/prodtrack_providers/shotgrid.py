@@ -1,11 +1,13 @@
 """ShotGrid production tracking provider implementation."""
 
 import contextlib
+import logging
 import os
+import time
 from datetime import date
 from typing import Any, Optional, cast
 
-from shotgun_api3 import Shotgun
+from shotgun_api3 import Fault, Shotgun
 
 from dna.models.entity import (
     ENTITY_MODELS,
@@ -16,10 +18,18 @@ from dna.models.entity import (
     Version,
 )
 from dna.prodtrack_providers.prodtrack_provider_base import (
+    EntityRef,
     ProdtrackProviderBase,
     UserNotFoundError,
 )
 from dna.transcription_publish import transcript_entity_name
+
+logger = logging.getLogger(__name__)
+
+# How long a Note-field schema check stays valid. Long enough to cover one
+# publish request's note writes; short enough that a field added on the site
+# is picked up without restarting the API.
+NOTE_TRANSCRIPT_FIELD_CHECK_TTL = 60.0
 
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
@@ -155,6 +165,13 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         self.sg = None
         self._sudo_connection = None
+        # Note field linking a note to its transcript; empty turns it off.
+        # Checked against the schema by _note_transcript_field().
+        self.note_transcript_field = os.getenv(
+            "SHOTGRID_NOTE_TRANSCRIPT_FIELD", "sg_linked_transcript"
+        ).strip()
+        self._note_transcript_field_checked_at: Optional[float] = None
+        self._note_transcript_field_name: Optional[str] = None
         if connect:
             self.connect()
 
@@ -208,6 +225,54 @@ class ShotgridProvider(ProdtrackProviderBase):
     def _sg(self):
         """Get the active ShotGrid connection (sudo or main)."""
         return self._sudo_connection or self.sg
+
+    def _note_transcript_field(self) -> Optional[str]:
+        """Note field that links a note to its transcript, or None to skip it.
+
+        Named by SHOTGRID_NOTE_TRANSCRIPT_FIELD (default sg_linked_transcript;
+        empty turns linking off). ShotGrid rejects writes to unknown fields, so
+        the schema is checked (cached for NOTE_TRANSCRIPT_FIELD_CHECK_TTL) and
+        a missing field is skipped with a warning rather than failing every
+        note publish.
+        """
+        now = time.monotonic()
+        checked_at = self._note_transcript_field_checked_at
+        if (
+            checked_at is not None
+            and now - checked_at < NOTE_TRANSCRIPT_FIELD_CHECK_TTL
+        ):
+            return self._note_transcript_field_name
+        field = self.note_transcript_field
+        if field:
+            try:
+                self.sg.schema_field_read("Note", field)
+            except Fault:
+                logger.warning(
+                    "Note field %r not found in ShotGrid; published notes won't "
+                    "link to their transcript. See backend/docs/SHOTGRID_SETUP.md.",
+                    field,
+                )
+                field = ""
+            except Exception:
+                # Transient (network, auth): skip this time, check again next time.
+                logger.warning(
+                    "Could not check Note field %r; skipping transcript link",
+                    field,
+                    exc_info=True,
+                )
+                return None
+        self._note_transcript_field_checked_at = now
+        self._note_transcript_field_name = field or None
+        return self._note_transcript_field_name
+
+    def _note_transcript_data(self, transcript: Optional[EntityRef]) -> dict:
+        """The Note fields that link a note to `transcript`; empty to skip."""
+        if transcript is None:
+            return {}
+        field = self._note_transcript_field()
+        if field is None:
+            return {}
+        return {field: {"type": transcript["type"], "id": _to_sg_id(transcript["id"])}}
 
     def _convert_sg_entity_to_dna_entity(
         self,
@@ -933,6 +998,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         version_id: Optional[str] = None,
         version_status: Optional[str] = None,
         links: Optional[list[EntityBase]] = None,
+        transcript: Optional[EntityRef] = None,
     ) -> bool:
         """Update an existing note in ShotGrid.
 
@@ -945,6 +1011,8 @@ class ShotgridProvider(ProdtrackProviderBase):
             links: Optional entities to link. Merged into the note's existing
                 ``note_links`` (never removed), so links added by hand in
                 ShotGrid survive a republish.
+            transcript: Optional transcript row to link. None leaves the
+                note's current transcript link alone.
 
         Returns:
             True if successful, False otherwise.
@@ -952,7 +1020,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not self._sg:
             raise ValueError("Not connected to ShotGrid")
 
-        data = {"content": content}
+        data: dict[str, Any] = {
+            "content": content,
+            **self._note_transcript_data(transcript),
+        }
         if subject:
             data["subject"] = subject
 
@@ -1006,6 +1077,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         links: list[EntityBase],
         author_email: Optional[str] = None,
         version_status: Optional[str] = None,
+        transcript: Optional[EntityRef] = None,
     ) -> str:
         """Publish a note to ShotGrid.
 
@@ -1018,6 +1090,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             links: List of additional entities to link.
             author_email: Optional email of the author.
             version_status: Optional status code to set on the version.
+            transcript: Optional transcript row to link the note to.
 
         Returns:
             The ID of the created (or existing) note.
@@ -1058,6 +1131,8 @@ class ShotgridProvider(ProdtrackProviderBase):
                 self._sg.update(
                     "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
                 )
+            if transcript:
+                self.set_note_transcript(str(existing_note["id"]), transcript)
             return str(existing_note["id"])
 
         # 3. Prepare Note Data
@@ -1107,6 +1182,12 @@ class ShotgridProvider(ProdtrackProviderBase):
             self._sg.update(
                 "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
             )
+        # Linked after the create, outside the author's sudo, so the write runs
+        # with the script user's field permissions. Authors' permission groups
+        # may not be allowed to edit the transcript field, and that must never
+        # stop the note itself from publishing.
+        if transcript:
+            self.set_note_transcript(str(result["id"]), transcript)
 
         return str(result["id"])
 
@@ -1207,6 +1288,22 @@ class ShotgridProvider(ProdtrackProviderBase):
             result = self._sg.create("Note", note_data)
 
         return str(result["id"])
+
+    def set_note_transcript(self, note_id: str, transcript: EntityRef) -> bool:
+        """Link an existing note to a transcript row (see _note_transcript_field)."""
+        if not self._sg:
+            return False
+        data = self._note_transcript_data(transcript)
+        if not data:
+            return False
+        try:
+            self._sg.update("Note", _to_sg_id(note_id), data)
+            return True
+        except Exception:
+            logger.warning(
+                "Failed to link note %s to its transcript", note_id, exc_info=True
+            )
+            return False
 
     def attach_file_to_note(
         self, note_id: str, file_path: str, display_name: str
