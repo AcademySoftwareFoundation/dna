@@ -60,7 +60,11 @@ export interface UseTranscriptionReturn {
   isStopping: boolean;
   isLoadingStatus: boolean;
   error: Error | null;
-  dispatchBot: (meetingUrl: string, passcode?: string) => Promise<BotSession>;
+  dispatchBot: (
+    meetingUrl: string,
+    passcode?: string,
+    language?: string | null
+  ) => Promise<BotSession>;
   stopBot: () => Promise<void>;
   clearSession: () => void;
 }
@@ -269,7 +273,11 @@ export function useTranscription({
   });
 
   const dispatchBot = useCallback(
-    async (meetingUrl: string, passcode?: string): Promise<BotSession> => {
+    async (
+      meetingUrl: string,
+      passcode?: string,
+      language?: string | null
+    ): Promise<BotSession> => {
       if (!playlistId) {
         throw new Error('No playlist selected');
       }
@@ -284,6 +292,8 @@ export function useTranscription({
         meeting_id: parsed.meetingId,
         playlist_id: playlistId,
         passcode,
+        // Omit when auto-detecting so Vexa falls back to per-window detection.
+        ...(language ? { language } : {}),
       };
 
       return dispatchMutation.mutateAsync(request);

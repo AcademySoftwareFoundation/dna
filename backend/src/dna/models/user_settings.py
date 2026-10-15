@@ -36,6 +36,12 @@ class UserSettingsUpdate(BaseModel):
         default=None,
         description="Which PT page to sync: 'version' for Version Detail, 'entity' for Shot/Asset Detail",
     )
+    transcription_language: Optional[str] = Field(
+        default=None,
+        pattern=r"^([a-z]{2,3})?$",
+        description="ISO 639-1 language forced on the transcriber at session "
+        "start (e.g. 'en'); empty string means auto-detect per window",
+    )
 
 
 class UserSettings(BaseModel):
@@ -51,5 +57,9 @@ class UserSettings(BaseModel):
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True
     prodtrack_page_type: str = "version"
+    # Dailies are overwhelmingly English; fixing the language skips Whisper's
+    # per-window detection pass (latency) and prevents mid-session flips
+    # (accuracy). Users can switch to auto-detect ("") in Settings.
+    transcription_language: str = "en"
     updated_at: datetime
     created_at: datetime
