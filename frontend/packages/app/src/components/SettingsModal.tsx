@@ -28,6 +28,24 @@ import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
 import { ACCENTS, ACCENT_NAMES } from '../styles';
+import {
+  AUTO_DETECT_LANGUAGE,
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
+  TRANSCRIPTION_LANGUAGES,
+} from './transcriptionLanguages';
+import {
+  CONFIRM_PASS_OPTIONS,
+  DEFAULT_CONFIRM_PASSES,
+  DEFAULT_WHISPER_MODEL,
+  WHISPER_MODELS,
+} from './whisperModels';
+
+// Radix Select can't represent '' as an item value, so auto-detect gets a
+// sentinel in the UI and is mapped back to '' for storage.
+const AUTO_DETECT_OPTION = '__auto__';
+// Model / confirm-passes only apply to the WhisperLive (extension) route.
+const EXTENSION_ROUTE_CONFIGURED =
+  (import.meta.env.VITE_TRANSCRIPTION_EXTENSION_ID ?? '').trim().length > 0;
 
 /** The global glossary is a shared repo file — contributors edit it via PR. */
 const GLOBAL_GLOSSARY_GITHUB_URL =
@@ -666,9 +684,43 @@ function KeybindingsTab({
 
 // --- Transcription Tab ---
 
-function TranscriptionTab() {
+interface TranscriptionTabProps {
+  isLoading: boolean;
+  language: string;
+  model: string;
+  confirmPasses: number;
+  isPending: boolean;
+  onLanguageChange: (value: string) => void;
+  onModelChange: (value: string) => void;
+  onConfirmPassesChange: (value: number) => void;
+}
+
+function TranscriptionTab({
+  isLoading,
+  language,
+  model,
+  confirmPasses,
+  isPending,
+  onLanguageChange,
+  onModelChange,
+  onConfirmPassesChange,
+}: TranscriptionTabProps) {
   const { transcriptionEnabled, setTranscriptionEnabled, transcriptionLocked, transcriptionLockReason } =
     useFeatureFlags();
+
+  if (isLoading) {
+    return (
+      <Flex align="center" justify="center" py="6">
+        <SpinnerIcon size={24} />
+      </Flex>
+    );
+  }
+
+  const modelKnown = WHISPER_MODELS.some((m) => m.value === model);
+  const nonEnglish = language !== 'en';
+  const confirmOptions = CONFIRM_PASS_OPTIONS.includes(confirmPasses)
+    ? CONFIRM_PASS_OPTIONS
+    : [...CONFIRM_PASS_OPTIONS, confirmPasses].sort((a, b) => a - b);
 
   return (
     <ModalContent>
@@ -692,6 +744,90 @@ function TranscriptionTab() {
           }
         />
       </FeatureEnableRow>
+
+      {/* These are handed to the transcriber when a session starts, so a
+          change applies to the next Start / Activate, not a live session. */}
+      <AppearanceRow>
+        <KeybindingLabel>
+          <KeybindingName>Language</KeybindingName>
+          <KeybindingDesc>
+            Fixing the language skips per-window detection and avoids
+            mid-session flips. Applies when transcription starts.
+          </KeybindingDesc>
+        </KeybindingLabel>
+        <Select.Root
+          value={language === AUTO_DETECT_LANGUAGE ? AUTO_DETECT_OPTION : language}
+          onValueChange={(v) =>
+            onLanguageChange(v === AUTO_DETECT_OPTION ? AUTO_DETECT_LANGUAGE : v)
+          }
+          disabled={isPending || !transcriptionEnabled}
+        >
+          <Select.Trigger />
+          <Select.Content>
+            {TRANSCRIPTION_LANGUAGES.map(({ value, label }) => (
+              <Select.Item
+                key={value || AUTO_DETECT_OPTION}
+                value={value || AUTO_DETECT_OPTION}
+              >
+                {label}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </AppearanceRow>
+
+      {EXTENSION_ROUTE_CONFIGURED && (
+        <>
+          <AppearanceRow>
+            <KeybindingLabel>
+              <KeybindingName>Whisper model</KeybindingName>
+              <KeybindingDesc>
+                Extension route only. English-only models fall back to a
+                multilingual one when the language isn&apos;t English.
+              </KeybindingDesc>
+            </KeybindingLabel>
+            <Select.Root
+              value={modelKnown ? model : DEFAULT_WHISPER_MODEL}
+              onValueChange={onModelChange}
+              disabled={isPending || !transcriptionEnabled}
+            >
+              <Select.Trigger />
+              <Select.Content>
+                {WHISPER_MODELS.map(({ value, label, englishOnly }) => (
+                  <Select.Item key={value} value={value}>
+                    {label}
+                    {englishOnly && nonEnglish ? ' — falls back' : ''}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </AppearanceRow>
+
+          <AppearanceRow>
+            <KeybindingLabel>
+              <KeybindingName>Confirm after</KeybindingName>
+              <KeybindingDesc>
+                Extension route only. Identical decode passes before a segment
+                is final. Lower shows final text sooner; higher revises less.
+              </KeybindingDesc>
+            </KeybindingLabel>
+            <Select.Root
+              value={String(confirmPasses)}
+              onValueChange={(v) => onConfirmPassesChange(Number(v))}
+              disabled={isPending || !transcriptionEnabled}
+            >
+              <Select.Trigger />
+              <Select.Content>
+                {confirmOptions.map((n) => (
+                  <Select.Item key={n} value={String(n)}>
+                    {n} passes
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </AppearanceRow>
+        </>
+      )}
     </ModalContent>
   );
 }
@@ -1117,6 +1253,15 @@ export function SettingsModal({
     useState(true);
   const [preferredModel, setPreferredModel] = useState('');
   const [prodtrackPageType, setProdtrackPageType] = useState<'version' | 'entity'>('version');
+  const [transcriptionLanguage, setTranscriptionLanguage] = useState(
+    DEFAULT_TRANSCRIPTION_LANGUAGE
+  );
+  const [transcriptionModel, setTranscriptionModel] = useState(
+    DEFAULT_WHISPER_MODEL
+  );
+  const [transcriptionConfirmPasses, setTranscriptionConfirmPasses] = useState(
+    DEFAULT_CONFIRM_PASSES
+  );
   const [isDirty, setIsDirty] = useState(false);
 
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
@@ -1162,6 +1307,13 @@ export function SettingsModal({
         settings.sync_prodtrack_tab_on_version_change ?? true
       );
       setProdtrackPageType(settings.prodtrack_page_type ?? 'version');
+      setTranscriptionLanguage(
+        settings.transcription_language ?? DEFAULT_TRANSCRIPTION_LANGUAGE
+      );
+      setTranscriptionModel(settings.transcription_model ?? DEFAULT_WHISPER_MODEL);
+      setTranscriptionConfirmPasses(
+        settings.transcription_confirm_passes ?? DEFAULT_CONFIRM_PASSES
+      );
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
@@ -1170,6 +1322,9 @@ export function SettingsModal({
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
       setProdtrackPageType('version');
+      setTranscriptionLanguage(DEFAULT_TRANSCRIPTION_LANGUAGE);
+      setTranscriptionModel(DEFAULT_WHISPER_MODEL);
+      setTranscriptionConfirmPasses(DEFAULT_CONFIRM_PASSES);
       setIsDirty(false);
     }
   }, [settings]);
@@ -1213,6 +1368,24 @@ export function SettingsModal({
     []
   );
 
+  const handleTranscriptionLanguageChange = useCallback((value: string) => {
+    setTranscriptionLanguage(value);
+    setIsDirty(true);
+  }, []);
+
+  const handleTranscriptionModelChange = useCallback((value: string) => {
+    setTranscriptionModel(value);
+    setIsDirty(true);
+  }, []);
+
+  const handleTranscriptionConfirmPassesChange = useCallback(
+    (value: number) => {
+      setTranscriptionConfirmPasses(value);
+      setIsDirty(true);
+    },
+    []
+  );
+
   const handleSettingsReset = useCallback(() => {
       setNotePrompt(settings?.default_note_prompt ?? '');
       setPreferredModel('');
@@ -1220,7 +1393,10 @@ export function SettingsModal({
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
       setProdtrackPageType('version');
-      resetToDefaults(); 
+      setTranscriptionLanguage(DEFAULT_TRANSCRIPTION_LANGUAGE);
+      setTranscriptionModel(DEFAULT_WHISPER_MODEL);
+      setTranscriptionConfirmPasses(DEFAULT_CONFIRM_PASSES);
+      resetToDefaults();
       setIsDirty(true);
   }, [settings, resetToDefaults]);
 
@@ -1236,6 +1412,9 @@ export function SettingsModal({
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
       prodtrack_page_type: prodtrackPageType,
+      transcription_language: transcriptionLanguage,
+      transcription_model: transcriptionModel,
+      transcription_confirm_passes: transcriptionConfirmPasses,
     });
   }, [
     mutation,
@@ -1246,6 +1425,9 @@ export function SettingsModal({
     regenerateOnTranscriptUpdate,
     syncProdtrackTabOnVersionChange,
     prodtrackPageType,
+    transcriptionLanguage,
+    transcriptionModel,
+    transcriptionConfirmPasses,
   ]);
 
   const handleOpenChange = useCallback(
@@ -1314,7 +1496,16 @@ export function SettingsModal({
 
           <Tabs.Content value="transcription" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <TabsContentWrapper>
-              <TranscriptionTab />
+              <TranscriptionTab
+                isLoading={isLoading}
+                language={transcriptionLanguage}
+                model={transcriptionModel}
+                confirmPasses={transcriptionConfirmPasses}
+                isPending={mutation.isPending}
+                onLanguageChange={handleTranscriptionLanguageChange}
+                onModelChange={handleTranscriptionModelChange}
+                onConfirmPassesChange={handleTranscriptionConfirmPassesChange}
+              />
             </TabsContentWrapper>
           </Tabs.Content>
 
