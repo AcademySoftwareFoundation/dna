@@ -106,6 +106,21 @@ class StorageProviderBase:
         """Create or update a segment. Returns (segment, is_new)."""
         raise NotImplementedError()
 
+    async def upsert_segments(
+        self,
+        playlist_id: str,
+        version_id: str,
+        segments: list["StoredSegmentCreate"],
+    ) -> int:
+        """Create or update many segments for one version. Returns the count
+        written. Default implementation delegates to `upsert_segment` one at a
+        time; providers with a bulk primitive should override this — it sits
+        on the live-transcript hot path and is called once per Vexa tick.
+        """
+        for data in segments:
+            await self.upsert_segment(playlist_id, version_id, data.segment_id, data)
+        return len(segments)
+
     async def get_segments_for_version(
         self, playlist_id: str, version_id: str
     ) -> list["StoredSegment"]:

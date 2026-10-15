@@ -277,9 +277,15 @@ class TranscriptionService:
         pending: list[dict[str, Any]],
         ts: Any,
     ) -> int:
-        """Upsert confirmed segments for a playlist's in-review version and
-        broadcast the flat transcript envelope. Shared by the Vexa and
+        """Broadcast the flat transcript envelope, then upsert confirmed
+        segments for a playlist's in-review version. Shared by the Vexa and
         extension transcription paths. Returns the number of stored segments.
+
+        Order matters for perceived latency: the broadcast goes out before any
+        segment write so DNA clients see each tick as soon as it arrives,
+        rather than after the DB round-trip. Persistence is still awaited
+        (not fired-and-forgotten) so refinements of the same `segment_id`
+        across consecutive ticks land in order.
         """
         if self.storage_provider is None or self.event_publisher is None:
             logger.error("Providers not initialized")
@@ -302,8 +308,22 @@ class TranscriptionService:
 
         version_id = metadata.in_review
         resumed_at = metadata.transcription_resumed_at
-        stored = 0
 
+        # Broadcast the raw Vexa shape with DNA envelope fields.
+        # Frontend TranscriptManager.handleMessage() consumes this directly.
+        await self.event_publisher.ws_manager.broadcast(
+            {
+                "type": "transcript",
+                "speaker": speaker,
+                "confirmed": confirmed,
+                "pending": pending,
+                "playlist_id": playlist_id,
+                "version_id": version_id,
+                "ts": ts,
+            }
+        )
+
+        to_store: list[StoredSegmentCreate] = []
         for seg in confirmed:
             segment_id = seg.get("segment_id")
             absolute_start_time = seg.get("absolute_start_time")
@@ -326,44 +346,37 @@ class TranscriptionService:
                 except ValueError:
                     pass
 
-            segment_create = StoredSegmentCreate(
-                segment_id=segment_id,
-                text=text,
-                speaker=seg.get("speaker") or speaker,
-                language=seg.get("language"),
-                start_time=seg.get("start_time"),
-                end_time=seg.get("end_time"),
-                completed=True,
-                absolute_start_time=absolute_start_time,
-                absolute_end_time=seg.get("absolute_end_time", ""),
-                vexa_updated_at=seg.get("updated_at"),
+            to_store.append(
+                StoredSegmentCreate(
+                    segment_id=segment_id,
+                    text=text,
+                    speaker=seg.get("speaker") or speaker,
+                    language=seg.get("language"),
+                    start_time=seg.get("start_time"),
+                    end_time=seg.get("end_time"),
+                    completed=True,
+                    absolute_start_time=absolute_start_time,
+                    absolute_end_time=seg.get("absolute_end_time", ""),
+                    vexa_updated_at=seg.get("updated_at"),
+                )
             )
 
-            try:
-                await self.storage_provider.upsert_segment(
-                    playlist_id=playlist_id,
-                    version_id=version_id,
-                    segment_id=segment_id,
-                    data=segment_create,
-                )
-                stored += 1
-            except Exception:
-                logger.exception("Failed to upsert segment %s", segment_id)
+        if not to_store:
+            return 0
 
-        # Broadcast the raw Vexa shape with DNA envelope fields.
-        # Frontend TranscriptManager.handleMessage() consumes this directly.
-        await self.event_publisher.ws_manager.broadcast(
-            {
-                "type": "transcript",
-                "speaker": speaker,
-                "confirmed": confirmed,
-                "pending": pending,
-                "playlist_id": playlist_id,
-                "version_id": version_id,
-                "ts": ts,
-            }
-        )
-        return stored
+        try:
+            return await self.storage_provider.upsert_segments(
+                playlist_id=playlist_id,
+                version_id=version_id,
+                segments=to_store,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to upsert %d segment(s) for playlist %s",
+                len(to_store),
+                playlist_id,
+            )
+            return 0
 
     async def on_transcription_completed(self, payload: dict[str, Any]) -> None:
         """Handle transcription completion."""

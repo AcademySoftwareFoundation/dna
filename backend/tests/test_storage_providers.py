@@ -108,6 +108,30 @@ class TestStorageProviderBase:
             await provider.upsert_segment(1, 1, "seg-1", data)
 
     @pytest.mark.asyncio
+    async def test_upsert_segments_default_delegates_to_upsert_segment(self):
+        """Providers without a bulk primitive get a per-segment fallback."""
+        provider = StorageProviderBase()
+        provider.upsert_segment = mock.AsyncMock()
+        segs = [
+            StoredSegmentCreate(
+                segment_id=f"seg-{i}",
+                text="Hello",
+                absolute_start_time="2024-01-01T00:00:00Z",
+                absolute_end_time="2024-01-01T00:00:01Z",
+            )
+            for i in range(3)
+        ]
+
+        stored = await provider.upsert_segments("1", "2", segs)
+
+        assert stored == 3
+        assert [c.args[2] for c in provider.upsert_segment.await_args_list] == [
+            "seg-0",
+            "seg-1",
+            "seg-2",
+        ]
+
+    @pytest.mark.asyncio
     async def test_get_segments_for_version_raises_not_implemented(self):
         """Test that get_segments_for_version raises NotImplementedError."""
         provider = StorageProviderBase()
@@ -781,6 +805,65 @@ class TestMongoDBStorageProvider:
 
         assert is_new is False
         assert result.text == "Updated text"
+
+    @pytest.mark.asyncio
+    async def test_upsert_segments_single_bulk_write(self, provider):
+        """A batch becomes one unordered `bulk_write` of upserting UpdateOnes."""
+        mock_collection = mock.MagicMock()
+        bulk_result = mock.MagicMock(upserted_count=2, matched_count=1)
+        mock_collection.bulk_write = mock.AsyncMock(return_value=bulk_result)
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.segments = mock_collection
+        provider._client = mock_client
+
+        segs = [
+            StoredSegmentCreate(
+                segment_id=f"seg-{i}",
+                text=f"Text {i}",
+                absolute_start_time="2024-01-01T00:00:00Z",
+                absolute_end_time="2024-01-01T00:00:01Z",
+            )
+            for i in range(3)
+        ]
+
+        stored = await provider.upsert_segments("1", "2", segs)
+
+        assert stored == 3
+        mock_collection.bulk_write.assert_awaited_once()
+        ops, kwargs = (
+            mock_collection.bulk_write.await_args.args[0],
+            mock_collection.bulk_write.await_args.kwargs,
+        )
+        assert kwargs == {"ordered": False}
+        assert len(ops) == 3
+        first = ops[0]
+        assert first._filter == {
+            "segment_id": "seg-0",
+            "playlist_id": "1",
+            "version_id": "2",
+        }
+        assert first._upsert is True
+        assert first._doc["$set"]["text"] == "Text 0"
+        assert "updated_at" in first._doc["$set"]
+        assert first._doc["$setOnInsert"]["playlist_id"] == "1"
+        assert first._doc["$setOnInsert"]["version_id"] == "2"
+        assert "created_at" in first._doc["$setOnInsert"]
+
+    @pytest.mark.asyncio
+    async def test_upsert_segments_empty_batch_skips_write(self, provider):
+        mock_collection = mock.MagicMock()
+        mock_collection.bulk_write = mock.AsyncMock()
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.segments = mock_collection
+        provider._client = mock_client
+
+        assert await provider.upsert_segments("1", "2", []) == 0
+        mock_collection.bulk_write.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_get_segments_for_version(self, provider):

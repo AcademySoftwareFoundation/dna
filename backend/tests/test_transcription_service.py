@@ -28,7 +28,9 @@ def mock_storage_provider():
     provider = AsyncMock()
     provider.get_playlist_metadata = AsyncMock()
     provider.get_playlist_metadata_by_meeting_id = AsyncMock()
-    provider.upsert_segment = AsyncMock()
+    provider.upsert_segments = AsyncMock(
+        side_effect=lambda playlist_id, version_id, segments: len(segments)
+    )
     return provider
 
 
@@ -621,14 +623,14 @@ class TestOnTranscriptionUpdated:
             self._payload(confirmed=[seg], pending=[{"segment_id": "p1"}])
         )
 
-        mock_storage_provider.upsert_segment.assert_called_once()
-        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        mock_storage_provider.upsert_segments.assert_called_once()
+        kwargs = mock_storage_provider.upsert_segments.call_args.kwargs
         assert kwargs["playlist_id"] == "42"
         assert kwargs["version_id"] == "7"
-        assert kwargs["segment_id"] == "abc:speaker-0:1"
-        assert kwargs["data"].segment_id == "abc:speaker-0:1"
-        assert kwargs["data"].completed is True
-        assert kwargs["data"].speaker == "Alice"
+        [data] = kwargs["segments"]
+        assert data.segment_id == "abc:speaker-0:1"
+        assert data.completed is True
+        assert data.speaker == "Alice"
 
         mock_event_publisher.ws_manager.broadcast.assert_called_once()
         msg = mock_event_publisher.ws_manager.broadcast.call_args.args[0]
@@ -639,6 +641,68 @@ class TestOnTranscriptionUpdated:
         assert msg["playlist_id"] == "42"
         assert msg["version_id"] == "7"
         assert msg["ts"] == "2026-04-20T19:00:00.000Z"
+
+    @pytest.mark.asyncio
+    async def test_broadcasts_before_persisting(
+        self, service_ready, mock_storage_provider, mock_event_publisher, metadata
+    ):
+        """The WS broadcast must not wait on the segment write — that round-trip
+        is the main DNA-side contributor to transcript latency."""
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+        order: list[str] = []
+
+        async def _broadcast(_msg):
+            order.append("broadcast")
+
+        async def _upsert(playlist_id, version_id, segments):
+            order.append("upsert")
+            return len(segments)
+
+        mock_event_publisher.ws_manager.broadcast.side_effect = _broadcast
+        mock_storage_provider.upsert_segments.side_effect = _upsert
+
+        await service_ready.on_transcription_updated(
+            self._payload(confirmed=[self._seg()])
+        )
+
+        assert order == ["broadcast", "upsert"]
+
+    @pytest.mark.asyncio
+    async def test_batches_confirmed_segments_into_one_write(
+        self, service_ready, mock_storage_provider, metadata
+    ):
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+
+        await service_ready.on_transcription_updated(
+            self._payload(
+                confirmed=[
+                    self._seg(segment_id="a"),
+                    self._seg(segment_id="b"),
+                    self._seg(segment_id="c"),
+                ]
+            )
+        )
+
+        mock_storage_provider.upsert_segments.assert_called_once()
+        ids = [
+            s.segment_id
+            for s in mock_storage_provider.upsert_segments.call_args.kwargs["segments"]
+        ]
+        assert ids == ["a", "b", "c"]
+
+    @pytest.mark.asyncio
+    async def test_skips_write_when_nothing_confirmed(
+        self, service_ready, mock_storage_provider, mock_event_publisher, metadata
+    ):
+        """Pending-only ticks still broadcast but never touch storage."""
+        mock_storage_provider.get_playlist_metadata.return_value = metadata
+
+        await service_ready.on_transcription_updated(
+            self._payload(pending=[{"segment_id": "p1", "text": "hel"}])
+        )
+
+        mock_event_publisher.ws_manager.broadcast.assert_called_once()
+        mock_storage_provider.upsert_segments.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_returns_when_storage_provider_missing(self, service_ready, caplog):
@@ -659,7 +723,7 @@ class TestOnTranscriptionUpdated:
         await service_ready.on_transcription_updated(
             self._payload(meeting_id="not-mapped")
         )
-        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_storage_provider.upsert_segments.assert_not_called()
         assert "No playlist_id" in caplog.text
 
     @pytest.mark.asyncio
@@ -670,7 +734,7 @@ class TestOnTranscriptionUpdated:
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg()])
         )
-        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_storage_provider.upsert_segments.assert_not_called()
         mock_event_publisher.ws_manager.broadcast.assert_not_called()
 
     @pytest.mark.asyncio
@@ -683,7 +747,7 @@ class TestOnTranscriptionUpdated:
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg()])
         )
-        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_storage_provider.upsert_segments.assert_not_called()
         mock_event_publisher.ws_manager.broadcast.assert_not_called()
 
     @pytest.mark.asyncio
@@ -696,7 +760,7 @@ class TestOnTranscriptionUpdated:
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg()])
         )
-        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_storage_provider.upsert_segments.assert_not_called()
         mock_event_publisher.ws_manager.broadcast.assert_not_called()
 
     @pytest.mark.asyncio
@@ -726,8 +790,8 @@ class TestOnTranscriptionUpdated:
         )
 
         ids = [
-            c.kwargs["segment_id"]
-            for c in mock_storage_provider.upsert_segment.call_args_list
+            s.segment_id
+            for s in mock_storage_provider.upsert_segments.call_args.kwargs["segments"]
         ]
         assert ids == ["new"]
 
@@ -751,7 +815,10 @@ class TestOnTranscriptionUpdated:
             )
         )
 
-        mock_storage_provider.upsert_segment.assert_called_once()
+        mock_storage_provider.upsert_segments.assert_called_once()
+        assert (
+            len(mock_storage_provider.upsert_segments.call_args.kwargs["segments"]) == 1
+        )
 
     @pytest.mark.asyncio
     async def test_swallows_invalid_absolute_start_time(
@@ -772,7 +839,10 @@ class TestOnTranscriptionUpdated:
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg(absolute_start_time="not-a-date")])
         )
-        mock_storage_provider.upsert_segment.assert_called_once()
+        mock_storage_provider.upsert_segments.assert_called_once()
+        assert (
+            len(mock_storage_provider.upsert_segments.call_args.kwargs["segments"]) == 1
+        )
 
     @pytest.mark.asyncio
     async def test_skips_segments_missing_required_fields(
@@ -790,7 +860,7 @@ class TestOnTranscriptionUpdated:
                 ]
             )
         )
-        mock_storage_provider.upsert_segment.assert_not_called()
+        mock_storage_provider.upsert_segments.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_falls_back_to_top_level_speaker(
@@ -805,8 +875,8 @@ class TestOnTranscriptionUpdated:
                 confirmed=[self._seg(speaker=None, segment_id="x")],
             )
         )
-        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
-        assert kwargs["data"].speaker == "Bob"
+        [data] = mock_storage_provider.upsert_segments.call_args.kwargs["segments"]
+        assert data.speaker == "Bob"
 
     @pytest.mark.asyncio
     async def test_logs_and_continues_on_upsert_failure(
@@ -818,13 +888,13 @@ class TestOnTranscriptionUpdated:
         caplog,
     ):
         mock_storage_provider.get_playlist_metadata.return_value = metadata
-        mock_storage_provider.upsert_segment.side_effect = RuntimeError("boom")
+        mock_storage_provider.upsert_segments.side_effect = RuntimeError("boom")
 
         await service_ready.on_transcription_updated(
             self._payload(confirmed=[self._seg()])
         )
 
-        assert "Failed to upsert segment" in caplog.text
+        assert "Failed to upsert 1 segment(s)" in caplog.text
         mock_event_publisher.ws_manager.broadcast.assert_called_once()
 
 
@@ -927,11 +997,12 @@ class TestIngestExtensionTranscript:
         )
 
         assert stored == 1
-        kwargs = mock_storage_provider.upsert_segment.call_args.kwargs
+        kwargs = mock_storage_provider.upsert_segments.call_args.kwargs
         assert kwargs["playlist_id"] == "42"
         assert kwargs["version_id"] == "7"
-        assert kwargs["segment_id"] == "ext:speaker-0:1"
-        assert kwargs["data"].speaker == "Alice"
+        [data] = kwargs["segments"]
+        assert data.segment_id == "ext:speaker-0:1"
+        assert data.speaker == "Alice"
 
         msg = mock_event_publisher.ws_manager.broadcast.call_args.args[0]
         assert msg["type"] == "transcript"

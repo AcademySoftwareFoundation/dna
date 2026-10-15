@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
-from pymongo import AsyncMongoClient, ReturnDocument
+from pymongo import AsyncMongoClient, ReturnDocument, UpdateOne
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
 from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
@@ -328,6 +328,45 @@ class MongoDBStorageProvider(StorageProviderBase):
         )
         result["_id"] = str(result["_id"])
         return StoredSegment(**result), is_new
+
+    async def upsert_segments(
+        self,
+        playlist_id: str,
+        version_id: str,
+        segments: list[StoredSegmentCreate],
+    ) -> int:
+        """Upsert a batch of segments in a single round-trip.
+
+        Each Vexa tick re-sends a rolling window of confirmed segments, so the
+        per-segment `upsert_segment` path cost two round-trips per segment on
+        every tick. `bulk_write` collapses that into one. Unordered so a single
+        bad document doesn't block the rest of the batch.
+        """
+        if not segments:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        ops = [
+            UpdateOne(
+                {
+                    "segment_id": data.segment_id,
+                    "playlist_id": playlist_id,
+                    "version_id": version_id,
+                },
+                {
+                    "$set": {**data.model_dump(), "updated_at": now},
+                    "$setOnInsert": {
+                        "created_at": now,
+                        "playlist_id": playlist_id,
+                        "version_id": version_id,
+                    },
+                },
+                upsert=True,
+            )
+            for data in segments
+        ]
+        result = await self.segments_collection.bulk_write(ops, ordered=False)
+        return result.upserted_count + result.matched_count
 
     async def get_segments_for_version(
         self, playlist_id: str, version_id: str

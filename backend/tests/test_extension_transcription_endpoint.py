@@ -87,7 +87,9 @@ class TestExtensionIngestWebSocket:
         svc.event_publisher = get_event_publisher()
         storage = mock.AsyncMock()
         storage.get_playlist_metadata.return_value = metadata
-        storage.upsert_segment = mock.AsyncMock()
+        storage.upsert_segments = mock.AsyncMock(
+            side_effect=lambda playlist_id, version_id, segments: len(segments)
+        )
         svc.storage_provider = storage
         return svc, storage
 
@@ -132,7 +134,7 @@ class TestExtensionIngestWebSocket:
                     assert broadcast["playlist_id"] == "42"
                     assert broadcast["version_id"] == "7"
 
-        storage.upsert_segment.assert_awaited_once()
+        storage.upsert_segments.assert_awaited_once()
 
     def test_ping_pong(self):
         metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
@@ -200,7 +202,6 @@ class TestExtensionIngestWebSocket:
     def test_ingest_error_is_reported(self):
         metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
         svc, storage = self._prepare_service(metadata)
-        storage.upsert_segment.side_effect = None
         # Force the service call to raise.
         svc.ingest_extension_transcript = mock.AsyncMock(
             side_effect=RuntimeError("boom")
