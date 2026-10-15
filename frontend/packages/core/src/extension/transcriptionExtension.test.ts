@@ -142,6 +142,19 @@ describe('activateTranscriptionExtension', () => {
     expect(sent.key).toBe('shared-secret');
   });
 
+  it('forwards the glossary initialPrompt for the WhisperLive handshake', async () => {
+    let sent: Record<string, unknown> = {};
+    installChrome((_id, msg, cb) => {
+      sent = msg as Record<string, unknown>;
+      cb({ ok: true });
+    });
+    await activateTranscriptionExtension(EXT_ID, {
+      ...validPayload,
+      initialPrompt: 'Glossary: Carryall, Harvester.',
+    });
+    expect(sent.initialPrompt).toBe('Glossary: Carryall, Harvester.');
+  });
+
   it('returns error with detail on lastError', async () => {
     installChrome((_id, _msg, cb) => cb(undefined), { message: 'boom' });
     const r = await activateTranscriptionExtension(EXT_ID, validPayload);

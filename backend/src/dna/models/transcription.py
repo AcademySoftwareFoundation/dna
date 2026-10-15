@@ -45,6 +45,19 @@ class DispatchBotRequest(BaseModel):
     language: Optional[str] = Field(default=None, description="Transcription language")
 
 
+class TranscriptionPrompt(BaseModel):
+    """Whisper ``initial_prompt`` built from the project and global glossaries."""
+
+    prompt: str = Field(
+        ...,
+        description=(
+            "Comma-separated glossary terms to bias speech recognition toward. "
+            "Empty when no glossary terms are configured."
+        ),
+    )
+    term_count: int = Field(..., description="Number of glossary terms included")
+
+
 class BotStatus(BaseModel):
     """Current status of a transcription bot."""
 

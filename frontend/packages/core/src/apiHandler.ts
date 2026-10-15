@@ -20,8 +20,10 @@ import {
   UpsertUserSettingsParams,
   DeleteUserSettingsParams,
   GetProjectGlossaryParams,
+  GetTranscriptionPromptParams,
   UpsertProjectGlossaryParams,
   ProjectGlossary,
+  TranscriptionPrompt,
   GenerateNoteParams,
   GenerateNoteResponse,
   AvailableModelsResponse,
@@ -325,6 +327,14 @@ class ApiHandler {
     return this.put<ProjectGlossary>(`/projects/${params.projectId}/glossary`, {
       content: params.content,
     });
+  }
+
+  async getTranscriptionPrompt(
+    params: GetTranscriptionPromptParams
+  ): Promise<TranscriptionPrompt> {
+    return this.get<TranscriptionPrompt>(
+      `/projects/${params.projectId}/transcription-prompt`
+    );
   }
 
   async generateNote(

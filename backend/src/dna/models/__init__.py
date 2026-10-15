@@ -80,6 +80,7 @@ from dna.models.transcription import (
     DispatchBotRequest,
     Platform,
     Transcript,
+    TranscriptionPrompt,
     TranscriptSegment,
 )
 from dna.models.user_settings import (
@@ -139,6 +140,7 @@ __all__ = [
     "BotStatusEnum",
     "DispatchBotRequest",
     "Platform",
+    "TranscriptionPrompt",
     "TranscriptSegment",
     "UserSettings",
     "UserSettingsUpdate",

@@ -90,15 +90,21 @@
 
       ws.onopen = () => {
         log('info', 'Handshake 3a: WhisperLive socket open');
-        ws.send(
-          JSON.stringify({
-            uid,
-            language: null,
-            task: 'transcribe',
-            model: 'small',
-            use_vad: true,
-          })
-        );
+        const handshake = {
+          uid,
+          language: null,
+          task: 'transcribe',
+          model: 'small',
+          use_vad: true,
+        };
+        // Whisper reads initial_prompt as if it were preceding transcript, so
+        // the glossary terms DNA sends bias decoding toward production
+        // vocabulary (shot/character names, VFX shorthand).
+        if (serverInfo.initialPrompt) {
+          handshake.initial_prompt = serverInfo.initialPrompt;
+          log('info', `Using glossary prompt (${serverInfo.initialPrompt.length} chars)`);
+        }
+        ws.send(JSON.stringify(handshake));
       };
 
       ws.onmessage = (event) => {

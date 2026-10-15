@@ -23,6 +23,8 @@ import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
   playlistId: string | null;
+  /** Used to fetch the project glossary as a Whisper prompt (extension route). */
+  projectId?: string | null;
   collapsed?: boolean;
 }
 
@@ -344,6 +346,7 @@ function getStatusIcon(status: BotStatusEnum) {
 
 export function TranscriptionMenu({
   playlistId,
+  projectId = null,
   collapsed = false,
 }: TranscriptionMenuProps) {
   const [meetingUrl, setMeetingUrl] = useState('');
@@ -373,7 +376,7 @@ export function TranscriptionMenu({
     isActivating: extActivating,
     error: extError,
     activate: activateExtension,
-  } = useTranscriptionExtension(playlistId);
+  } = useTranscriptionExtension(playlistId, projectId);
   const [extPromptPermission, setExtPromptPermission] = useState(false);
 
   useEffect(() => {

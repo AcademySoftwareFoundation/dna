@@ -377,6 +377,20 @@ export interface GetProjectGlossaryParams {
   projectId: string;
 }
 
+/**
+ * Whisper `initial_prompt` derived from the project + global glossaries.
+ * Passed to the transcriber so production vocabulary is recognised.
+ */
+export interface TranscriptionPrompt {
+  /** Comma-separated glossary terms; empty when none are configured. */
+  prompt: string;
+  term_count: number;
+}
+
+export interface GetTranscriptionPromptParams {
+  projectId: string;
+}
+
 export interface UpsertProjectGlossaryParams {
   projectId: string;
   content: string;

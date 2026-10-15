@@ -648,7 +648,9 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedToolbar>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
+          {transcriptionEnabled && (
+            <TranscriptionMenu playlistId={playlistId} projectId={projectId} collapsed />
+          )}
         </CollapsedToolbar>
       ) : (
         <Toolbar>
@@ -722,7 +724,9 @@ export function Sidebar({
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
+          {transcriptionEnabled && (
+            <TranscriptionMenu playlistId={playlistId} projectId={projectId} />
+          )}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />

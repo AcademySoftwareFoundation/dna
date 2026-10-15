@@ -2255,6 +2255,27 @@
         "title": "TranscriptSegment",
         "type": "object"
       },
+      "TranscriptionPrompt": {
+        "description": "Whisper ``initial_prompt`` built from the project and global glossaries.",
+        "properties": {
+          "prompt": {
+            "description": "Comma-separated glossary terms to bias speech recognition toward. Empty when no glossary terms are configured.",
+            "title": "Prompt",
+            "type": "string"
+          },
+          "term_count": {
+            "description": "Number of glossary terms included",
+            "title": "Term Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt",
+          "term_count"
+        ],
+        "title": "TranscriptionPrompt",
+        "type": "object"
+      },
       "UpdateVersionStatusRequest": {
         "description": "Request model for updating a version's status.",
         "properties": {
@@ -4381,6 +4402,54 @@
         "summary": "Create a playlist",
         "tags": [
           "Playlists"
+        ]
+      }
+    },
+    "/projects/{project_id}/transcription-prompt": {
+      "get": {
+        "description": "Build a Whisper `initial_prompt` from the project's glossary terms (first) and the global glossary terms (second). Clients pass it to the transcriber so production vocabulary is recognised correctly. Returns an empty prompt when no glossary terms are configured.",
+        "operationId": "get_transcription_prompt_projects__project_id__transcription_prompt_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionPrompt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get the speech-recognition prompt for a project",
+        "tags": [
+          "Projects"
         ]
       }
     },

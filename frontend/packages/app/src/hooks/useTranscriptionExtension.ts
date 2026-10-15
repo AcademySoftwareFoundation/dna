@@ -8,6 +8,7 @@ import {
   type ExtensionConnectionStatus,
   type ExtensionStatus,
 } from '@dna/core';
+import { apiHandler } from '../api';
 
 const EXTENSION_ID = import.meta.env.VITE_TRANSCRIPTION_EXTENSION_ID ?? '';
 const INSTALL_URL =
@@ -34,7 +35,8 @@ export interface UseTranscriptionExtensionResult {
 }
 
 export function useTranscriptionExtension(
-  playlistId: string | null
+  playlistId: string | null,
+  projectId: string | null = null
 ): UseTranscriptionExtensionResult {
   const { token } = useAuth();
   const available = EXTENSION_ID.trim().length > 0;
@@ -82,6 +84,20 @@ export function useTranscriptionExtension(
 
     setIsActivating(true);
     try {
+      // Glossary terms bias Whisper toward production vocabulary. They're a
+      // nice-to-have: a failed fetch must never block starting transcription.
+      let initialPrompt: string | null = null;
+      if (projectId != null) {
+        try {
+          const { prompt } = await apiHandler.getTranscriptionPrompt({
+            projectId,
+          });
+          initialPrompt = prompt || null;
+        } catch {
+          initialPrompt = null;
+        }
+      }
+
       const result = await activateTranscriptionExtension(EXTENSION_ID, {
         dnaApiUrl: API_BASE_URL,
         dnaIngestWsUrl: deriveIngestWsUrl(API_BASE_URL),
@@ -89,6 +105,7 @@ export function useTranscriptionExtension(
         playlistId,
         token,
         key: EXTENSION_KEY || null,
+        initialPrompt,
       });
       if (!result.ok) {
         setError(result.detail || `Activation failed (${result.reason}).`);
@@ -101,7 +118,7 @@ export function useTranscriptionExtension(
     } finally {
       setIsActivating(false);
     }
-  }, [available, playlistId, token]);
+  }, [available, playlistId, projectId, token]);
 
   // Probe for the extension on mount and periodically so the UI reflects
   // install state without requiring an activation attempt first. The key gate

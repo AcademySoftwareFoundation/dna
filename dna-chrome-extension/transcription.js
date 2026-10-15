@@ -291,6 +291,12 @@
                 playlistId: message.playlistId,
                 token: message.token ?? null,
                 key: storedKey,
+                // Glossary-derived Whisper initial_prompt; forwarded verbatim
+                // in the WhisperLive handshake by the offscreen page.
+                initialPrompt:
+                  typeof message.initialPrompt === 'string' && message.initialPrompt
+                    ? message.initialPrompt
+                    : null,
               };
               log('info', 'Activated by DNA', {
                 ...state.serverInfo,

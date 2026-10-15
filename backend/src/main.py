@@ -72,6 +72,7 @@ from dna.models import (
     StoredSegment,
     Task,
     Transcript,
+    TranscriptionPrompt,
     UpdateVersionStatusRequest,
     UpdateVersionStatusResponse,
     User,
@@ -91,6 +92,7 @@ from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
 )
+from dna.transcription_prompt import build_initial_prompt
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
     get_transcription_provider,
@@ -971,6 +973,32 @@ async def upsert_project_glossary(
 ) -> ProjectGlossary:
     """Create or update a project's glossary."""
     return await provider.upsert_project_glossary(project_id, data)
+
+
+@app.get(
+    "/projects/{project_id}/transcription-prompt",
+    tags=["Projects"],
+    summary="Get the speech-recognition prompt for a project",
+    description=(
+        "Build a Whisper `initial_prompt` from the project's glossary terms "
+        "(first) and the global glossary terms (second). Clients pass it to the "
+        "transcriber so production vocabulary is recognised correctly. Returns "
+        "an empty prompt when no glossary terms are configured."
+    ),
+    response_model=TranscriptionPrompt,
+)
+async def get_transcription_prompt(
+    project_id: str,
+    provider: StorageProviderDep,
+    _: CurrentUserDep,
+) -> TranscriptionPrompt:
+    """Glossary-derived Whisper prompt for a project."""
+    project_glossary = await provider.get_project_glossary(project_id)
+    glossary_project = project_glossary.content if project_glossary else ""
+    prompt, term_count = build_initial_prompt(
+        glossary_project, get_default_glossary_global()
+    )
+    return TranscriptionPrompt(prompt=prompt, term_count=term_count)
 
 
 @app.get(
