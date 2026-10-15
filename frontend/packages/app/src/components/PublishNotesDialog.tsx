@@ -1082,30 +1082,34 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       )
       .map(({ version }) => version.id);
 
-    const [notesResult, transcriptResults, statusResults] = await Promise.all([
+    // Status updates don't depend on anything else, so they start right away.
+    const statusPromise = Promise.allSettled(
+      statusUpdates.map((u) => apiHandler.updateVersionStatus(u))
+    );
+    // Transcripts go before notes so each note finds its version's transcript
+    // row in ShotGrid and is created already linked (sg_linked_transcript).
+    const transcriptResults = await Promise.allSettled(
+      selectedTranscriptVersionIds.map((versionId) =>
+        publishTranscriptAsync({
+          playlistId,
+          request: { version_id: versionId },
+        })
+      )
+    );
+    const [notesResult, statusResults] = await Promise.all([
       toPublish.length > 0
         ? publishNotes({
             playlistId,
             request: {
               user_email: userEmail,
               targets,
-              // Status changes are published explicitly below, gated by the
+              // Status changes are published explicitly above, gated by the
               // per-version checkboxes — suppress the implicit note-side path.
               status_version_ids: [],
             },
           })
         : Promise.resolve(null),
-      Promise.allSettled(
-        selectedTranscriptVersionIds.map((versionId) =>
-          publishTranscriptAsync({
-            playlistId,
-            request: { version_id: versionId },
-          })
-        )
-      ),
-      Promise.allSettled(
-        statusUpdates.map((u) => apiHandler.updateVersionStatus(u))
-      ),
+      statusPromise,
     ]);
 
     const transcriptPublishedCount = transcriptResults.filter(
