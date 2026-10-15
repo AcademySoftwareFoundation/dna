@@ -327,6 +327,32 @@ const SliderBox = styled.div`
   flex-shrink: 0;
 `;
 
+// Radix's thumb is inset from the track ends by ~half its width, so the tick
+// row gets matching horizontal padding to line the marks up with the stops.
+const SliderTicks = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px;
+`;
+
+const SliderTick = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  line-height: 1;
+  color: ${({ theme }) => theme.colors.text.muted};
+
+  &::before {
+    content: '';
+    width: 1px;
+    height: 4px;
+    background: currentColor;
+    opacity: 0.6;
+  }
+`;
+
 const SliderCaptions = styled.div`
   display: flex;
   justify-content: space-between;
@@ -769,9 +795,8 @@ function TranscriptionTab({
         <KeybindingLabel>
           <KeybindingName>Language</KeybindingName>
           <KeybindingDesc>
-            The language spoken in your reviews. Choose Auto-detect if
-            meetings mix languages. Takes effect the next time transcription
-            starts.
+            Spoken language of your reviews. Use Auto-detect for mixed
+            languages.
           </KeybindingDesc>
         </KeybindingLabel>
         <Select.Root
@@ -801,12 +826,8 @@ function TranscriptionTab({
             <KeybindingLabel>
               <KeybindingName>Quality</KeybindingName>
               <KeybindingDesc>
-                Higher quality is more accurate but slower and uses more of
-                your computer. English-only options are the best choice for
-                English reviews
-                {nonEnglish
-                  ? '; with another language selected they switch to the multilingual equivalent.'
-                  : '.'}
+                Higher is more accurate but slower.
+                {nonEnglish && ' English-only options switch to multilingual.'}
               </KeybindingDesc>
             </KeybindingLabel>
             <Select.Root
@@ -829,9 +850,7 @@ function TranscriptionTab({
             <KeybindingLabel>
               <KeybindingName>Performance</KeybindingName>
               <KeybindingDesc>
-                Speed shows final text sooner but may correct a word or two
-                after the fact. Accuracy waits a little longer before locking
-                text in.
+                Speed finalises text sooner; Accuracy revises it less.
               </KeybindingDesc>
             </KeybindingLabel>
             <SliderBox>
@@ -847,6 +866,11 @@ function TranscriptionTab({
                 disabled={isPending || !transcriptionEnabled}
                 aria-label="Performance: speed to accuracy"
               />
+              <SliderTicks aria-hidden>
+                {PERFORMANCE_STEPS.map((_, i) => (
+                  <SliderTick key={i}>{i + 1}</SliderTick>
+                ))}
+              </SliderTicks>
               <SliderCaptions>
                 <span>Speed</span>
                 <span>Accuracy</span>
