@@ -824,9 +824,9 @@ function TranscriptionTab({
         <>
           <AppearanceRow>
             <KeybindingLabel>
-              <KeybindingName>Quality</KeybindingName>
+              <KeybindingName>Model</KeybindingName>
               <KeybindingDesc>
-                Higher is more accurate but slower.
+                Choose transcription model.
                 {nonEnglish && ' English-only options switch to multilingual.'}
               </KeybindingDesc>
             </KeybindingLabel>
@@ -850,7 +850,7 @@ function TranscriptionTab({
             <KeybindingLabel>
               <KeybindingName>Performance</KeybindingName>
               <KeybindingDesc>
-                Speed finalises text sooner; Accuracy revises it less.
+                Set transcription priorities.
               </KeybindingDesc>
             </KeybindingLabel>
             <SliderBox>

@@ -17,27 +17,27 @@ export const WHISPER_MODELS: ReadonlyArray<{
   /** Multilingual model to use instead when the language is not English. */
   multilingualFallback?: string;
 }> = [
-  { value: 'small', label: 'Standard', englishOnly: false },
+  { value: 'small', label: 'Small', englishOnly: false },
   {
     value: 'small.en',
-    label: 'Standard (English only)',
+    label: 'Small (English only)',
     englishOnly: true,
     multilingualFallback: 'small',
   },
-  { value: 'medium', label: 'Enhanced', englishOnly: false },
+  { value: 'medium', label: 'Medium', englishOnly: false },
   {
     value: 'medium.en',
-    label: 'Enhanced (English only)',
+    label: 'Medium (English only)',
     englishOnly: true,
     multilingualFallback: 'medium',
   },
   {
     value: 'distil-large-v3',
-    label: 'Best (English only)',
+    label: 'Distil Large v3 (English only)',
     englishOnly: true,
     multilingualFallback: 'large-v3-turbo',
   },
-  { value: 'large-v3-turbo', label: 'Best (needs a GPU)', englishOnly: false },
+  { value: 'large-v3-turbo', label: 'Large v3 Turbo (GPU)', englishOnly: false },
 ];
 
 /** Consecutive identical decode passes before WhisperLive confirms a segment. */
