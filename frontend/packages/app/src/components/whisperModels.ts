@@ -17,32 +17,58 @@ export const WHISPER_MODELS: ReadonlyArray<{
   /** Multilingual model to use instead when the language is not English. */
   multilingualFallback?: string;
 }> = [
-  { value: 'small', label: 'Small (fast)', englishOnly: false },
+  { value: 'small', label: 'Standard', englishOnly: false },
   {
     value: 'small.en',
-    label: 'Small · English only',
+    label: 'Standard (English only)',
     englishOnly: true,
     multilingualFallback: 'small',
   },
-  { value: 'medium', label: 'Medium', englishOnly: false },
+  { value: 'medium', label: 'Enhanced', englishOnly: false },
   {
     value: 'medium.en',
-    label: 'Medium · English only',
+    label: 'Enhanced (English only)',
     englishOnly: true,
     multilingualFallback: 'medium',
   },
   {
     value: 'distil-large-v3',
-    label: 'Distil Large v3 · English only',
+    label: 'Best (English only)',
     englishOnly: true,
     multilingualFallback: 'large-v3-turbo',
   },
-  { value: 'large-v3-turbo', label: 'Large v3 Turbo (GPU)', englishOnly: false },
+  { value: 'large-v3-turbo', label: 'Best (needs a GPU)', englishOnly: false },
 ];
 
 /** Consecutive identical decode passes before WhisperLive confirms a segment. */
 export const DEFAULT_CONFIRM_PASSES = 4;
-export const CONFIRM_PASS_OPTIONS: ReadonlyArray<number> = [2, 3, 4, 6, 8, 10];
+
+/**
+ * The "Performance" slider's stops, left (speed) to right (accuracy), as
+ * confirm-pass counts. Fewer passes finalise text sooner but may revise a
+ * word or two afterwards; more passes wait longer before locking text in.
+ */
+export const PERFORMANCE_STEPS: ReadonlyArray<number> = [2, 3, 4, 6, 10];
+
+/** Slider index for a stored pass count (nearest stop; ties round toward speed). */
+export function confirmPassesToPerformanceIndex(passes: number): number {
+  let best = 0;
+  for (let i = 1; i < PERFORMANCE_STEPS.length; i++) {
+    if (
+      Math.abs(PERFORMANCE_STEPS[i] - passes) <
+      Math.abs(PERFORMANCE_STEPS[best] - passes)
+    ) {
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** Pass count for a slider index (clamped to the available stops). */
+export function performanceIndexToConfirmPasses(index: number): number {
+  const i = Math.min(PERFORMANCE_STEPS.length - 1, Math.max(0, Math.round(index)));
+  return PERFORMANCE_STEPS[i];
+}
 
 /**
  * Pick the model actually sent to WhisperLive: an English-only choice is

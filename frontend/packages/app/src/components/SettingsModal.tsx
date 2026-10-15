@@ -6,6 +6,7 @@ import {
   Button,
   Checkbox,
   Select,
+  Slider,
   TextArea,
   Flex,
   Switch,
@@ -34,10 +35,12 @@ import {
   TRANSCRIPTION_LANGUAGES,
 } from './transcriptionLanguages';
 import {
-  CONFIRM_PASS_OPTIONS,
   DEFAULT_CONFIRM_PASSES,
   DEFAULT_WHISPER_MODEL,
+  PERFORMANCE_STEPS,
   WHISPER_MODELS,
+  confirmPassesToPerformanceIndex,
+  performanceIndexToConfirmPasses,
 } from './whisperModels';
 
 // Radix Select can't represent '' as an item value, so auto-detect gets a
@@ -312,6 +315,23 @@ const KeybindingRow = styled.div`
   &:last-child {
     border-bottom: none;
   }
+`;
+
+// Fixed-width home for the Performance slider so it doesn't collapse inside
+// the space-between row; the caption row names the two ends.
+const SliderBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  flex-shrink: 0;
+`;
+
+const SliderCaptions = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.text.muted};
 `;
 
 const KeybindingLabel = styled.div`
@@ -718,9 +738,7 @@ function TranscriptionTab({
 
   const modelKnown = WHISPER_MODELS.some((m) => m.value === model);
   const nonEnglish = language !== 'en';
-  const confirmOptions = CONFIRM_PASS_OPTIONS.includes(confirmPasses)
-    ? CONFIRM_PASS_OPTIONS
-    : [...CONFIRM_PASS_OPTIONS, confirmPasses].sort((a, b) => a - b);
+  const performanceIndex = confirmPassesToPerformanceIndex(confirmPasses);
 
   return (
     <ModalContent>
@@ -751,8 +769,9 @@ function TranscriptionTab({
         <KeybindingLabel>
           <KeybindingName>Language</KeybindingName>
           <KeybindingDesc>
-            Fixing the language skips per-window detection and avoids
-            mid-session flips. Applies when transcription starts.
+            The language spoken in your reviews. Choose Auto-detect if
+            meetings mix languages. Takes effect the next time transcription
+            starts.
           </KeybindingDesc>
         </KeybindingLabel>
         <Select.Root
@@ -780,10 +799,14 @@ function TranscriptionTab({
         <>
           <AppearanceRow>
             <KeybindingLabel>
-              <KeybindingName>Whisper model</KeybindingName>
+              <KeybindingName>Quality</KeybindingName>
               <KeybindingDesc>
-                Extension route only. English-only models fall back to a
-                multilingual one when the language isn&apos;t English.
+                Higher quality is more accurate but slower and uses more of
+                your computer. English-only options are the best choice for
+                English reviews
+                {nonEnglish
+                  ? '; with another language selected they switch to the multilingual equivalent.'
+                  : '.'}
               </KeybindingDesc>
             </KeybindingLabel>
             <Select.Root
@@ -793,10 +816,9 @@ function TranscriptionTab({
             >
               <Select.Trigger />
               <Select.Content>
-                {WHISPER_MODELS.map(({ value, label, englishOnly }) => (
+                {WHISPER_MODELS.map(({ value, label }) => (
                   <Select.Item key={value} value={value}>
                     {label}
-                    {englishOnly && nonEnglish ? ' — falls back' : ''}
                   </Select.Item>
                 ))}
               </Select.Content>
@@ -805,26 +827,31 @@ function TranscriptionTab({
 
           <AppearanceRow>
             <KeybindingLabel>
-              <KeybindingName>Confirm after</KeybindingName>
+              <KeybindingName>Performance</KeybindingName>
               <KeybindingDesc>
-                Extension route only. Identical decode passes before a segment
-                is final. Lower shows final text sooner; higher revises less.
+                Speed shows final text sooner but may correct a word or two
+                after the fact. Accuracy waits a little longer before locking
+                text in.
               </KeybindingDesc>
             </KeybindingLabel>
-            <Select.Root
-              value={String(confirmPasses)}
-              onValueChange={(v) => onConfirmPassesChange(Number(v))}
-              disabled={isPending || !transcriptionEnabled}
-            >
-              <Select.Trigger />
-              <Select.Content>
-                {confirmOptions.map((n) => (
-                  <Select.Item key={n} value={String(n)}>
-                    {n} passes
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select.Root>
+            <SliderBox>
+              <Slider
+                size="1"
+                min={0}
+                max={PERFORMANCE_STEPS.length - 1}
+                step={1}
+                value={[performanceIndex]}
+                onValueChange={([i]) =>
+                  onConfirmPassesChange(performanceIndexToConfirmPasses(i))
+                }
+                disabled={isPending || !transcriptionEnabled}
+                aria-label="Performance: speed to accuracy"
+              />
+              <SliderCaptions>
+                <span>Speed</span>
+                <span>Accuracy</span>
+              </SliderCaptions>
+            </SliderBox>
           </AppearanceRow>
         </>
       )}
