@@ -1695,6 +1695,8 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
         ),
         prodtrack_page_type=settings.prodtrack_page_type,
         transcription_language=settings.transcription_language,
+        transcription_model=settings.transcription_model,
+        transcription_confirm_passes=settings.transcription_confirm_passes,
         updated_at=settings.updated_at,
         created_at=settings.created_at,
     )
@@ -1716,6 +1718,8 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         sync_prodtrack_tab_on_version_change=True,
         prodtrack_page_type="version",
         transcription_language="en",
+        transcription_model="small",
+        transcription_confirm_passes=4,
         updated_at=now,
         created_at=now,
     )

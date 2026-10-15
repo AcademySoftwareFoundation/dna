@@ -1,0 +1,63 @@
+/**
+ * WhisperLive tuning offered in the transcription panel (extension route).
+ *
+ * Model names are WhisperLive's built-in `model_sizes`; anything else is
+ * treated upstream as a Hugging Face repo and downloaded on first use, so the
+ * list is deliberately closed. English-only variants are faster and more
+ * accurate for English but WhisperLive forces `language=en` for any name
+ * ending in "en", so they are swapped for a multilingual sibling when the
+ * user picks another language.
+ */
+export const DEFAULT_WHISPER_MODEL = 'small';
+
+export const WHISPER_MODELS: ReadonlyArray<{
+  value: string;
+  label: string;
+  englishOnly: boolean;
+  /** Multilingual model to use instead when the language is not English. */
+  multilingualFallback?: string;
+}> = [
+  { value: 'small', label: 'Small (fast)', englishOnly: false },
+  {
+    value: 'small.en',
+    label: 'Small · English only',
+    englishOnly: true,
+    multilingualFallback: 'small',
+  },
+  { value: 'medium', label: 'Medium', englishOnly: false },
+  {
+    value: 'medium.en',
+    label: 'Medium · English only',
+    englishOnly: true,
+    multilingualFallback: 'medium',
+  },
+  {
+    value: 'distil-large-v3',
+    label: 'Distil Large v3 · English only',
+    englishOnly: true,
+    multilingualFallback: 'large-v3-turbo',
+  },
+  { value: 'large-v3-turbo', label: 'Large v3 Turbo (GPU)', englishOnly: false },
+];
+
+/** Consecutive identical decode passes before WhisperLive confirms a segment. */
+export const DEFAULT_CONFIRM_PASSES = 4;
+export const CONFIRM_PASS_OPTIONS: ReadonlyArray<number> = [2, 3, 4, 6, 8, 10];
+
+/**
+ * Pick the model actually sent to WhisperLive: an English-only choice is
+ * downgraded to its multilingual sibling when the session language is not
+ * English (including auto-detect), otherwise the choice is used as-is.
+ */
+export function resolveWhisperModel(
+  model: string | null | undefined,
+  language: string | null | undefined
+): string {
+  const chosen = model && model.trim() ? model.trim() : DEFAULT_WHISPER_MODEL;
+  if (language === 'en') return chosen;
+  const entry = WHISPER_MODELS.find((m) => m.value === chosen);
+  if (entry?.englishOnly && entry.multilingualFallback) {
+    return entry.multilingualFallback;
+  }
+  return chosen;
+}

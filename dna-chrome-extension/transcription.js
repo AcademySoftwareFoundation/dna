@@ -302,6 +302,16 @@
                   typeof message.language === 'string' && message.language
                     ? message.language
                     : null,
+                // WhisperLive tuning from the user's DNA settings.
+                model:
+                  typeof message.model === 'string' && message.model
+                    ? message.model
+                    : null,
+                sameOutputThreshold:
+                  Number.isInteger(message.sameOutputThreshold) &&
+                  message.sameOutputThreshold > 0
+                    ? message.sameOutputThreshold
+                    : null,
               };
               log('info', 'Activated by DNA', {
                 ...state.serverInfo,

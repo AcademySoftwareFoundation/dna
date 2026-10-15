@@ -16,6 +16,7 @@ import type {
   BotStatusEnum,
   ExtensionConnectionStatus,
   UserSettings,
+  UserSettingsUpdate,
 } from '@dna/core';
 import {
   useTranscription,
@@ -32,6 +33,12 @@ import {
   DEFAULT_TRANSCRIPTION_LANGUAGE,
   TRANSCRIPTION_LANGUAGES,
 } from './transcriptionLanguages';
+import {
+  CONFIRM_PASS_OPTIONS,
+  DEFAULT_CONFIRM_PASSES,
+  DEFAULT_WHISPER_MODEL,
+  WHISPER_MODELS,
+} from './whisperModels';
 
 // Radix Select can't represent '' as an item value, so auto-detect gets a
 // sentinel in the UI and is mapped back to '' for storage.
@@ -391,12 +398,13 @@ export function TranscriptionMenu({
   });
   const language =
     userSettings?.transcription_language ?? DEFAULT_TRANSCRIPTION_LANGUAGE;
-  const { mutate: saveLanguage, isPending: isSavingLanguage } = useMutation({
-    mutationFn: (transcription_language: string) =>
-      apiHandler.upsertUserSettings({
-        userEmail: userEmail!,
-        data: { transcription_language },
-      }),
+  const whisperModel =
+    userSettings?.transcription_model ?? DEFAULT_WHISPER_MODEL;
+  const confirmPasses =
+    userSettings?.transcription_confirm_passes ?? DEFAULT_CONFIRM_PASSES;
+  const { mutate: saveSettings, isPending: isSavingSettings } = useMutation({
+    mutationFn: (data: UserSettingsUpdate) =>
+      apiHandler.upsertUserSettings({ userEmail: userEmail!, data }),
     onSuccess: (saved) => {
       queryClient.setQueryData(['userSettings', userEmail], saved);
     },
@@ -404,9 +412,26 @@ export function TranscriptionMenu({
   const handleLanguageChange = useCallback(
     (value: string) => {
       if (userEmail == null) return;
-      saveLanguage(value === AUTO_DETECT_OPTION ? AUTO_DETECT_LANGUAGE : value);
+      saveSettings({
+        transcription_language:
+          value === AUTO_DETECT_OPTION ? AUTO_DETECT_LANGUAGE : value,
+      });
     },
-    [userEmail, saveLanguage]
+    [userEmail, saveSettings]
+  );
+  const handleModelChange = useCallback(
+    (value: string) => {
+      if (userEmail == null) return;
+      saveSettings({ transcription_model: value });
+    },
+    [userEmail, saveSettings]
+  );
+  const handleConfirmPassesChange = useCallback(
+    (value: string) => {
+      if (userEmail == null) return;
+      saveSettings({ transcription_confirm_passes: Number(value) });
+    },
+    [userEmail, saveSettings]
   );
 
   const {
@@ -431,7 +456,11 @@ export function TranscriptionMenu({
     isActivating: extActivating,
     error: extError,
     activate: activateExtension,
-  } = useTranscriptionExtension(playlistId, projectId, { language });
+  } = useTranscriptionExtension(playlistId, projectId, {
+    language,
+    model: whisperModel,
+    confirmPasses,
+  });
   const [extPromptPermission, setExtPromptPermission] = useState(false);
 
   useEffect(() => {
@@ -621,7 +650,7 @@ export function TranscriptionMenu({
         size="1"
         value={language === AUTO_DETECT_LANGUAGE ? AUTO_DETECT_OPTION : language}
         onValueChange={handleLanguageChange}
-        disabled={locked || isSavingLanguage || userEmail == null}
+        disabled={locked || isSavingSettings || userEmail == null}
       >
         <Select.Trigger />
         <Select.Content>
@@ -638,6 +667,62 @@ export function TranscriptionMenu({
     </SettingRow>
   );
 
+  // WhisperLive-only knobs (the Vexa bot owns its own model). Like language,
+  // they are sent in the handshake, so they lock while a session is live.
+  const renderWhisperSettings = (locked: boolean) => {
+    const disabled = locked || isSavingSettings || userEmail == null;
+    const modelKnown = WHISPER_MODELS.some((m) => m.value === whisperModel);
+    const nonEnglish = language !== 'en';
+    return (
+      <>
+        <SettingRow>
+          <Text size="1" color="gray">
+            Model
+          </Text>
+          <Select.Root
+            size="1"
+            value={modelKnown ? whisperModel : DEFAULT_WHISPER_MODEL}
+            onValueChange={handleModelChange}
+            disabled={disabled}
+          >
+            <Select.Trigger />
+            <Select.Content>
+              {WHISPER_MODELS.map(({ value, label, englishOnly }) => (
+                <Select.Item key={value} value={value}>
+                  {label}
+                  {englishOnly && nonEnglish ? ' — falls back' : ''}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </SettingRow>
+        <SettingRow title="Consecutive identical decode passes before a segment is confirmed. Lower shows final text sooner; higher revises less often.">
+          <Text size="1" color="gray">
+            Confirm after
+          </Text>
+          <Select.Root
+            size="1"
+            value={String(confirmPasses)}
+            onValueChange={handleConfirmPassesChange}
+            disabled={disabled}
+          >
+            <Select.Trigger />
+            <Select.Content>
+              {(CONFIRM_PASS_OPTIONS.includes(confirmPasses)
+                ? CONFIRM_PASS_OPTIONS
+                : [...CONFIRM_PASS_OPTIONS, confirmPasses].sort((a, b) => a - b)
+              ).map((n) => (
+                <Select.Item key={n} value={String(n)}>
+                  {n} passes
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </SettingRow>
+      </>
+    );
+  };
+
   const renderExtensionPanel = () => (
     <ExtensionSection>
       <StatusRow>
@@ -646,6 +731,7 @@ export function TranscriptionMenu({
       </StatusRow>
 
       {renderLanguageSetting(extConnection !== 'disconnected')}
+      {renderWhisperSettings(extConnection !== 'disconnected')}
 
       {extInstallState === 'unknown' && (
         <Text size="1" color="gray">

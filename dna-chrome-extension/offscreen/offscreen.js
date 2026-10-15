@@ -96,9 +96,17 @@
           // prevents mid-session flips; null lets it detect.
           language: serverInfo.language || null,
           task: 'transcribe',
-          model: 'small',
+          model: serverInfo.model || 'small',
           use_vad: true,
         };
+        // WhisperLive only marks a segment completed after this many
+        // consecutive identical decode passes (its default is 10, which left
+        // finished sentences in "pending" for seconds after the speaker
+        // stopped). DNA only persists completed segments, so this directly
+        // sets how quickly text becomes final.
+        if (serverInfo.sameOutputThreshold) {
+          handshake.same_output_threshold = serverInfo.sameOutputThreshold;
+        }
         // Whisper reads initial_prompt as if it were preceding transcript, so
         // the glossary terms DNA sends bias decoding toward production
         // vocabulary (shot/character names, VFX shorthand).

@@ -28,4 +28,10 @@ RUN git clone --depth 1 --branch "${WHISPERLIVE_REF}" https://github.com/collabo
 
 EXPOSE 9090
 
-CMD ["python", "run_server.py", "--port", "9090", "--backend", "faster_whisper"]
+# WhisperLive's --omp_num_threads defaults to 1, which leaves faster-whisper
+# single-threaded on CPU and is the main reason segments lag on a laptop.
+# Default to every core the container can see; override with OMP_NUM_THREADS.
+# Export the resolved value too: run_server.py only sets OMP_NUM_THREADS when
+# it is absent from the environment, so an empty value from compose would
+# otherwise leak through to ctranslate2 untouched.
+CMD ["sh", "-c", "export OMP_NUM_THREADS=\"${OMP_NUM_THREADS:-$(nproc)}\" && exec python run_server.py --port 9090 --backend faster_whisper --omp_num_threads \"$OMP_NUM_THREADS\""]

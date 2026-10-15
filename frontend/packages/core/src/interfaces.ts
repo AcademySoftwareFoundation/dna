@@ -353,6 +353,10 @@ export interface UserSettings {
   prodtrack_page_type: 'version' | 'entity';
   /** ISO 639-1 code forced on the transcriber; '' means auto-detect. */
   transcription_language: string;
+  /** Whisper model size requested from WhisperLive (extension route). */
+  transcription_model: string;
+  /** WhisperLive same_output_threshold (extension route). */
+  transcription_confirm_passes: number;
   updated_at: string;
   created_at: string;
 }
@@ -365,6 +369,8 @@ export interface UserSettingsUpdate {
   sync_prodtrack_tab_on_version_change?: boolean;
   prodtrack_page_type?: 'version' | 'entity';
   transcription_language?: string;
+  transcription_model?: string;
+  transcription_confirm_passes?: number;
 }
 
 /** Production-specific glossary, keyed by ShotGrid project id. */

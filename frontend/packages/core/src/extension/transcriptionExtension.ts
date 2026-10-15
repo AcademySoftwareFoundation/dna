@@ -52,6 +52,13 @@ export interface ExtensionActivationPayload {
    * Null/empty lets Whisper detect the language per window.
    */
   language?: string | null;
+  /** Whisper model size for the WhisperLive handshake (e.g. 'small'). */
+  model?: string | null;
+  /**
+   * WhisperLive `same_output_threshold`: consecutive identical decode passes
+   * before a segment is marked completed. Lower = confirms sooner.
+   */
+  sameOutputThreshold?: number | null;
 }
 
 export type ExtensionConnectionStatus =

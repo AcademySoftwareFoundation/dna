@@ -25,6 +25,38 @@ class TestUserSettingsModels:
         assert update.regenerate_on_transcript_update is None
         assert update.sync_prodtrack_tab_on_version_change is None
         assert update.transcription_language is None
+        assert update.transcription_model is None
+        assert update.transcription_confirm_passes is None
+
+    def test_transcription_model_accepts_whisper_size_names(self):
+        for name in ("small", "medium.en", "distil-large-v3", "large-v3-turbo"):
+            assert (
+                UserSettingsUpdate(transcription_model=name).transcription_model == name
+            )
+
+    def test_transcription_model_rejects_paths_and_uppercase(self):
+        with pytest.raises(ValueError):
+            UserSettingsUpdate(transcription_model="../etc/passwd")
+        with pytest.raises(ValueError):
+            UserSettingsUpdate(transcription_model="Small")
+
+    def test_transcription_confirm_passes_bounds(self):
+        assert (
+            UserSettingsUpdate(
+                transcription_confirm_passes=1
+            ).transcription_confirm_passes
+            == 1
+        )
+        assert (
+            UserSettingsUpdate(
+                transcription_confirm_passes=20
+            ).transcription_confirm_passes
+            == 20
+        )
+        with pytest.raises(ValueError):
+            UserSettingsUpdate(transcription_confirm_passes=0)
+        with pytest.raises(ValueError):
+            UserSettingsUpdate(transcription_confirm_passes=21)
 
     def test_transcription_language_accepts_iso_code_or_auto(self):
         assert (
@@ -87,6 +119,8 @@ class TestUserSettingsModels:
         assert settings.regenerate_on_transcript_update is False
         assert settings.sync_prodtrack_tab_on_version_change is True
         assert settings.transcription_language == "en"
+        assert settings.transcription_model == "small"
+        assert settings.transcription_confirm_passes == 4
 
     def test_user_settings_with_preferred_model(self):
         """Test UserSettings with preferred_model set."""
@@ -142,6 +176,8 @@ class TestUserSettingsEndpoints:
             assert data["regenerate_on_transcript_update"] is False
             assert data["sync_prodtrack_tab_on_version_change"] is True
             assert data["transcription_language"] == "en"
+            assert data["transcription_model"] == "small"
+            assert data["transcription_confirm_passes"] == 4
             mock_storage_provider.get_user_settings.assert_called_once_with(
                 "test@example.com"
             )
@@ -444,6 +480,8 @@ class TestMongoDBUserSettingsProvider:
         update_doc = mock_collection.find_one_and_update.call_args.args[1]
         assert update_doc["$setOnInsert"]["transcription_language"] == "en"
         assert "transcription_language" not in update_doc["$set"]
+        assert update_doc["$setOnInsert"]["transcription_model"] == "small"
+        assert update_doc["$setOnInsert"]["transcription_confirm_passes"] == 4
 
     @pytest.mark.asyncio
     async def test_upsert_user_settings_stores_auto_detect_as_empty_string(

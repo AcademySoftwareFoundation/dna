@@ -2422,9 +2422,19 @@
             "title": "Sync Prodtrack Tab On Version Change",
             "type": "boolean"
           },
+          "transcription_confirm_passes": {
+            "default": 4,
+            "title": "Transcription Confirm Passes",
+            "type": "integer"
+          },
           "transcription_language": {
             "default": "en",
             "title": "Transcription Language",
+            "type": "string"
+          },
+          "transcription_model": {
+            "default": "small",
+            "title": "Transcription Model",
             "type": "string"
           },
           "updated_at": {
@@ -2521,6 +2531,20 @@
             "description": "When true, DNA tells the browser extension to open the PT version page whenever the selected version changes",
             "title": "Sync Prodtrack Tab On Version Change"
           },
+          "transcription_confirm_passes": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WhisperLive same_output_threshold: consecutive identical decode passes before a segment is marked completed (extension route only). Lower confirms sooner at the cost of occasional revisions.",
+            "title": "Transcription Confirm Passes"
+          },
           "transcription_language": {
             "anyOf": [
               {
@@ -2533,6 +2557,19 @@
             ],
             "description": "ISO 639-1 language forced on the transcriber at session start (e.g. 'en'); empty string means auto-detect per window",
             "title": "Transcription Language"
+          },
+          "transcription_model": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.\\-]{0,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whisper model size requested from WhisperLive (extension route only), e.g. 'small', 'medium.en', 'large-v3-turbo'",
+            "title": "Transcription Model"
           }
         },
         "title": "UserSettingsUpdate",

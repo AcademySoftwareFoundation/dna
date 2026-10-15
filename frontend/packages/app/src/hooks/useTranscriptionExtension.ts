@@ -9,6 +9,7 @@ import {
   type ExtensionStatus,
 } from '@dna/core';
 import { apiHandler } from '../api';
+import { resolveWhisperModel } from '../components/whisperModels';
 
 const EXTENSION_ID = import.meta.env.VITE_TRANSCRIPTION_EXTENSION_ID ?? '';
 const INSTALL_URL =
@@ -37,12 +38,20 @@ export interface UseTranscriptionExtensionResult {
 export interface UseTranscriptionExtensionOptions {
   /** ISO 639-1 code forced on WhisperLive; null/'' = auto-detect. */
   language?: string | null;
+  /** Whisper model size for WhisperLive; see `whisperModels.ts`. */
+  model?: string | null;
+  /** WhisperLive same_output_threshold (confirm after N identical passes). */
+  confirmPasses?: number | null;
 }
 
 export function useTranscriptionExtension(
   playlistId: string | null,
   projectId: string | null = null,
-  { language = null }: UseTranscriptionExtensionOptions = {}
+  {
+    language = null,
+    model = null,
+    confirmPasses = null,
+  }: UseTranscriptionExtensionOptions = {}
 ): UseTranscriptionExtensionResult {
   const { token } = useAuth();
   const available = EXTENSION_ID.trim().length > 0;
@@ -113,6 +122,8 @@ export function useTranscriptionExtension(
         key: EXTENSION_KEY || null,
         initialPrompt,
         language: language || null,
+        model: resolveWhisperModel(model, language),
+        sameOutputThreshold: confirmPasses ?? null,
       });
       if (!result.ok) {
         setError(result.detail || `Activation failed (${result.reason}).`);
@@ -125,7 +136,7 @@ export function useTranscriptionExtension(
     } finally {
       setIsActivating(false);
     }
-  }, [available, playlistId, projectId, language, token]);
+  }, [available, playlistId, projectId, language, model, confirmPasses, token]);
 
   // Probe for the extension on mount and periodically so the UI reflects
   // install state without requiring an activation attempt first. The key gate

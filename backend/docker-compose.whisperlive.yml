@@ -15,6 +15,11 @@
 #
 # The DNA browser extension connects to WhisperLive directly from the browser
 # (ws://localhost:9090), so only the port needs to be reachable from the host.
+#
+# CPU threads: the local image defaults faster-whisper to every core the
+# container can see (WhisperLive's own default is 1). Cap it with
+# WHISPERLIVE_THREADS=4 if the box is shared. Model size and confirm threshold
+# are per-user settings in DNA's transcription panel, not server flags.
 services:
   whisperlive:
     image: ${WHISPERLIVE_IMAGE:-dna-whisperlive:local}
@@ -24,6 +29,8 @@ services:
     container_name: dna-whisperlive
     ports:
       - "9090:9090"
+    environment:
+      - OMP_NUM_THREADS=${WHISPERLIVE_THREADS:-}
     volumes:
       - whisperlive-cache:/root/.cache/whisper-live
     restart: unless-stopped

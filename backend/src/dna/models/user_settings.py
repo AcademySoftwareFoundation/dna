@@ -42,6 +42,20 @@ class UserSettingsUpdate(BaseModel):
         description="ISO 639-1 language forced on the transcriber at session "
         "start (e.g. 'en'); empty string means auto-detect per window",
     )
+    transcription_model: Optional[str] = Field(
+        default=None,
+        pattern=r"^[a-z0-9][a-z0-9.\-]{0,63}$",
+        description="Whisper model size requested from WhisperLive "
+        "(extension route only), e.g. 'small', 'medium.en', 'large-v3-turbo'",
+    )
+    transcription_confirm_passes: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="WhisperLive same_output_threshold: consecutive identical "
+        "decode passes before a segment is marked completed (extension route "
+        "only). Lower confirms sooner at the cost of occasional revisions.",
+    )
 
 
 class UserSettings(BaseModel):
@@ -61,5 +75,11 @@ class UserSettings(BaseModel):
     # per-window detection pass (latency) and prevents mid-session flips
     # (accuracy). Users can switch to auto-detect ("") in the panel.
     transcription_language: str = "en"
+    # WhisperLive (extension route) tuning. `small` matches the extension's
+    # historical hard-coded model; 4 confirm passes replaces WhisperLive's
+    # default of 10, which left finished sentences sitting in "pending" for
+    # several seconds after the speaker stopped.
+    transcription_model: str = "small"
+    transcription_confirm_passes: int = 4
     updated_at: datetime
     created_at: datetime

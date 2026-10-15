@@ -20,5 +20,7 @@ class UserSettingsResponse(BaseModel):
     sync_prodtrack_tab_on_version_change: bool = True
     prodtrack_page_type: str = "version"
     transcription_language: str = "en"
+    transcription_model: str = "small"
+    transcription_confirm_passes: int = 4
     updated_at: datetime
     created_at: datetime

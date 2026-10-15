@@ -99,7 +99,7 @@ This extension therefore:
 ### Transcription messages (DNA → extension)
 
 - `{ "type": "PING_TRANSCRIPTION" }` → `{ "ok": true, "pong": true, "capability": "transcription" }` (capability check).
-- `{ "type": "ACTIVATE_TRANSCRIPTION", "dnaApiUrl", "dnaIngestWsUrl", "whisperLiveUrl", "playlistId", "token"?, "key"?, "initialPrompt"?, "language"? }` → `{ "ok": true }`. Stores the server info and moves the status to *needs Meet permission*. `key` must match the key saved in the extension or activation is rejected (`{ "ok": false, "error": "key_mismatch" | "extension_not_configured" }`). The target version is resolved server-side (the playlist's in-review version), so no `versionId` is sent. `initialPrompt` is the glossary-derived Whisper prompt from `GET /projects/{id}/transcription-prompt`; when present it is sent as `initial_prompt` in the WhisperLive handshake so production vocabulary is recognised. `language` is an ISO 639-1 code (the user's DNA transcription-language setting) forwarded as `language` in the same handshake; omit or send `null` for per-window auto-detection.
+- `{ "type": "ACTIVATE_TRANSCRIPTION", "dnaApiUrl", "dnaIngestWsUrl", "whisperLiveUrl", "playlistId", "token"?, "key"?, "initialPrompt"?, "language"?, "model"?, "sameOutputThreshold"? }` → `{ "ok": true }`. Stores the server info and moves the status to *needs Meet permission*. `key` must match the key saved in the extension or activation is rejected (`{ "ok": false, "error": "key_mismatch" | "extension_not_configured" }`). The target version is resolved server-side (the playlist's in-review version), so no `versionId` is sent. `initialPrompt` is the glossary-derived Whisper prompt from `GET /projects/{id}/transcription-prompt`; when present it is sent as `initial_prompt` in the WhisperLive handshake so production vocabulary is recognised. `language` is an ISO 639-1 code (the user's DNA transcription-language setting) forwarded as `language` in the same handshake; omit or send `null` for per-window auto-detection. `model` (a WhisperLive built-in size such as `small`, `medium.en`, `large-v3-turbo`; default `small`) and `sameOutputThreshold` (consecutive identical decode passes before a segment is marked completed; WhisperLive's own default is 10, DNA sends 4) are forwarded as `model` / `same_output_threshold`.
 - `{ "type": "GET_STATUS" }` → `{ "ok": true, "connection": "disconnected" | "connecting" | "needs_permission" | "connected", "meetTabId"?, "detail"? }`.
 
 ## Transcription capability
@@ -133,6 +133,10 @@ tabCapture audio -> offscreen AudioContext(16kHz) -> WhisperLive WS
    `VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL`.
 3. Backend: set `DNA_ENABLE_EXTENSION_TRANSCRIPTION=true`. Start WhisperLive:
    `docker compose -f docker-compose.yml -f docker-compose.whisperlive.yml up whisperlive`.
+   The local image gives faster-whisper every CPU core the container can see
+   (WhisperLive's own default is a single thread); set `WHISPERLIVE_THREADS=4`
+   to cap it. Model size, language, and the confirm threshold are chosen per
+   user in DNA's transcription panel.
 4. In DNA, open a playlist and click **Transcribe via Extension**, then grant
    the Meet-tab permission from the popup.
 

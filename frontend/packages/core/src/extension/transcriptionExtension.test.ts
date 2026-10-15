@@ -168,6 +168,21 @@ describe('activateTranscriptionExtension', () => {
     expect(sent.language).toBe('en');
   });
 
+  it('forwards WhisperLive model and confirm threshold', async () => {
+    let sent: Record<string, unknown> = {};
+    installChrome((_id, msg, cb) => {
+      sent = msg as Record<string, unknown>;
+      cb({ ok: true });
+    });
+    await activateTranscriptionExtension(EXT_ID, {
+      ...validPayload,
+      model: 'medium.en',
+      sameOutputThreshold: 3,
+    });
+    expect(sent.model).toBe('medium.en');
+    expect(sent.sameOutputThreshold).toBe(3);
+  });
+
   it('returns error with detail on lastError', async () => {
     installChrome((_id, _msg, cb) => cb(undefined), { message: 'boom' });
     const r = await activateTranscriptionExtension(EXT_ID, validPayload);
