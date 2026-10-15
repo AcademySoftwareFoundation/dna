@@ -19,5 +19,6 @@ class UserSettingsResponse(BaseModel):
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True
     prodtrack_page_type: str = "version"
+    transcription_language: str = "en"
     updated_at: datetime
     created_at: datetime

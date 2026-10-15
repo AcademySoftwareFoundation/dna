@@ -406,6 +406,7 @@ class MongoDBStorageProvider(StorageProviderBase):
             "regenerate_on_transcript_update": False,
             "sync_prodtrack_tab_on_version_change": True,
             "prodtrack_page_type": "version",
+            "transcription_language": "en",
         }
         set_on_insert = {
             "created_at": now,

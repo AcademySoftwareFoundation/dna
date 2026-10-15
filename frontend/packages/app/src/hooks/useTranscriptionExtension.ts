@@ -34,9 +34,15 @@ export interface UseTranscriptionExtensionResult {
   activate: () => Promise<boolean>;
 }
 
+export interface UseTranscriptionExtensionOptions {
+  /** ISO 639-1 code forced on WhisperLive; null/'' = auto-detect. */
+  language?: string | null;
+}
+
 export function useTranscriptionExtension(
   playlistId: string | null,
-  projectId: string | null = null
+  projectId: string | null = null,
+  { language = null }: UseTranscriptionExtensionOptions = {}
 ): UseTranscriptionExtensionResult {
   const { token } = useAuth();
   const available = EXTENSION_ID.trim().length > 0;
@@ -106,6 +112,7 @@ export function useTranscriptionExtension(
         token,
         key: EXTENSION_KEY || null,
         initialPrompt,
+        language: language || null,
       });
       if (!result.ok) {
         setError(result.detail || `Activation failed (${result.reason}).`);
@@ -118,7 +125,7 @@ export function useTranscriptionExtension(
     } finally {
       setIsActivating(false);
     }
-  }, [available, playlistId, projectId, token]);
+  }, [available, playlistId, projectId, language, token]);
 
   // Probe for the extension on mount and periodically so the UI reflects
   // install state without requiring an activation attempt first. The key gate

@@ -47,6 +47,11 @@ export interface ExtensionActivationPayload {
    * backend validates the same key on the ingest socket.
    */
   key?: string | null;
+  /**
+   * ISO 639-1 code forced on WhisperLive for the session (e.g. 'en').
+   * Null/empty lets Whisper detect the language per window.
+   */
+  language?: string | null;
 }
 
 export type ExtensionConnectionStatus =

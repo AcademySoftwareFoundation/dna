@@ -92,7 +92,9 @@
         log('info', 'Handshake 3a: WhisperLive socket open');
         const handshake = {
           uid,
-          language: null,
+          // A fixed language skips Whisper's per-window detection pass and
+          // prevents mid-session flips; null lets it detect.
+          language: serverInfo.language || null,
           task: 'transcribe',
           model: 'small',
           use_vad: true,

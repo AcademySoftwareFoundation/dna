@@ -297,6 +297,11 @@
                   typeof message.initialPrompt === 'string' && message.initialPrompt
                     ? message.initialPrompt
                     : null,
+                // ISO 639-1 code to force on WhisperLive; null = auto-detect.
+                language:
+                  typeof message.language === 'string' && message.language
+                    ? message.language
+                    : null,
               };
               log('info', 'Activated by DNA', {
                 ...state.serverInfo,

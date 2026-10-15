@@ -351,6 +351,8 @@ export interface UserSettings {
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;
   prodtrack_page_type: 'version' | 'entity';
+  /** ISO 639-1 code forced on the transcriber; '' means auto-detect. */
+  transcription_language: string;
   updated_at: string;
   created_at: string;
 }
@@ -362,6 +364,7 @@ export interface UserSettingsUpdate {
   regenerate_on_transcript_update?: boolean;
   sync_prodtrack_tab_on_version_change?: boolean;
   prodtrack_page_type?: 'version' | 'entity';
+  transcription_language?: string;
 }
 
 /** Production-specific glossary, keyed by ShotGrid project id. */

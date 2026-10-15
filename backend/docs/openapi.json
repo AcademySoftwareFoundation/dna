@@ -2422,6 +2422,11 @@
             "title": "Sync Prodtrack Tab On Version Change",
             "type": "boolean"
           },
+          "transcription_language": {
+            "default": "en",
+            "title": "Transcription Language",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -2515,6 +2520,19 @@
             ],
             "description": "When true, DNA tells the browser extension to open the PT version page whenever the selected version changes",
             "title": "Sync Prodtrack Tab On Version Change"
+          },
+          "transcription_language": {
+            "anyOf": [
+              {
+                "pattern": "^([a-z]{2,3})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 639-1 language forced on the transcriber at session start (e.g. 'en'); empty string means auto-detect per window",
+            "title": "Transcription Language"
           }
         },
         "title": "UserSettingsUpdate",

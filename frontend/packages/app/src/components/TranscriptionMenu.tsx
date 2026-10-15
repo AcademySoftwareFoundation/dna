@@ -10,8 +10,13 @@ import {
   Pause,
   Play,
 } from 'lucide-react';
-import { Button, TextField, Popover, Text } from '@radix-ui/themes';
-import type { BotStatusEnum, ExtensionConnectionStatus } from '@dna/core';
+import { Button, TextField, Popover, Select, Text } from '@radix-ui/themes';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type {
+  BotStatusEnum,
+  ExtensionConnectionStatus,
+  UserSettings,
+} from '@dna/core';
 import {
   useTranscription,
   parseMeetingUrl,
@@ -19,7 +24,18 @@ import {
   useUpsertPlaylistMetadata,
   useTranscriptionExtension,
 } from '../hooks';
+import { apiHandler } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 import { SplitButton } from './SplitButton';
+import {
+  AUTO_DETECT_LANGUAGE,
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
+  TRANSCRIPTION_LANGUAGES,
+} from './transcriptionLanguages';
+
+// Radix Select can't represent '' as an item value, so auto-detect gets a
+// sentinel in the UI and is mapped back to '' for storage.
+const AUTO_DETECT_OPTION = '__auto__';
 
 interface TranscriptionMenuProps {
   playlistId: string | null;
@@ -105,6 +121,13 @@ const InputGroup = styled.div`
 
 const ButtonRow = styled.div`
   display: flex;
+  gap: 8px;
+`;
+
+const SettingRow = styled.label`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 `;
 
@@ -354,6 +377,38 @@ export function TranscriptionMenu({
   const [isOpen, setIsOpen] = useState(false);
   const theme = useTheme();
 
+  // Transcription language is a per-user setting shared by both routes; it is
+  // read at session start (bot dispatch / extension activation), so changing
+  // it mid-session takes effect on the next start.
+  const { user } = useAuth();
+  const userEmail = user?.email ?? null;
+  const queryClient = useQueryClient();
+  const { data: userSettings } = useQuery<UserSettings>({
+    queryKey: ['userSettings', userEmail],
+    queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
+    enabled: userEmail != null,
+    staleTime: 60000,
+  });
+  const language =
+    userSettings?.transcription_language ?? DEFAULT_TRANSCRIPTION_LANGUAGE;
+  const { mutate: saveLanguage, isPending: isSavingLanguage } = useMutation({
+    mutationFn: (transcription_language: string) =>
+      apiHandler.upsertUserSettings({
+        userEmail: userEmail!,
+        data: { transcription_language },
+      }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['userSettings', userEmail], saved);
+    },
+  });
+  const handleLanguageChange = useCallback(
+    (value: string) => {
+      if (userEmail == null) return;
+      saveLanguage(value === AUTO_DETECT_OPTION ? AUTO_DETECT_LANGUAGE : value);
+    },
+    [userEmail, saveLanguage]
+  );
+
   const {
     session,
     status,
@@ -376,7 +431,7 @@ export function TranscriptionMenu({
     isActivating: extActivating,
     error: extError,
     activate: activateExtension,
-  } = useTranscriptionExtension(playlistId, projectId);
+  } = useTranscriptionExtension(playlistId, projectId, { language });
   const [extPromptPermission, setExtPromptPermission] = useState(false);
 
   useEffect(() => {
@@ -450,13 +505,13 @@ export function TranscriptionMenu({
     if (!meetingUrl.trim()) return;
 
     try {
-      await dispatchBot(meetingUrl, passcode || undefined);
+      await dispatchBot(meetingUrl, passcode || undefined, language);
       setMeetingUrl('');
       setPasscode('');
     } catch {
       // Error is handled by the hook
     }
-  }, [meetingUrl, passcode, dispatchBot]);
+  }, [meetingUrl, passcode, language, dispatchBot]);
 
   const handleStop = useCallback(async () => {
     try {
@@ -555,12 +610,42 @@ export function TranscriptionMenu({
     );
   };
 
+  // Locked while a session is live: the language is handed to the transcriber
+  // at start, so editing it mid-session would silently do nothing.
+  const renderLanguageSetting = (locked: boolean) => (
+    <SettingRow>
+      <Text size="1" color="gray">
+        Language
+      </Text>
+      <Select.Root
+        size="1"
+        value={language === AUTO_DETECT_LANGUAGE ? AUTO_DETECT_OPTION : language}
+        onValueChange={handleLanguageChange}
+        disabled={locked || isSavingLanguage || userEmail == null}
+      >
+        <Select.Trigger />
+        <Select.Content>
+          {TRANSCRIPTION_LANGUAGES.map(({ value, label }) => (
+            <Select.Item
+              key={value || AUTO_DETECT_OPTION}
+              value={value || AUTO_DETECT_OPTION}
+            >
+              {label}
+            </Select.Item>
+          ))}
+        </Select.Content>
+      </Select.Root>
+    </SettingRow>
+  );
+
   const renderExtensionPanel = () => (
     <ExtensionSection>
       <StatusRow>
         <ConnectionDot $connection={extConnection} />
         <StatusText>{getExtensionStatusLabel(extConnection)}</StatusText>
       </StatusRow>
+
+      {renderLanguageSetting(extConnection !== 'disconnected')}
 
       {extInstallState === 'unknown' && (
         <Text size="1" color="gray">
@@ -649,6 +734,8 @@ export function TranscriptionMenu({
           )}
         </InputGroup>
       )}
+
+      {renderLanguageSetting(isActive || isDispatching)}
 
       <ButtonRow>
         {isActive ? (
