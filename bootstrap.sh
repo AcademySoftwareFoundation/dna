@@ -596,6 +596,8 @@ detect_transcription_route() {
     fi
 }
 
+# Mirror image of the Vexa branch in apply_transcription_route: sets the backend
+# vars *and* the frontend extension id. Keep the two symmetric.
 configure_extension_transcription() {
     echo "  Browser-extension transcription setup:"
     echo "    1. Chrome → Extensions → Developer mode → Load unpacked"
@@ -745,13 +747,24 @@ apply_transcription_route() {
         configure_extension_transcription
         return 0
     fi
-    if [[ "$(detect_transcription_route)" == "extension" ]]; then
-        ensure_env_var "DNA_ENABLE_EXTENSION_TRANSCRIPTION" "false" \
-            "$BACKEND_DIR/docker-compose.local.yml"
-        ensure_env_var "TRANSCRIPTION_PROVIDER" "vexa" \
-            "$BACKEND_DIR/docker-compose.local.yml"
-        ok "Extension transcription disabled"
+
+    # Vexa route. Always normalise both sides — not just when the backend still
+    # says "extension" — so a re-run repairs a half-switched setup.
+    ensure_env_var "DNA_ENABLE_EXTENSION_TRANSCRIPTION" "false" \
+        "$BACKEND_DIR/docker-compose.local.yml"
+    ensure_env_var "TRANSCRIPTION_PROVIDER" "vexa" \
+        "$BACKEND_DIR/docker-compose.local.yml"
+
+    # The UI keys extension mode off this var alone; an empty value selects the
+    # Vexa panel. Leave VITE_TRANSCRIPTION_EXTENSION_KEY / VITE_WHISPERLIVE_URL in
+    # place so switching back to the extension route later is a one-liner.
+    if [[ -f "$FRONTEND_ENV" ]] && \
+       grep -qE '^VITE_TRANSCRIPTION_EXTENSION_ID=[^[:space:]]+$' "$FRONTEND_ENV"; then
+        set_feature_flag "VITE_TRANSCRIPTION_EXTENSION_ID" "" "$FRONTEND_ENV"
+        ok "Extension transcription disabled (VITE_TRANSCRIPTION_EXTENSION_ID cleared)"
+        warn "Restart the frontend dev server so Vite picks up the .env change"
     fi
+
     ensure_vexa_compose_file
     configure_vexa
     if [[ "$VEXA_HOSTED" != "true" ]]; then
