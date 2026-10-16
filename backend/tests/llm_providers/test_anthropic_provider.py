@@ -92,6 +92,27 @@ class TestGenerateNote:
         assert "temperature" not in kwargs
         assert kwargs["messages"][0]["content"] == "T / C / N"
 
+    @pytest.mark.asyncio
+    async def test_generate_note_uses_model_override(self):
+        """A per-request model (user's preferred model) should win over the default."""
+        provider = AnthropicProvider(api_key="test-key", model="claude-opus-4-8")
+
+        mock_response = MagicMock()
+        mock_response.content = [_text_block("Generated note")]
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        provider._client = mock_client
+
+        await provider.generate_note(
+            prompt="{{ transcript }}",
+            transcript="T",
+            context="C",
+            existing_notes="N",
+            model="claude-sonnet-4-6",
+        )
+
+        assert mock_client.messages.create.call_args.kwargs["model"] == "claude-sonnet-4-6"
+
 
 class TestGenerateWithTools:
     @pytest.mark.asyncio
