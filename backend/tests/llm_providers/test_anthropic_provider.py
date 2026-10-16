@@ -111,7 +111,9 @@ class TestGenerateNote:
             model="claude-sonnet-4-6",
         )
 
-        assert mock_client.messages.create.call_args.kwargs["model"] == "claude-sonnet-4-6"
+        assert (
+            mock_client.messages.create.call_args.kwargs["model"] == "claude-sonnet-4-6"
+        )
 
 
 class TestGenerateWithTools:
