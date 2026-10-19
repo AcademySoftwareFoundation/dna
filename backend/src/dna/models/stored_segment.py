@@ -46,7 +46,30 @@ class StoredSegmentCreate(BaseModel):
 class StoredSegment(BaseModel):
     """Full stored segment model with all fields."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "_id": "67f0c40ae4b0a1b2c3d4e63b",
+                    "segment_id": "9b914779:speaker-1:72",
+                    "playlist_id": "45",
+                    "version_id": "6990",
+                    "text": "Alex, can you take the edge on 1042?",
+                    "speaker": "Sam Reviewer",
+                    "language": "en",
+                    "start_time": 812.4,
+                    "end_time": 815.1,
+                    "completed": True,
+                    "absolute_start_time": "2026-10-14T17:13:32.400Z",
+                    "absolute_end_time": "2026-10-14T17:13:35.100Z",
+                    "vexa_updated_at": "2026-10-14T17:13:36.020Z",
+                    "created_at": "2026-10-14T17:13:36.105Z",
+                    "updated_at": "2026-10-14T17:13:36.105Z",
+                }
+            ]
+        },
+    )
 
     id: str = Field(alias="_id")
     segment_id: str

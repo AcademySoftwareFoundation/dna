@@ -9,9 +9,37 @@ from dna.models.draft_note import DraftNoteLink
 
 NoteQCSeverity = Literal["warning", "error"]
 
+_CHECK_EXAMPLE = {
+    "name": "Action Item Check",
+    "prompt": (
+        "Fail if the transcript assigns an action to someone the note does not "
+        "name as the owner."
+    ),
+    "severity": "warning",
+    "enabled": True,
+}
+
+_RESULT_EXAMPLE = {
+    "check_id": "67f0c3a1e4b0a1b2c3d4e612",
+    "check_name": "Action Item Check",
+    "severity": "warning",
+    "passed": False,
+    "issue": "The transcript assigns the matte fix to Alex but the note names no owner.",
+    "evidence": '"Alex, can you take the edge on 1042?"',
+    "note_suggestion": (
+        "Edge of the matte is crawling on frames 1042-1060 - "
+        "@[Alex Artist](user:17) to soften the key and recheck against the plate."
+    ),
+    "attribute_suggestion": {
+        "to": '[{"type":"User","id":"17","name":"Alex Artist"}]',
+    },
+}
+
 
 class NoteQCCheckCreate(BaseModel):
     """Payload for creating a QC check."""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [_CHECK_EXAMPLE]})
 
     name: str
     prompt: str
@@ -31,7 +59,20 @@ class NoteQCCheckUpdate(BaseModel):
 class NoteQCCheck(BaseModel):
     """Stored QC check definition."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "_id": "67f0c3a1e4b0a1b2c3d4e612",
+                    "user_email": "sam.reviewer@studio.example",
+                    **_CHECK_EXAMPLE,
+                    "created_at": "2026-10-01T10:30:00Z",
+                    "updated_at": "2026-10-01T10:30:00Z",
+                }
+            ]
+        },
+    )
 
     id: str = Field(alias="_id")
     user_email: str
@@ -112,6 +153,8 @@ class NoteQCLLMOutput(BaseModel):
 class NoteQCResult(BaseModel):
     """Outcome of running one check against a draft."""
 
+    model_config = ConfigDict(json_schema_extra={"examples": [_RESULT_EXAMPLE]})
+
     check_id: str
     check_name: str
     severity: NoteQCSeverity
@@ -125,11 +168,19 @@ class NoteQCResult(BaseModel):
 class RunQCChecksRequest(BaseModel):
     """Body for run-qc-checks; playlist/version are path params."""
 
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"user_email": "sam.reviewer@studio.example"}]}
+    )
+
     user_email: str
 
 
 class RunQCChecksResponse(BaseModel):
     """QC results for one draft note."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"results": [_RESULT_EXAMPLE]}]}
+    )
 
     results: list[NoteQCResult]
 

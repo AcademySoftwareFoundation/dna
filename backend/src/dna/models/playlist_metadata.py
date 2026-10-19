@@ -12,6 +12,18 @@ from pydantic import BaseModel, ConfigDict, Field
 class PlaylistMetadataUpdate(BaseModel):
     """Model for updating playlist metadata."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "in_review": "6990",
+                    "meeting_id": "abc-defg-hij",
+                    "platform": "google_meet",
+                }
+            ]
+        }
+    )
+
     in_review: Optional[str] = Field(
         default=None, description="Version ID currently in review"
     )
@@ -38,7 +50,24 @@ class PlaylistMetadataUpdate(BaseModel):
 class PlaylistMetadata(BaseModel):
     """Full playlist metadata model with all fields."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "_id": "67f0c31be4b0a1b2c3d4e601",
+                    "playlist_id": "45",
+                    "in_review": "6990",
+                    "meeting_id": "abc-defg-hij",
+                    "platform": "google_meet",
+                    "vexa_meeting_id": 1842,
+                    "transcription_paused": False,
+                    "has_scratch": False,
+                    "transcription_resumed_at": None,
+                }
+            ]
+        },
+    )
 
     id: str = Field(alias="_id")
     playlist_id: str

@@ -12,6 +12,17 @@ from pydantic import BaseModel, ConfigDict, Field
 class UserSettingsUpdate(BaseModel):
     """Model for updating user settings."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "preferred_model": "gpt-4o-mini",
+                    "regenerate_on_transcript_update": True,
+                }
+            ]
+        }
+    )
+
     note_prompt: Optional[str] = Field(
         default=None, description="Custom prompt for generating notes"
     )

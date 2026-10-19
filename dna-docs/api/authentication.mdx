@@ -1,0 +1,119 @@
+---
+sidebar_position: 1
+title: Authentication
+---
+
+# Authentication
+
+Every request carries a bearer token, except the public probes:
+
+```http
+Authorization: Bearer TOKEN
+```
+
+Public, no token needed: `GET /`, `GET /health`, `GET /version-statuses`,
+`GET /api/mock-thumbnails/{version_id}`, `GET /transcription/extension/health`.
+Every other reference page shows a lock icon.
+
+## What the token is
+
+The backend does not issue tokens. It validates tokens from an identity
+provider selected by the deployment's `AUTH_PROVIDER` and takes the caller's
+**email** from the result. The email is the caller's identity everywhere
+downstream.
+
+| `AUTH_PROVIDER` | Accepts | Caller email |
+|---|---|---|
+| `google` (production) | A Google OAuth **ID token** (JWT) or **access token** issued to the deployment's `GOOGLE_CLIENT_ID`, for an account with a verified email | The token's `email` claim |
+| `none` (default; development) | Any string | The string itself if it contains `@`, otherwise `STRING@localhost` |
+
+With `google`, a token with three dot-separated parts is verified as an ID
+token against Google's certificates (audience must equal `GOOGLE_CLIENT_ID`,
+`email_verified` must be true). Anything else is treated as an access token:
+checked with Google's `tokeninfo` endpoint for expiry and audience, then
+resolved to an email via `userinfo`.
+
+### Getting a token for your tool
+
+The DNA web app signs the user in with Google's implicit flow (scope
+`openid email profile`) and sends the resulting access token. Your tool has
+the same two options:
+
+- **Development or staging with `AUTH_PROVIDER=none`:** send the user's
+  email as the token.
+
+  ```bash
+  curl "$DNA/projects/user/sam.reviewer@studio.example" \
+    -H "Authorization: Bearer sam.reviewer@studio.example"
+  ```
+
+- **Production (`google`):** obtain a Google OAuth token for the **same
+  client ID** the deployment validates. That OAuth client belongs to whoever
+  runs the DNA deployment; they need to add your tool's origin or redirect URI
+  to it. Access tokens expire after about an hour; get a new one when you see
+  a `401`.
+
+There are no API keys or service accounts. A token always represents a
+person, and that person must exist in the production tracking system (next
+section). If you need unattended access, raise it with the deployment owner
+rather than sharing a user's token.
+
+## The link to ShotGrid
+
+Validating the token proves who the caller is. It does **not** prove they are
+a DNA user. That check happens on the first data request:
+`GET /projects/user/{user_email}` looks up a `HumanUser` whose `email` equals
+the caller's email and returns `404` when there is none. The web app treats
+that as "not allowed in".
+
+Writes go to ShotGrid through a single **script user**
+(`SHOTGRID_SCRIPT_NAME` / `SHOTGRID_API_KEY`). When DNA publishes a note it
+impersonates the draft's owner with `sudo_as_login`, so the Note shows the
+human as author. Two consequences:
+
+- The email in the token must match the ShotGrid user's email **exactly**,
+  or publishing on their behalf fails.
+- What a caller can see and change is bounded by the script user's
+  permissions, not the person's. Scope that script user accordingly
+  (`backend/docs/SHOTGRID_SETUP.md`).
+
+## Who is the caller?
+
+Many endpoints take a `user_email` in the path or body. Only some of them
+check it against the token:
+
+| Endpoints | `user_email` is... | Mismatch |
+|---|---|---|
+| `/users/{user_email}/settings`, `/users/{user_email}/qc-checks`, `/users/{user_email}/qc-checks/{check_id}` | The caller | `403 Forbidden` |
+| Draft notes, `publish-notes`, `generate-note`, `run-qc-checks`, `/users/{user_email}`, `/projects/user/{user_email}` | **Data**: the owner of the draft or the person to look up | Not checked |
+
+:::warning Any authenticated user can act for any user
+A dailies review is collaborative, so the web app reads everyone's drafts in
+a playlist and can publish them all at once; the backend allows the same to
+any valid token. Your tool should still pass the real reviewer's email on
+every draft so authorship in ShotGrid is right, and must never hand its token
+to an untrusted client.
+:::
+
+## WebSockets
+
+- **`/ws`** (outbound events) performs **no authentication**. Anyone who can
+  reach the backend can subscribe to transcript and bot events. Keep the
+  backend behind a network boundary.
+- **`/transcription/extension/ingest`** (inbound transcripts) authenticates
+  with query parameters, because browsers cannot set headers on a WebSocket:
+  `token` is validated exactly like a bearer token, and `key` must equal
+  `DNA_EXTENSION_KEY` when that variable is set. Failures close the socket
+  with code `1008` and a reason of `unauthorized` or `invalid extension key`.
+
+See [Real-time](/api/realtime) for the frame formats.
+
+## The 401 response
+
+```json
+{ "detail": "Missing authentication credentials" }
+```
+
+Sent with `WWW-Authenticate: Bearer`. Other `detail` values you will see are
+`Invalid token: ...` (validation failed; the rest is Google's message) and
+`Missing email claim in authentication token`.

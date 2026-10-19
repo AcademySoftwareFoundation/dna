@@ -45,12 +45,14 @@ hand-written and is.
 ## Building
 
 ```bash
-npm run build       # build (does not regenerate API docs)
-npm run build:full  # gen-api-docs && build  <- use in CI
+npm run build       # build (does not refresh the spec or regenerate API docs)
+npm run build:full  # fetch-openapi && regen-api-docs && build  <- use in CI
 ```
 
 Because `sidebarsApi.ts` imports the generated `api/reference/sidebar`, a clean
-checkout must run `gen-api-docs` before `build`. `build:full` chains them.
+checkout must run `gen-api-docs` before `build`. `build:full` first copies the
+backend's committed spec, then regenerates, then builds, so the site always
+matches the backend checked out next to it.
 
 ## Scripts
 
@@ -58,7 +60,7 @@ checkout must run `gen-api-docs` before `build`. `build:full` chains them.
 | --- | --- |
 | `npm start` | Dev server |
 | `npm run build` | Production build |
-| `npm run build:full` | Generate API docs, then build |
+| `npm run build:full` | Fetch the spec, regenerate API docs, then build |
 | `npm run fetch-openapi` | Copy the backend's committed spec |
 | `npm run gen-api-docs` | Spec → `api/reference/` |
 | `npm run clean-api-docs` | Remove generated MDX |

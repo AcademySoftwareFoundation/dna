@@ -83,7 +83,9 @@ const config: Config = {
             // landing page survives clean-api-docs.
             outputDir: 'api/reference',
             sidebarOptions: {
-              groupPathsBy: 'tag',
+              // The spec's x-tagGroups split tags into "Production Tracking"
+              // (proxied to the provider) and "DNA" (DNA's own storage).
+              groupPathsBy: 'tagGroup',
               categoryLinkSource: 'tag',
             },
           } satisfies OpenApiPlugin.Options,

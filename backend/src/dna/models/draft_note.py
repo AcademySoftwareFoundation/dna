@@ -14,8 +14,28 @@ from pydantic import BaseModel, ConfigDict, Field
 SCRATCH_VERSION_ID = "-1"
 
 
+_LINK_EXAMPLE = {
+    "entity_type": "Shot",
+    "entity_id": "1207",
+    "entity_name": "mk020_0010",
+}
+
+_DRAFT_BODY_EXAMPLE = {
+    "subject": "mk020_0010_comp_v003 - comp notes",
+    "content": (
+        "Edge of the matte is crawling on frames 1042-1060; soften the key and "
+        "recheck against the plate. Otherwise good to move on to lighting."
+    ),
+    "links": [_LINK_EXAMPLE],
+    "version_status": "rev",
+    "attachment_ids": ["8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47"],
+}
+
+
 class DraftNoteLink(BaseModel):
     """Reference to a DNA entity to link to the note."""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [_LINK_EXAMPLE]})
 
     entity_type: str
     entity_id: str
@@ -49,7 +69,28 @@ class DraftNoteCreate(DraftNoteBase):
 class DraftNote(DraftNoteBase):
     """Full draft note model with all fields."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "_id": "67f0c2d9e4b0a1b2c3d4e5f6",
+                    "user_email": "sam.reviewer@studio.example",
+                    "playlist_id": "45",
+                    "version_id": "6990",
+                    **_DRAFT_BODY_EXAMPLE,
+                    "to": "",
+                    "cc": "",
+                    "published": False,
+                    "edited": False,
+                    "published_at": None,
+                    "published_note_id": None,
+                    "created_at": "2026-10-14T17:05:12.410Z",
+                    "updated_at": "2026-10-14T17:21:48.003Z",
+                }
+            ]
+        },
+    )
 
     id: str = Field(alias="_id")
     user_email: str
@@ -61,6 +102,8 @@ class DraftNote(DraftNoteBase):
 
 class DraftNoteUpdate(BaseModel):
     """Model for updating an existing draft note."""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [_DRAFT_BODY_EXAMPLE]})
 
     content: Optional[str] = None
     subject: Optional[str] = None

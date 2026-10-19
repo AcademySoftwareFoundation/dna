@@ -24,6 +24,7 @@ from dna.models.entity import (
     User,
     Version,
 )
+from dna.models.errors import ErrorResponse
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
@@ -103,6 +104,7 @@ __all__ = [
     "DNAEntity",
     "ENTITY_MODELS",
     "EntityLink",
+    "ErrorResponse",
     "CreateNoteRequest",
     "CreatePlaylistRequest",
     "FilterCondition",
