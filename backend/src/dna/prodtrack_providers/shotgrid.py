@@ -1,6 +1,7 @@
 """ShotGrid production tracking provider implementation."""
 
 import contextlib
+import logging
 import os
 from datetime import date
 from typing import Any, Optional, cast
@@ -20,6 +21,12 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     UserNotFoundError,
 )
 from dna.transcription_publish import transcript_entity_name
+
+logger = logging.getLogger(__name__)
+
+# Note field that points a published note at its version's transcript row.
+# Site setup: backend/docs/SHOTGRID_SETUP.md, step 3.
+NOTE_TRANSCRIPT_FIELD = "sg_linked_transcript"
 
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
@@ -960,6 +967,8 @@ class ShotgridProvider(ProdtrackProviderBase):
             if links is not None:
                 data["note_links"] = self._merge_note_links(note_id, version_id, links)
             self._sg.update("Note", _to_sg_id(note_id), data)
+            if version_id:
+                self._link_note_to_transcript(note_id, version_id)
             if version_status and version_id:
                 self._sg.update(
                     "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
@@ -968,6 +977,49 @@ class ShotgridProvider(ProdtrackProviderBase):
         except Exception as e:
             print(f"Error updating note {note_id}: {e}")
             return False
+
+    def _link_note_to_transcript(self, note_id: str, version_id: str) -> None:
+        """Point the note's transcript field at the version's transcript row.
+
+        The row is looked up in ShotGrid (newest first, for a version
+        transcribed in several meetings) rather than in DNA's own bookkeeping,
+        so what's in ShotGrid is the only source of truth. Best effort: a site
+        without transcripts, or without the Note field, logs a warning and the
+        note still publishes.
+        """
+        try:
+            transcript = self._sg.find_one(
+                _transcript_entity_type(),
+                [
+                    [
+                        "sg_version_in_review",
+                        "is",
+                        {"type": "Version", "id": _to_sg_id(version_id)},
+                    ]
+                ],
+                ["id"],
+                order=[{"field_name": "updated_at", "direction": "desc"}],
+            )
+            if not transcript:
+                return
+            self._sg.update(
+                "Note",
+                _to_sg_id(note_id),
+                {
+                    NOTE_TRANSCRIPT_FIELD: {
+                        "type": transcript["type"],
+                        "id": transcript["id"],
+                    }
+                },
+            )
+        except Exception:
+            logger.warning(
+                "Could not link note %s to the transcript of version %s "
+                "(see backend/docs/SHOTGRID_SETUP.md)",
+                note_id,
+                version_id,
+                exc_info=True,
+            )
 
     def _merge_note_links(
         self,
@@ -1058,6 +1110,7 @@ class ShotgridProvider(ProdtrackProviderBase):
                 self._sg.update(
                     "Version", _to_sg_id(version_id), {"sg_status_list": version_status}
                 )
+            self._link_note_to_transcript(str(existing_note["id"]), version_id)
             return str(existing_note["id"])
 
         # 3. Prepare Note Data
@@ -1102,6 +1155,11 @@ class ShotgridProvider(ProdtrackProviderBase):
                 result = self._sg.create("Note", note_data)
         else:
             result = self._sg.create("Note", note_data)
+
+        # Written after the create, outside the author's sudo, so it runs with
+        # the script user's permissions: authors' permission groups needn't be
+        # allowed to edit the transcript field.
+        self._link_note_to_transcript(str(result["id"]), version_id)
 
         if version_status:
             self._sg.update(

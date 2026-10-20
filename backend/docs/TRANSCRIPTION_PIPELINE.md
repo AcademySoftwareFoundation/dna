@@ -1372,6 +1372,21 @@ POST /playlists/{playlist_id}/publish-transcript {version_id}
   -> { transcript_entity_id, outcome: created | updated | skipped }
 ```
 
+### Linking notes to their transcript
+
+Published notes point at their version's transcript row through the Note
+field `sg_linked_transcript`. This lives entirely in the ShotGrid provider:
+`publish_note` and `update_note` look the row up in ShotGrid
+(`sg_version_in_review` is the version, newest first) and set the field in a
+separate `update` as the script user. DNA's `published_transcripts`
+bookkeeping is **not** consulted, so a link changed by hand in ShotGrid is
+never contradicted by stale local data. Linking is best effort: no row, or no
+field on the site, logs a warning and the note still publishes. The Publish
+dialog publishes transcripts before notes so a same-click publish finds the
+row.
+
+Site setup: [ShotGrid Configuration Guide](SHOTGRID_SETUP.md#3-add-sg_linked_transcript-to-note).
+
 ### Collections touched
 
 | Collection | Used for |
