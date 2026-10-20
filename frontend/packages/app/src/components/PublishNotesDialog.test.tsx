@@ -29,6 +29,13 @@ vi.mock('../hooks/usePublishTranscript', () => ({
 
 vi.mock('../hooks/useDraftNote');
 
+// The dialog also loads every draft for the playlist (for status-only cards).
+// Keep that off the network and stable between renders.
+const noDraftNotes: DraftNote[] = [];
+vi.mock('../hooks/usePlaylistDraftNotes', () => ({
+  usePlaylistDraftNotes: () => ({ data: noDraftNotes, isLoading: false }),
+}));
+
 vi.mock('../hooks/useNoteQCChecks', () => ({
   useNoteQCChecks: () => ({
     results: {},
@@ -120,6 +127,11 @@ beforeEach(() => {
     isLoading: false,
   }));
 });
+
+/** A note row's checkbox. Cards also carry transcript and status checkboxes. */
+function noteCheckbox(owner: 'Me' | 'Other') {
+  return screen.getByRole('checkbox', { name: `Select ${owner}'s Note` });
+}
 
 function renderDialog(
   props: Partial<ComponentProps<typeof PublishNotesDialog>> = {}
@@ -216,8 +228,10 @@ describe('PublishNotesDialog', () => {
       screen.getByRole('button', { name: /Publish selected \(2\)/i })
     ).toBeInTheDocument();
 
-    const checkboxes = screen.getAllByRole('checkbox');
-    await user.click(checkboxes[0]!);
+    // Both notes are mine: uncheck the first note row.
+    await user.click(
+      screen.getAllByRole('checkbox', { name: "Select Me's Note" })[0]!
+    );
 
     expect(
       screen.getByRole('button', { name: /Publish selected \(1\)/i })
@@ -241,9 +255,8 @@ describe('PublishNotesDialog', () => {
       await screen.findByRole('menuitem', { name: /Select only my notes/i })
     );
 
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).toBeChecked();
-    expect(checkboxes[1]).not.toBeChecked();
+    expect(noteCheckbox('Me')).toBeChecked();
+    expect(noteCheckbox('Other')).not.toBeChecked();
   });
 
   it('batch menu selects only notes from others', async () => {
@@ -265,9 +278,8 @@ describe('PublishNotesDialog', () => {
       })
     );
 
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).not.toBeChecked();
-    expect(checkboxes[1]).toBeChecked();
+    expect(noteCheckbox('Me')).not.toBeChecked();
+    expect(noteCheckbox('Other')).toBeChecked();
   });
 
   it('batch menu selects all notes', async () => {
@@ -280,8 +292,7 @@ describe('PublishNotesDialog', () => {
       versions: [version10],
     });
 
-    const checkboxes = screen.getAllByRole('checkbox');
-    await user.click(checkboxes[0]!);
+    await user.click(noteCheckbox('Me'));
 
     await user.click(
       screen.getByRole('button', { name: /Batch note selection/i })
@@ -305,8 +316,7 @@ describe('PublishNotesDialog', () => {
       versions: [version10],
     });
 
-    const checkboxes = screen.getAllByRole('checkbox');
-    await user.click(checkboxes[0]!);
+    await user.click(noteCheckbox('Me'));
 
     await user.click(screen.getByRole('button', { name: /Publish selected/i }));
 
@@ -315,6 +325,9 @@ describe('PublishNotesDialog', () => {
       request: {
         user_email: 'me@test.com',
         targets: [{ user_email: 'other@test.com', version_id: '10' }],
+        // Statuses are published via the per-version checkboxes, never
+        // implicitly alongside the note.
+        status_version_ids: [],
       },
     });
   });

@@ -278,6 +278,21 @@ function draftRowKey(d: DraftNote): string {
   return d._id;
 }
 
+/** Stable fallback for the draft-notes query so effects don't re-fire on it. */
+const NO_DRAFT_NOTES: DraftNote[] = [];
+
+/** Same keys with the same values, so a setState can keep `prev` and bail. */
+function sameSelection(
+  prev: Record<string, boolean>,
+  next: Record<string, boolean>
+): boolean {
+  const prevKeys = Object.keys(prev);
+  return (
+    prevKeys.length === Object.keys(next).length &&
+    prevKeys.every((k) => k in next && prev[k] === next[k])
+  );
+}
+
 function displayNameFromEmail(email: string): string {
   const local = email.split('@')[0] || email;
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -413,6 +428,7 @@ function PublishNoteRow({
       )}
       <Flex align="center" gap="2" mb="2" wrap="wrap" style={{ width: '100%' }}>
         <Checkbox
+          aria-label={`Select ${title}`}
           checked={selected}
           onCheckedChange={(c) => onSelectedChange(c === true)}
         />
@@ -506,6 +522,7 @@ function VersionTranscriptRow({
       <TranscriptRow>
         <Flex align="center" gap="2">
           <Checkbox
+            aria-label="Include transcript"
             checked={segmentsCount > 0 && checked}
             disabled={isLoading || segmentsCount === 0}
             onCheckedChange={(c) => onCheckedChange(c === true)}
@@ -583,6 +600,7 @@ function VersionStatusRow({
     <StatusRow>
       <Flex align="center" gap="2">
         <Checkbox
+          aria-label="Apply version status"
           checked={hasChange && checked}
           disabled={!hasChange}
           onCheckedChange={(c) => onCheckedChange(c === true)}
@@ -861,8 +879,10 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
 
   // All draft notes for the playlist (not just the publishable ones passed in),
   // so pending status changes made in the main UI surface here even when the
-  // draft has no note body.
-  const { data: allDraftNotes = [] } = usePlaylistDraftNotes(
+  // draft has no note body. The fallback must be a stable reference: a fresh
+  // `[]` per render would recompute versionCards every render and keep the
+  // selection effects below re-firing while the query has no data.
+  const { data: allDraftNotes = NO_DRAFT_NOTES } = usePlaylistDraftNotes(
     open ? playlistId : null
   );
 
@@ -914,7 +934,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
         const k = draftRowKey(d);
         next[k] = prev[k] ?? true;
       }
-      return next;
+      return sameSelection(prev, next) ? prev : next;
     });
   }, [open, notesFingerprint, notes]);
 
@@ -965,7 +985,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       for (const { version } of versionCards) {
         next[version.id] = prev[version.id] ?? true;
       }
-      return next;
+      return sameSelection(prev, next) ? prev : next;
     });
   }, [open, versionCards]);
 
