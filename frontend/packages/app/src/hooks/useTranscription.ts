@@ -12,42 +12,10 @@ import type {
 import { apiHandler } from '../api';
 import { usePlaylistMetadata } from './usePlaylistMetadata';
 import { useEventClient, useToast } from '../contexts';
-
-export interface ParsedMeetingUrl {
-  platform: Platform;
-  meetingId: string;
-}
-
-export function parseMeetingUrl(url: string): ParsedMeetingUrl | null {
-  const trimmedUrl = url.trim();
-
-  const googleMeetMatch = trimmedUrl.match(
-    /meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})/i
-  );
-  if (googleMeetMatch) {
-    return {
-      platform: 'google_meet',
-      meetingId: googleMeetMatch[1].toLowerCase(),
-    };
-  }
-
-  const teamsMatch = trimmedUrl.match(/teams\.microsoft\.com.*meetup-join/i);
-  if (teamsMatch) {
-    return {
-      platform: 'teams',
-      meetingId: trimmedUrl,
-    };
-  }
-
-  if (/^[a-z]{3}-[a-z]{4}-[a-z]{3}$/i.test(trimmedUrl)) {
-    return {
-      platform: 'google_meet',
-      meetingId: trimmedUrl.toLowerCase(),
-    };
-  }
-
-  return null;
-}
+import {
+  describeInvalidMeetingUrl,
+  parseMeetingUrl,
+} from '../transcription/meetingPlatforms';
 
 export interface UseTranscriptionOptions {
   playlistId: string | null;
@@ -276,14 +244,18 @@ export function useTranscription({
 
       const parsed = parseMeetingUrl(meetingUrl);
       if (!parsed) {
-        throw new Error('Invalid meeting URL format');
+        const invalidUrlError = new Error(describeInvalidMeetingUrl(meetingUrl));
+        setError(invalidUrlError);
+        throw invalidUrlError;
       }
 
       const request: DispatchBotRequest = {
         platform: parsed.platform,
         meeting_id: parsed.meetingId,
         playlist_id: playlistId,
-        passcode,
+        // A passcode embedded in the link wins, matching Vexa's own precedence.
+        passcode: parsed.passcode ?? passcode,
+        meeting_url: parsed.meetingUrl,
       };
 
       return dispatchMutation.mutateAsync(request);

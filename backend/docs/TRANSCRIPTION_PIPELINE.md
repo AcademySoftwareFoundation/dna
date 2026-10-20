@@ -25,7 +25,7 @@ This document describes the real-time transcription pipeline that integrates DNA
 
 The transcription pipeline enables real-time meeting transcription by:
 
-1. **Dispatching bots** to join meetings on Google Meet or Microsoft Teams
+1. **Dispatching bots** to join meetings on Google Meet, Microsoft Teams or Zoom
 2. **Receiving real-time transcripts** via WebSocket from the Vexa transcription service
 3. **Persisting segments** to MongoDB with deterministic, hash-based unique IDs
 4. **Broadcasting events** to connected frontend clients via WebSocket
@@ -41,7 +41,7 @@ The transcription pipeline enables real-time meeting transcription by:
                                  │ WebSocket
                                  ▼
                          ┌─────────────────┐
-                         │      Vexa       │────▶ Google Meet / Teams
+                         │      Vexa       │────▶ Google Meet / Teams / Zoom
                          │  (transcribe)   │
                          └─────────────────┘
 ```
@@ -78,6 +78,7 @@ graph TB
     subgraph Meeting_Platforms[Meeting Platforms]
         GM[Google Meet]
         Teams[MS Teams]
+        Zoom[Zoom]
     end
 
     UI -->|dispatchBot / stopBot| AH
@@ -92,6 +93,7 @@ graph TB
 
     VAPI -->|join meeting| GM
     VAPI -->|join meeting| Teams
+    VAPI -->|join meeting| Zoom
 
     TS -->|upsert_segment| SP
     TS -->|publish events| EP
@@ -125,6 +127,7 @@ The frontend never captures audio directly. It dispatches bots to meetings and r
 - `frontend/packages/core/src/apiHandler.ts` — REST API client
 - `frontend/packages/core/src/interfaces.ts` — Shared TypeScript types
 - `frontend/packages/app/src/hooks/useTranscription.ts` — Bot lifecycle hook
+- `frontend/packages/app/src/transcription/meetingPlatforms.ts` — Per-platform URL parsing and passcode rules
 - `frontend/packages/app/src/hooks/useSegments.ts` — Segment data hook
 - `frontend/packages/app/src/hooks/useDNAEvents.ts` — Event subscription hooks
 - `frontend/packages/app/src/hooks/usePlaylistMetadata.ts` — Playlist metadata hook
@@ -136,7 +139,7 @@ The frontend never captures audio directly. It dispatches bots to meetings and r
 
 1. The `EventProvider` context creates a `DNAEventClient` and connects to the backend WebSocket at `/ws` on mount.
 2. The `useTranscription` hook manages bot state. When the user enters a meeting URL:
-   - `parseMeetingUrl()` extracts the `platform` and `meetingId`
+   - `parseMeetingUrl()` extracts the `platform`, `meetingId` and any passcode embedded in the link (Zoom `?pwd=`), using the per-platform descriptors in `MEETING_PLATFORMS`
    - `dispatchBot()` sends a `POST /transcription/bot` via `apiHandler`
    - An optimistic local session is created with `status: "joining"`
    - On success the session is updated with the server response
@@ -217,6 +220,10 @@ An abstraction over the Vexa external service. Handles both REST API calls and t
 **Key Files:**
 - `backend/src/dna/transcription_providers/transcription_provider_base.py` — Abstract base class
 - `backend/src/dna/transcription_providers/vexa.py` — Vexa implementation
+
+Zoom bots use Vexa's web-client join path (the default since Vexa v0.10.4), so
+the Vexa deployment needs no Zoom SDK credentials. See `_zoom_join_url()` in
+`vexa.py` for how the join link and passcode are sent.
 
 **REST operations (via `httpx.AsyncClient`):**
 
@@ -966,8 +973,8 @@ class PlaylistMetadata(BaseModel):
     id: str                                  # MongoDB _id
     playlist_id: str                         # Unique playlist identifier
     in_review: str | None                    # Version ID currently in review (segments target this version)
-    meeting_id: str | None                   # Native meeting ID (e.g., "abc-def-ghi")
-    platform: str | None                     # "google_meet" or "teams"
+    meeting_id: str | None                   # Native meeting ID (e.g., "abc-def-ghi", "81234567890")
+    platform: str | None                     # "google_meet", "teams" or "zoom"
     vexa_meeting_id: int | None              # Vexa's internal meeting ID (for WebSocket routing)
     transcription_paused: bool               # Whether segment storage is paused (default: False)
     transcription_resumed_at: datetime | None # When transcription was last resumed (filter threshold)
@@ -1027,7 +1034,7 @@ Returned from the dispatch endpoint and used as the primary bot state in the fro
 
 ```python
 class BotSession(BaseModel):
-    platform: Platform          # "google_meet" or "teams"
+    platform: Platform          # "google_meet", "teams" or "zoom"
     meeting_id: str             # Native meeting ID
     playlist_id: str
     status: BotStatusEnum       # Current lifecycle state
@@ -1057,12 +1064,13 @@ Request body for dispatching a bot.
 
 ```python
 class DispatchBotRequest(BaseModel):
-    platform: Platform          # "google_meet" or "teams"
-    meeting_id: str             # Native meeting ID for the platform
+    platform: Platform          # "google_meet", "teams" or "zoom"
+    meeting_id: str             # Native meeting ID (Zoom: 9-11 digit numeric ID)
     playlist_id: str            # Playlist to associate with this meeting
-    passcode: str | None        # Passcode for Teams meetings
+    passcode: str | None        # Passcode for Teams or Zoom meetings
     bot_name: str | None        # Custom bot display name
     language: str | None        # Transcription language preference
+    meeting_url: str | None     # Join link as pasted (sent for Zoom)
 ```
 
 ### Platform
@@ -1071,6 +1079,7 @@ class DispatchBotRequest(BaseModel):
 class Platform(str, Enum):
     GOOGLE_MEET = "google_meet"
     TEAMS = "teams"
+    ZOOM = "zoom"
 ```
 
 ---
@@ -1402,7 +1411,7 @@ on the ShotGrid side without the publisher overwriting it.
 - Admins can restrict the custom-entity page per the mockup on #120
   without affecting Notes.
 - The field shape (playlist link + multi-version link + `sg_platform`
-  list + long `sg_transcript_body`) does not fit Note's schema.
+  text + long `sg_transcript_body`) does not fit Note's schema.
 
 ### ADR-006: Idempotence via body_hash in MongoDB, not SG lookup
 
