@@ -1010,9 +1010,10 @@ start_full_stack() {
 
     # Hosted Vexa runs no local vexa/vexa-db/vexa-dashboard containers, so omit
     # the Vexa compose files entirely (order otherwise matches the original).
+    # debug.yml only holds the dashboard, which is useless without a local vexa.
     local -a compose_files=(-f docker-compose.yml)
-    [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.vexa.yml)
-    compose_files+=(-f docker-compose.debug.yml -f docker-compose.local.yml)
+    [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.vexa.yml -f docker-compose.debug.yml)
+    compose_files+=(-f docker-compose.local.yml)
     [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.local.vexa.yml)
 
     info "Starting the full DNA stack (first run builds containers — this may take a few minutes)..."
@@ -1166,10 +1167,10 @@ restart_backend_if_running() {
 
     local -a compose_files=(-f docker-compose.yml)
     if [[ "$route" == "extension" ]]; then
-        compose_files+=(-f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml)
+        compose_files+=(-f docker-compose.local.yml -f docker-compose.whisperlive.yml)
     else
-        [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.vexa.yml)
-        compose_files+=(-f docker-compose.debug.yml -f docker-compose.local.yml)
+        [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.vexa.yml -f docker-compose.debug.yml)
+        compose_files+=(-f docker-compose.local.yml)
         [[ "$VEXA_HOSTED" != "true" ]] && compose_files+=(-f docker-compose.local.vexa.yml)
     fi
 

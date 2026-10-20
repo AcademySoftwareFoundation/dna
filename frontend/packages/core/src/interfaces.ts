@@ -241,7 +241,7 @@ export interface DeletePlaylistMetadataParams {
   playlistId: string;
 }
 
-export type Platform = 'google_meet' | 'teams';
+export type Platform = 'google_meet' | 'teams' | 'zoom';
 
 export type BotStatusEnum =
   | 'idle'
@@ -260,6 +260,7 @@ export interface DispatchBotRequest {
   passcode?: string;
   bot_name?: string;
   language?: string;
+  meeting_url?: string;
 }
 
 export interface BotStatus {
