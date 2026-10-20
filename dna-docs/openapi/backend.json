@@ -316,6 +316,18 @@
             "title": "Meeting Id",
             "type": "string"
           },
+          "meeting_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Join link as pasted by the user (sent for Zoom meetings)",
+            "title": "Meeting Url"
+          },
           "passcode": {
             "anyOf": [
               {
@@ -325,7 +337,7 @@
                 "type": "null"
               }
             ],
-            "description": "Passcode for Teams meetings",
+            "description": "Passcode for Teams or Zoom meetings",
             "title": "Passcode"
           },
           "platform": {
@@ -1185,7 +1197,8 @@
         "description": "Supported meeting platforms.",
         "enum": [
           "google_meet",
-          "teams"
+          "teams",
+          "zoom"
         ],
         "title": "Platform",
         "type": "string"
