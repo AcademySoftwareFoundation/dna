@@ -41,6 +41,7 @@ class ExtensionTranscriptionProvider(TranscriptionProviderBase):
         passcode: Optional[str] = None,
         bot_name: Optional[str] = None,
         language: Optional[str] = None,
+        meeting_url: Optional[str] = None,
     ) -> Any:
         raise NotImplementedError(
             "Extension transcription does not dispatch bots; the browser "

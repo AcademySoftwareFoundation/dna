@@ -15,6 +15,7 @@ class Platform(str, Enum):
 
     GOOGLE_MEET = "google_meet"
     TEAMS = "teams"
+    ZOOM = "zoom"
 
 
 class BotStatusEnum(str, Enum):
@@ -39,7 +40,11 @@ class DispatchBotRequest(BaseModel):
         ..., description="Playlist ID to associate with this meeting"
     )
     passcode: Optional[str] = Field(
-        default=None, description="Passcode for Teams meetings"
+        default=None, description="Passcode for Teams or Zoom meetings"
+    )
+    meeting_url: Optional[str] = Field(
+        default=None,
+        description="Join link as pasted by the user (sent for Zoom meetings)",
     )
     bot_name: Optional[str] = Field(default=None, description="Custom name for the bot")
     language: Optional[str] = Field(default=None, description="Transcription language")

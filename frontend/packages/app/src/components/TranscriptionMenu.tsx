@@ -14,11 +14,14 @@ import { Button, TextField, Popover, Text } from '@radix-ui/themes';
 import type { BotStatusEnum, ExtensionConnectionStatus } from '@dna/core';
 import {
   useTranscription,
-  parseMeetingUrl,
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
   useTranscriptionExtension,
 } from '../hooks';
+import {
+  MEETING_PLATFORMS,
+  parseMeetingUrl,
+} from '../transcription/meetingPlatforms';
 import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
@@ -399,7 +402,11 @@ export function TranscriptionMenu({
     'transcribing',
   ].includes(currentStatus);
   const phoneStatus = getPhoneStatus(currentStatus);
-  const needsPasscode = parseMeetingUrl(meetingUrl)?.platform === 'teams';
+  const parsedMeeting = parseMeetingUrl(meetingUrl);
+  const needsPasscode =
+    !!parsedMeeting &&
+    MEETING_PLATFORMS[parsedMeeting.platform].acceptsPasscode &&
+    !parsedMeeting.passcode;
   const isPaused = metadata?.transcription_paused ?? false;
   const isLiveButPaused =
     isPaused && ['in_call', 'transcribing'].includes(currentStatus);

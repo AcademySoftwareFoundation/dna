@@ -9,6 +9,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 import websockets
@@ -42,6 +43,28 @@ VEXA_STATUS_MAP: dict[str, str] = {
     "completed": "completed",
     "ended": "completed",
 }
+
+
+def _zoom_join_url(
+    meeting_id: str, meeting_url: Optional[str], passcode: Optional[str]
+) -> str:
+    """Build the link Vexa's Zoom bot joins with.
+
+    Vexa refuses Zoom without a meeting_url, so the link is sent alongside the
+    numeric native_meeting_id, and a bare meeting ID becomes
+    ``https://zoom.us/j/<id>``. Vexa's web bot ignores the separate passcode
+    field: it stalls in "joining" unless the passcode is the link's ``pwd``.
+    Zoom accepts the plain passcode there as well as the encoded one from
+    invite links. Links that already carry a ``pwd`` are returned untouched.
+    """
+    url = meeting_url or f"https://zoom.us/j/{meeting_id}"
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    if not passcode or any(key == "pwd" and value for key, value in query):
+        return url
+    query = [(key, value) for key, value in query if key != "pwd"]
+    query.append(("pwd", passcode))
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 class VexaTranscriptionProvider(TranscriptionProviderBase):
@@ -88,6 +111,7 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
         passcode: Optional[str] = None,
         bot_name: Optional[str] = None,
         language: Optional[str] = None,
+        meeting_url: Optional[str] = None,
     ) -> BotSession:
         """Dispatch a bot to join a meeting and start transcription."""
         payload = {
@@ -95,6 +119,10 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
             "native_meeting_id": meeting_id,
         }
 
+        if platform == Platform.ZOOM:
+            meeting_url = _zoom_join_url(meeting_id, meeting_url, passcode)
+        if meeting_url:
+            payload["meeting_url"] = meeting_url
         if passcode:
             payload["passcode"] = passcode
         if bot_name:
@@ -103,7 +131,21 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
             payload["language"] = language
 
         response = await self.client.post("/bots", json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # httpx's message omits the body, which is where Vexa says why.
+            detail = e.response.text
+            logger.error(
+                "Vexa rejected bot dispatch for %s:%s (%s): %s",
+                platform.value,
+                meeting_id,
+                e.response.status_code,
+                detail,
+            )
+            raise ValueError(
+                f"Vexa rejected the bot ({e.response.status_code}): {detail}"
+            ) from e
 
         data = response.json()
         vexa_meeting_id = data.get("meeting_id") or data.get("id")

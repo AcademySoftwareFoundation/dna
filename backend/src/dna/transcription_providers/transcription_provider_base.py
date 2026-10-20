@@ -41,6 +41,7 @@ class TranscriptionProviderBase:
         passcode: Optional[str] = None,
         bot_name: Optional[str] = None,
         language: Optional[str] = None,
+        meeting_url: Optional[str] = None,
     ) -> "BotSession":
         """Dispatch a bot to join a meeting and start transcription."""
         raise NotImplementedError()
