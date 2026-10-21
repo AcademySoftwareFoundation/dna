@@ -1,28 +1,17 @@
 /**
- * Languages offered in Settings → Transcription. Values are the ISO 639-1
- * codes Whisper accepts; the empty string means "let Whisper detect per
- * window".
- *
+ * Client-side constants for the transcription language setting. The list of
+ * offered languages is not hardcoded here: it comes from
+ * `apiHandler.getTranscriptionLanguages()`, which the backend answers from the
+ * configured transcription provider. These two values mirror the backend's
+ * `dna.models.transcription` constants and exist so the UI has something to
+ * show before that query resolves.
+ */
+
+/** Sentinel for "let the transcriber detect the language per window". */
+export const AUTO_DETECT_LANGUAGE = '';
+
+/**
  * Fixing a language skips the detection pass on every window and prevents
  * mid-session flips, so English is the default rather than auto.
  */
-export const AUTO_DETECT_LANGUAGE = '';
-
 export const DEFAULT_TRANSCRIPTION_LANGUAGE = 'en';
-
-export const TRANSCRIPTION_LANGUAGES: ReadonlyArray<{
-  value: string;
-  label: string;
-}> = [
-  { value: 'en', label: 'English' },
-  { value: 'es', label: 'Spanish' },
-  { value: 'fr', label: 'French' },
-  { value: 'de', label: 'German' },
-  { value: 'it', label: 'Italian' },
-  { value: 'pt', label: 'Portuguese' },
-  { value: 'ja', label: 'Japanese' },
-  { value: 'ko', label: 'Korean' },
-  { value: 'zh', label: 'Chinese' },
-  { value: 'hi', label: 'Hindi' },
-  { value: AUTO_DETECT_LANGUAGE, label: 'Auto-detect' },
-];

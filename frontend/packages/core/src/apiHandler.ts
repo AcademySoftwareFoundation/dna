@@ -16,6 +16,7 @@ import {
   GetBotStatusParams,
   GetTranscriptParams,
   GetSegmentsParams,
+  TranscriptionLanguagesResponse,
   GetUserSettingsParams,
   UpsertUserSettingsParams,
   DeleteUserSettingsParams,
@@ -288,6 +289,11 @@ class ApiHandler {
     return this.get<StoredSegment[]>(
       `/transcription/segments/${encodeURIComponent(params.playlistId)}/${encodeURIComponent(params.versionId)}`
     );
+  }
+
+  /** Languages the configured transcription provider supports, plus its default. */
+  async getTranscriptionLanguages(): Promise<TranscriptionLanguagesResponse> {
+    return this.get<TranscriptionLanguagesResponse>('/transcription/languages');
   }
 
   async getUserSettings(params: GetUserSettingsParams): Promise<UserSettings> {

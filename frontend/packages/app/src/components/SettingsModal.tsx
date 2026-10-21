@@ -19,13 +19,13 @@ import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type {
   AvailableModelsResponse,
   ProjectGlossary,
+  TranscriptionLanguagesResponse,
   UserSettings,
   UserSettingsUpdate,
 } from '@dna/core';
 import {
   AUTO_DETECT_LANGUAGE,
   DEFAULT_TRANSCRIPTION_LANGUAGE,
-  TRANSCRIPTION_LANGUAGES,
 } from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
@@ -691,6 +691,17 @@ function TranscriptionTab({
   const { transcriptionEnabled, setTranscriptionEnabled, transcriptionLocked, transcriptionLockReason } =
     useFeatureFlags();
 
+  // The offered languages come from the transcription provider via DNA, so a
+  // deployment whose provider reports its own model's support (or a different
+  // provider entirely) is reflected here without a frontend change.
+  const { data: languageOptions, isLoading: isLoadingLanguages } =
+    useQuery<TranscriptionLanguagesResponse>({
+      queryKey: ['transcriptionLanguages'],
+      queryFn: () => apiHandler.getTranscriptionLanguages(),
+      staleTime: Infinity,
+    });
+  const languages = languageOptions?.languages ?? [];
+
   if (isLoading) {
     return (
       <Flex align="center" justify="center" py="6">
@@ -737,14 +748,16 @@ function TranscriptionTab({
           onValueChange={(v) =>
             onLanguageChange(v === AUTO_DETECT_OPTION ? AUTO_DETECT_LANGUAGE : v)
           }
-          disabled={isPending || !transcriptionEnabled}
+          disabled={isPending || isLoadingLanguages || !transcriptionEnabled}
         >
-          <Select.Trigger />
+          <Select.Trigger
+            placeholder={isLoadingLanguages ? 'Loading…' : undefined}
+          />
           <Select.Content>
-            {TRANSCRIPTION_LANGUAGES.map(({ value, label }) => (
+            {languages.map(({ code, label }) => (
               <Select.Item
-                key={value || AUTO_DETECT_OPTION}
-                value={value || AUTO_DETECT_OPTION}
+                key={code || AUTO_DETECT_OPTION}
+                value={code || AUTO_DETECT_OPTION}
               >
                 {label}
               </Select.Item>

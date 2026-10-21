@@ -8,6 +8,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dna.models.transcription import DEFAULT_TRANSCRIPTION_LANGUAGE
+
 
 class UserSettingsUpdate(BaseModel):
     """Model for updating user settings."""
@@ -57,9 +59,8 @@ class UserSettings(BaseModel):
     regenerate_on_transcript_update: bool = False
     sync_prodtrack_tab_on_version_change: bool = True
     prodtrack_page_type: str = "version"
-    # Dailies are overwhelmingly English; fixing the language skips Whisper's
-    # per-window detection pass (latency) and prevents mid-session flips
-    # (accuracy). Users can switch to auto-detect ("") in Settings.
-    transcription_language: str = "en"
+    # Users can switch to auto-detect ("") in Settings; see the constant for
+    # why English rather than auto is the default.
+    transcription_language: str = DEFAULT_TRANSCRIPTION_LANGUAGE
     updated_at: datetime
     created_at: datetime
