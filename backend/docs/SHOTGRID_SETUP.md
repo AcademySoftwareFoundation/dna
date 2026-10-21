@@ -71,6 +71,14 @@ On the **Note** entity, create:
 - DNA fills the field when it publishes a note on a version whose transcript
   has been published. When no transcript was recorded or published, it stays
   blank.
+- DNA finds the transcript in ShotGrid (the version's newest transcript row),
+  not in its own database, so ShotGrid is the only source of truth for the link.
+- Republishing a note sets the field again, so a note published before its
+  transcript picks up the link the next time it's republished.
+- DNA writes the link as the **script user**, after the note is created as its
+  author, so authors' permission groups don't need edit rights on this field.
+- If the field doesn't exist, DNA logs a warning and publishes the note without
+  the link; nothing fails.
 - The review CSV export (**Publish → Export CSV**) shows the same transcript
   name in its **Linked Transcript** column.
 

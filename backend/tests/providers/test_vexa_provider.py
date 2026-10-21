@@ -164,6 +164,111 @@ class TestDispatchBot:
         assert payload["bot_name"] == "DNA Bot"
         assert payload["language"] == "en-US"
 
+    @pytest.mark.asyncio
+    async def test_dispatch_bot_surfaces_vexa_error_body(self, vexa_provider):
+        """A rejected dispatch carries Vexa's response body in the error."""
+        request = httpx.Request("POST", "https://vexa.test/bots")
+        error_response = httpx.Response(
+            400, request=request, text='{"detail":"Invalid meeting"}'
+        )
+
+        mock_client = mock.AsyncMock()
+        mock_client.post.return_value = error_response
+        vexa_provider._client = mock_client
+
+        with pytest.raises(ValueError, match="Invalid meeting"):
+            await vexa_provider.dispatch_bot(
+                platform=Platform.ZOOM,
+                meeting_id="81234567890",
+                playlist_id="7",
+            )
+
+    @staticmethod
+    def _mock_dispatch_client(vexa_provider):
+        mock_response = mock.MagicMock()
+        mock_response.json.return_value = {"id": 555}
+        mock_response.raise_for_status = mock.MagicMock()
+
+        mock_client = mock.AsyncMock()
+        mock_client.post.return_value = mock_response
+        vexa_provider._client = mock_client
+        return mock_client
+
+    @pytest.mark.asyncio
+    async def test_dispatch_bot_zoom_forwards_meeting_url(self, vexa_provider):
+        """Zoom dispatch forwards the pasted link untouched."""
+        mock_client = self._mock_dispatch_client(vexa_provider)
+        link = "https://us05web.zoom.us/j/81234567890?pwd=aBcD1234.1"
+
+        result = await vexa_provider.dispatch_bot(
+            platform=Platform.ZOOM,
+            meeting_id="81234567890",
+            playlist_id="7",
+            passcode="aBcD1234.1",
+            meeting_url=link,
+        )
+
+        assert result.platform == Platform.ZOOM
+        assert result.meeting_id == "81234567890"
+        assert result.vexa_meeting_id == 555
+
+        payload = mock_client.post.call_args[1]["json"]
+        assert payload == {
+            "platform": "zoom",
+            "native_meeting_id": "81234567890",
+            "meeting_url": link,
+            "passcode": "aBcD1234.1",
+        }
+
+    @pytest.mark.asyncio
+    async def test_dispatch_bot_zoom_bare_id_builds_url(self, vexa_provider):
+        """Without a link, Zoom dispatch builds one carrying the passcode."""
+        mock_client = self._mock_dispatch_client(vexa_provider)
+
+        await vexa_provider.dispatch_bot(
+            platform=Platform.ZOOM,
+            meeting_id="81234567890",
+            playlist_id="7",
+            passcode="H0n Pme",
+        )
+
+        payload = mock_client.post.call_args[1]["json"]
+        assert payload["meeting_url"] == "https://zoom.us/j/81234567890?pwd=H0n+Pme"
+        assert payload["passcode"] == "H0n Pme"
+
+    @pytest.mark.asyncio
+    async def test_dispatch_bot_zoom_bare_id_without_passcode(self, vexa_provider):
+        mock_client = self._mock_dispatch_client(vexa_provider)
+
+        await vexa_provider.dispatch_bot(
+            platform=Platform.ZOOM, meeting_id="81234567890", playlist_id="7"
+        )
+
+        payload = mock_client.post.call_args[1]["json"]
+        assert payload["meeting_url"] == "https://zoom.us/j/81234567890"
+        assert "passcode" not in payload
+
+    @pytest.mark.asyncio
+    async def test_dispatch_bot_zoom_link_without_pwd_gets_passcode(
+        self, vexa_provider
+    ):
+        """A typed passcode is added as ``pwd`` to a link that lacks one."""
+        mock_client = self._mock_dispatch_client(vexa_provider)
+
+        await vexa_provider.dispatch_bot(
+            platform=Platform.ZOOM,
+            meeting_id="82581444975",
+            playlist_id="7",
+            passcode="H0nPme",
+            meeting_url="https://us05web.zoom.us/j/82581444975?omn=123",
+        )
+
+        payload = mock_client.post.call_args[1]["json"]
+        assert (
+            payload["meeting_url"]
+            == "https://us05web.zoom.us/j/82581444975?omn=123&pwd=H0nPme"
+        )
+
 
 class TestStopBot:
     """Tests for stop_bot method."""
@@ -609,6 +714,42 @@ class TestWebSocketHandlers:
 
         assert callback_called
         assert vexa_provider._meeting_id_to_key[200] == "google_meet:abc-123"
+
+    @pytest.mark.asyncio
+    async def test_handle_ws_message_zoom_status_then_transcript(self, vexa_provider):
+        """Zoom status maps the internal ID so later transcripts route back."""
+        events = []
+
+        async def callback(event_type, data):
+            events.append((event_type, data))
+
+        vexa_provider._subscribed_meetings["zoom:81234567890"] = callback
+
+        await vexa_provider._handle_ws_message(
+            {
+                "type": "meeting.status",
+                "meeting": {
+                    "id": 300,
+                    "platform": "zoom",
+                    "native_id": "81234567890",
+                },
+                "payload": {"status": "awaiting_admission"},
+            }
+        )
+        await vexa_provider._handle_ws_message(
+            {
+                "type": "transcript",
+                "meeting": {"id": 300},
+                "confirmed": [{"segment_id": "z1", "text": "Hi"}],
+            }
+        )
+
+        assert vexa_provider._meeting_id_to_key[300] == "zoom:81234567890"
+        assert events[0][0] == "bot.status_changed"
+        assert events[0][1]["status"] == "waiting_room"
+        assert events[1][0] == "transcript.updated"
+        assert events[1][1]["platform"] == "zoom"
+        assert events[1][1]["meeting_id"] == "81234567890"
 
     @pytest.mark.asyncio
     async def test_handle_ws_message_meeting_status_no_callback(self, vexa_provider):
