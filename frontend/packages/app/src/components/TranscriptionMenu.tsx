@@ -17,6 +17,7 @@ import type {
   ExtensionConnectionStatus,
   UserSettings,
 } from '@dna/core';
+import { DEFAULT_TRANSCRIPTION_LANGUAGE } from '@dna/core';
 import {
   useTranscription,
   parseMeetingUrl,
@@ -27,7 +28,6 @@ import {
 import { apiHandler } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { SplitButton } from './SplitButton';
-import { DEFAULT_TRANSCRIPTION_LANGUAGE } from './transcriptionLanguages';
 
 interface TranscriptionMenuProps {
   playlistId: string | null;

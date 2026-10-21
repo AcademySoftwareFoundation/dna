@@ -22,17 +22,17 @@ import type {
   UserSettings,
   UserSettingsUpdate,
 } from '@dna/core';
+import {
+  AUTO_DETECT_LANGUAGE,
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
+  TRANSCRIPTION_LANGUAGES,
+} from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
 import { ACCENTS, ACCENT_NAMES } from '../styles';
-import {
-  AUTO_DETECT_LANGUAGE,
-  DEFAULT_TRANSCRIPTION_LANGUAGE,
-  TRANSCRIPTION_LANGUAGES,
-} from './transcriptionLanguages';
 
 // Radix Select can't represent '' as an item value, so auto-detect gets a
 // sentinel in the UI and is mapped back to '' for storage.
