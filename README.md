@@ -135,6 +135,8 @@ DNA is built for:
 
 Documentation, including quick start, architecture, and API docs, are available on: [QUICKSTART.md](https://github.com/AcademySoftwareFoundation/dna/blob/main/QUICKSTART.md)
 
+The published docs site is [https://academysoftwarefoundation.github.io/dna/](https://academysoftwarefoundation.github.io/dna/). It is rebuilt from [`dna-docs/`](dna-docs/) on each push to `main`.
+
 For information on how to contribute to DNA please visit: [CONTRIBUTING.md](https://github.com/AcademySoftwareFoundation/dna/blob/main/CONTRIBUTING.md)
 
 

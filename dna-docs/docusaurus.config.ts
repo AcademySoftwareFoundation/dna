@@ -5,6 +5,19 @@ import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+// CI sets these from the repository Pages settings. Local `npm start` leaves
+// them unset so the dev server stays at `/`.
+const docsUrl = process.env.DOCS_URL;
+const docsBaseUrl = process.env.DOCS_BASE_URL;
+
+function withBaseSlash(baseUrl: string): string {
+  if (baseUrl === '' || baseUrl === '/') {
+    return '/';
+  }
+  const withLeading = baseUrl.startsWith('/') ? baseUrl : `/${baseUrl}`;
+  return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
+}
+
 const config: Config = {
   title: 'DNA Docs',
   tagline: 'Frontend guides and backend API reference',
@@ -15,15 +28,14 @@ const config: Config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  // Production URL. Configured for a GitHub Pages project site; if you deploy
-  // to a custom domain or a host that serves from the root (Netlify, Vercel,
-  // Cloudflare Pages), set url to that origin and baseUrl back to '/'.
-  url: 'https://dna-docs.camerontarget.workers.dev',
-  baseUrl: '/',
+  // Local builds keep the dev origin and a root base path. The GitHub Pages
+  // workflow overrides both from the repository Pages settings.
+  url: docsUrl && docsUrl.length > 0 ? docsUrl : 'http://localhost:3000',
+  baseUrl: docsBaseUrl ? withBaseSlash(docsBaseUrl) : '/',
 
   // Used by `npm run deploy` to push the build to GitHub Pages.
-  organizationName: 'camerontarget14',
-  projectName: 'dna-docs',
+  organizationName: 'AcademySoftwareFoundation',
+  projectName: 'dna',
   deploymentBranch: 'gh-pages',
 
   onBrokenLinks: 'throw',
@@ -169,7 +181,7 @@ const config: Config = {
             },
             {
               label: 'Source',
-              href: 'https://github.com/camerontarget14/dna-docs',
+              href: 'https://github.com/AcademySoftwareFoundation/dna/tree/main/dna-docs',
             },
           ],
         },

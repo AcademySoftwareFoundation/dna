@@ -11,7 +11,13 @@ import {
   Play,
 } from 'lucide-react';
 import { Button, TextField, Popover, Text } from '@radix-ui/themes';
-import type { BotStatusEnum, ExtensionConnectionStatus } from '@dna/core';
+import { useQuery } from '@tanstack/react-query';
+import type {
+  BotStatusEnum,
+  ExtensionConnectionStatus,
+  UserSettings,
+} from '@dna/core';
+import { DEFAULT_TRANSCRIPTION_LANGUAGE } from '@dna/core';
 import {
   useTranscription,
   usePlaylistMetadata,
@@ -22,6 +28,8 @@ import {
   MEETING_PLATFORMS,
   parseMeetingUrl,
 } from '../transcription/meetingPlatforms';
+import { apiHandler } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 import { SplitButton } from './SplitButton';
 
 interface TranscriptionMenuProps {
@@ -354,6 +362,20 @@ export function TranscriptionMenu({
   const [isOpen, setIsOpen] = useState(false);
   const theme = useTheme();
 
+  // Transcription language is edited in Settings → Transcription; it's read
+  // here at session start (bot dispatch), so a change applies to the next
+  // Start, not a live session.
+  const { user } = useAuth();
+  const userEmail = user?.email ?? null;
+  const { data: userSettings } = useQuery<UserSettings>({
+    queryKey: ['userSettings', userEmail],
+    queryFn: () => apiHandler.getUserSettings({ userEmail: userEmail! }),
+    enabled: userEmail != null,
+    staleTime: 60000,
+  });
+  const language =
+    userSettings?.transcription_language ?? DEFAULT_TRANSCRIPTION_LANGUAGE;
+
   const {
     session,
     status,
@@ -454,13 +476,13 @@ export function TranscriptionMenu({
     if (!meetingUrl.trim()) return;
 
     try {
-      await dispatchBot(meetingUrl, passcode || undefined);
+      await dispatchBot(meetingUrl, passcode || undefined, language);
       setMeetingUrl('');
       setPasscode('');
     } catch {
       // Error is handled by the hook
     }
-  }, [meetingUrl, passcode, dispatchBot]);
+  }, [meetingUrl, passcode, language, dispatchBot]);
 
   const handleStop = useCallback(async () => {
     try {

@@ -298,6 +298,19 @@ export interface Transcript {
   duration?: number;
 }
 
+/** A language the transcription provider can be asked to transcribe in. */
+export interface TranscriptionLanguage {
+  /** ISO 639-1 code sent at session start; '' means auto-detect per window. */
+  code: string;
+  label: string;
+}
+
+export interface TranscriptionLanguagesResponse {
+  languages: TranscriptionLanguage[];
+  /** Code pre-selected for users who haven't chosen a language. */
+  default: string;
+}
+
 export interface DispatchBotParams {
   request: DispatchBotRequest;
 }
@@ -352,6 +365,8 @@ export interface UserSettings {
   regenerate_on_transcript_update: boolean;
   sync_prodtrack_tab_on_version_change: boolean;
   prodtrack_page_type: 'version' | 'entity';
+  /** ISO 639-1 code forced on the transcriber; '' means auto-detect. */
+  transcription_language: string;
   updated_at: string;
   created_at: string;
 }
@@ -363,6 +378,7 @@ export interface UserSettingsUpdate {
   regenerate_on_transcript_update?: boolean;
   sync_prodtrack_tab_on_version_change?: boolean;
   prodtrack_page_type?: 'version' | 'entity';
+  transcription_language?: string;
 }
 
 /** Production-specific glossary, keyed by ShotGrid project id. */

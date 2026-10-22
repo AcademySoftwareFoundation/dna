@@ -6,7 +6,12 @@ from unittest import mock
 import pytest
 
 from dna.models.stored_segment import StoredSegment
-from dna.models.transcription import Platform
+from dna.models.transcription import (
+    AUTO_DETECT_LANGUAGE,
+    DEFAULT_TRANSCRIPTION_LANGUAGE,
+    DEFAULT_TRANSCRIPTION_LANGUAGES,
+    Platform,
+)
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
     get_transcription_provider,
@@ -20,6 +25,27 @@ class TestTranscriptionProviderBase:
         """Test that TranscriptionProviderBase can be instantiated."""
         provider = TranscriptionProviderBase()
         assert provider is not None
+
+    @pytest.mark.asyncio
+    async def test_get_transcription_languages_defaults_to_static_list(self):
+        """The base answer is the static Whisper subset; providers override it."""
+        provider = TranscriptionProviderBase()
+        response = await provider.get_transcription_languages()
+
+        assert response.languages == DEFAULT_TRANSCRIPTION_LANGUAGES
+        assert response.default == DEFAULT_TRANSCRIPTION_LANGUAGE
+        codes = [lang.code for lang in response.languages]
+        assert response.default in codes
+        assert AUTO_DETECT_LANGUAGE in codes
+
+    @pytest.mark.asyncio
+    async def test_get_transcription_languages_returns_a_copy(self):
+        """Callers mutating the response must not leak into the module constant."""
+        provider = TranscriptionProviderBase()
+        response = await provider.get_transcription_languages()
+        response.languages.clear()
+
+        assert len(DEFAULT_TRANSCRIPTION_LANGUAGES) > 0
 
     def test_build_transcript_text_empty(self):
         assert TranscriptionProviderBase.build_transcript_text([]) == (

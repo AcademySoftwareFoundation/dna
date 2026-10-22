@@ -2796,6 +2796,50 @@
         "title": "TranscriptSegment",
         "type": "object"
       },
+      "TranscriptionLanguage": {
+        "description": "A language the transcription provider can be asked to transcribe in.",
+        "properties": {
+          "code": {
+            "description": "ISO 639-1 code passed to the transcriber at session start; the empty string means auto-detect per window",
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "description": "Display name for the Settings dropdown",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "TranscriptionLanguage",
+        "type": "object"
+      },
+      "TranscriptionLanguagesResponse": {
+        "description": "Languages offered in Settings → Transcription, as reported by the provider.",
+        "properties": {
+          "default": {
+            "description": "Code pre-selected for users who have not chosen a language",
+            "title": "Default",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptionLanguage"
+            },
+            "title": "Languages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "languages",
+          "default"
+        ],
+        "title": "TranscriptionLanguagesResponse",
+        "type": "object"
+      },
       "UpdateVersionStatusRequest": {
         "description": "Request model for updating a version's status.",
         "examples": [
@@ -2977,6 +3021,11 @@
             "title": "Sync Prodtrack Tab On Version Change",
             "type": "boolean"
           },
+          "transcription_language": {
+            "default": "en",
+            "title": "Transcription Language",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -3076,6 +3125,19 @@
             ],
             "description": "When true, DNA tells the browser extension to open the PT version page whenever the selected version changes",
             "title": "Sync Prodtrack Tab On Version Change"
+          },
+          "transcription_language": {
+            "anyOf": [
+              {
+                "pattern": "^([a-z]{2,3})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 639-1 language forced on the transcriber at session start (e.g. 'en'); empty string means auto-detect per window",
+            "title": "Transcription Language"
           }
         },
         "title": "UserSettingsUpdate",
@@ -6020,6 +6082,33 @@
           }
         },
         "summary": "Extension transcription handshake",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/transcription/languages": {
+      "get": {
+        "description": "Languages the configured transcription provider can be asked to transcribe in, plus the default. Populates Settings → Transcription.",
+        "operationId": "get_transcription_languages_transcription_languages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionLanguagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List transcription languages",
         "tags": [
           "Transcription"
         ]

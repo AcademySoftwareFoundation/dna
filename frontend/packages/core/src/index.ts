@@ -14,3 +14,4 @@ export * from './eventClient';
 export * from './aiSuggestionManager';
 export * from './extension';
 export * from './reviewExport';
+export * from './transcriptionLanguages';
