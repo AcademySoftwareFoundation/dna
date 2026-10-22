@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from main import app, get_storage_provider_cached
 
+from dna.events import reset_event_publisher
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
@@ -271,6 +272,58 @@ class TestPlaylistMetadataEndpoints:
             assert "Playlist metadata not found" in data["detail"]
         finally:
             app.dependency_overrides.clear()
+
+
+class TestPlaylistMetadataInReviewBroadcast:
+    """Tests that setting in_review broadcasts playlist.in_review_changed."""
+
+    def setup_method(self):
+        reset_event_publisher()
+
+    def teardown_method(self):
+        reset_event_publisher()
+        app.dependency_overrides.clear()
+
+    def test_upsert_with_in_review_broadcasts(self):
+        """PUT with in_review broadcasts the change to WebSocket clients."""
+        storage = mock.AsyncMock()
+        storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review="200",
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+
+        with client.websocket_connect("/ws") as ws:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"in_review": "200"},
+            )
+            assert response.status_code == 200
+            message = ws.receive_json()
+            assert message == {
+                "type": "playlist.in_review_changed",
+                "payload": {"playlist_id": "10", "in_review": "200"},
+            }
+
+    def test_upsert_without_in_review_does_not_publish(self):
+        """PUT that omits in_review does not publish an event."""
+        storage = mock.AsyncMock()
+        storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            meeting_id="meeting-only",
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+
+        publisher = mock.AsyncMock()
+        with mock.patch("main.get_event_publisher", return_value=publisher):
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"meeting_id": "meeting-only"},
+            )
+            assert response.status_code == 200
+            publisher.publish.assert_not_awaited()
 
 
 class TestMongoDBPlaylistMetadataProvider:

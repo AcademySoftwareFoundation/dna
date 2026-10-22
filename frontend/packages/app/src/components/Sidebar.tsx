@@ -10,7 +10,7 @@ import {
   AlertCircle,
   ChevronDown,
 } from 'lucide-react';
-import { Button, DropdownMenu, Tooltip } from '@radix-ui/themes';
+import { Button, DropdownMenu, Switch, Tooltip } from '@radix-ui/themes';
 import { SCRATCH_VERSION_ID } from '@dna/core';
 import type { Version, DraftNote, Playlist, Exporter } from '@dna/core';
 import { Logo } from './Logo';
@@ -34,6 +34,7 @@ import {
   useUpsertPlaylistMetadata,
   usePlaylistDraftNotes,
   useSetInReview,
+  useFollowInReview,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
 import { useFeatureFlags, useToast } from '../contexts';
@@ -126,7 +127,7 @@ const CollapseButton = styled.button`
 
 const Toolbar = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
@@ -141,10 +142,29 @@ const Toolbar = styled.div`
   }
 `;
 
-const ToolbarLeft = styled.div`
+const FollowRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding-left: 13px;
+`;
+
+const FollowLabel = styled.label`
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.secondary};
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+`;
+
+const ToolbarLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
   flex-shrink: 0;
 `;
 
@@ -340,6 +360,13 @@ export function Sidebar({
 
   const inReviewVersionId = playlistMetadata?.in_review;
   const { setInReview } = useSetInReview(playlistId);
+  const { follow, setFollow } = useFollowInReview({
+    enabled: inReviewEnabled,
+    inReviewVersionId,
+    versions: versions ?? [],
+    selectedVersionId,
+    onVersionSelect,
+  });
 
   // Each is non-null only while its toolbar input should be showing.
   const addVersionPlaylistId =
@@ -678,6 +705,19 @@ export function Sidebar({
                 >
                   Reload Playlist
                 </SplitButton>
+                {inReviewEnabled && (
+                  <FollowRow>
+                    <FollowLabel htmlFor="follow-in-review">
+                      Follow In Review
+                    </FollowLabel>
+                    <Switch
+                      id="follow-in-review"
+                      size="1"
+                      checked={follow}
+                      onCheckedChange={(checked) => setFollow(checked === true)}
+                    />
+                  </FollowRow>
+                )}
               </ToolbarLeft>
             ))}
 

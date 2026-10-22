@@ -515,6 +515,7 @@ async def websocket_endpoint(websocket: WebSocket):
       Consumed by the frontend `TranscriptManager`.
     - bot.status_changed: Bot status updates
     - transcription.completed / transcription.error: Transcription lifecycle events
+    - playlist.in_review_changed: In-review version changed for a playlist
 
     Most events use `{"type": "event.type", "payload": {...}}`. The
     `transcript` event is flat — the whole message IS the payload so it can
@@ -1615,7 +1616,10 @@ async def get_playlist_metadata(
     "/playlists/{playlist_id}/metadata",
     tags=["Playlist Metadata"],
     summary="Create or update playlist metadata",
-    description="Create or update metadata for a playlist (in-review version and meeting ID).",
+    description=(
+        "Create or update metadata for a playlist (in-review version and meeting ID). "
+        "When in_review is set, broadcasts playlist.in_review_changed to connected clients."
+    ),
     response_model=PlaylistMetadata,
 )
 async def upsert_playlist_metadata(
@@ -1624,8 +1628,22 @@ async def upsert_playlist_metadata(
     provider: StorageProviderDep,
     _: CurrentUserDep,
 ) -> PlaylistMetadata:
-    """Create or update playlist metadata."""
-    return await provider.upsert_playlist_metadata(playlist_id, data)
+    """Create or update playlist metadata.
+
+    When ``in_review`` is set, broadcasts ``playlist.in_review_changed`` so
+    connected clients can update the in-review indicator.
+    """
+    metadata = await provider.upsert_playlist_metadata(playlist_id, data)
+    if data.in_review is not None:
+        event_publisher = get_event_publisher()
+        await event_publisher.publish(
+            EventType.PLAYLIST_IN_REVIEW_CHANGED,
+            {
+                "playlist_id": playlist_id,
+                "in_review": metadata.in_review,
+            },
+        )
+    return metadata
 
 
 @app.delete(

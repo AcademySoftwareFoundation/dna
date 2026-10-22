@@ -14,3 +14,4 @@ class EventType(str, Enum):
     TRANSCRIPTION_COMPLETED = "transcription.completed"
     TRANSCRIPTION_ERROR = "transcription.error"
     BOT_STATUS_CHANGED = "bot.status_changed"
+    PLAYLIST_IN_REVIEW_CHANGED = "playlist.in_review_changed"

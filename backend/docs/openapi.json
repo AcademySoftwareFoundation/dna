@@ -3458,7 +3458,7 @@
         ]
       },
       "put": {
-        "description": "Create or update metadata for a playlist (in-review version and meeting ID).",
+        "description": "Create or update metadata for a playlist (in-review version and meeting ID). When in_review is set, broadcasts playlist.in_review_changed to connected clients.",
         "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
         "parameters": [
           {
