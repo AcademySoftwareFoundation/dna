@@ -19,8 +19,13 @@ import { useRecordHotkeys } from 'react-hotkeys-hook';
 import type {
   AvailableModelsResponse,
   ProjectGlossary,
+  TranscriptionLanguagesResponse,
   UserSettings,
   UserSettingsUpdate,
+} from '@dna/core';
+import {
+  AUTO_DETECT_LANGUAGE,
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
 } from '@dna/core';
 import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
@@ -28,6 +33,10 @@ import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
 import { ACCENTS, ACCENT_NAMES } from '../styles';
+
+// Radix Select can't represent '' as an item value, so auto-detect gets a
+// sentinel in the UI and is mapped back to '' for storage.
+const AUTO_DETECT_OPTION = '__auto__';
 
 /** The global glossary is a shared repo file — contributors edit it via PR. */
 const GLOBAL_GLOSSARY_GITHUB_URL =
@@ -666,9 +675,40 @@ function KeybindingsTab({
 
 // --- Transcription Tab ---
 
-function TranscriptionTab() {
+interface TranscriptionTabProps {
+  isLoading: boolean;
+  language: string;
+  isPending: boolean;
+  onLanguageChange: (value: string) => void;
+}
+
+function TranscriptionTab({
+  isLoading,
+  language,
+  isPending,
+  onLanguageChange,
+}: TranscriptionTabProps) {
   const { transcriptionEnabled, setTranscriptionEnabled, transcriptionLocked, transcriptionLockReason } =
     useFeatureFlags();
+
+  // The offered languages come from the transcription provider via DNA, so a
+  // deployment whose provider reports its own model's support (or a different
+  // provider entirely) is reflected here without a frontend change.
+  const { data: languageOptions, isLoading: isLoadingLanguages } =
+    useQuery<TranscriptionLanguagesResponse>({
+      queryKey: ['transcriptionLanguages'],
+      queryFn: () => apiHandler.getTranscriptionLanguages(),
+      staleTime: Infinity,
+    });
+  const languages = languageOptions?.languages ?? [];
+
+  if (isLoading) {
+    return (
+      <Flex align="center" justify="center" py="6">
+        <SpinnerIcon size={24} />
+      </Flex>
+    );
+  }
 
   return (
     <ModalContent>
@@ -692,6 +732,39 @@ function TranscriptionTab() {
           }
         />
       </FeatureEnableRow>
+
+      {/* Handed to the transcriber when a session starts, so a change applies
+          to the next Start, not a live session. */}
+      <AppearanceRow>
+        <KeybindingLabel>
+          <KeybindingName>Language</KeybindingName>
+          <KeybindingDesc>
+            Spoken language of your reviews. Use Auto-detect for mixed
+            languages.
+          </KeybindingDesc>
+        </KeybindingLabel>
+        <Select.Root
+          value={language === AUTO_DETECT_LANGUAGE ? AUTO_DETECT_OPTION : language}
+          onValueChange={(v) =>
+            onLanguageChange(v === AUTO_DETECT_OPTION ? AUTO_DETECT_LANGUAGE : v)
+          }
+          disabled={isPending || isLoadingLanguages || !transcriptionEnabled}
+        >
+          <Select.Trigger
+            placeholder={isLoadingLanguages ? 'Loading…' : undefined}
+          />
+          <Select.Content>
+            {languages.map(({ code, label }) => (
+              <Select.Item
+                key={code || AUTO_DETECT_OPTION}
+                value={code || AUTO_DETECT_OPTION}
+              >
+                {label}
+              </Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </AppearanceRow>
     </ModalContent>
   );
 }
@@ -1117,6 +1190,9 @@ export function SettingsModal({
     useState(true);
   const [preferredModel, setPreferredModel] = useState('');
   const [prodtrackPageType, setProdtrackPageType] = useState<'version' | 'entity'>('version');
+  const [transcriptionLanguage, setTranscriptionLanguage] = useState(
+    DEFAULT_TRANSCRIPTION_LANGUAGE
+  );
   const [isDirty, setIsDirty] = useState(false);
 
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
@@ -1162,6 +1238,9 @@ export function SettingsModal({
         settings.sync_prodtrack_tab_on_version_change ?? true
       );
       setProdtrackPageType(settings.prodtrack_page_type ?? 'version');
+      setTranscriptionLanguage(
+        settings.transcription_language ?? DEFAULT_TRANSCRIPTION_LANGUAGE
+      );
       setIsDirty(false);
     } else if (settings === null) {
       setNotePrompt('');
@@ -1170,6 +1249,7 @@ export function SettingsModal({
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
       setProdtrackPageType('version');
+      setTranscriptionLanguage(DEFAULT_TRANSCRIPTION_LANGUAGE);
       setIsDirty(false);
     }
   }, [settings]);
@@ -1213,6 +1293,11 @@ export function SettingsModal({
     []
   );
 
+  const handleTranscriptionLanguageChange = useCallback((value: string) => {
+    setTranscriptionLanguage(value);
+    setIsDirty(true);
+  }, []);
+
   const handleSettingsReset = useCallback(() => {
       setNotePrompt(settings?.default_note_prompt ?? '');
       setPreferredModel('');
@@ -1220,7 +1305,8 @@ export function SettingsModal({
       setRegenerateOnTranscriptUpdate(false);
       setSyncProdtrackTabOnVersionChange(true);
       setProdtrackPageType('version');
-      resetToDefaults(); 
+      setTranscriptionLanguage(DEFAULT_TRANSCRIPTION_LANGUAGE);
+      resetToDefaults();
       setIsDirty(true);
   }, [settings, resetToDefaults]);
 
@@ -1236,6 +1322,7 @@ export function SettingsModal({
       regenerate_on_transcript_update: regenerateOnTranscriptUpdate,
       sync_prodtrack_tab_on_version_change: syncProdtrackTabOnVersionChange,
       prodtrack_page_type: prodtrackPageType,
+      transcription_language: transcriptionLanguage,
     });
   }, [
     mutation,
@@ -1246,6 +1333,7 @@ export function SettingsModal({
     regenerateOnTranscriptUpdate,
     syncProdtrackTabOnVersionChange,
     prodtrackPageType,
+    transcriptionLanguage,
   ]);
 
   const handleOpenChange = useCallback(
@@ -1314,7 +1402,12 @@ export function SettingsModal({
 
           <Tabs.Content value="transcription" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <TabsContentWrapper>
-              <TranscriptionTab />
+              <TranscriptionTab
+                isLoading={isLoading}
+                language={transcriptionLanguage}
+                isPending={mutation.isPending}
+                onLanguageChange={handleTranscriptionLanguageChange}
+              />
             </TabsContentWrapper>
           </Tabs.Content>
 
