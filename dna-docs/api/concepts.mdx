@@ -85,7 +85,12 @@ in the chain as long as the data upstream exists.
    change. Optional helpers: `POST /generate-note` (AI suggestion from the
    transcript and version context) and `POST .../run-qc-checks` (the
    reviewer's QC checks against their draft).
-7. **Publish.** `POST /playlists/{playlist_id}/publish-notes` with the
+7. **(Optional) Publish the transcript.** `POST /playlists/{playlist_id}/publish-transcript`
+   creates or updates one custom-entity row per version. Do this *before*
+   publishing notes: notes published or republished after the row exists
+   are linked to it. Needs `DNA_ENABLE_TRANSCRIPT_PUBLISH=true` and the
+   ShotGrid setup described in `backend/docs/SHOTGRID_SETUP.md`.
+8. **Publish.** `POST /playlists/{playlist_id}/publish-notes` with the
    `(user_email, version_id)` pairs to publish. For each pair DNA takes the
    newest draft and:
    - creates a provider Note **authored as the draft owner** (ShotGrid:
@@ -94,17 +99,15 @@ in the chain as long as the data upstream exists.
    - sets the version's status to the draft's `version_status`, if any and if
      the version is in `status_version_ids` (omit that field to apply all);
    - uploads staged attachments to the Note;
+   - links the Note to the version's newest published transcript row, if
+     there is one (best effort: a missing row or field is logged and the
+     note still publishes);
    - on a draft already published and since edited, *updates* the existing
      Note instead;
    - records `published`, `published_at` and `published_note_id` on the draft.
 
    The response is counts, not per-note results. Publishing one note can
    fail without failing the request, so check `failed_count`.
-8. **(Optional) Publish the transcript.** `POST /playlists/{playlist_id}/publish-transcript`
-   creates or updates one custom-entity row per version; later published
-   notes on that version link to it. Needs
-   `DNA_ENABLE_TRANSCRIPT_PUBLISH=true` and the ShotGrid setup described in
-   `backend/docs/SHOTGRID_SETUP.md`.
 
 ## Things the API does not do
 

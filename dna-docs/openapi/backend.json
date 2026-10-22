@@ -359,6 +359,12 @@
             "meeting_id": "abc-defg-hij",
             "platform": "google_meet",
             "playlist_id": "45"
+          },
+          {
+            "meeting_id": "81234567890",
+            "meeting_url": "https://zoom.us/j/81234567890?pwd=abc123",
+            "platform": "zoom",
+            "playlist_id": "45"
           }
         ],
         "properties": {
@@ -4381,7 +4387,7 @@
     },
     "/playlists/{playlist_id}/publish-notes": {
       "post": {
-        "description": "Publish draft notes to the production tracking system. Only drafts matching a `(user_email, version_id)` pair in `targets` are considered; for each pair the most recently updated draft wins.\n\nPer draft: a new draft creates a Note (authored as the draft owner) and records its ID; a draft already published and since edited updates that Note; one with no body but a `version_status` only updates the version's status; an unchanged published draft is skipped. Attachments are uploaded and cleared. Failures are counted in `failed_count` rather than failing the request, so always check the counts.",
+        "description": "Publish draft notes to the production tracking system. Only drafts matching a `(user_email, version_id)` pair in `targets` are considered; for each pair the most recently updated draft wins.\n\nPer draft: a new draft creates a Note (authored as the draft owner) and records its ID; a draft already published and since edited updates that Note; one with no body but a `version_status` only updates the version's status; an unchanged published draft is skipped. Attachments are uploaded and cleared. If the version has a published transcript, the Note is linked to its newest transcript row (best effort; a missing row or field is logged and the note still publishes). Failures are counted in `failed_count` rather than failing the request, so always check the counts.",
         "operationId": "publish_notes_playlists__playlist_id__publish_notes_post",
         "parameters": [
           {
@@ -5759,7 +5765,7 @@
     },
     "/transcription/bot": {
       "post": {
-        "description": "Start a transcription bot that joins the specified meeting.",
+        "description": "Start a transcription bot that joins the specified meeting. Zoom requires `meeting_url`; a passcode is only honoured as the link's `pwd` parameter.",
         "operationId": "dispatch_bot_transcription_bot_post",
         "requestBody": {
           "content": {

@@ -43,9 +43,18 @@ class BotStatusEnum(str, Enum):
 class DispatchBotRequest(BaseModel):
     """Request to dispatch a bot to a meeting."""
 
+    # Google Meet stays first: the docs explorer shows examples[0].
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{**_MEETING, "playlist_id": "45", "bot_name": "DNA Notes"}]
+            "examples": [
+                {**_MEETING, "playlist_id": "45", "bot_name": "DNA Notes"},
+                {
+                    "platform": "zoom",
+                    "meeting_id": "81234567890",
+                    "meeting_url": "https://zoom.us/j/81234567890?pwd=abc123",
+                    "playlist_id": "45",
+                },
+            ]
         }
     )
 

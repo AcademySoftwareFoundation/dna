@@ -1155,9 +1155,11 @@ async def add_version_to_playlist(
         "and records its ID; a draft already published and since edited "
         "updates that Note; one with no body but a `version_status` only "
         "updates the version's status; an unchanged published draft is "
-        "skipped. Attachments are uploaded and cleared. Failures are counted "
-        "in `failed_count` rather than failing the request, so always check "
-        "the counts."
+        "skipped. Attachments are uploaded and cleared. If the version has a "
+        "published transcript, the Note is linked to its newest transcript row "
+        "(best effort; a missing row or field is logged and the note still "
+        "publishes). Failures are counted in `failed_count` rather than "
+        "failing the request, so always check the counts."
     ),
     response_model=PublishNotesResponse,
 )
@@ -2057,7 +2059,11 @@ async def run_qc_checks(
     "/transcription/bot",
     tags=["Transcription"],
     summary="Dispatch a bot to a meeting",
-    description="Start a transcription bot that joins the specified meeting.",
+    description=(
+        "Start a transcription bot that joins the specified meeting. Zoom "
+        "requires `meeting_url`; a passcode is only honoured as the link's "
+        "`pwd` parameter."
+    ),
     response_model=BotSession,
     status_code=201,
     responses=error_responses(400),
