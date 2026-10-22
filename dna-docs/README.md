@@ -58,8 +58,8 @@ Pushes to `main` that change `dna-docs/`, `backend/docs/openapi.json`, or
 [`.github/workflows/deploy-docs.yml`](../.github/workflows/deploy-docs.yml)
 rebuild this site and publish it to
 [https://academysoftwarefoundation.github.io/dna/](https://academysoftwarefoundation.github.io/dna/).
-Pull requests run the same build and do not deploy. The workflow can also be
-run by hand from the Actions tab.
+Pull requests do not run this workflow. The workflow can also be run by hand
+from the Actions tab.
 
 The workflow copies `backend/docs/openapi.json` with `npm run fetch-openapi`,
 typechecks, then runs `npm run build:full`. It sets `DOCS_URL` and
