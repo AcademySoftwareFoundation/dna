@@ -5,7 +5,6 @@ import {
   PanelLeftClose,
   PanelLeft,
   Settings,
-  Upload,
   Loader2,
   AlertCircle,
   ChevronDown,
@@ -82,21 +81,49 @@ const HeaderActions = styled.div`
   gap: 8px;
 `;
 
-/** Solid Publish button with a joined chevron, the same split shape as Reload Playlist. */
-const PublishSplit = styled.div`
+/**
+ * Solid Publish button with a joined chevron, the same split shape as Reload
+ * Playlist. `$vertical` folds the chevron underneath for the collapsed sidebar.
+ */
+const PublishSplit = styled.div<{ $vertical?: boolean }>`
   display: flex;
 
-  & > button:first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-  }
+  ${({ $vertical }) =>
+    $vertical
+      ? `
+    flex-direction: column;
+    width: 100%;
 
-  & > button:last-child {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    padding: 0 6px;
-    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.25);
-  }
+    & > button {
+      width: 100%;
+      padding: 0;
+    }
+
+    & > button:first-child {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    & > button:last-child {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      height: 20px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+  `
+      : `
+    & > button:first-child {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
+    & > button:last-child {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+      padding: 0 6px;
+      box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.25);
+    }
+  `}
 `;
 
 const CollapseButton = styled.button`
@@ -428,6 +455,30 @@ export function Sidebar({
     }
   };
 
+  // Shared by the expanded header and collapsed toolbar so the menus stay in sync.
+  const renderPublishMenuItems = () => (
+    <>
+      <DropdownMenu.Item
+        disabled={!selectedVersionId}
+        onSelect={() => setPublishScope('selected')}
+      >
+        Publish Selected
+      </DropdownMenu.Item>
+      {exporters.map((exporter) => {
+        const { label } = exporter.fileType;
+        return (
+          <DropdownMenu.Item
+            key={label}
+            disabled={!playlistId || exportingLabel !== null}
+            onSelect={() => void handleExport(exporter)}
+          >
+            {exportingLabel === label ? `Exporting ${label}…` : `Export ${label}`}
+          </DropdownMenu.Item>
+        );
+      })}
+    </>
+  );
+
   const handleRemoveScratch = () => {
     if (!playlistId) return;
     void upsertPlaylistMetadata.mutateAsync({ has_scratch: false });
@@ -605,26 +656,7 @@ export function Sidebar({
                     </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content align="end">
-                    <DropdownMenu.Item
-                      disabled={!selectedVersionId}
-                      onSelect={() => setPublishScope('selected')}
-                    >
-                      Publish Selected
-                    </DropdownMenu.Item>
-                    {exporters.map((exporter) => {
-                      const { label } = exporter.fileType;
-                      return (
-                        <DropdownMenu.Item
-                          key={label}
-                          disabled={!playlistId || exportingLabel !== null}
-                          onSelect={() => void handleExport(exporter)}
-                        >
-                          {exportingLabel === label
-                            ? `Exporting ${label}…`
-                            : `Export ${label}`}
-                        </DropdownMenu.Item>
-                      );
-                    })}
+                    {renderPublishMenuItems()}
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </PublishSplit>
@@ -648,7 +680,25 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedToolbar>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
+          <PublishSplit $vertical>
+            <Button
+              size="2"
+              variant="solid"
+              onClick={() => setPublishScope('all')}
+            >
+              Publish
+            </Button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Button size="2" variant="solid" aria-label="More publish options">
+                  <ChevronDown size={14} />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content side="right" align="start">
+                {renderPublishMenuItems()}
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          </PublishSplit>
         </CollapsedToolbar>
       ) : (
         <Toolbar>
@@ -700,13 +750,7 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedFooter>
-          <SquareButton
-            variant="cta"
-            onClick={() => setPublishScope('all')}
-          >
-            <Upload />
-            Publish
-          </SquareButton>
+          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SquareButton variant="neutral" onClick={toggleSettings}>
               <Settings />
