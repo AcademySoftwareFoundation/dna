@@ -37,7 +37,7 @@ import {
   useFollowInReview,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
-import { useFeatureFlags, useToast } from '../contexts';
+import { useFeatureFlags, useNoteFocus, useToast } from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -360,8 +360,10 @@ export function Sidebar({
 
   const inReviewVersionId = playlistMetadata?.in_review;
   const { setInReview } = useSetInReview(playlistId);
+  const noteFocus = useNoteFocus();
   const { follow, setFollow } = useFollowInReview({
     enabled: inReviewEnabled,
+    paused: noteFocus?.isNoteFocused ?? false,
     inReviewVersionId,
     versions: versions ?? [],
     selectedVersionId,

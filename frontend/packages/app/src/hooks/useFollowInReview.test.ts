@@ -99,6 +99,33 @@ describe('useFollowInReview', () => {
     expect(onVersionSelect).not.toHaveBeenCalled();
   });
 
+  it('holds the change while paused and applies it once unpaused', () => {
+    const onVersionSelect = vi.fn();
+    const { result, rerender } = renderHook(
+      (props: { paused: boolean; inReviewVersionId: string }) =>
+        useFollowInReview({
+          enabled: true,
+          paused: props.paused,
+          inReviewVersionId: props.inReviewVersionId,
+          versions,
+          selectedVersionId: '6995',
+          onVersionSelect,
+        }),
+      { initialProps: { paused: false, inReviewVersionId: '6995' } }
+    );
+
+    act(() => {
+      result.current.setFollow(true);
+    });
+    onVersionSelect.mockClear();
+
+    rerender({ paused: true, inReviewVersionId: '7012' });
+    expect(onVersionSelect).not.toHaveBeenCalled();
+
+    rerender({ paused: false, inReviewVersionId: '7012' });
+    expect(onVersionSelect).toHaveBeenCalledWith(version('7012'));
+  });
+
   it('waits until the in-review version is in the list', () => {
     const onVersionSelect = vi.fn();
     const { result, rerender } = renderHook(

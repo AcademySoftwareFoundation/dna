@@ -3,6 +3,8 @@ import type { Version } from '@dna/core';
 
 interface UseFollowInReviewParams {
   enabled: boolean;
+  /** While true, in-review changes are held until it becomes false. */
+  paused?: boolean;
   inReviewVersionId: string | null | undefined;
   versions: Version[];
   selectedVersionId?: string | null;
@@ -11,6 +13,7 @@ interface UseFollowInReviewParams {
 
 export function useFollowInReview({
   enabled,
+  paused = false,
   inReviewVersionId,
   versions,
   selectedVersionId,
@@ -24,6 +27,7 @@ export function useFollowInReview({
       lastFollowedId.current = null;
       return;
     }
+    if (paused) return;
     if (!inReviewVersionId || inReviewVersionId === lastFollowedId.current) {
       return;
     }
@@ -38,6 +42,7 @@ export function useFollowInReview({
   }, [
     enabled,
     follow,
+    paused,
     inReviewVersionId,
     versions,
     selectedVersionId,
