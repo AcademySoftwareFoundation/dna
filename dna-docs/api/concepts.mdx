@@ -79,6 +79,9 @@ in the chain as long as the data upstream exists.
 5. **(Optional) Start transcription.** Either dispatch a bot
    (`POST /transcription/bot`) or stream a transcript in over the
    [extension ingest socket](/api/realtime#inbound-transcript-ingest).
+   The bot's `language` is optional; the web app fills it from the
+   reviewer's saved `transcription_language`, so pass it explicitly from
+   your own tool (codes from `GET /transcription/languages`).
    Segments are readable at `GET /transcription/segments/{playlist_id}/{version_id}`.
 6. **Write drafts.** `PUT /playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}`
    upserts one draft per reviewer per version. Only the fields you send

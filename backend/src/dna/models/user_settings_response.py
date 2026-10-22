@@ -22,6 +22,7 @@ class UserSettingsResponse(BaseModel):
                     "regenerate_on_transcript_update": True,
                     "sync_prodtrack_tab_on_version_change": True,
                     "prodtrack_page_type": "version",
+                    "transcription_language": "en",
                     "created_at": "2026-09-30T09:12:00Z",
                     "updated_at": "2026-10-14T17:00:27Z",
                 }

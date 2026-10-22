@@ -20,6 +20,7 @@ class UserSettingsUpdate(BaseModel):
                 {
                     "preferred_model": "gpt-4o-mini",
                     "regenerate_on_transcript_update": True,
+                    "transcription_language": "en",
                 }
             ]
         }

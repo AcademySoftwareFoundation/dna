@@ -356,6 +356,7 @@
         "examples": [
           {
             "bot_name": "DNA Notes",
+            "language": "en",
             "meeting_id": "abc-defg-hij",
             "platform": "google_meet",
             "playlist_id": "45"
@@ -389,7 +390,7 @@
                 "type": "null"
               }
             ],
-            "description": "Transcription language",
+            "description": "ISO 639-1 code to force on the transcriber (one of `GET /transcription/languages`); omit to auto-detect per window. The web app sends the reviewer's saved `transcription_language`.",
             "title": "Language"
           },
           "meeting_id": {
@@ -2819,6 +2820,25 @@
       },
       "TranscriptionLanguagesResponse": {
         "description": "Languages offered in Settings → Transcription, as reported by the provider.",
+        "examples": [
+          {
+            "default": "en",
+            "languages": [
+              {
+                "code": "en",
+                "label": "English"
+              },
+              {
+                "code": "es",
+                "label": "Spanish"
+              },
+              {
+                "code": "",
+                "label": "Auto-detect"
+              }
+            ]
+          }
+        ],
         "properties": {
           "default": {
             "description": "Code pre-selected for users who have not chosen a language",
@@ -2972,6 +2992,7 @@
             "regenerate_on_transcript_update": true,
             "regenerate_on_version_change": false,
             "sync_prodtrack_tab_on_version_change": true,
+            "transcription_language": "en",
             "updated_at": "2026-10-14T17:00:27Z",
             "user_email": "sam.reviewer@studio.example"
           }
@@ -3050,7 +3071,8 @@
         "examples": [
           {
             "preferred_model": "gpt-4o-mini",
-            "regenerate_on_transcript_update": true
+            "regenerate_on_transcript_update": true,
+            "transcription_language": "en"
           }
         ],
         "properties": {
@@ -6101,6 +6123,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           }
         },
         "security": [
@@ -7191,7 +7233,7 @@
       "name": "Project Glossary"
     },
     {
-      "description": "Per-user preferences stored in DNA, such as the note prompt and preferred model.",
+      "description": "Per-user preferences stored in DNA, such as the note prompt, preferred model and transcription language.",
       "name": "User Settings"
     },
     {

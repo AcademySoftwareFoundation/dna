@@ -47,7 +47,12 @@ class DispatchBotRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {**_MEETING, "playlist_id": "45", "bot_name": "DNA Notes"},
+                {
+                    **_MEETING,
+                    "playlist_id": "45",
+                    "bot_name": "DNA Notes",
+                    "language": "en",
+                },
                 {
                     "platform": "zoom",
                     "meeting_id": "81234567890",
@@ -71,7 +76,12 @@ class DispatchBotRequest(BaseModel):
         description="Join link as pasted by the user (sent for Zoom meetings)",
     )
     bot_name: Optional[str] = Field(default=None, description="Custom name for the bot")
-    language: Optional[str] = Field(default=None, description="Transcription language")
+    language: Optional[str] = Field(
+        default=None,
+        description="ISO 639-1 code to force on the transcriber (one of "
+        "`GET /transcription/languages`); omit to auto-detect per window. The "
+        "web app sends the reviewer's saved `transcription_language`.",
+    )
 
 
 class BotStatus(BaseModel):
@@ -176,6 +186,21 @@ class TranscriptionLanguage(BaseModel):
 
 class TranscriptionLanguagesResponse(BaseModel):
     """Languages offered in Settings → Transcription, as reported by the provider."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "languages": [
+                        {"code": "en", "label": "English"},
+                        {"code": "es", "label": "Spanish"},
+                        {"code": "", "label": "Auto-detect"},
+                    ],
+                    "default": "en",
+                }
+            ]
+        }
+    )
 
     languages: list[TranscriptionLanguage]
     default: str = Field(

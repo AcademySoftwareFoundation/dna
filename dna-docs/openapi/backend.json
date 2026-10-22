@@ -356,6 +356,7 @@
         "examples": [
           {
             "bot_name": "DNA Notes",
+            "language": "en",
             "meeting_id": "abc-defg-hij",
             "platform": "google_meet",
             "playlist_id": "45"
@@ -389,7 +390,7 @@
                 "type": "null"
               }
             ],
-            "description": "Transcription language",
+            "description": "ISO 639-1 code to force on the transcriber (one of `GET /transcription/languages`); omit to auto-detect per window. The web app sends the reviewer's saved `transcription_language`.",
             "title": "Language"
           },
           "meeting_id": {
@@ -2796,6 +2797,69 @@
         "title": "TranscriptSegment",
         "type": "object"
       },
+      "TranscriptionLanguage": {
+        "description": "A language the transcription provider can be asked to transcribe in.",
+        "properties": {
+          "code": {
+            "description": "ISO 639-1 code passed to the transcriber at session start; the empty string means auto-detect per window",
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "description": "Display name for the Settings dropdown",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "TranscriptionLanguage",
+        "type": "object"
+      },
+      "TranscriptionLanguagesResponse": {
+        "description": "Languages offered in Settings → Transcription, as reported by the provider.",
+        "examples": [
+          {
+            "default": "en",
+            "languages": [
+              {
+                "code": "en",
+                "label": "English"
+              },
+              {
+                "code": "es",
+                "label": "Spanish"
+              },
+              {
+                "code": "",
+                "label": "Auto-detect"
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "default": {
+            "description": "Code pre-selected for users who have not chosen a language",
+            "title": "Default",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptionLanguage"
+            },
+            "title": "Languages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "languages",
+          "default"
+        ],
+        "title": "TranscriptionLanguagesResponse",
+        "type": "object"
+      },
       "UpdateVersionStatusRequest": {
         "description": "Request model for updating a version's status.",
         "examples": [
@@ -2928,6 +2992,7 @@
             "regenerate_on_transcript_update": true,
             "regenerate_on_version_change": false,
             "sync_prodtrack_tab_on_version_change": true,
+            "transcription_language": "en",
             "updated_at": "2026-10-14T17:00:27Z",
             "user_email": "sam.reviewer@studio.example"
           }
@@ -2977,6 +3042,11 @@
             "title": "Sync Prodtrack Tab On Version Change",
             "type": "boolean"
           },
+          "transcription_language": {
+            "default": "en",
+            "title": "Transcription Language",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -3001,7 +3071,8 @@
         "examples": [
           {
             "preferred_model": "gpt-4o-mini",
-            "regenerate_on_transcript_update": true
+            "regenerate_on_transcript_update": true,
+            "transcription_language": "en"
           }
         ],
         "properties": {
@@ -3076,6 +3147,19 @@
             ],
             "description": "When true, DNA tells the browser extension to open the PT version page whenever the selected version changes",
             "title": "Sync Prodtrack Tab On Version Change"
+          },
+          "transcription_language": {
+            "anyOf": [
+              {
+                "pattern": "^([a-z]{2,3})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 639-1 language forced on the transcriber at session start (e.g. 'en'); empty string means auto-detect per window",
+            "title": "Transcription Language"
           }
         },
         "title": "UserSettingsUpdate",
@@ -6025,6 +6109,53 @@
         ]
       }
     },
+    "/transcription/languages": {
+      "get": {
+        "description": "Languages the configured transcription provider can be asked to transcribe in, plus the default. Populates Settings → Transcription.",
+        "operationId": "get_transcription_languages_transcription_languages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionLanguagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List transcription languages",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
     "/transcription/segments/{playlist_id}/{version_id}": {
       "get": {
         "description": "Get all stored transcript segments for a specific playlist version.",
@@ -7102,7 +7233,7 @@
       "name": "Project Glossary"
     },
     {
-      "description": "Per-user preferences stored in DNA, such as the note prompt and preferred model.",
+      "description": "Per-user preferences stored in DNA, such as the note prompt, preferred model and transcription language.",
       "name": "User Settings"
     },
     {

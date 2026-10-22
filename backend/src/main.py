@@ -245,8 +245,8 @@ tags_metadata = [
     {
         "name": "User Settings",
         "description": (
-            "Per-user preferences stored in DNA, such as the note prompt and "
-            "preferred model."
+            "Per-user preferences stored in DNA, such as the note prompt, "
+            "preferred model and transcription language."
         ),
     },
     {
@@ -2228,6 +2228,7 @@ async def get_segments_for_version(
         "transcribe in, plus the default. Populates Settings → Transcription."
     ),
     response_model=TranscriptionLanguagesResponse,
+    responses=error_responses(400),
 )
 async def get_transcription_languages(
     transcription_provider: TranscriptionProviderDep,
