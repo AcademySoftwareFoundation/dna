@@ -92,3 +92,50 @@ class Transcript(BaseModel):
     segments: list[TranscriptSegment] = Field(default_factory=list)
     language: Optional[str] = None
     duration: Optional[float] = None
+
+
+class TranscriptionLanguage(BaseModel):
+    """A language the transcription provider can be asked to transcribe in."""
+
+    code: str = Field(
+        ...,
+        description="ISO 639-1 code passed to the transcriber at session start; "
+        "the empty string means auto-detect per window",
+    )
+    label: str = Field(..., description="Display name for the Settings dropdown")
+
+
+class TranscriptionLanguagesResponse(BaseModel):
+    """Languages offered in Settings → Transcription, as reported by the provider."""
+
+    languages: list[TranscriptionLanguage]
+    default: str = Field(
+        ...,
+        description="Code pre-selected for users who have not chosen a language",
+    )
+
+
+# Sentinel for "let the transcriber detect the language per window". Sent as an
+# absent `language` on bot dispatch and stored as "" in user settings.
+AUTO_DETECT_LANGUAGE = ""
+
+# Dailies are overwhelmingly English; fixing the language skips Whisper's
+# per-window detection pass (latency) and prevents mid-session flips (accuracy).
+DEFAULT_TRANSCRIPTION_LANGUAGE = "en"
+
+# Whisper's best-supported subset. Providers that can query their backend for
+# the loaded model's languages override `get_transcription_languages` instead
+# of editing this list.
+DEFAULT_TRANSCRIPTION_LANGUAGES: list[TranscriptionLanguage] = [
+    TranscriptionLanguage(code="en", label="English"),
+    TranscriptionLanguage(code="es", label="Spanish"),
+    TranscriptionLanguage(code="fr", label="French"),
+    TranscriptionLanguage(code="de", label="German"),
+    TranscriptionLanguage(code="it", label="Italian"),
+    TranscriptionLanguage(code="pt", label="Portuguese"),
+    TranscriptionLanguage(code="ja", label="Japanese"),
+    TranscriptionLanguage(code="ko", label="Korean"),
+    TranscriptionLanguage(code="zh", label="Chinese"),
+    TranscriptionLanguage(code="hi", label="Hindi"),
+    TranscriptionLanguage(code=AUTO_DETECT_LANGUAGE, label="Auto-detect"),
+]

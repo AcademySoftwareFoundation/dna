@@ -46,11 +46,29 @@ hand-written and is.
 
 ```bash
 npm run build       # build (does not regenerate API docs)
-npm run build:full  # gen-api-docs && build  <- use in CI
+npm run build:full  # gen-api-docs && build
 ```
 
 Because `sidebarsApi.ts` imports the generated `api/reference/sidebar`, a clean
 checkout must run `gen-api-docs` before `build`. `build:full` chains them.
+
+## GitHub Pages
+
+Pushes to `main` that change `dna-docs/`, `backend/docs/openapi.json`, or
+[`.github/workflows/deploy-docs.yml`](../.github/workflows/deploy-docs.yml)
+rebuild this site and publish it to
+[https://academysoftwarefoundation.github.io/dna/](https://academysoftwarefoundation.github.io/dna/).
+Pull requests do not run this workflow. The workflow can also be run by hand
+from the Actions tab.
+
+The workflow copies `backend/docs/openapi.json` with `npm run fetch-openapi`,
+typechecks, then runs `npm run build:full`. It sets `DOCS_URL` and
+`DOCS_BASE_URL` from the repository Pages settings so the published site uses
+the project base path (`/dna/`). Local `npm start` leaves those unset and
+stays at `baseUrl: '/'`.
+
+Before the first deploy succeeds, a repository admin must open **Settings →
+Pages → Build and deployment** and set **Source** to **GitHub Actions**.
 
 ## Scripts
 

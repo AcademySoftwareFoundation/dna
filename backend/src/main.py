@@ -72,6 +72,7 @@ from dna.models import (
     StoredSegment,
     Task,
     Transcript,
+    TranscriptionLanguagesResponse,
     UpdateVersionStatusRequest,
     UpdateVersionStatusResponse,
     User,
@@ -81,6 +82,7 @@ from dna.models import (
     Version,
 )
 from dna.models.entity import ENTITY_MODELS, EntityBase
+from dna.models.transcription import DEFAULT_TRANSCRIPTION_LANGUAGE
 from dna.note_prompt_config import get_default_note_prompt
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
@@ -1666,6 +1668,7 @@ def _user_settings_to_response(settings: UserSettings) -> UserSettingsResponse:
             settings.sync_prodtrack_tab_on_version_change
         ),
         prodtrack_page_type=settings.prodtrack_page_type,
+        transcription_language=settings.transcription_language,
         updated_at=settings.updated_at,
         created_at=settings.created_at,
     )
@@ -1686,6 +1689,7 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         regenerate_on_transcript_update=False,
         sync_prodtrack_tab_on_version_change=True,
         prodtrack_page_type="version",
+        transcription_language=DEFAULT_TRANSCRIPTION_LANGUAGE,
         updated_at=now,
         created_at=now,
     )
@@ -2031,6 +2035,27 @@ async def get_segments_for_version(
     """Get all transcript segments for a version."""
     try:
         return await storage_provider.get_segments_for_version(playlist_id, version_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get(
+    "/transcription/languages",
+    tags=["Transcription"],
+    summary="List transcription languages",
+    description=(
+        "Languages the configured transcription provider can be asked to "
+        "transcribe in, plus the default. Populates Settings → Transcription."
+    ),
+    response_model=TranscriptionLanguagesResponse,
+)
+async def get_transcription_languages(
+    transcription_provider: TranscriptionProviderDep,
+    _: CurrentUserDep,
+) -> TranscriptionLanguagesResponse:
+    """Get the languages offered by the transcription provider."""
+    try:
+        return await transcription_provider.get_transcription_languages()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

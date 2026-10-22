@@ -7,6 +7,11 @@ import os
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional
 
 from dna.models.stored_segment import StoredSegment
+from dna.models.transcription import (
+    DEFAULT_TRANSCRIPTION_LANGUAGE,
+    DEFAULT_TRANSCRIPTION_LANGUAGES,
+    TranscriptionLanguagesResponse,
+)
 
 if TYPE_CHECKING:
     from dna.models.transcription import (
@@ -89,6 +94,18 @@ class TranscriptionProviderBase:
         - meeting_id: int (internal ID, optional)
         """
         raise NotImplementedError()
+
+    async def get_transcription_languages(self) -> TranscriptionLanguagesResponse:
+        """Languages this provider can be asked to transcribe in.
+
+        The default is a static Whisper subset. Providers whose backend can
+        report the loaded model's languages should override this so the
+        Settings dropdown reflects what the deployment actually supports.
+        """
+        return TranscriptionLanguagesResponse(
+            languages=list(DEFAULT_TRANSCRIPTION_LANGUAGES),
+            default=DEFAULT_TRANSCRIPTION_LANGUAGE,
+        )
 
     def register_meeting_id_mapping(
         self, internal_id: int, platform: str, native_meeting_id: str
