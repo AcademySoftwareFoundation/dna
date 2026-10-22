@@ -95,7 +95,9 @@ const config: Config = {
             // landing page survives clean-api-docs.
             outputDir: 'api/reference',
             sidebarOptions: {
-              groupPathsBy: 'tag',
+              // The spec's x-tagGroups split tags into "Production Tracking"
+              // (proxied to the provider) and "DNA" (DNA's own storage).
+              groupPathsBy: 'tagGroup',
               categoryLinkSource: 'tag',
             },
           } satisfies OpenApiPlugin.Options,
@@ -189,8 +191,23 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['ruby', 'csharp', 'php', 'java', 'powershell'],
+      // bash isn't in prism-react-renderer's default bundle; needed for the
+      // cURL tab below and the shell blocks in the guides.
+      additionalLanguages: ['bash'],
     },
+    // Code-sample tabs shown in the API demo panel. Unset, the OpenAPI theme
+    // offers all 18 generator targets; keep it to the commonly used ones.
+    // Tabs render in this order.
+    languageTabs: [
+      {language: 'curl', highlight: 'bash', logoClass: 'bash'},
+      // Default to requests; http.client stays available as a variant sub-tab.
+      {language: 'python', highlight: 'python', logoClass: 'python', variant: 'requests'},
+      // Browser fetch - what the frontend and Chrome extension actually use.
+      {language: 'javascript', highlight: 'javascript', logoClass: 'javascript', variant: 'fetch'},
+      {language: 'c', highlight: 'c', logoClass: 'c'},
+      {language: 'rust', highlight: 'rust', logoClass: 'rust'},
+      {language: 'go', highlight: 'go', logoClass: 'go'},
+    ],
   } satisfies Preset.ThemeConfig,
 };
 

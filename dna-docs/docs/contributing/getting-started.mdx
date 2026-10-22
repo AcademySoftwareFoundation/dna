@@ -30,11 +30,14 @@ then regenerate the MDX:
 npm run regen-api-docs        # api/reference/
 ```
 
-`fetch-openapi.sh` needs [uv](https://docs.astral.sh/uv/) and clones the
-backend on demand. Point it at a local checkout to skip the clone:
+`fetch-openapi.sh` copies the backend's committed `backend/docs/openapi.json`
+from the sibling checkout (regenerate that first with `make openapi` in
+`backend/` if you changed routes or models). Both the source file and the
+base URL recorded for the API demo panel can be overridden:
 
 ```bash
-DNA_SRC=~/src/dna ./scripts/fetch-openapi.sh
+DNA_SPEC=/path/to/openapi.json ./scripts/fetch-openapi.sh
+DNA_SERVER_URL=https://dna.example.com ./scripts/fetch-openapi.sh
 ```
 
 To remove the generated MDX without regenerating:
@@ -44,6 +47,7 @@ npm run clean-api-docs
 ```
 
 :::note
-`npm run build` does **not** regenerate API docs on its own. Run
-`gen-api-docs` first, or use `npm run build:full`, which chains both.
+`npm run build` does **not** refresh the spec or regenerate API docs on its
+own. Run the two steps above first, or use `npm run build:full`, which chains
+fetch, regenerate and build.
 :::

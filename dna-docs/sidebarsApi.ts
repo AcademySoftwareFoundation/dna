@@ -12,6 +12,10 @@ import apiSidebar from './api/reference/sidebar';
 const sidebars: SidebarsConfig = {
   openApiSidebar: [
     'index',
+    'authentication',
+    'concepts',
+    'errors',
+    'realtime',
     {
       type: 'category',
       label: 'Reference',

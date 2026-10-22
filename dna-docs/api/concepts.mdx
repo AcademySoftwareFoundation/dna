@@ -1,0 +1,135 @@
+---
+sidebar_position: 2
+title: Concepts
+---
+
+# Concepts
+
+What the backend owns, what it only proxies, and how a review moves through
+it. Read this before building anything that writes.
+
+## System of record
+
+DNA sits between a production tracking system and the people in a dailies
+review. It deliberately stores as little as possible of its own.
+
+| Data | Lives in | Endpoints | Notes |
+|---|---|---|---|
+| Projects, playlists, versions, shots, assets, tasks, users | Production tracking provider | **Production Tracking** group | Read live on every call; nothing cached in DNA. |
+| Published notes | Production tracking provider | `Notes`, `Publishing` | A published note is a provider Note. DNA remembers its ID on the draft (`published_note_id`). |
+| Draft notes | DNA | `Draft Notes` | One per `(playlist, version, user)`. Published drafts stay in DNA with `published: true`. |
+| Playlist review state | DNA | `Playlist Metadata` | Which version is in review, the linked meeting, transcription flags. |
+| Transcript segments | DNA | `Transcription` | Keyed by `(playlist, version)`; the in-review version at the time of speech. |
+| Published transcripts | Both | `Publishing` | Body lives in a provider custom entity; DNA keeps the row ID and a body hash for idempotence. |
+| Staged attachments | DNA (filesystem) | `Attachments` | Uploaded to the provider note on publish, then deleted. |
+| User settings, QC checks, project glossary | DNA | `User Settings`, `Note QC`, `Project Glossary` | Per user / per project configuration for the AI features. |
+
+Two consequences for integrators:
+
+- **Writing to the provider directly bypasses DNA's bookkeeping.** A Note you
+  create in ShotGrid yourself is picked up only when someone lists the
+  playlist's draft notes (`GET /playlists/{playlist_id}/draft-notes` syncs
+  published notes per version and author into DNA as published drafts).
+- **Deleting in the provider orphans DNA data.** Drafts and segments for a
+  deleted version simply stop resolving; nothing cleans them up.
+
+## IDs
+
+Every `*_id` in the API is an **opaque string**. The route handlers never
+parse them; the provider translates to its native form. With the ShotGrid
+provider they are ShotGrid's integer entity IDs rendered as strings
+(`"6990"`), so you can pass IDs from `shotgun_api3` straight through and vice
+versa.
+
+Reserved value: `version_id` **`-1`** is the playlist-level *scratch note*, a
+draft that belongs to the playlist rather than any version and publishes as a
+Note linked only to the Playlist.
+
+DNA-native records (`DraftNote`, `PlaylistMetadata`, `NoteQCCheck`, ...)
+carry their own `_id`, a MongoDB ObjectId string. You rarely need it; those
+records are addressed by their natural keys in the URL.
+
+## Entities
+
+Provider entities come back as DNA's normalized models, each with a `type`
+field (`Version`, `Shot`, `Playlist`, ...). Field names are DNA's, not the
+provider's: a ShotGrid Version's `code` is `name` here and `sg_status_list` is
+`status`. The same names work in `POST /find` filters, where the provider maps
+them back.
+
+Entity types accepted by `find` and `search`: `project`, `shot`, `asset`,
+`note`, `task`, `version`, `playlist`, `user`.
+
+## How a review flows
+
+The numbers are the order the web app does things; a tool can start anywhere
+in the chain as long as the data upstream exists.
+
+1. **Resolve the user.** `GET /projects/user/{user_email}` returns the
+   projects a signed-in email can see, and 404s if the provider has no such
+   user. This is DNA's "is this email known to ShotGrid" check.
+2. **Pick a playlist.** `GET /projects/{project_id}/playlists`, or create one
+   with `POST`.
+3. **Load the versions.** `GET /playlists/{playlist_id}/versions`. Each
+   version includes its published notes.
+4. **Mark what is in review.** `PUT /playlists/{playlist_id}/metadata` with
+   `in_review` set to a version ID. Transcript segments arriving from a
+   meeting are filed under this version, so set it *before* people talk
+   about the shot.
+5. **(Optional) Start transcription.** Either dispatch a bot
+   (`POST /transcription/bot`) or stream a transcript in over the
+   [extension ingest socket](/api/realtime#inbound-transcript-ingest).
+   The bot's `language` is optional; the web app fills it from the
+   reviewer's saved `transcription_language`, so pass it explicitly from
+   your own tool (codes from `GET /transcription/languages`).
+   Segments are readable at `GET /transcription/segments/{playlist_id}/{version_id}`.
+6. **Write drafts.** `PUT /playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}`
+   upserts one draft per reviewer per version. Only the fields you send
+   change. Optional helpers: `POST /generate-note` (AI suggestion from the
+   transcript and version context) and `POST .../run-qc-checks` (the
+   reviewer's QC checks against their draft).
+7. **(Optional) Publish the transcript.** `POST /playlists/{playlist_id}/publish-transcript`
+   creates or updates one custom-entity row per version. Do this *before*
+   publishing notes: notes published or republished after the row exists
+   are linked to it. Needs `DNA_ENABLE_TRANSCRIPT_PUBLISH=true` and the
+   ShotGrid setup described in `backend/docs/SHOTGRID_SETUP.md`.
+8. **Publish.** `POST /playlists/{playlist_id}/publish-notes` with the
+   `(user_email, version_id)` pairs to publish. For each pair DNA takes the
+   newest draft and:
+   - creates a provider Note **authored as the draft owner** (ShotGrid:
+     the script user acts via `sudo_as_login`), linked to the version and its
+     shot/asset and task, plus any `links` on the draft;
+   - sets the version's status to the draft's `version_status`, if any and if
+     the version is in `status_version_ids` (omit that field to apply all);
+   - uploads staged attachments to the Note;
+   - links the Note to the version's newest published transcript row, if
+     there is one (best effort: a missing row or field is logged and the
+     note still publishes);
+   - on a draft already published and since edited, *updates* the existing
+     Note instead;
+   - records `published`, `published_at` and `published_note_id` on the draft.
+
+   The response is counts, not per-note results. Publishing one note can
+   fail without failing the request, so check `failed_count`.
+
+## Things the API does not do
+
+- **Pagination.** List endpoints return everything in scope. The scopes are
+  small by design (a project's playlists, a playlist's versions).
+- **Webhooks.** To react to a publish, poll the draft's `published` /
+  `published_at`, or watch the ShotGrid event log for Notes created by the
+  DNA script user. Real-time delivery exists only for transcription events,
+  over the [`/ws` socket](/api/realtime).
+- **Identity on writes.** Most endpoints take `user_email` as data, not as
+  the caller; see [Authentication](/api/authentication#who-is-the-caller).
+
+## Deployment flags that change the API
+
+| Variable | Effect on the API |
+|---|---|
+| `AUTH_PROVIDER` | `google` validates tokens; `none` accepts anything (development). See [Authentication](/api/authentication). |
+| `PRODTRACK_PROVIDER` | `shotgrid` (default) or `mock`. The mock is **read-only**: publish and status writes raise. |
+| `DNA_ENABLE_TRANSCRIPT_PUBLISH` | Enables `publish-transcript`; otherwise it returns 404. |
+| `DNA_ENABLE_EXTENSION_TRANSCRIPTION` | Enables the extension ingest socket and its `/health` probe. |
+| `DNA_EXTENSION_KEY` | Shared key the ingest socket requires when set. |
+| `DISABLE_DOCS` | Hides `/docs`, `/redoc` and `/openapi.json` on the server. |

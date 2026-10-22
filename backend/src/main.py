@@ -84,6 +84,7 @@ from dna.models import (
 from dna.models.entity import ENTITY_MODELS, EntityBase
 from dna.models.transcription import DEFAULT_TRANSCRIPTION_LANGUAGE
 from dna.note_prompt_config import get_default_note_prompt
+from dna.openapi_schema import error_responses, install_openapi_extras
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     get_prodtrack_provider,
@@ -106,13 +107,28 @@ API_TITLE = "DNA Backend"
 API_DESCRIPTION = """
 ## DNA Backend API
 
-Backend API for the DNA (Dailies Notes Assistant) application.
+HTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to
+read what is in review, write and publish notes, drive meeting transcription,
+or feed a transcript in from your own tool.
 
-### Features
-- 🎬 Production tracking integration (ShotGrid)
-- 🎤 Transcription services
-- 🤖 LLM-powered note generation
-- 📋 Playlist and version management
+### Two kinds of endpoint
+- **Production Tracking** endpoints proxy the configured provider (ShotGrid,
+  or a read-only mock). DNA stores nothing for them; IDs are the provider's
+  own, passed through as opaque strings.
+- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist
+  review state, transcripts, user settings, QC checks and glossaries. The
+  **Publishing** endpoints push that data into the tracking provider.
+
+### Authentication
+Send `Authorization: Bearer <token>` on every request except **Health**. The
+configured `AUTH_PROVIDER` validates the token (Google OAuth in production)
+and extracts the caller's email; most calls only return data when that email
+belongs to a user in the tracking provider. Errors are `{"detail": "..."}`.
+
+### Real-time
+Events stream out over the `/ws` WebSocket and the browser extension streams
+transcripts in over `/transcription/extension/ingest`. WebSockets are not part
+of this document; they are described on the docs site.
 
 ### Documentation
 - **Swagger UI**: Available at `/docs`
@@ -122,75 +138,123 @@ Backend API for the DNA (Dailies Notes Assistant) application.
 
 API_VERSION = "0.1.0"
 
-# Define API tags for organizing endpoints
+# Define API tags for organizing endpoints. Each tag belongs to one of the
+# groups in dna.openapi_schema.TAG_GROUPS, which says whether it proxies the
+# production tracking provider or reads DNA's own storage.
 tags_metadata = [
     {
         "name": "Health",
-        "description": "Health check and status endpoints",
+        "description": "Liveness probes. No authentication.",
     },
     {
         "name": "Entities",
-        "description": "Operations for managing production entities",
+        "description": (
+            "Generic find and search across entity types in the production "
+            "tracking provider."
+        ),
     },
     {
         "name": "Playlists",
-        "description": "Operations for managing playlists",
+        "description": (
+            "Playlists in the production tracking provider: list, create, "
+            "and add versions."
+        ),
     },
     {
         "name": "Versions",
-        "description": "Operations for managing versions",
+        "description": (
+            "Versions in the production tracking provider, including status "
+            "reads and writes."
+        ),
     },
     {
         "name": "Shots",
-        "description": "Operations for managing shots",
+        "description": "Shots in the production tracking provider.",
     },
     {
         "name": "Assets",
-        "description": "Operations for managing assets",
+        "description": "Assets in the production tracking provider.",
     },
     {
         "name": "Tasks",
-        "description": "Operations for managing tasks",
+        "description": "Tasks in the production tracking provider.",
     },
     {
         "name": "Notes",
-        "description": "Operations for managing notes",
+        "description": (
+            "Published notes in the production tracking provider. Notes still "
+            "being written live under **Draft Notes**."
+        ),
     },
     {
         "name": "Attachments",
-        "description": "Operations for staging file attachments for notes",
+        "description": (
+            "Files staged in DNA, uploaded to the tracking provider when the "
+            "draft note that references them is published."
+        ),
     },
     {
         "name": "Projects",
-        "description": "Operations for managing projects",
+        "description": (
+            "Projects in the production tracking provider, resolved for a user "
+            "by email."
+        ),
     },
     {
         "name": "Users",
-        "description": "Operations for managing users",
+        "description": "Users in the production tracking provider, looked up by email.",
     },
     {
         "name": "Transcription",
-        "description": "Audio transcription services",
+        "description": (
+            "Dispatch meeting bots and read the transcript segments DNA stores "
+            "per playlist version."
+        ),
     },
     {
         "name": "LLM",
-        "description": "LLM-powered note generation",
+        "description": "AI note suggestions from the configured LLM provider.",
     },
     {
         "name": "Draft Notes",
-        "description": "Operations for managing draft notes",
+        "description": (
+            "Notes being written in DNA, one per (playlist, version, user), "
+            "until published to the tracking provider."
+        ),
+    },
+    {
+        "name": "Publishing",
+        "description": (
+            "Push DNA data into the production tracking provider: draft notes "
+            "become Notes, transcripts become custom-entity rows."
+        ),
     },
     {
         "name": "Playlist Metadata",
-        "description": "Operations for managing playlist metadata (in-review version and meeting ID)",
+        "description": (
+            "DNA's review state for a playlist: the version in review, the "
+            "linked meeting, and transcription flags."
+        ),
+    },
+    {
+        "name": "Project Glossary",
+        "description": (
+            "Per-project terminology stored in DNA and injected into AI prompts."
+        ),
     },
     {
         "name": "User Settings",
-        "description": "Operations for managing user settings and preferences",
+        "description": (
+            "Per-user preferences stored in DNA, such as the note prompt, "
+            "preferred model and transcription language."
+        ),
     },
     {
         "name": "Note QC",
-        "description": "User-defined LLM quality checks for draft notes at publish time",
+        "description": (
+            "User-defined LLM quality checks that run against draft notes "
+            "before publishing."
+        ),
     },
 ]
 
@@ -209,6 +273,7 @@ app = FastAPI(
         "url": "https://github.com/AcademySoftwareFoundation/dna",
     },
 )
+install_openapi_extras(app)
 
 app.add_middleware(CORSMiddleware, **get_cors_middleware_kwargs())
 
@@ -437,7 +502,29 @@ ATTACHMENT_STORE_DIR = Path(os.getenv("ATTACHMENT_STORE_DIR", "/tmp/dna_attachme
 ATTACHMENT_STORE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-@app.post("/api/attachments", tags=["Attachments"])
+@app.post(
+    "/api/attachments",
+    tags=["Attachments"],
+    summary="Stage a file for a note",
+    description=(
+        "Store an uploaded file on the backend and return an attachment ID. "
+        "Put the ID in a draft note's `attachment_ids`; publishing the note "
+        "uploads the file to the tracking provider and removes the staged copy."
+    ),
+    responses={
+        200: {
+            "description": "Attachment staged",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47",
+                        "filename": "mk020_0010_v003_paintover.png",
+                    }
+                }
+            },
+        }
+    },
+)
 async def upload_attachment(
     _: CurrentUserDep,
     file: UploadFile = File(...),
@@ -458,6 +545,7 @@ async def upload_attachment(
     tags=["Attachments"],
     summary="Retrieve a staged attachment",
     response_class=FileResponse,
+    responses=error_responses(404),
 )
 async def get_attachment(attachment_id: str, _: CurrentUserDep) -> FileResponse:
     """Return the image file for a staged attachment by ID."""
@@ -473,7 +561,22 @@ async def get_attachment(attachment_id: str, _: CurrentUserDep) -> FileResponse:
     return FileResponse(path, media_type=media_type)
 
 
-@app.delete("/api/attachments/{attachment_id}", tags=["Attachments"])
+@app.delete(
+    "/api/attachments/{attachment_id}",
+    tags=["Attachments"],
+    summary="Delete a staged attachment",
+    responses={
+        200: {
+            "description": "Attachment deleted",
+            "content": {
+                "application/json": {
+                    "example": {"deleted": "8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47"}
+                }
+            },
+        },
+        **error_responses(404),
+    },
+)
 async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
     """Delete a staged attachment by ID."""
     attachment_dir = ATTACHMENT_STORE_DIR / attachment_id
@@ -489,6 +592,7 @@ async def delete_attachment(attachment_id: str, _: CurrentUserDep) -> dict:
     summary="Serve mock thumbnail image",
     description="Returns a thumbnail image for a version from the mock dataset (when using mock prodtrack provider).",
     response_class=FileResponse,
+    responses=error_responses(404),
 )
 async def get_mock_thumbnail(version_id: str):
     """Serve a thumbnail image from mock_data/thumbnails/ for the given version ID."""
@@ -547,6 +651,7 @@ async def websocket_endpoint(websocket: WebSocket):
     summary="Get a version by ID",
     description="Retrieve version information from the production tracking system.",
     response_model=Version,
+    responses=error_responses(404),
 )
 async def get_version(
     version_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -564,6 +669,7 @@ async def get_version(
     summary="Get a playlist by ID",
     description="Retrieve playlist information including linked versions.",
     response_model=Playlist,
+    responses=error_responses(404),
 )
 async def get_playlist(
     playlist_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -581,6 +687,7 @@ async def get_playlist(
     summary="Get a shot by ID",
     description="Retrieve shot information from the production tracking system.",
     response_model=Shot,
+    responses=error_responses(404),
 )
 async def get_shot(
     shot_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -598,6 +705,7 @@ async def get_shot(
     summary="Get an asset by ID",
     description="Retrieve asset information from the production tracking system.",
     response_model=Asset,
+    responses=error_responses(404),
 )
 async def get_asset(
     asset_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -615,6 +723,7 @@ async def get_asset(
     summary="Get a task by ID",
     description="Retrieve task information from the production tracking system.",
     response_model=Task,
+    responses=error_responses(404),
 )
 async def get_task(
     task_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -632,6 +741,7 @@ async def get_task(
     summary="Get a note by ID",
     description="Retrieve note information from the production tracking system.",
     response_model=Note,
+    responses=error_responses(404),
 )
 async def get_note(
     note_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -709,6 +819,7 @@ def _create_stub_entity(entity_type: str, entity_id: str) -> EntityBase:
     description="Create a new note in the production tracking system.",
     response_model=Note,
     status_code=201,
+    responses=error_responses(400),
 )
 async def create_note(
     request: CreateNoteRequest, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -741,8 +852,15 @@ async def create_note(
     "/find",
     tags=["Entities"],
     summary="Find entities",
-    description="Search for entities matching the given filters.",
+    description=(
+        "Search for entities matching the given filters. Each filter is a "
+        "`{field, operator, value}` triple using DNA field names; the provider "
+        "translates it to its native query (for ShotGrid, the same shape as "
+        "`shotgun_api3` filters). Supported entity types: project, shot, asset, "
+        "note, task, version, playlist, user."
+    ),
     response_model=list[EntityBase],
+    responses=error_responses(400),
 )
 async def find_entities(
     request: FindRequest, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -770,6 +888,7 @@ async def find_entities(
     summary="Search entities across multiple types",
     description="Unified search endpoint for @mentions and entity linking.",
     response_model=dict[str, list[SearchResult]],
+    responses=error_responses(400),
 )
 async def search_entities(
     request: SearchRequest, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -802,6 +921,7 @@ async def search_entities(
     summary="Get valid version statuses",
     description="Get valid status options for versions from the production tracking system.",
     response_model=list[StatusOption],
+    responses=error_responses(400),
 )
 async def get_version_statuses(
     provider: ProdtrackProviderDep,
@@ -821,6 +941,7 @@ async def get_version_statuses(
     summary="Update a version's status",
     description="Set the status of a version in the production tracking system.",
     response_model=UpdateVersionStatusResponse,
+    responses=error_responses(400, 502),
 )
 async def update_version_status(
     version_id: str,
@@ -854,6 +975,7 @@ async def update_version_status(
     summary="Get user by email",
     description="Retrieve user information by their email address.",
     response_model=User,
+    responses=error_responses(404),
 )
 async def get_user_by_email(
     user_email: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -874,8 +996,13 @@ async def get_user_by_email(
     "/projects/user/{user_email}",
     tags=["Projects"],
     summary="Get projects for a user",
-    description="Retrieve all projects accessible by the specified user email.",
+    description=(
+        "Retrieve all projects accessible by the specified user email. This is "
+        "also how DNA checks that a signed-in email is known to the tracking "
+        "provider: an unknown email returns 404."
+    ),
     response_model=list[Project],
+    responses=error_responses(404),
 )
 async def get_projects_for_user(
     user_email: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -893,6 +1020,7 @@ async def get_projects_for_user(
     summary="Get playlists for a project",
     description="Retrieve all playlists for the specified project.",
     response_model=list[Playlist],
+    responses=error_responses(404),
 )
 async def get_playlists_for_project(
     project_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -910,6 +1038,7 @@ async def get_playlists_for_project(
     summary="Create a playlist",
     description="Create a new playlist in the production tracking system.",
     response_model=Playlist,
+    responses=error_responses(400, 404),
 )
 async def create_playlist(
     project_id: str,
@@ -929,7 +1058,7 @@ async def create_playlist(
 
 @app.get(
     "/projects/{project_id}/glossary",
-    tags=["Projects"],
+    tags=["Project Glossary"],
     summary="Get a project's glossary",
     description=(
         "Retrieve the production-specific glossary for a project. Returns an "
@@ -960,7 +1089,7 @@ async def get_project_glossary(
 
 @app.put(
     "/projects/{project_id}/glossary",
-    tags=["Projects"],
+    tags=["Project Glossary"],
     summary="Create or update a project's glossary",
     description="Save the production-specific glossary for a project.",
     response_model=ProjectGlossary,
@@ -981,6 +1110,7 @@ async def upsert_project_glossary(
     summary="Get versions for a playlist",
     description="Retrieve all versions in the specified playlist.",
     response_model=list[Version],
+    responses=error_responses(404),
 )
 async def get_versions_for_playlist(
     playlist_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
@@ -998,6 +1128,7 @@ async def get_versions_for_playlist(
     summary="Add a version to a playlist",
     description="Add an existing version to a playlist.",
     response_model=Version,
+    responses=error_responses(404),
 )
 async def add_version_to_playlist(
     playlist_id: str,
@@ -1016,9 +1147,22 @@ async def add_version_to_playlist(
 
 @app.post(
     "/playlists/{playlist_id}/publish-notes",
-    tags=["Playlists"],
+    tags=["Publishing"],
     summary="Publish draft notes",
-    description="Publish draft notes to the production tracking system.",
+    description=(
+        "Publish draft notes to the production tracking system. Only drafts "
+        "matching a `(user_email, version_id)` pair in `targets` are "
+        "considered; for each pair the most recently updated draft wins.\n\n"
+        "Per draft: a new draft creates a Note (authored as the draft owner) "
+        "and records its ID; a draft already published and since edited "
+        "updates that Note; one with no body but a `version_status` only "
+        "updates the version's status; an unchanged published draft is "
+        "skipped. Attachments are uploaded and cleared. If the version has a "
+        "published transcript, the Note is linked to its newest transcript row "
+        "(best effort; a missing row or field is logged and the note still "
+        "publishes). Failures are counted in `failed_count` rather than "
+        "failing the request, so always check the counts."
+    ),
     response_model=PublishNotesResponse,
 )
 async def publish_notes(
@@ -1226,13 +1370,16 @@ def _transcript_publish_enabled() -> bool:
 
 @app.post(
     "/playlists/{playlist_id}/publish-transcript",
-    tags=["Playlists", "Transcription"],
+    tags=["Publishing", "Transcription"],
     summary="Publish a version's captured transcript",
     description=(
         "Push the stored transcript for a version to the production tracking "
-        "system as a single custom-entity row. Idempotent via body_hash."
+        "system as a single custom-entity row. Idempotent via body_hash. "
+        "Requires `DNA_ENABLE_TRANSCRIPT_PUBLISH=true` on the backend (404 "
+        "otherwise) and a meeting linked to the playlist via its metadata."
     ),
     response_model=PublishTranscriptResponse,
+    responses=error_responses(404, 422, 500, 501, 502),
 )
 async def publish_transcript(
     playlist_id: str,
@@ -1392,7 +1539,7 @@ async def publish_transcript(
 
 @app.get(
     "/playlists/{playlist_id}/published-transcripts",
-    tags=["Playlists", "Transcription"],
+    tags=["Publishing", "Transcription"],
     summary="List a playlist's published transcripts",
     description=(
         "Transcript rows already pushed to the production tracking system for "
@@ -1501,7 +1648,12 @@ async def _sync_published_notes(
     "/playlists/{playlist_id}/draft-notes",
     tags=["Draft Notes"],
     summary="Get all draft notes for a playlist",
-    description="Retrieve all users' draft notes for the specified playlist.",
+    description=(
+        "Retrieve all users' draft notes for the specified playlist. Before "
+        "answering, DNA syncs notes already published on the playlist's "
+        "versions from the tracking provider, so notes written elsewhere "
+        "appear here as published drafts."
+    ),
     response_model=list[DraftNote],
 )
 async def get_playlist_draft_notes(
@@ -1555,7 +1707,11 @@ async def get_draft_note(
     "/playlists/{playlist_id}/versions/{version_id}/draft-notes/{user_email}",
     tags=["Draft Notes"],
     summary="Create or update a draft note",
-    description="Create or update a user's draft note for the playlist/version.",
+    description=(
+        "Create or update a user's draft note for the playlist/version. Only "
+        "the fields present in the body change. Use `version_id` `-1` for the "
+        "playlist-level scratch note."
+    ),
     response_model=DraftNote,
 )
 async def upsert_draft_note(
@@ -1577,6 +1733,7 @@ async def upsert_draft_note(
     summary="Delete a draft note",
     description="Delete a user's draft note for the playlist/version.",
     response_model=bool,
+    responses=error_responses(404),
 )
 async def delete_draft_note(
     playlist_id: str,
@@ -1636,6 +1793,7 @@ async def upsert_playlist_metadata(
     summary="Delete playlist metadata",
     description="Delete metadata for a playlist.",
     response_model=bool,
+    responses=error_responses(404),
 )
 async def delete_playlist_metadata(
     playlist_id: str,
@@ -1705,6 +1863,7 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
         "`default_note_prompt`; `note_prompt` is empty until the user saves a custom prompt."
     ),
     response_model=UserSettingsResponse,
+    responses=error_responses(403),
 )
 async def get_user_settings(
     user_email: str,
@@ -1726,6 +1885,7 @@ async def get_user_settings(
     summary="Create or update user settings",
     description="Create or update settings for a user.",
     response_model=UserSettingsResponse,
+    responses=error_responses(403),
 )
 async def upsert_user_settings(
     user_email: str,
@@ -1746,6 +1906,7 @@ async def upsert_user_settings(
     summary="Delete user settings",
     description="Delete settings for a user.",
     response_model=bool,
+    responses=error_responses(403, 404),
 )
 async def delete_user_settings(
     user_email: str,
@@ -1766,6 +1927,7 @@ async def delete_user_settings(
     tags=["Note QC"],
     summary="List note QC checks",
     response_model=list[NoteQCCheck],
+    responses=error_responses(403),
 )
 async def list_qc_checks(
     user_email: str,
@@ -1784,6 +1946,7 @@ async def list_qc_checks(
     summary="Create a note QC check",
     response_model=NoteQCCheck,
     status_code=201,
+    responses=error_responses(403),
 )
 async def create_qc_check(
     user_email: str,
@@ -1802,6 +1965,7 @@ async def create_qc_check(
     tags=["Note QC"],
     summary="Update a note QC check",
     response_model=NoteQCCheck,
+    responses=error_responses(403, 404),
 )
 async def update_qc_check(
     user_email: str,
@@ -1824,6 +1988,7 @@ async def update_qc_check(
     tags=["Note QC"],
     summary="Delete a note QC check",
     status_code=204,
+    responses=error_responses(403, 404),
 )
 async def delete_qc_check(
     user_email: str,
@@ -1843,6 +2008,12 @@ async def delete_qc_check(
     "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks",
     tags=["Note QC"],
     summary="Run note QC checks for a draft",
+    description=(
+        "Run the draft owner's enabled QC checks against their draft for this "
+        "version, using the stored transcript and version context. "
+        "`user_email` in the body names the draft owner, not the caller. "
+        "Returns an empty result list when there is no draft."
+    ),
     response_model=RunQCChecksResponse,
 )
 async def run_qc_checks(
@@ -1892,9 +2063,14 @@ async def run_qc_checks(
     "/transcription/bot",
     tags=["Transcription"],
     summary="Dispatch a bot to a meeting",
-    description="Start a transcription bot that joins the specified meeting.",
+    description=(
+        "Start a transcription bot that joins the specified meeting. Zoom "
+        "requires `meeting_url`; a passcode is only honoured as the link's "
+        "`pwd` parameter."
+    ),
     response_model=BotSession,
     status_code=201,
+    responses=error_responses(400),
 )
 async def dispatch_bot(
     request: DispatchBotRequest,
@@ -1955,6 +2131,7 @@ async def dispatch_bot(
     summary="Stop a transcription bot",
     description="Stop a transcription bot that is currently in a meeting.",
     response_model=bool,
+    responses=error_responses(400),
 )
 async def stop_bot(
     platform: Platform,
@@ -1985,6 +2162,7 @@ async def stop_bot(
     summary="Get bot status",
     description="Get the current status of a transcription bot.",
     response_model=BotStatus,
+    responses=error_responses(400),
 )
 async def get_bot_status(
     platform: Platform,
@@ -2005,6 +2183,7 @@ async def get_bot_status(
     summary="Get transcript",
     description="Get the full transcript for a meeting.",
     response_model=Transcript,
+    responses=error_responses(400),
 )
 async def get_transcript(
     platform: Platform,
@@ -2025,6 +2204,7 @@ async def get_transcript(
     summary="Get segments for a version",
     description="Get all stored transcript segments for a specific playlist version.",
     response_model=list[StoredSegment],
+    responses=error_responses(400),
 )
 async def get_segments_for_version(
     playlist_id: str,
@@ -2048,6 +2228,7 @@ async def get_segments_for_version(
         "transcribe in, plus the default. Populates Settings → Transcription."
     ),
     response_model=TranscriptionLanguagesResponse,
+    responses=error_responses(400),
 )
 async def get_transcription_languages(
     transcription_provider: TranscriptionProviderDep,
@@ -2117,6 +2298,15 @@ def _authenticate_ws_token(token: Optional[str]) -> Optional[str]:
         "Handshake/availability probe for the DNA browser extension. Returns "
         "404 when extension transcription is disabled."
     ),
+    responses={
+        200: {
+            "description": "Extension transcription is enabled",
+            "content": {
+                "application/json": {"example": {"status": "ok", "enabled": True}}
+            },
+        },
+        **error_responses(404),
+    },
 )
 async def extension_transcription_health() -> dict:
     """Lightweight handshake so the extension/frontend can confirm the inbound
@@ -2209,6 +2399,20 @@ async def extension_transcription_ingest(websocket: WebSocket):
     tags=["LLM"],
     summary="Get available LLM models",
     description="Returns the list of models available from the active LLM provider.",
+    responses={
+        200: {
+            "description": "Models offered by the configured provider",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "provider": "openai",
+                        "models": ["gpt-4o-mini", "gpt-4o"],
+                        "default": "gpt-4o-mini",
+                    }
+                }
+            },
+        }
+    },
 )
 async def get_available_models(
     llm_provider: LLMProviderDep,
@@ -2245,8 +2449,15 @@ def _build_full_prompt(
     "/generate-note",
     tags=["LLM"],
     summary="Generate an AI note suggestion",
-    description="Generate a note suggestion using AI based on transcript and version context.",
+    description=(
+        "Generate a note suggestion using AI based on transcript and version "
+        "context. Uses the owner's saved note prompt (or the server default), "
+        "the stored transcript segments for the version, the version's context "
+        "from the tracking provider, the global and project glossaries, and "
+        "the owner's current draft as the starting point."
+    ),
     response_model=GenerateNoteResponse,
+    responses=error_responses(400),
 )
 async def generate_note(
     request: GenerateNoteRequest,
