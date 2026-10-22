@@ -82,10 +82,13 @@ class AnthropicProvider(LLMProviderBase):
         context: str,
         existing_notes: str,
         additional_instructions: Optional[str] = None,
+        model: Optional[str] = None,
         glossary_global: str = "",
         glossary_project: str = "",
     ) -> str:
         """Generate a note suggestion via the Claude Messages API."""
+        use_model = model or self.model
+
         user_message = self._substitute_template(
             prompt,
             transcript,
@@ -98,7 +101,7 @@ class AnthropicProvider(LLMProviderBase):
             user_message += f"\n\nAdditional Instructions: {additional_instructions}"
 
         response = await self.client.messages.create(
-            model=self.model,
+            model=use_model,
             max_tokens=1024,
             system=GENERATE_NOTE_PROMPT,
             messages=[{"role": "user", "content": user_message}],

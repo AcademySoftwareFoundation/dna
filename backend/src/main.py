@@ -2078,6 +2078,7 @@ async def dispatch_bot(
             passcode=request.passcode,
             bot_name=request.bot_name,
             language=request.language,
+            meeting_url=request.meeting_url,
         )
 
         await storage_provider.upsert_playlist_metadata(

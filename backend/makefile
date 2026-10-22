@@ -3,8 +3,8 @@ DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker 
 # Vexa stack — server-side bot transcription (pulls Vexa images).
 COMPOSE_LOCAL_VEXA := -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml
 
-# Extension stack — browser extension + WhisperLive (no Vexa images).
-COMPOSE_LOCAL_EXTENSION := -f docker-compose.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml
+# Extension stack — browser extension + WhisperLive (no Vexa images or dashboard).
+COMPOSE_LOCAL_EXTENSION := -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml
 
 # Backward-compatible alias for the Vexa stack.
 COMPOSE_LOCAL := $(COMPOSE_LOCAL_VEXA)

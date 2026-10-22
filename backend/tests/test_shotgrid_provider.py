@@ -147,6 +147,8 @@ class TestShotgridProviderRefactor:
             # 2. Duplicate check (None = no duplicate)
             None,
             # 3. User lookup (if applicable) - skipped if email is None
+            # 3. Transcript lookup (None = no transcript to link)
+            None,
         ]
 
         mock_sg_instance.create.return_value = {"id": 200}
@@ -180,6 +182,8 @@ class TestShotgridProviderRefactor:
             {"id": 101, "project": {"type": "Project", "id": 1}},
             # 2. Duplicate check (Finds existing)
             {"id": 999},
+            # 3. Transcript lookup
+            None,
         ]
 
         note_id = provider.publish_note(
@@ -210,6 +214,8 @@ class TestShotgridProviderRefactor:
             # 1. Version lookup (main conn)
             {"id": 101, "project": {"type": "Project", "id": 1}},
             # 2. Duplicate check (main conn)
+            None,
+            # 3. Transcript lookup (main conn)
             None,
         ]
 
@@ -312,13 +318,18 @@ class TestShotgridProviderRefactor:
         mock_sg_instance = mock_shotgun.return_value
         provider.sg = mock_sg_instance
         provider._sudo_connection = None
-        mock_sg_instance.find_one.return_value = {
-            "id": 505,
-            "note_links": [
-                {"type": "Version", "id": 104, "name": "v001"},
-                {"type": "Shot", "id": 7, "name": "added_by_hand"},
-            ],
-        }
+        mock_sg_instance.find_one.side_effect = [
+            # 1. Current note_links
+            {
+                "id": 505,
+                "note_links": [
+                    {"type": "Version", "id": 104, "name": "v001"},
+                    {"type": "Shot", "id": 7, "name": "added_by_hand"},
+                ],
+            },
+            # 2. Transcript lookup (none to link)
+            None,
+        ]
 
         result = provider.update_note(
             note_id="505",
@@ -328,7 +339,7 @@ class TestShotgridProviderRefactor:
         )
 
         assert result is True
-        mock_sg_instance.find_one.assert_called_once_with(
+        assert mock_sg_instance.find_one.call_args_list[0] == mock.call(
             "Note", [["id", "is", 505]], ["note_links"]
         )
         mock_sg_instance.update.assert_called_once_with(
@@ -521,3 +532,143 @@ class TestShotgridProviderPublishTranscript:
         )
 
         assert ok is False
+
+
+class TestShotgridProviderNoteTranscriptLink:
+    """Published notes point at their version's transcript row via sg_linked_transcript.
+
+    The row is found in ShotGrid, not DNA's bookkeeping, and linking is best
+    effort: it never fails the note itself.
+    """
+
+    VERSION = {"id": 101, "project": {"type": "Project", "id": 1}}
+    TRANSCRIPT = {"type": "CustomEntity01", "id": 9001}
+    LINK = {"sg_linked_transcript": {"type": "CustomEntity01", "id": 9001}}
+
+    @pytest.fixture
+    def mock_shotgun(self):
+        with mock.patch("dna.prodtrack_providers.shotgrid.Shotgun") as mock_sg:
+            yield mock_sg
+
+    @pytest.fixture
+    def provider(self, mock_shotgun):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHOTGRID_URL": "https://test.shotgunstudio.com",
+                "SHOTGRID_SCRIPT_NAME": "test_script",
+                "SHOTGRID_API_KEY": "test_key",
+            },
+        ):
+            return ShotgridProvider(connect=True)
+
+    def _publish(self, provider, **kwargs):
+        return provider.publish_note(
+            version_id="101",
+            content="Body",
+            subject="Sub",
+            to_users=[],
+            cc_users=[],
+            links=[],
+            **kwargs,
+        )
+
+    def test_publish_note_links_newest_transcript_for_version(
+        self, provider, mock_shotgun
+    ):
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+        sg.find_one.side_effect = [self.VERSION, None, self.TRANSCRIPT]
+        sg.create.return_value = {"id": 200}
+
+        assert self._publish(provider) == "200"
+
+        assert sg.find_one.call_args_list[2] == mock.call(
+            "CustomEntity01",
+            [["sg_version_in_review", "is", {"type": "Version", "id": 101}]],
+            ["id"],
+            order=[{"field_name": "updated_at", "direction": "desc"}],
+        )
+        sg.update.assert_called_once_with("Note", 200, self.LINK)
+
+    def test_publish_note_looks_up_configured_transcript_entity(
+        self, provider, mock_shotgun
+    ):
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+        sg.find_one.side_effect = [self.VERSION, None, None]
+        sg.create.return_value = {"id": 200}
+
+        with mock.patch.dict(
+            os.environ, {"SHOTGRID_TRANSCRIPT_ENTITY": "CustomEntity05"}
+        ):
+            self._publish(provider)
+
+        assert sg.find_one.call_args_list[2][0][0] == "CustomEntity05"
+
+    def test_publish_note_without_transcript_leaves_field_alone(
+        self, provider, mock_shotgun
+    ):
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+        sg.find_one.side_effect = [self.VERSION, None, None]
+        sg.create.return_value = {"id": 200}
+
+        assert self._publish(provider) == "200"
+        sg.update.assert_not_called()
+
+    def test_publish_note_still_succeeds_when_linking_fails(
+        self, provider, mock_shotgun, caplog
+    ):
+        """No transcript entity / no Note field on the site: warn, don't fail."""
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+        sg.find_one.side_effect = [self.VERSION, None, Exception("no such entity")]
+        sg.create.return_value = {"id": 200}
+
+        with caplog.at_level("WARNING"):
+            assert self._publish(provider) == "200"
+
+        sg.update.assert_not_called()
+        assert "Could not link note 200" in caplog.text
+
+    def test_publish_note_links_as_script_user_after_sudo_create(
+        self, provider, mock_shotgun
+    ):
+        """The create runs as the author; the link write must not."""
+        script_sg = mock_shotgun.return_value
+        provider.sg = script_sg
+        script_sg.find_one.side_effect = [self.VERSION, None, self.TRANSCRIPT]
+        author_sg = mock.MagicMock()
+        author_sg.create.return_value = {"id": 200}
+        mock_shotgun.side_effect = [author_sg]
+
+        with mock.patch.object(provider, "get_user_by_email") as get_user:
+            get_user.return_value = mock.Mock(login="author_login")
+            self._publish(provider, author_email="auth@ex.com")
+
+        author_sg.create.assert_called_once()
+        author_sg.update.assert_not_called()
+        script_sg.update.assert_called_once_with("Note", 200, self.LINK)
+
+    def test_publish_note_duplicate_is_linked_too(self, provider, mock_shotgun):
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+        sg.find_one.side_effect = [self.VERSION, {"id": 999}, self.TRANSCRIPT]
+
+        assert self._publish(provider) == "999"
+
+        sg.create.assert_not_called()
+        sg.update.assert_called_once_with("Note", 999, self.LINK)
+
+    def test_update_note_links_transcript_on_republish(self, provider, mock_shotgun):
+        sg = mock_shotgun.return_value
+        provider.sg = sg
+        sg.find_one.return_value = self.TRANSCRIPT
+
+        assert provider.update_note(note_id="505", content="Body", version_id="101")
+
+        assert sg.update.call_args_list == [
+            mock.call("Note", 505, {"content": "Body"}),
+            mock.call("Note", 505, self.LINK),
+        ]
