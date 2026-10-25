@@ -24,6 +24,22 @@ class TestUserSettingsModels:
         assert update.regenerate_on_version_change is None
         assert update.regenerate_on_transcript_update is None
         assert update.sync_prodtrack_tab_on_version_change is None
+        assert update.transcription_language is None
+
+    def test_transcription_language_accepts_iso_code_or_auto(self):
+        assert (
+            UserSettingsUpdate(transcription_language="en").transcription_language
+            == "en"
+        )
+        assert (
+            UserSettingsUpdate(transcription_language="").transcription_language == ""
+        )
+
+    def test_transcription_language_rejects_garbage(self):
+        with pytest.raises(ValueError):
+            UserSettingsUpdate(transcription_language="English")
+        with pytest.raises(ValueError):
+            UserSettingsUpdate(transcription_language="EN")
 
     def test_user_settings_update_with_values(self):
         """Test UserSettingsUpdate with values."""
@@ -70,6 +86,7 @@ class TestUserSettingsModels:
         assert settings.regenerate_on_version_change is False
         assert settings.regenerate_on_transcript_update is False
         assert settings.sync_prodtrack_tab_on_version_change is True
+        assert settings.transcription_language == "en"
 
     def test_user_settings_with_preferred_model(self):
         """Test UserSettings with preferred_model set."""
@@ -124,6 +141,7 @@ class TestUserSettingsEndpoints:
             assert data["regenerate_on_version_change"] is True
             assert data["regenerate_on_transcript_update"] is False
             assert data["sync_prodtrack_tab_on_version_change"] is True
+            assert data["transcription_language"] == "en"
             mock_storage_provider.get_user_settings.assert_called_once_with(
                 "test@example.com"
             )
@@ -421,6 +439,36 @@ class TestMongoDBUserSettingsProvider:
         assert result.regenerate_on_transcript_update is True
         assert result.sync_prodtrack_tab_on_version_change is False
         mock_collection.find_one_and_update.assert_called_once()
+        # Unset fields get their defaults only on insert; language defaults to
+        # English so existing users keep today's behaviour.
+        update_doc = mock_collection.find_one_and_update.call_args.args[1]
+        assert update_doc["$setOnInsert"]["transcription_language"] == "en"
+        assert "transcription_language" not in update_doc["$set"]
+
+    @pytest.mark.asyncio
+    async def test_upsert_user_settings_stores_auto_detect_as_empty_string(
+        self, provider_with_mock, mock_collection
+    ):
+        """'' (auto-detect) must survive the None filter and be written."""
+        from bson import ObjectId
+
+        now = datetime.now(timezone.utc)
+        mock_collection.find_one_and_update.return_value = {
+            "_id": ObjectId(),
+            "user_email": "user@example.com",
+            "transcription_language": "",
+            "updated_at": now,
+            "created_at": now,
+        }
+
+        result = await provider_with_mock.upsert_user_settings(
+            "user@example.com", UserSettingsUpdate(transcription_language="")
+        )
+
+        assert result.transcription_language == ""
+        update_doc = mock_collection.find_one_and_update.call_args.args[1]
+        assert update_doc["$set"]["transcription_language"] == ""
+        assert "transcription_language" not in update_doc["$setOnInsert"]
 
     @pytest.mark.asyncio
     async def test_delete_user_settings_returns_true(

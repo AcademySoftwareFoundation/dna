@@ -1,0 +1,67 @@
+---
+sidebar_position: 3
+title: Errors
+---
+
+# Errors
+
+Every error response is JSON with a single `detail` field. For almost all
+statuses `detail` is a string:
+
+```json
+{ "detail": "Version not found: 6990" }
+```
+
+The exception is **422 from request validation**, which FastAPI emits before
+the handler runs. There `detail` is a list, one entry per problem:
+
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["body", "targets"],
+      "msg": "Field required",
+      "input": { "user_email": "sam.reviewer@studio.example" }
+    }
+  ]
+}
+```
+
+Each reference page lists the statuses its endpoint can return; the schema
+for all of them is `ErrorResponse`.
+
+## Status codes
+
+| Status | Meaning | What to do |
+|---|---|---|
+| `400` | The production tracking or transcription provider rejected the call. The `detail` is the provider's message. | Usually bad input the schema could not catch: an unsupported entity type, a status code the project does not define, a meeting the bot cannot join. Fix the request. |
+| `401` | No bearer token, or the token failed validation. Response also carries `WWW-Authenticate: Bearer`. | Get a fresh token. See [Authentication](/api/authentication). |
+| `403` | The `user_email` in the path is not the authenticated caller. Only `/users/{user_email}/...` routes do this check. | Use the caller's own email. |
+| `404` | Entity not found in the provider, DNA record not found, or the feature is disabled on this deployment (`publish-transcript`, extension health). | Distinguish the cases by the `detail` text. "Not Found" with no subject means a disabled feature. |
+| `422` | Validation failed (list form), **or** the request is well-formed but the state does not allow it (string form), e.g. publishing a transcript for a playlist with no meeting. | Validation: fix the body. State: do the prerequisite step first. |
+| `500` | Only from `publish-transcript`: the provider row was created or updated, but DNA could not record it. | **Do not retry blindly** - a retry creates a duplicate row. The `detail` names the entity ID so an operator can reconcile. |
+| `501` | The configured provider does not implement the operation (the mock provider is read-only). | Nothing to retry; a different deployment is needed. |
+| `502` | The provider accepted the request but reported failure. | Safe to retry once; then check the provider directly. |
+
+## Partial failure on publish
+
+`POST /playlists/{playlist_id}/publish-notes` does **not** fail when
+individual notes fail. It returns `200` with counts:
+
+```json
+{ "published_count": 3, "republished_count": 0, "skipped_count": 1, "failed_count": 1, "total": 5 }
+```
+
+Treat `failed_count > 0` as an error in your tool. The failed drafts keep
+`published: false` and can be resubmitted. `skipped_count` covers drafts with
+nothing to publish (empty body, or already published and unchanged).
+
+## Timeouts
+
+Two endpoints call out to slow services and have no server-side timeout of
+their own beyond the LLM client's (30 s by default): `POST /generate-note`
+and `POST .../run-qc-checks`. Give them a client timeout of at least 60 s.
+`POST /transcription/bot` returns as soon as the bot is *dispatched*; use the
+status endpoint or the [`/ws` events](/api/realtime) to learn when it is in
+the call.

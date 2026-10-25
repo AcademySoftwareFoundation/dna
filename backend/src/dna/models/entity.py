@@ -11,6 +11,23 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 from dna.prodtrack_providers.prodtrack_provider_base import get_prodtrack_provider
 
+# One consistent fictional production for the OpenAPI examples.
+_PROJECT_REF = {"type": "Project", "id": "124", "name": "dpel-samples"}
+_SHOT_REF = {"type": "Shot", "id": "1207", "name": "mk020_0010"}
+_TASK_REF = {"type": "Task", "id": "5860", "name": "Comp"}
+_VERSION_REF = {"type": "Version", "id": "6990", "name": "mk020_0010_comp_v003"}
+_USER_EXAMPLE = {
+    "type": "User",
+    "id": "88",
+    "name": "Sam Reviewer",
+    "email": "sam.reviewer@studio.example",
+    "login": "sreviewer",
+}
+
+
+def _examples(*values: dict[str, Any]) -> ConfigDict:
+    return ConfigDict(json_schema_extra={"examples": list(values)})
+
 
 class EntityBase(BaseModel):
     """Base model for all DNA entities."""
@@ -59,6 +76,8 @@ class Project(EntityBase):
     Represents a project in the production tracking system.
     """
 
+    model_config = _examples(_PROJECT_REF)
+
     name: Optional[str] = Field(default=None, description="Project name")
 
 
@@ -67,6 +86,16 @@ class Task(EntityBase):
 
     Represents a pipeline task assigned to an entity (Shot, Asset, etc.).
     """
+
+    model_config = _examples(
+        {
+            **_TASK_REF,
+            "status": "ip",
+            "pipeline_step": {"type": "Step", "id": "8", "name": "Compositing"},
+            "project": _PROJECT_REF,
+            "entity": _SHOT_REF,
+        }
+    )
 
     name: Optional[str] = Field(default=None, description="Task name/content")
     status: Optional[str] = Field(default=None, description="Task status")
@@ -86,6 +115,18 @@ class Note(EntityBase):
 
     Represents a note/comment attached to an entity.
     """
+
+    model_config = _examples(
+        {
+            "type": "Note",
+            "id": "6447",
+            "subject": "mk020_0010_comp_v003 - comp notes",
+            "content": "Soften the matte edge on 1042-1060 and recheck against the plate.",
+            "project": _PROJECT_REF,
+            "note_links": [_VERSION_REF, _SHOT_REF],
+            "author": _USER_EXAMPLE,
+        }
+    )
 
     subject: Optional[str] = Field(default=None, description="Note subject line")
     content: Optional[str] = Field(default=None, description="Note body content")
@@ -109,6 +150,15 @@ class Shot(EntityBase):
     Represents a shot in a sequence/project.
     """
 
+    model_config = _examples(
+        {
+            **_SHOT_REF,
+            "description": "Hero walks into the market",
+            "project": _PROJECT_REF,
+            "tasks": [{**_TASK_REF, "status": "ip"}],
+        }
+    )
+
     name: Optional[str] = Field(default=None, description="Shot name/code")
     description: Optional[str] = Field(default=None, description="Shot description")
     project: Optional[dict[str, Any]] = Field(
@@ -128,6 +178,17 @@ class Asset(EntityBase):
     Represents an asset (character, prop, environment, etc.).
     """
 
+    model_config = _examples(
+        {
+            "type": "Asset",
+            "id": "402",
+            "name": "market_stall",
+            "description": "Dressed fruit stall, hero variant",
+            "project": _PROJECT_REF,
+            "tasks": [{"type": "Task", "id": "5102", "name": "Model", "status": "fin"}],
+        }
+    )
+
     name: Optional[str] = Field(default=None, description="Asset name/code")
     description: Optional[str] = Field(default=None, description="Asset description")
     project: Optional[dict[str, Any]] = Field(
@@ -146,6 +207,26 @@ class Version(EntityBase):
 
     Represents a version/render of work on a Shot or Asset.
     """
+
+    model_config = _examples(
+        {
+            **_VERSION_REF,
+            "description": "Softened matte edge, new key on the market plate",
+            "status": "rev",
+            "user": {"type": "User", "id": "17", "name": "Alex Artist"},
+            "created_at": "2026-10-14T16:40:12+00:00",
+            "updated_at": "2026-10-14T16:41:03+00:00",
+            "movie_path": "/proj/dpel/shots/mk020/mk020_0010/comp/v003/mk020_0010_comp_v003.mov",
+            "frame_path": "/proj/dpel/shots/mk020/mk020_0010/comp/v003/mk020_0010_comp_v003.%04d.exr",
+            "thumbnail": "https://sg-media.example/thumbnails/6990.jpg",
+            "project": _PROJECT_REF,
+            "entity": _SHOT_REF,
+            "task": _TASK_REF,
+            "notes": [],
+            "prodtrack_detail_url": "https://studio.shotgrid.autodesk.com/detail/Version/6990",
+            "prodtrack_entity_detail_url": "https://studio.shotgrid.autodesk.com/detail/Shot/1207",
+        }
+    )
 
     name: Optional[str] = Field(default=None, description="Version name/code")
     description: Optional[str] = Field(default=None, description="Version description")
@@ -200,6 +281,19 @@ class Playlist(EntityBase):
     Represents a collection of versions for review.
     """
 
+    model_config = _examples(
+        {
+            "type": "Playlist",
+            "id": "45",
+            "code": "Dailies 2026-10-14",
+            "description": "Comp dailies",
+            "project": _PROJECT_REF,
+            "created_at": "2026-10-14T15:02:41+00:00",
+            "updated_at": "2026-10-14T16:45:10+00:00",
+            "versions": [{**_VERSION_REF, "status": "rev", "entity": _SHOT_REF}],
+        }
+    )
+
     code: Optional[str] = Field(default=None, description="Playlist code/name")
     description: Optional[str] = Field(default=None, description="Playlist description")
     project: Optional[dict[str, Any]] = Field(
@@ -226,6 +320,8 @@ class User(EntityBase):
 
     Represents a human user in the production tracking system.
     """
+
+    model_config = _examples(_USER_EXAMPLE)
 
     name: Optional[str] = Field(default=None, description="User's full name")
     email: Optional[str] = Field(default=None, description="User's email address")

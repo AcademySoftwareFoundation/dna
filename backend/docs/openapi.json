@@ -3,6 +3,11 @@
     "schemas": {
       "AddVersionToPlaylistRequest": {
         "description": "Request model for adding an existing version to a playlist.",
+        "examples": [
+          {
+            "version_id": "6990"
+          }
+        ],
         "properties": {
           "version_id": {
             "description": "ID of an existing version to add",
@@ -18,6 +23,27 @@
       },
       "Asset": {
         "description": "Asset entity model.\n\nRepresents an asset (character, prop, environment, etc.).",
+        "examples": [
+          {
+            "description": "Dressed fruit stall, hero variant",
+            "id": "402",
+            "name": "market_stall",
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "tasks": [
+              {
+                "id": "5102",
+                "name": "Model",
+                "status": "fin",
+                "type": "Task"
+              }
+            ],
+            "type": "Asset"
+          }
+        ],
         "properties": {
           "description": {
             "anyOf": [
@@ -99,6 +125,18 @@
       },
       "BotSession": {
         "description": "Represents an active or completed bot session.",
+        "examples": [
+          {
+            "bot_name": "DNA Notes",
+            "created_at": "2026-10-14T17:05:58.901Z",
+            "meeting_id": "abc-defg-hij",
+            "platform": "google_meet",
+            "playlist_id": "45",
+            "status": "joining",
+            "updated_at": "2026-10-14T17:05:58.901Z",
+            "vexa_meeting_id": 1842
+          }
+        ],
         "properties": {
           "bot_name": {
             "anyOf": [
@@ -169,6 +207,14 @@
       },
       "BotStatus": {
         "description": "Current status of a transcription bot.",
+        "examples": [
+          {
+            "meeting_id": "abc-defg-hij",
+            "platform": "google_meet",
+            "status": "transcribing",
+            "updated_at": "2026-10-14T17:06:40.212Z"
+          }
+        ],
         "properties": {
           "meeting_id": {
             "title": "Meeting Id",
@@ -222,6 +268,22 @@
       },
       "CreateNoteRequest": {
         "description": "Request model for creating a new note.",
+        "examples": [
+          {
+            "content": "Soften the matte edge on 1042-1060 and recheck against the plate.",
+            "note_links": [
+              {
+                "id": "6990",
+                "type": "Version"
+              }
+            ],
+            "project": {
+              "id": "124",
+              "type": "Project"
+            },
+            "subject": "mk020_0010_comp_v003 - comp notes"
+          }
+        ],
         "properties": {
           "content": {
             "anyOf": [
@@ -271,6 +333,11 @@
       },
       "CreatePlaylistRequest": {
         "description": "Request model for creating a new playlist in a project.",
+        "examples": [
+          {
+            "name": "Dailies 2026-10-14"
+          }
+        ],
         "properties": {
           "name": {
             "description": "Playlist name/code",
@@ -286,6 +353,21 @@
       },
       "DispatchBotRequest": {
         "description": "Request to dispatch a bot to a meeting.",
+        "examples": [
+          {
+            "bot_name": "DNA Notes",
+            "language": "en",
+            "meeting_id": "abc-defg-hij",
+            "platform": "google_meet",
+            "playlist_id": "45"
+          },
+          {
+            "meeting_id": "81234567890",
+            "meeting_url": "https://zoom.us/j/81234567890?pwd=abc123",
+            "platform": "zoom",
+            "playlist_id": "45"
+          }
+        ],
         "properties": {
           "bot_name": {
             "anyOf": [
@@ -308,7 +390,7 @@
                 "type": "null"
               }
             ],
-            "description": "Transcription language",
+            "description": "ISO 639-1 code to force on the transcriber (one of `GET /transcription/languages`); omit to auto-detect per window. The web app sends the reviewer's saved `transcription_language`.",
             "title": "Language"
           },
           "meeting_id": {
@@ -359,6 +441,33 @@
       },
       "DraftNote": {
         "description": "Full draft note model with all fields.",
+        "examples": [
+          {
+            "_id": "67f0c2d9e4b0a1b2c3d4e5f6",
+            "attachment_ids": [
+              "8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47"
+            ],
+            "cc": "",
+            "content": "Edge of the matte is crawling on frames 1042-1060; soften the key and recheck against the plate. Otherwise good to move on to lighting.",
+            "created_at": "2026-10-14T17:05:12.410Z",
+            "edited": false,
+            "links": [
+              {
+                "entity_id": "1207",
+                "entity_name": "mk020_0010",
+                "entity_type": "Shot"
+              }
+            ],
+            "playlist_id": "45",
+            "published": false,
+            "subject": "mk020_0010_comp_v003 - comp notes",
+            "to": "",
+            "updated_at": "2026-10-14T17:21:48.003Z",
+            "user_email": "sam.reviewer@studio.example",
+            "version_id": "6990",
+            "version_status": "rev"
+          }
+        ],
         "properties": {
           "_id": {
             "title": "Id",
@@ -486,6 +595,13 @@
       },
       "DraftNoteLink": {
         "description": "Reference to a DNA entity to link to the note.",
+        "examples": [
+          {
+            "entity_id": "1207",
+            "entity_name": "mk020_0010",
+            "entity_type": "Shot"
+          }
+        ],
         "properties": {
           "entity_id": {
             "title": "Entity Id",
@@ -510,6 +626,23 @@
       },
       "DraftNoteUpdate": {
         "description": "Model for updating an existing draft note.",
+        "examples": [
+          {
+            "attachment_ids": [
+              "8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47"
+            ],
+            "content": "Edge of the matte is crawling on frames 1042-1060; soften the key and recheck against the plate. Otherwise good to move on to lighting.",
+            "links": [
+              {
+                "entity_id": "1207",
+                "entity_name": "mk020_0010",
+                "entity_type": "Shot"
+              }
+            ],
+            "subject": "mk020_0010_comp_v003 - comp notes",
+            "version_status": "rev"
+          }
+        ],
         "properties": {
           "attachment_ids": {
             "anyOf": [
@@ -667,6 +800,12 @@
       },
       "EntityLink": {
         "description": "Reference to an existing entity for linking.",
+        "examples": [
+          {
+            "id": "6990",
+            "type": "Version"
+          }
+        ],
         "properties": {
           "id": {
             "description": "Entity ID",
@@ -686,8 +825,35 @@
         "title": "EntityLink",
         "type": "object"
       },
+      "ErrorResponse": {
+        "description": "Body returned with any 4xx/5xx status.",
+        "examples": [
+          {
+            "detail": "Version not found: 6990"
+          }
+        ],
+        "properties": {
+          "detail": {
+            "description": "Human-readable reason for the failure",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
       "FilterCondition": {
         "description": "A single filter condition for entity queries.",
+        "examples": [
+          {
+            "field": "name",
+            "operator": "contains",
+            "value": "mk020"
+          }
+        ],
         "properties": {
           "field": {
             "description": "DNA field name to filter on",
@@ -714,6 +880,23 @@
       },
       "FindRequest": {
         "description": "Request model for finding entities.",
+        "examples": [
+          {
+            "entity_type": "version",
+            "filters": [
+              {
+                "field": "name",
+                "operator": "contains",
+                "value": "mk020"
+              },
+              {
+                "field": "status",
+                "operator": "is",
+                "value": "rev"
+              }
+            ]
+          }
+        ],
         "properties": {
           "entity_type": {
             "description": "DNA entity type to search (e.g., 'project', 'shot', 'version')",
@@ -737,6 +920,14 @@
       },
       "GenerateNoteRequest": {
         "description": "Request model for generating an AI note suggestion.",
+        "examples": [
+          {
+            "additional_instructions": "Two sentences max; name the owner of each fix.",
+            "playlist_id": "45",
+            "user_email": "sam.reviewer@studio.example",
+            "version_id": "6990"
+          }
+        ],
         "properties": {
           "additional_instructions": {
             "anyOf": [
@@ -788,6 +979,13 @@
       },
       "GenerateNoteResponse": {
         "description": "Response model for AI note generation.",
+        "examples": [
+          {
+            "context": "Version: mk020_0010_comp_v003\nShot: mk020_0010\nTask: Comp\nDepartment: Compositing\nStatus: rev",
+            "prompt": "You are taking notes in a VFX dailies review...\n\nTranscript:\nSam Reviewer: Alex, can you take the edge on 1042?\n...",
+            "suggestion": "Matte edge is crawling on 1042-1060 - Alex to soften the key and recheck against the plate. Otherwise good to move to lighting."
+          }
+        ],
         "properties": {
           "context": {
             "description": "The version context used for generation",
@@ -828,6 +1026,38 @@
       },
       "Note": {
         "description": "Note entity model.\n\nRepresents a note/comment attached to an entity.",
+        "examples": [
+          {
+            "author": {
+              "email": "sam.reviewer@studio.example",
+              "id": "88",
+              "login": "sreviewer",
+              "name": "Sam Reviewer",
+              "type": "User"
+            },
+            "content": "Soften the matte edge on 1042-1060 and recheck against the plate.",
+            "id": "6447",
+            "note_links": [
+              {
+                "id": "6990",
+                "name": "mk020_0010_comp_v003",
+                "type": "Version"
+              },
+              {
+                "id": "1207",
+                "name": "mk020_0010",
+                "type": "Shot"
+              }
+            ],
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "subject": "mk020_0010_comp_v003 - comp notes",
+            "type": "Note"
+          }
+        ],
         "properties": {
           "author": {
             "anyOf": [
@@ -976,6 +1206,18 @@
       },
       "NoteQCCheck": {
         "description": "Stored QC check definition.",
+        "examples": [
+          {
+            "_id": "67f0c3a1e4b0a1b2c3d4e612",
+            "created_at": "2026-10-01T10:30:00Z",
+            "enabled": true,
+            "name": "Action Item Check",
+            "prompt": "Fail if the transcript assigns an action to someone the note does not name as the owner.",
+            "severity": "warning",
+            "updated_at": "2026-10-01T10:30:00Z",
+            "user_email": "sam.reviewer@studio.example"
+          }
+        ],
         "properties": {
           "_id": {
             "title": "Id",
@@ -1031,6 +1273,14 @@
       },
       "NoteQCCheckCreate": {
         "description": "Payload for creating a QC check.",
+        "examples": [
+          {
+            "enabled": true,
+            "name": "Action Item Check",
+            "prompt": "Fail if the transcript assigns an action to someone the note does not name as the owner.",
+            "severity": "warning"
+          }
+        ],
         "properties": {
           "enabled": {
             "default": true,
@@ -1119,6 +1369,20 @@
       },
       "NoteQCResult": {
         "description": "Outcome of running one check against a draft.",
+        "examples": [
+          {
+            "attribute_suggestion": {
+              "to": "[{\"type\":\"User\",\"id\":\"17\",\"name\":\"Alex Artist\"}]"
+            },
+            "check_id": "67f0c3a1e4b0a1b2c3d4e612",
+            "check_name": "Action Item Check",
+            "evidence": "\"Alex, can you take the edge on 1042?\"",
+            "issue": "The transcript assigns the matte fix to Alex but the note names no owner.",
+            "note_suggestion": "Edge of the matte is crawling on frames 1042-1060 - @[Alex Artist](user:17) to soften the key and recheck against the plate.",
+            "passed": false,
+            "severity": "warning"
+          }
+        ],
         "properties": {
           "attribute_suggestion": {
             "anyOf": [
@@ -1205,6 +1469,34 @@
       },
       "Playlist": {
         "description": "Playlist entity model.\n\nRepresents a collection of versions for review.",
+        "examples": [
+          {
+            "code": "Dailies 2026-10-14",
+            "created_at": "2026-10-14T15:02:41+00:00",
+            "description": "Comp dailies",
+            "id": "45",
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "type": "Playlist",
+            "updated_at": "2026-10-14T16:45:10+00:00",
+            "versions": [
+              {
+                "entity": {
+                  "id": "1207",
+                  "name": "mk020_0010",
+                  "type": "Shot"
+                },
+                "id": "6990",
+                "name": "mk020_0010_comp_v003",
+                "status": "rev",
+                "type": "Version"
+              }
+            ]
+          }
+        ],
         "properties": {
           "code": {
             "anyOf": [
@@ -1304,6 +1596,18 @@
       },
       "PlaylistMetadata": {
         "description": "Full playlist metadata model with all fields.",
+        "examples": [
+          {
+            "_id": "67f0c31be4b0a1b2c3d4e601",
+            "has_scratch": false,
+            "in_review": "6990",
+            "meeting_id": "abc-defg-hij",
+            "platform": "google_meet",
+            "playlist_id": "45",
+            "transcription_paused": false,
+            "vexa_meeting_id": 1842
+          }
+        ],
         "properties": {
           "_id": {
             "title": "Id",
@@ -1390,6 +1694,13 @@
       },
       "PlaylistMetadataUpdate": {
         "description": "Model for updating playlist metadata.",
+        "examples": [
+          {
+            "in_review": "6990",
+            "meeting_id": "abc-defg-hij",
+            "platform": "google_meet"
+          }
+        ],
         "properties": {
           "clear_resumed_at": {
             "default": false,
@@ -1475,6 +1786,13 @@
       },
       "Project": {
         "description": "Project entity model.\n\nRepresents a project in the production tracking system.",
+        "examples": [
+          {
+            "id": "124",
+            "name": "dpel-samples",
+            "type": "Project"
+          }
+        ],
         "properties": {
           "id": {
             "description": "Entity ID",
@@ -1509,6 +1827,15 @@
       },
       "ProjectGlossary": {
         "description": "Full project glossary model with all fields.",
+        "examples": [
+          {
+            "_id": "67f0c3d2e4b0a1b2c3d4e620",
+            "content": "mk020 - the market sequence\nDPEL - Digital Production Example Library\nplate - the scanned live-action background",
+            "created_at": "2026-10-02T14:20:00Z",
+            "project_id": "124",
+            "updated_at": "2026-10-12T09:48:31Z"
+          }
+        ],
         "properties": {
           "_id": {
             "title": "Id",
@@ -1545,6 +1872,11 @@
       },
       "ProjectGlossaryUpdate": {
         "description": "Model for updating a project glossary.",
+        "examples": [
+          {
+            "content": "mk020 - the market sequence\nDPEL - Digital Production Example Library\nplate - the scanned live-action background"
+          }
+        ],
         "properties": {
           "content": {
             "default": "",
@@ -1558,6 +1890,12 @@
       },
       "PublishNoteTarget": {
         "description": "A single draft note to publish (user + version key).",
+        "examples": [
+          {
+            "user_email": "sam.reviewer@studio.example",
+            "version_id": "6990"
+          }
+        ],
         "properties": {
           "user_email": {
             "title": "User Email",
@@ -1577,6 +1915,24 @@
       },
       "PublishNotesRequest": {
         "description": "Request model for publishing draft notes.",
+        "examples": [
+          {
+            "status_version_ids": [
+              "6990"
+            ],
+            "targets": [
+              {
+                "user_email": "sam.reviewer@studio.example",
+                "version_id": "6990"
+              },
+              {
+                "user_email": "sam.reviewer@studio.example",
+                "version_id": "6991"
+              }
+            ],
+            "user_email": "sam.reviewer@studio.example"
+          }
+        ],
         "properties": {
           "status_version_ids": {
             "anyOf": [
@@ -1615,6 +1971,15 @@
       },
       "PublishNotesResponse": {
         "description": "Response model for publishing draft notes.",
+        "examples": [
+          {
+            "failed_count": 0,
+            "published_count": 1,
+            "republished_count": 1,
+            "skipped_count": 0,
+            "total": 2
+          }
+        ],
         "properties": {
           "failed_count": {
             "title": "Failed Count",
@@ -1649,6 +2014,11 @@
       },
       "PublishTranscriptRequest": {
         "description": "Request to publish a version's captured transcript.",
+        "examples": [
+          {
+            "version_id": "6990"
+          }
+        ],
         "properties": {
           "version_id": {
             "description": "Version whose segments to publish",
@@ -1664,6 +2034,13 @@
       },
       "PublishTranscriptResponse": {
         "description": "Response from the publish-transcript endpoint.",
+        "examples": [
+          {
+            "outcome": "created",
+            "segments_count": 148,
+            "transcript_entity_id": "312"
+          }
+        ],
         "properties": {
           "outcome": {
             "description": "created | updated | skipped",
@@ -1701,6 +2078,16 @@
       },
       "PublishedTranscriptSummary": {
         "description": "A playlist's published transcript, as listed for clients.",
+        "examples": [
+          {
+            "entity_id": "312",
+            "entity_type": "CustomEntity01",
+            "meeting_id": "abc-defg-hij",
+            "name": "transcript-6990-2026-10-14",
+            "updated_at": "2026-10-14T18:02:11Z",
+            "version_id": "6990"
+          }
+        ],
         "properties": {
           "entity_id": {
             "title": "Entity Id",
@@ -1742,6 +2129,11 @@
       },
       "RunQCChecksRequest": {
         "description": "Body for run-qc-checks; playlist/version are path params.",
+        "examples": [
+          {
+            "user_email": "sam.reviewer@studio.example"
+          }
+        ],
         "properties": {
           "user_email": {
             "title": "User Email",
@@ -1756,6 +2148,24 @@
       },
       "RunQCChecksResponse": {
         "description": "QC results for one draft note.",
+        "examples": [
+          {
+            "results": [
+              {
+                "attribute_suggestion": {
+                  "to": "[{\"type\":\"User\",\"id\":\"17\",\"name\":\"Alex Artist\"}]"
+                },
+                "check_id": "67f0c3a1e4b0a1b2c3d4e612",
+                "check_name": "Action Item Check",
+                "evidence": "\"Alex, can you take the edge on 1042?\"",
+                "issue": "The transcript assigns the matte fix to Alex but the note names no owner.",
+                "note_suggestion": "Edge of the matte is crawling on frames 1042-1060 - @[Alex Artist](user:17) to soften the key and recheck against the plate.",
+                "passed": false,
+                "severity": "warning"
+              }
+            ]
+          }
+        ],
         "properties": {
           "results": {
             "items": {
@@ -1773,6 +2183,17 @@
       },
       "SearchRequest": {
         "description": "Request model for unified entity search.",
+        "examples": [
+          {
+            "entity_types": [
+              "shot",
+              "version"
+            ],
+            "limit": 5,
+            "project_id": "124",
+            "query": "mk020"
+          }
+        ],
         "properties": {
           "entity_types": {
             "description": "Entity types to search: user, shot, asset, version, task, playlist",
@@ -1815,6 +2236,19 @@
       },
       "SearchResult": {
         "description": "Lightweight entity representation for search results.",
+        "examples": [
+          {
+            "description": "Hero walks into the market",
+            "id": "1207",
+            "name": "mk020_0010",
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "type": "Shot"
+          }
+        ],
         "properties": {
           "description": {
             "anyOf": [
@@ -1879,6 +2313,27 @@
       },
       "Shot": {
         "description": "Shot entity model.\n\nRepresents a shot in a sequence/project.",
+        "examples": [
+          {
+            "description": "Hero walks into the market",
+            "id": "1207",
+            "name": "mk020_0010",
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "tasks": [
+              {
+                "id": "5860",
+                "name": "Comp",
+                "status": "ip",
+                "type": "Task"
+              }
+            ],
+            "type": "Shot"
+          }
+        ],
         "properties": {
           "description": {
             "anyOf": [
@@ -1946,6 +2401,12 @@
       },
       "StatusOption": {
         "description": "A status option from ShotGrid schema.",
+        "examples": [
+          {
+            "code": "rev",
+            "name": "Pending Review"
+          }
+        ],
         "properties": {
           "code": {
             "description": "Status code (e.g., 'rev', 'apr', 'rej')",
@@ -1967,6 +2428,25 @@
       },
       "StoredSegment": {
         "description": "Full stored segment model with all fields.",
+        "examples": [
+          {
+            "_id": "67f0c40ae4b0a1b2c3d4e63b",
+            "absolute_end_time": "2026-10-14T17:13:35.100Z",
+            "absolute_start_time": "2026-10-14T17:13:32.400Z",
+            "completed": true,
+            "created_at": "2026-10-14T17:13:36.105Z",
+            "end_time": 815.1,
+            "language": "en",
+            "playlist_id": "45",
+            "segment_id": "9b914779:speaker-1:72",
+            "speaker": "Sam Reviewer",
+            "start_time": 812.4,
+            "text": "Alex, can you take the edge on 1042?",
+            "updated_at": "2026-10-14T17:13:36.105Z",
+            "version_id": "6990",
+            "vexa_updated_at": "2026-10-14T17:13:36.020Z"
+          }
+        ],
         "properties": {
           "_id": {
             "title": "Id",
@@ -2088,6 +2568,29 @@
       },
       "Task": {
         "description": "Task entity model.\n\nRepresents a pipeline task assigned to an entity (Shot, Asset, etc.).",
+        "examples": [
+          {
+            "entity": {
+              "id": "1207",
+              "name": "mk020_0010",
+              "type": "Shot"
+            },
+            "id": "5860",
+            "name": "Comp",
+            "pipeline_step": {
+              "id": "8",
+              "name": "Compositing",
+              "type": "Step"
+            },
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "status": "ip",
+            "type": "Task"
+          }
+        ],
         "properties": {
           "entity": {
             "anyOf": [
@@ -2171,6 +2674,23 @@
       },
       "Transcript": {
         "description": "Full transcript for a meeting.",
+        "examples": [
+          {
+            "duration": 2710.5,
+            "language": "en",
+            "meeting_id": "abc-defg-hij",
+            "platform": "google_meet",
+            "segments": [
+              {
+                "end_time": 815.1,
+                "speaker": "Sam Reviewer",
+                "start_time": 812.4,
+                "text": "Alex, can you take the edge on 1042?",
+                "timestamp": "2026-10-14T17:13:32.400Z"
+              }
+            ]
+          }
+        ],
         "properties": {
           "duration": {
             "anyOf": [
@@ -2218,6 +2738,15 @@
       },
       "TranscriptSegment": {
         "description": "A single segment of transcribed speech.",
+        "examples": [
+          {
+            "end_time": 815.1,
+            "speaker": "Sam Reviewer",
+            "start_time": 812.4,
+            "text": "Alex, can you take the edge on 1042?",
+            "timestamp": "2026-10-14T17:13:32.400Z"
+          }
+        ],
         "properties": {
           "end_time": {
             "anyOf": [
@@ -2268,8 +2797,77 @@
         "title": "TranscriptSegment",
         "type": "object"
       },
+      "TranscriptionLanguage": {
+        "description": "A language the transcription provider can be asked to transcribe in.",
+        "properties": {
+          "code": {
+            "description": "ISO 639-1 code passed to the transcriber at session start; the empty string means auto-detect per window",
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "description": "Display name for the Settings dropdown",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "TranscriptionLanguage",
+        "type": "object"
+      },
+      "TranscriptionLanguagesResponse": {
+        "description": "Languages offered in Settings → Transcription, as reported by the provider.",
+        "examples": [
+          {
+            "default": "en",
+            "languages": [
+              {
+                "code": "en",
+                "label": "English"
+              },
+              {
+                "code": "es",
+                "label": "Spanish"
+              },
+              {
+                "code": "",
+                "label": "Auto-detect"
+              }
+            ]
+          }
+        ],
+        "properties": {
+          "default": {
+            "description": "Code pre-selected for users who have not chosen a language",
+            "title": "Default",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptionLanguage"
+            },
+            "title": "Languages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "languages",
+          "default"
+        ],
+        "title": "TranscriptionLanguagesResponse",
+        "type": "object"
+      },
       "UpdateVersionStatusRequest": {
         "description": "Request model for updating a version's status.",
+        "examples": [
+          {
+            "playlist_id": "45",
+            "status": "apr"
+          }
+        ],
         "properties": {
           "playlist_id": {
             "anyOf": [
@@ -2297,6 +2895,11 @@
       },
       "UpdateVersionStatusResponse": {
         "description": "Response model for updating a version's status.",
+        "examples": [
+          {
+            "success": true
+          }
+        ],
         "properties": {
           "success": {
             "title": "Success",
@@ -2311,6 +2914,15 @@
       },
       "User": {
         "description": "User entity model.\n\nRepresents a human user in the production tracking system.",
+        "examples": [
+          {
+            "email": "sam.reviewer@studio.example",
+            "id": "88",
+            "login": "sreviewer",
+            "name": "Sam Reviewer",
+            "type": "User"
+          }
+        ],
         "properties": {
           "email": {
             "anyOf": [
@@ -2369,6 +2981,22 @@
       },
       "UserSettingsResponse": {
         "description": "User settings returned from the API, including the configured default note prompt.",
+        "examples": [
+          {
+            "_id": "67f0c35ae4b0a1b2c3d4e60f",
+            "created_at": "2026-09-30T09:12:00Z",
+            "default_note_prompt": "You are taking notes in a VFX dailies review...",
+            "note_prompt": "",
+            "preferred_model": "gpt-4o-mini",
+            "prodtrack_page_type": "version",
+            "regenerate_on_transcript_update": true,
+            "regenerate_on_version_change": false,
+            "sync_prodtrack_tab_on_version_change": true,
+            "transcription_language": "en",
+            "updated_at": "2026-10-14T17:00:27Z",
+            "user_email": "sam.reviewer@studio.example"
+          }
+        ],
         "properties": {
           "_id": {
             "title": "Id",
@@ -2414,6 +3042,11 @@
             "title": "Sync Prodtrack Tab On Version Change",
             "type": "boolean"
           },
+          "transcription_language": {
+            "default": "en",
+            "title": "Transcription Language",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -2435,6 +3068,13 @@
       },
       "UserSettingsUpdate": {
         "description": "Model for updating user settings.",
+        "examples": [
+          {
+            "preferred_model": "gpt-4o-mini",
+            "regenerate_on_transcript_update": true,
+            "transcription_language": "en"
+          }
+        ],
         "properties": {
           "note_prompt": {
             "anyOf": [
@@ -2507,6 +3147,19 @@
             ],
             "description": "When true, DNA tells the browser extension to open the PT version page whenever the selected version changes",
             "title": "Sync Prodtrack Tab On Version Change"
+          },
+          "transcription_language": {
+            "anyOf": [
+              {
+                "pattern": "^([a-z]{2,3})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 639-1 language forced on the transcriber at session start (e.g. 'en'); empty string means auto-detect per window",
+            "title": "Transcription Language"
           }
         },
         "title": "UserSettingsUpdate",
@@ -2547,6 +3200,43 @@
       },
       "Version": {
         "description": "Version entity model.\n\nRepresents a version/render of work on a Shot or Asset.",
+        "examples": [
+          {
+            "created_at": "2026-10-14T16:40:12+00:00",
+            "description": "Softened matte edge, new key on the market plate",
+            "entity": {
+              "id": "1207",
+              "name": "mk020_0010",
+              "type": "Shot"
+            },
+            "frame_path": "/proj/dpel/shots/mk020/mk020_0010/comp/v003/mk020_0010_comp_v003.%04d.exr",
+            "id": "6990",
+            "movie_path": "/proj/dpel/shots/mk020/mk020_0010/comp/v003/mk020_0010_comp_v003.mov",
+            "name": "mk020_0010_comp_v003",
+            "notes": [],
+            "prodtrack_detail_url": "https://studio.shotgrid.autodesk.com/detail/Version/6990",
+            "prodtrack_entity_detail_url": "https://studio.shotgrid.autodesk.com/detail/Shot/1207",
+            "project": {
+              "id": "124",
+              "name": "dpel-samples",
+              "type": "Project"
+            },
+            "status": "rev",
+            "task": {
+              "id": "5860",
+              "name": "Comp",
+              "type": "Task"
+            },
+            "thumbnail": "https://sg-media.example/thumbnails/6990.jpg",
+            "type": "Version",
+            "updated_at": "2026-10-14T16:41:03+00:00",
+            "user": {
+              "id": "17",
+              "name": "Alex Artist",
+              "type": "User"
+            }
+          }
+        ],
         "properties": {
           "created_at": {
             "anyOf": [
@@ -2765,7 +3455,7 @@
       "name": "DNA Project",
       "url": "https://github.com/AcademySoftwareFoundation/dna"
     },
-    "description": "\n## DNA Backend API\n\nBackend API for the DNA (Dailies Notes Assistant) application.\n\n### Features\n- 🎬 Production tracking integration (ShotGrid)\n- 🎤 Transcription services\n- 🤖 LLM-powered note generation\n- 📋 Playlist and version management\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
+    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n\n### Authentication\nSend `Authorization: Bearer <token>` on every request except **Health**. The\nconfigured `AUTH_PROVIDER` validates the token (Google OAuth in production)\nand extracts the caller's email; most calls only return data when that email\nbelongs to a user in the tracking provider. Errors are `{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
     "title": "DNA Backend",
     "version": "0.1.0"
   },
@@ -2793,7 +3483,7 @@
     },
     "/api/attachments": {
       "post": {
-        "description": "Save an uploaded file and return its attachment ID.",
+        "description": "Store an uploaded file on the backend and return an attachment ID. Put the ID in a draft note's `attachment_ids`; publishing the note uploads the file to the tracking provider and removes the staged copy.",
         "operationId": "upload_attachment_api_attachments_post",
         "requestBody": {
           "content": {
@@ -2809,6 +3499,10 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "filename": "mk020_0010_v003_paintover.png",
+                  "id": "8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47"
+                },
                 "schema": {
                   "additionalProperties": true,
                   "title": "Response Upload Attachment Api Attachments Post",
@@ -2816,7 +3510,17 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Attachment staged"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -2834,7 +3538,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Upload Attachment",
+        "summary": "Stage a file for a note",
         "tags": [
           "Attachments"
         ]
@@ -2846,6 +3550,7 @@
         "operationId": "delete_attachment_api_attachments__attachment_id__delete",
         "parameters": [
           {
+            "description": "Attachment ID (UUID) returned by `POST /api/attachments`.",
             "in": "path",
             "name": "attachment_id",
             "required": true,
@@ -2859,6 +3564,9 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "deleted": "8c6a2f0e-7d3b-4f1a-9e2c-5b8d1a0c3e47"
+                },
                 "schema": {
                   "additionalProperties": true,
                   "title": "Response Delete Attachment Api Attachments  Attachment Id  Delete",
@@ -2866,7 +3574,27 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Attachment deleted"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -2884,7 +3612,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Delete Attachment",
+        "summary": "Delete a staged attachment",
         "tags": [
           "Attachments"
         ]
@@ -2894,6 +3622,7 @@
         "operationId": "get_attachment_api_attachments__attachment_id__get",
         "parameters": [
           {
+            "description": "Attachment ID (UUID) returned by `POST /api/attachments`.",
             "in": "path",
             "name": "attachment_id",
             "required": true,
@@ -2906,6 +3635,26 @@
         "responses": {
           "200": {
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -2935,6 +3684,7 @@
         "operationId": "get_mock_thumbnail_api_mock_thumbnails__version_id__get",
         "parameters": [
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -2947,6 +3697,16 @@
         "responses": {
           "200": {
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -2971,6 +3731,7 @@
         "operationId": "get_asset_asset__asset_id__get",
         "parameters": [
           {
+            "description": "Asset ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "asset_id",
             "required": true,
@@ -2990,6 +3751,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -3015,7 +3796,7 @@
     },
     "/find": {
       "post": {
-        "description": "Search for entities matching the given filters.",
+        "description": "Search for entities matching the given filters. Each filter is a `{field, operator, value}` triple using DNA field names; the provider translates it to its native query (for ShotGrid, the same shape as `shotgun_api3` filters). Supported entity types: project, shot, asset, note, task, version, playlist, user.",
         "operationId": "find_entities_find_post",
         "requestBody": {
           "content": {
@@ -3042,6 +3823,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3066,7 +3867,7 @@
     },
     "/generate-note": {
       "post": {
-        "description": "Generate a note suggestion using AI based on transcript and version context.",
+        "description": "Generate a note suggestion using AI based on transcript and version context. Uses the owner's saved note prompt (or the server default), the stored transcript segments for the version, the version's context from the tracking provider, the global and project glossaries, and the owner's current draft as the starting point.",
         "operationId": "generate_note_generate_note_post",
         "requestBody": {
           "content": {
@@ -3088,6 +3889,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -3139,6 +3960,14 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "default": "gpt-4o-mini",
+                  "models": [
+                    "gpt-4o-mini",
+                    "gpt-4o"
+                  ],
+                  "provider": "openai"
+                },
                 "schema": {
                   "additionalProperties": true,
                   "title": "Response Get Available Models Models Get",
@@ -3146,7 +3975,17 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Models offered by the configured provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           }
         },
         "security": [
@@ -3185,6 +4024,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3213,6 +4072,7 @@
         "operationId": "get_note_note__note_id__get",
         "parameters": [
           {
+            "description": "Note ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "note_id",
             "required": true,
@@ -3232,6 +4092,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -3261,6 +4141,7 @@
         "operationId": "get_playlist_playlist__playlist_id__get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3280,6 +4161,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -3305,10 +4206,11 @@
     },
     "/playlists/{playlist_id}/draft-notes": {
       "get": {
-        "description": "Retrieve all users' draft notes for the specified playlist.",
+        "description": "Retrieve all users' draft notes for the specified playlist. Before answering, DNA syncs notes already published on the playlist's versions from the tracking provider, so notes written elsewhere appear here as published drafts.",
         "operationId": "get_playlist_draft_notes_playlists__playlist_id__draft_notes_get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3332,6 +4234,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -3361,6 +4273,7 @@
         "operationId": "delete_playlist_metadata_playlists__playlist_id__metadata_delete",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3381,6 +4294,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -3408,6 +4341,7 @@
         "operationId": "get_playlist_metadata_playlists__playlist_id__metadata_get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3436,6 +4370,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3462,6 +4406,7 @@
         "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3492,6 +4437,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3516,10 +4471,11 @@
     },
     "/playlists/{playlist_id}/publish-notes": {
       "post": {
-        "description": "Publish draft notes to the production tracking system.",
+        "description": "Publish draft notes to the production tracking system. Only drafts matching a `(user_email, version_id)` pair in `targets` are considered; for each pair the most recently updated draft wins.\n\nPer draft: a new draft creates a Note (authored as the draft owner) and records its ID; a draft already published and since edited updates that Note; one with no body but a `version_status` only updates the version's status; an unchanged published draft is skipped. Attachments are uploaded and cleared. If the version has a published transcript, the Note is linked to its newest transcript row (best effort; a missing row or field is logged and the note still publishes). Failures are counted in `failed_count` rather than failing the request, so always check the counts.",
         "operationId": "publish_notes_playlists__playlist_id__publish_notes_post",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3550,6 +4506,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3568,16 +4534,17 @@
         ],
         "summary": "Publish draft notes",
         "tags": [
-          "Playlists"
+          "Publishing"
         ]
       }
     },
     "/playlists/{playlist_id}/publish-transcript": {
       "post": {
-        "description": "Push the stored transcript for a version to the production tracking system as a single custom-entity row. Idempotent via body_hash.",
+        "description": "Push the stored transcript for a version to the production tracking system as a single custom-entity row. Idempotent via body_hash. Requires `DNA_ENABLE_TRANSCRIPT_PUBLISH=true` on the backend (404 otherwise) and a meeting linked to the playlist via its metadata.",
         "operationId": "publish_transcript_playlists__playlist_id__publish_transcript_post",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3608,15 +4575,65 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Request is well-formed but cannot be fulfilled in the current state"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Tracking system was updated but DNA bookkeeping failed; do not retry blindly"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Configured production tracking provider does not support this operation"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Production tracking provider rejected the update"
           }
         },
         "security": [
@@ -3626,7 +4643,7 @@
         ],
         "summary": "Publish a version's captured transcript",
         "tags": [
-          "Playlists",
+          "Publishing",
           "Transcription"
         ]
       }
@@ -3637,6 +4654,7 @@
         "operationId": "get_published_transcripts_playlists__playlist_id__published_transcripts_get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3661,6 +4679,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3679,7 +4707,7 @@
         ],
         "summary": "List a playlist's published transcripts",
         "tags": [
-          "Playlists",
+          "Publishing",
           "Transcription"
         ]
       }
@@ -3690,6 +4718,7 @@
         "operationId": "get_versions_for_playlist_playlists__playlist_id__versions_get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3713,6 +4742,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -3740,6 +4789,7 @@
         "operationId": "add_version_to_playlist_playlists__playlist_id__versions_post",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3770,6 +4820,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3798,6 +4868,7 @@
         "operationId": "get_all_draft_notes_playlists__playlist_id__versions__version_id__draft_notes_get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3807,6 +4878,7 @@
             }
           },
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -3830,6 +4902,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -3859,6 +4941,7 @@
         "operationId": "delete_draft_note_playlists__playlist_id__versions__version_id__draft_notes__user_email__delete",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3868,6 +4951,7 @@
             }
           },
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -3877,6 +4961,7 @@
             }
           },
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -3897,6 +4982,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -3924,6 +5029,7 @@
         "operationId": "get_draft_note_playlists__playlist_id__versions__version_id__draft_notes__user_email__get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -3933,6 +5039,7 @@
             }
           },
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -3942,6 +5049,7 @@
             }
           },
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -3970,6 +5078,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3992,10 +5110,11 @@
         ]
       },
       "put": {
-        "description": "Create or update a user's draft note for the playlist/version.",
+        "description": "Create or update a user's draft note for the playlist/version. Only the fields present in the body change. Use `version_id` `-1` for the playlist-level scratch note.",
         "operationId": "upsert_draft_note_playlists__playlist_id__versions__version_id__draft_notes__user_email__put",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -4005,6 +5124,7 @@
             }
           },
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -4014,6 +5134,7 @@
             }
           },
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -4044,6 +5165,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4068,10 +5199,11 @@
     },
     "/playlists/{playlist_id}/versions/{version_id}/run-qc-checks": {
       "post": {
-        "description": "Run the draft owner's QC checks against their draft note for this version.\n\nReturns an empty result set if the draft does not exist.",
+        "description": "Run the draft owner's enabled QC checks against their draft for this version, using the stored transcript and version context. `user_email` in the body names the draft owner, not the caller. Returns an empty result list when there is no draft.",
         "operationId": "run_qc_checks_playlists__playlist_id__versions__version_id__run_qc_checks_post",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -4081,6 +5213,7 @@
             }
           },
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -4111,6 +5244,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4135,10 +5278,11 @@
     },
     "/projects/user/{user_email}": {
       "get": {
-        "description": "Retrieve all projects accessible by the specified user email.",
+        "description": "Retrieve all projects accessible by the specified user email. This is also how DNA checks that a signed-in email is known to the tracking provider: an unknown email returns 404.",
         "operationId": "get_projects_for_user_projects_user__user_email__get",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -4162,6 +5306,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -4191,6 +5355,7 @@
         "operationId": "get_project_glossary_projects__project_id__glossary_get",
         "parameters": [
           {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "project_id",
             "required": true,
@@ -4211,6 +5376,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4229,7 +5404,7 @@
         ],
         "summary": "Get a project's glossary",
         "tags": [
-          "Projects"
+          "Project Glossary"
         ]
       },
       "put": {
@@ -4237,6 +5412,7 @@
         "operationId": "upsert_project_glossary_projects__project_id__glossary_put",
         "parameters": [
           {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "project_id",
             "required": true,
@@ -4267,6 +5443,16 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4285,7 +5471,7 @@
         ],
         "summary": "Create or update a project's glossary",
         "tags": [
-          "Projects"
+          "Project Glossary"
         ]
       }
     },
@@ -4295,6 +5481,7 @@
         "operationId": "get_playlists_for_project_projects__project_id__playlists_get",
         "parameters": [
           {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "project_id",
             "required": true,
@@ -4318,6 +5505,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -4345,6 +5552,7 @@
         "operationId": "create_playlist_projects__project_id__playlists_post",
         "parameters": [
           {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "project_id",
             "required": true,
@@ -4374,6 +5582,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -4429,6 +5667,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4457,6 +5715,7 @@
         "operationId": "get_shot_shot__shot_id__get",
         "parameters": [
           {
+            "description": "Shot ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "shot_id",
             "required": true,
@@ -4476,6 +5735,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -4505,6 +5784,7 @@
         "operationId": "get_task_task__task_id__get",
         "parameters": [
           {
+            "description": "Task ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "task_id",
             "required": true,
@@ -4524,6 +5804,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -4549,7 +5849,7 @@
     },
     "/transcription/bot": {
       "post": {
-        "description": "Start a transcription bot that joins the specified meeting.",
+        "description": "Start a transcription bot that joins the specified meeting. Zoom requires `meeting_url`; a passcode is only honoured as the link's `pwd` parameter.",
         "operationId": "dispatch_bot_transcription_bot_post",
         "requestBody": {
           "content": {
@@ -4571,6 +5871,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -4600,6 +5920,7 @@
         "operationId": "stop_bot_transcription_bot__platform___meeting_id__delete",
         "parameters": [
           {
+            "description": "Meeting platform the bot joined.",
             "in": "path",
             "name": "platform",
             "required": true,
@@ -4608,6 +5929,7 @@
             }
           },
           {
+            "description": "Native meeting ID for the platform, e.g. the Google Meet code `abc-defg-hij` or the Zoom meeting number.",
             "in": "path",
             "name": "meeting_id",
             "required": true,
@@ -4628,6 +5950,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -4657,6 +5999,7 @@
         "operationId": "get_bot_status_transcription_bot__platform___meeting_id__status_get",
         "parameters": [
           {
+            "description": "Meeting platform the bot joined.",
             "in": "path",
             "name": "platform",
             "required": true,
@@ -4665,6 +6008,7 @@
             }
           },
           {
+            "description": "Native meeting ID for the platform, e.g. the Google Meet code `abc-defg-hij` or the Zoom meeting number.",
             "in": "path",
             "name": "meeting_id",
             "required": true,
@@ -4684,6 +6028,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -4715,6 +6079,10 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "enabled": true,
+                  "status": "ok"
+                },
                 "schema": {
                   "additionalProperties": true,
                   "title": "Response Extension Transcription Health Transcription Extension Health Get",
@@ -4722,10 +6090,67 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Extension transcription is enabled"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           }
         },
         "summary": "Extension transcription handshake",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/transcription/languages": {
+      "get": {
+        "description": "Languages the configured transcription provider can be asked to transcribe in, plus the default. Populates Settings → Transcription.",
+        "operationId": "get_transcription_languages_transcription_languages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionLanguagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List transcription languages",
         "tags": [
           "Transcription"
         ]
@@ -4737,6 +6162,7 @@
         "operationId": "get_segments_for_version_transcription_segments__playlist_id___version_id__get",
         "parameters": [
           {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "path",
             "name": "playlist_id",
             "required": true,
@@ -4746,6 +6172,7 @@
             }
           },
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -4769,6 +6196,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -4798,6 +6245,7 @@
         "operationId": "get_transcript_transcription_transcript__platform___meeting_id__get",
         "parameters": [
           {
+            "description": "Meeting platform the bot joined.",
             "in": "path",
             "name": "platform",
             "required": true,
@@ -4806,6 +6254,7 @@
             }
           },
           {
+            "description": "Native meeting ID for the platform, e.g. the Google Meet code `abc-defg-hij` or the Zoom meeting number.",
             "in": "path",
             "name": "meeting_id",
             "required": true,
@@ -4825,6 +6274,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
           },
           "422": {
             "content": {
@@ -4854,6 +6323,7 @@
         "operationId": "get_user_by_email_users__user_email__get",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -4873,6 +6343,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -4902,6 +6392,7 @@
         "operationId": "list_qc_checks_users__user_email__qc_checks_get",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -4925,6 +6416,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
           },
           "422": {
             "content": {
@@ -4952,6 +6463,7 @@
         "operationId": "create_qc_check_users__user_email__qc_checks_post",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -4982,6 +6494,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -5010,6 +6542,7 @@
         "operationId": "delete_qc_check_users__user_email__qc_checks__check_id__delete",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -5019,6 +6552,7 @@
             }
           },
           {
+            "description": "QC check ID returned when the check was created.",
             "in": "path",
             "name": "check_id",
             "required": true,
@@ -5031,6 +6565,36 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -5058,6 +6622,7 @@
         "operationId": "update_qc_check_users__user_email__qc_checks__check_id__put",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -5067,6 +6632,7 @@
             }
           },
           {
+            "description": "QC check ID returned when the check was created.",
             "in": "path",
             "name": "check_id",
             "required": true,
@@ -5097,6 +6663,36 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -5125,6 +6721,7 @@
         "operationId": "delete_user_settings_users__user_email__settings_delete",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -5145,6 +6742,36 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -5172,6 +6799,7 @@
         "operationId": "get_user_settings_users__user_email__settings_get",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -5191,6 +6819,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
           },
           "422": {
             "content": {
@@ -5218,6 +6866,7 @@
         "operationId": "upsert_user_settings_users__user_email__settings_put",
         "parameters": [
           {
+            "description": "Email address of a user as recorded in the production tracking provider. On `/users/{user_email}/...` routes it must match the authenticated caller (403 otherwise); elsewhere it names the owner of the data being read or written.",
             "in": "path",
             "name": "user_email",
             "required": true,
@@ -5248,6 +6897,26 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -5276,6 +6945,7 @@
         "operationId": "get_version_statuses_version_statuses_get",
         "parameters": [
           {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
             "in": "query",
             "name": "project_id",
             "required": false,
@@ -5307,6 +6977,16 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -5330,6 +7010,7 @@
         "operationId": "get_version_version__version_id__get",
         "parameters": [
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -5349,6 +7030,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "422": {
             "content": {
@@ -5378,6 +7079,7 @@
         "operationId": "update_version_status_versions__version_id__status_patch",
         "parameters": [
           {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
             "in": "path",
             "name": "version_id",
             "required": true,
@@ -5408,6 +7110,26 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -5417,6 +7139,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Production tracking provider rejected the update"
           }
         },
         "security": [
@@ -5433,72 +7165,111 @@
   },
   "tags": [
     {
-      "description": "Health check and status endpoints",
+      "description": "Liveness probes. No authentication.",
       "name": "Health"
     },
     {
-      "description": "Operations for managing production entities",
+      "description": "Generic find and search across entity types in the production tracking provider.",
       "name": "Entities"
     },
     {
-      "description": "Operations for managing playlists",
+      "description": "Playlists in the production tracking provider: list, create, and add versions.",
       "name": "Playlists"
     },
     {
-      "description": "Operations for managing versions",
+      "description": "Versions in the production tracking provider, including status reads and writes.",
       "name": "Versions"
     },
     {
-      "description": "Operations for managing shots",
+      "description": "Shots in the production tracking provider.",
       "name": "Shots"
     },
     {
-      "description": "Operations for managing assets",
+      "description": "Assets in the production tracking provider.",
       "name": "Assets"
     },
     {
-      "description": "Operations for managing tasks",
+      "description": "Tasks in the production tracking provider.",
       "name": "Tasks"
     },
     {
-      "description": "Operations for managing notes",
+      "description": "Published notes in the production tracking provider. Notes still being written live under **Draft Notes**.",
       "name": "Notes"
     },
     {
-      "description": "Operations for staging file attachments for notes",
+      "description": "Files staged in DNA, uploaded to the tracking provider when the draft note that references them is published.",
       "name": "Attachments"
     },
     {
-      "description": "Operations for managing projects",
+      "description": "Projects in the production tracking provider, resolved for a user by email.",
       "name": "Projects"
     },
     {
-      "description": "Operations for managing users",
+      "description": "Users in the production tracking provider, looked up by email.",
       "name": "Users"
     },
     {
-      "description": "Audio transcription services",
+      "description": "Dispatch meeting bots and read the transcript segments DNA stores per playlist version.",
       "name": "Transcription"
     },
     {
-      "description": "LLM-powered note generation",
+      "description": "AI note suggestions from the configured LLM provider.",
       "name": "LLM"
     },
     {
-      "description": "Operations for managing draft notes",
+      "description": "Notes being written in DNA, one per (playlist, version, user), until published to the tracking provider.",
       "name": "Draft Notes"
     },
     {
-      "description": "Operations for managing playlist metadata (in-review version and meeting ID)",
+      "description": "Push DNA data into the production tracking provider: draft notes become Notes, transcripts become custom-entity rows.",
+      "name": "Publishing"
+    },
+    {
+      "description": "DNA's review state for a playlist: the version in review, the linked meeting, and transcription flags.",
       "name": "Playlist Metadata"
     },
     {
-      "description": "Operations for managing user settings and preferences",
+      "description": "Per-project terminology stored in DNA and injected into AI prompts.",
+      "name": "Project Glossary"
+    },
+    {
+      "description": "Per-user preferences stored in DNA, such as the note prompt, preferred model and transcription language.",
       "name": "User Settings"
     },
     {
-      "description": "User-defined LLM quality checks for draft notes at publish time",
+      "description": "User-defined LLM quality checks that run against draft notes before publishing.",
       "name": "Note QC"
+    }
+  ],
+  "x-tagGroups": [
+    {
+      "name": "Production Tracking",
+      "tags": [
+        "Projects",
+        "Playlists",
+        "Versions",
+        "Shots",
+        "Assets",
+        "Tasks",
+        "Notes",
+        "Users",
+        "Entities"
+      ]
+    },
+    {
+      "name": "DNA",
+      "tags": [
+        "Draft Notes",
+        "Publishing",
+        "Playlist Metadata",
+        "Project Glossary",
+        "Transcription",
+        "Note QC",
+        "User Settings",
+        "Attachments",
+        "LLM",
+        "Health"
+      ]
     }
   ]
 }

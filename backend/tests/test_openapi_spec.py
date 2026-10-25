@@ -135,3 +135,54 @@ def test_public_allowlist_matches_spec(spec):
         if (method, path) in UNAUTHENTICATED_PATHS and "security" in operation
     ]
     assert not stale, f"Allowlisted as public but now authenticated: {stale}"
+
+
+def test_every_tag_belongs_to_exactly_one_group(spec):
+    """x-tagGroups drives the ReDoc/docs-site sidebar; a tag outside every
+    group would silently disappear from it."""
+    declared = {tag["name"] for tag in spec["tags"]}
+    grouped = [tag for group in spec["x-tagGroups"] for tag in group["tags"]]
+    assert sorted(grouped) == sorted(
+        set(grouped)
+    ), f"Tags listed in more than one group: {sorted(set(t for t in grouped if grouped.count(t) > 1))}"
+    assert set(grouped) == declared, (
+        f"Ungrouped tags: {sorted(declared - set(grouped))}; "
+        f"grouped but undeclared: {sorted(set(grouped) - declared)}"
+    )
+
+
+def test_authenticated_endpoints_document_401(spec):
+    missing = [
+        f"{method.upper()} {path}"
+        for method, path, operation in iter_operations(spec)
+        if "security" in operation and "401" not in operation["responses"]
+    ]
+    assert not missing, f"Authenticated endpoints without a 401 response: {missing}"
+
+
+def test_every_parameter_is_described(spec):
+    """Opaque IDs need to say which system issued them; add new parameter
+    names to dna.openapi_schema.PARAM_DESCRIPTIONS or describe them inline."""
+    missing = [
+        f"{method.upper()} {path} :: {param['name']}"
+        for method, path, operation in iter_operations(spec)
+        for param in operation.get("parameters", [])
+        if not param.get("description")
+    ]
+    assert not missing, f"Parameters without a description: {missing}"
+
+
+def test_error_responses_use_the_error_schema(spec):
+    """Every documented 4xx/5xx body is the `{"detail": ...}` envelope, except
+    FastAPI's own 422 validation response."""
+    bad = []
+    for method, path, operation in iter_operations(spec):
+        for status, response in operation["responses"].items():
+            if not status.startswith(("4", "5")) or status == "422":
+                continue
+            schema = (
+                response.get("content", {}).get("application/json", {}).get("schema")
+            )
+            if schema != {"$ref": "#/components/schemas/ErrorResponse"}:
+                bad.append(f"{method.upper()} {path} -> {status}")
+    assert not bad, f"Error responses not using ErrorResponse: {bad}"

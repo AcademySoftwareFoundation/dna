@@ -6,14 +6,58 @@ title: Backend API
 
 # Backend API
 
-HTTP reference for the DNA (Dailies Note Assistant) backend, covering 46
-operations across 17 tags.
+HTTP reference for the DNA (Dailies Notes Assistant) backend. The web app is
+one client of this API; your tool can be another. Typical reasons to build on
+it:
 
-The pages under **Reference** are generated from the backend's OpenAPI schema,
-which is extracted directly from the FastAPI application in
-[`AcademySoftwareFoundation/dna`](https://github.com/AcademySoftwareFoundation/dna/tree/main/backend).
-They therefore reflect the server's real routes and Pydantic models. This
-landing page is hand-written and safe to edit.
+- Read what is in review right now and who has notes on it.
+- Write draft notes from another UI and publish them into production tracking.
+- Drive meeting transcription, or stream a transcript in from your own
+  recorder so DNA can turn it into notes.
+
+Start with [Concepts](/api/concepts) for what lives where and how a review
+flows, then [Authentication](/api/authentication). The pages under
+**Reference** are generated from the backend's OpenAPI schema, so they always
+match the server's real routes and Pydantic models.
+
+## Two kinds of endpoint
+
+| Group | What it does | Where the data lives |
+|---|---|---|
+| **Production Tracking** | Projects, playlists, versions, shots, assets, tasks, notes, users, find/search | The configured provider (ShotGrid today, or a read-only mock). DNA stores nothing. |
+| **DNA** | Draft notes, playlist review state, transcripts, QC checks, settings, glossaries, AI suggestions | DNA's own database. The **Publishing** endpoints push it into the provider. |
+
+Every ID in the API is an opaque string issued by the provider; with ShotGrid
+that is the numeric entity ID as a string (`"6990"`).
+
+## A first request
+
+With a backend running locally (`make start-local` in `backend/`) and a token
+(see [Authentication](/api/authentication)):
+
+```bash
+export DNA=http://localhost:8000
+export TOKEN=...   # bearer token
+
+# Who am I, and what can I see?
+curl -s "$DNA/projects/user/sam.reviewer@studio.example" -H "Authorization: Bearer $TOKEN"
+
+# Playlists in a project, then the versions in one of them
+curl -s "$DNA/projects/124/playlists" -H "Authorization: Bearer $TOKEN"
+curl -s "$DNA/playlists/45/versions"  -H "Authorization: Bearer $TOKEN"
+
+# Write a draft note on a version, then publish it
+curl -s -X PUT "$DNA/playlists/45/versions/6990/draft-notes/sam.reviewer@studio.example" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"subject": "mk020_0010 - comp notes", "content": "Soften the matte edge on 1042-1060.", "version_status": "rev"}'
+
+curl -s -X POST "$DNA/playlists/45/publish-notes" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"user_email": "sam.reviewer@studio.example", "targets": [{"user_email": "sam.reviewer@studio.example", "version_id": "6990"}]}'
+```
+
+Each reference page has a **Send API Request** panel and code samples in
+several languages, prefilled from the same examples.
 
 ## Base URL
 
@@ -23,42 +67,23 @@ The generated spec targets a local backend:
 http://localhost:8000
 ```
 
-Bring one up with Docker Compose from the backend directory:
-
-```bash
-make start-local
-```
-
 Change the recorded base URL by re-running the extraction with an override:
 
 ```bash
-DNA_SERVER_URL=https://dna.example.com ./scripts/fetch-openapi.sh
+DNA_SERVER_URL=https://dna.example.com npm run fetch-openapi
 ```
-
-## Authentication
-
-Endpoints use HTTP bearer authentication:
-
-```bash
-curl http://localhost:8000/projects \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-:::note
-The backend declares a `HTTPBearer` scheme but applies it per-route rather than
-globally, so a few endpoints — notably under **Health** — are open. Each
-reference page lists whether it requires authorization.
-:::
 
 ## Keeping this in sync
 
-Upstream does not commit an OpenAPI document; FastAPI builds it at runtime.
-`scripts/fetch-openapi.sh` imports the app and serializes `app.openapi()`
-without starting a server or a database:
+The backend commits its OpenAPI document at `backend/docs/openapi.json`
+(regenerated with `make openapi`; a test fails CI if it drifts from the app).
+`npm run build:full` copies it into this site and regenerates the reference
+pages before building, so a docs build always reflects the backend checked out
+next to it:
 
 ```bash
-./scripts/fetch-openapi.sh    # refresh openapi/backend.json
-npm run regen-api-docs        # rebuild the MDX under api/reference/
+npm run fetch-openapi      # copy backend/docs/openapi.json -> openapi/backend.json
+npm run regen-api-docs     # rebuild the MDX under api/reference/
 ```
 
 Looking for the frontend guides instead? They live at [/docs](/docs).
