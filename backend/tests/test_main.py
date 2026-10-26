@@ -206,7 +206,9 @@ class TestFindEndpoint:
             )
             assert response.status_code == 200
 
-            mock_provider.find.assert_called_once_with("project", [])
+            mock_provider.find.assert_called_once_with(
+                "project", [], additional_fields=None
+            )
         finally:
             app.dependency_overrides.clear()
 
@@ -331,7 +333,190 @@ class TestFindEndpoint:
                 },
             )
             assert response.status_code == 200
-            mock_provider.find.assert_called_once_with("project", [])
+            mock_provider.find.assert_called_once_with(
+                "project", [], additional_fields=None
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestSchemaAndUpdateEntityEndpoints:
+    """Tests for schema reads and generic entity updates."""
+
+    @pytest.fixture
+    def mock_provider(self):
+        return mock.MagicMock()
+
+    def test_get_schema_returns_fields(self, mock_provider):
+        from dna.models.schema import SchemaField
+
+        mock_provider.get_schema.return_value = [
+            SchemaField(
+                code="sg_cut_in",
+                display_name="Cut In",
+                data_type="number",
+                editable=True,
+            )
+        ]
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.get("/schema/Shot", params={"project_id": "124"})
+            assert response.status_code == 200
+            assert response.json()[0]["code"] == "sg_cut_in"
+            assert response.json()[0]["source"] == "provider"
+            mock_provider.get_schema.assert_called_once_with(
+                "shot", "124", include_dna_fields=False
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_schema_include_dna_fields(self, mock_provider):
+        from dna.models.schema import SchemaField
+
+        mock_provider.get_schema.return_value = [
+            SchemaField(
+                code="description",
+                display_name="Description",
+                data_type="text",
+                editable=True,
+                source="dna",
+            )
+        ]
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.get("/schema/shot", params={"include_dna_fields": "true"})
+            assert response.status_code == 200
+            assert response.json()[0]["source"] == "dna"
+            mock_provider.get_schema.assert_called_once_with(
+                "shot", None, include_dna_fields=True
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_schema_unknown_type_returns_400(self, mock_provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.get("/schema/not_a_type")
+            assert response.status_code == 400
+            mock_provider.get_schema.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_shot_passes_additional_fields(self, mock_provider):
+        from dna.models.entity import Shot
+
+        mock_provider.get_entity.return_value = Shot(
+            id="1", name="sh010", additional_fields={"sg_cut_in": 1001}
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.get(
+                "/shot/1", params={"additional_fields": "sg_cut_in, sg_cut_out"}
+            )
+            assert response.status_code == 200
+            assert response.json()["additional_fields"]["sg_cut_in"] == 1001
+            mock_provider.get_entity.assert_called_once_with(
+                "shot", "1", additional_fields=["sg_cut_in", "sg_cut_out"]
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_update_entity_returns_200(self, mock_provider):
+        from dna.models.entity import Shot
+
+        mock_provider.update_entity.return_value = Shot(
+            id="1", name="sh010", additional_fields={"sg_cut_in": 1005}
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.patch(
+                "/entities/Shot/1",
+                json={
+                    "fields": {"description": "updated"},
+                    "additional_fields": {"sg_cut_in": 1005},
+                },
+            )
+            assert response.status_code == 200
+            assert response.json()["additional_fields"]["sg_cut_in"] == 1005
+            mock_provider.update_entity.assert_called_once_with(
+                "shot", "1", {"description": "updated"}, {"sg_cut_in": 1005}
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_update_entity_value_error_returns_400(self, mock_provider):
+        mock_provider.update_entity.side_effect = ValueError("Unknown field 'nope'")
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.patch("/entities/shot/1", json={"fields": {"nope": 1}})
+            assert response.status_code == 400
+            assert "Unknown field" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_update_entity_not_implemented_returns_501(self, mock_provider):
+        mock_provider.update_entity.side_effect = NotImplementedError("read-only")
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.patch("/entities/shot/1", json={"fields": {}})
+            assert response.status_code == 501
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_update_entity_unknown_type_returns_400(self, mock_provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.patch("/entities/nope/1", json={})
+            assert response.status_code == 400
+            mock_provider.update_entity.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_find_passes_additional_fields(self, mock_provider):
+        from dna.models.entity import Shot
+
+        mock_provider.find.return_value = [
+            Shot(id="1", name="sh010", additional_fields={"sg_cut_in": 1})
+        ]
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.post(
+                "/find",
+                json={
+                    "entity_type": "shot",
+                    "filters": [],
+                    "additional_fields": ["sg_cut_in"],
+                },
+            )
+            assert response.status_code == 200
+            mock_provider.find.assert_called_once_with(
+                "shot", [], additional_fields=["sg_cut_in"]
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_create_note_passes_additional_fields(self, mock_provider):
+        from dna.models.entity import Note
+
+        mock_provider.add_entity.return_value = Note(
+            id="9",
+            subject="Subject",
+            project={"type": "Project", "id": "1"},
+            additional_fields={"sg_note_type": "dailies"},
+        )
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.post(
+                "/note",
+                json={
+                    "subject": "Subject",
+                    "project": {"type": "Project", "id": "1"},
+                    "additional_fields": {"sg_note_type": "dailies"},
+                },
+            )
+            assert response.status_code == 201
+            note = mock_provider.add_entity.call_args[0][1]
+            assert note.additional_fields == {"sg_note_type": "dailies"}
         finally:
             app.dependency_overrides.clear()
 

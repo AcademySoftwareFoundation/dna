@@ -28,6 +28,8 @@ export interface UserReference {
 export interface EntityBase {
   id: string;
   type: EntityType;
+  /** Provider fields that are not part of the DNA model, keyed by field code. */
+  additional_fields?: Record<string, unknown>;
 }
 
 export interface Project extends EntityBase {
@@ -491,6 +493,47 @@ export interface StatusOption {
 
 export interface GetVersionStatusesParams {
   projectId?: string;
+}
+
+export interface SchemaFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface SchemaField {
+  code: string;
+  display_name: string;
+  data_type: string;
+  editable: boolean;
+  acceptable_values?: SchemaFieldOption[] | null;
+  /** 'dna' fields are written via `fields`, 'provider' via `additional_fields`. */
+  source: 'dna' | 'provider';
+}
+
+export interface GetEntitySchemaParams {
+  entityType: string;
+  projectId?: string;
+  includeDnaFields?: boolean;
+}
+
+export interface GetEntityParams {
+  entityType: string;
+  entityId: string;
+  additionalFields?: string[];
+}
+
+export type EntityFieldLevel = 'version' | 'task' | 'entity';
+
+export interface SelectedEntityField {
+  level: EntityFieldLevel;
+  code: string;
+}
+
+export interface UpdateEntityParams {
+  entityType: string;
+  entityId: string;
+  fields?: Record<string, unknown>;
+  additionalFields?: Record<string, unknown>;
 }
 
 export interface PublishNoteTarget {

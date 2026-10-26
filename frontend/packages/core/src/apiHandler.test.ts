@@ -11,6 +11,7 @@ describe('ApiHandler', () => {
     get: ReturnType<typeof vi.fn>;
     post: ReturnType<typeof vi.fn>;
     put: ReturnType<typeof vi.fn>;
+    patch: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
     interceptors: {
       request: { use: ReturnType<typeof vi.fn> };
@@ -27,6 +28,7 @@ describe('ApiHandler', () => {
       get: vi.fn(),
       post: vi.fn(),
       put: vi.fn(),
+      patch: vi.fn(),
       delete: vi.fn(),
       interceptors: {
         request: {
@@ -701,6 +703,119 @@ describe('ApiHandler', () => {
       expect(result.outcome).toBe('created');
       expect(result.transcript_entity_id).toBe(9001);
       expect(result.segments_count).toBe(12);
+    });
+  });
+
+  describe('schema and entity update', () => {
+    it('getEntitySchema requests the schema for an entity type', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: [
+          {
+            code: 'sg_cut_in',
+            display_name: 'Cut In',
+            data_type: 'number',
+            editable: true,
+            acceptable_values: null,
+            source: 'provider',
+          },
+        ],
+      });
+
+      const fields = await api.getEntitySchema({
+        entityType: 'shot',
+        projectId: '124',
+      });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/schema/shot?project_id=124',
+        undefined
+      );
+      expect(fields[0].code).toBe('sg_cut_in');
+    });
+
+    it('getEntitySchema requests DNA fields when asked', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({ data: [] });
+
+      await api.getEntitySchema({
+        entityType: 'task',
+        projectId: '7',
+        includeDnaFields: true,
+      });
+      await api.getEntitySchema({ entityType: 'task', includeDnaFields: true });
+      await api.getEntitySchema({ entityType: 'task' });
+
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        1,
+        '/schema/task?project_id=7&include_dna_fields=true',
+        undefined
+      );
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        2,
+        '/schema/task?include_dna_fields=true',
+        undefined
+      );
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        3,
+        '/schema/task',
+        undefined
+      );
+    });
+
+    it('getEntity requests an entity with additional fields', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { type: 'Shot', id: '9', additional_fields: { sg_cut_in: 1 } },
+      });
+
+      const shot = await api.getEntity({
+        entityType: 'Shot',
+        entityId: '9',
+        additionalFields: ['sg_cut_in', 'sg_cut_out'],
+      });
+      await api.getEntity({ entityType: 'version', entityId: '3' });
+
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        1,
+        '/shot/9?additional_fields=sg_cut_in%2Csg_cut_out',
+        undefined
+      );
+      expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
+        2,
+        '/version/3',
+        undefined
+      );
+      expect(shot.id).toBe('9');
+    });
+
+    it('updateEntity patches DNA fields and additional fields', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      mockAxiosInstance.patch.mockResolvedValue({
+        data: {
+          type: 'Shot',
+          id: '1',
+          name: 'sh010',
+          additional_fields: { sg_cut_in: 1001 },
+        },
+      });
+
+      const shot = await api.updateEntity({
+        entityType: 'shot',
+        entityId: '1',
+        fields: { description: 'updated' },
+        additionalFields: { sg_cut_in: 1001 },
+      });
+
+      expect(mockAxiosInstance.patch).toHaveBeenCalledWith(
+        '/entities/shot/1',
+        {
+          fields: { description: 'updated' },
+          additional_fields: { sg_cut_in: 1001 },
+        },
+        undefined
+      );
+      expect(shot.id).toBe('1');
     });
   });
 

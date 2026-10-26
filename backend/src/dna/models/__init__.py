@@ -66,9 +66,11 @@ from dna.models.requests import (
     SearchRequest,
     SearchResult,
     StatusOption,
+    UpdateEntityRequest,
     UpdateVersionStatusRequest,
     UpdateVersionStatusResponse,
 )
+from dna.models.schema import SchemaField, SchemaFieldOption
 from dna.models.stored_segment import (
     StoredSegment,
     StoredSegmentCreate,
@@ -117,8 +119,11 @@ __all__ = [
     "PublishNotesResponse",
     "PublishTranscriptRequest",
     "PublishTranscriptResponse",
+    "UpdateEntityRequest",
     "UpdateVersionStatusRequest",
     "UpdateVersionStatusResponse",
+    "SchemaField",
+    "SchemaFieldOption",
     "SCRATCH_VERSION_ID",
     "DraftNote",
     "DraftNoteBase",

@@ -14,6 +14,7 @@ from fastapi import (
     FastAPI,
     File,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     WebSocket,
@@ -65,6 +66,7 @@ from dna.models import (
     PublishTranscriptResponse,
     RunQCChecksRequest,
     RunQCChecksResponse,
+    SchemaField,
     SearchRequest,
     SearchResult,
     Shot,
@@ -72,6 +74,7 @@ from dna.models import (
     StoredSegment,
     Task,
     Transcript,
+    UpdateEntityRequest,
     UpdateVersionStatusRequest,
     UpdateVersionStatusResponse,
     User,
@@ -539,6 +542,35 @@ async def websocket_endpoint(websocket: WebSocket):
 # -----------------------------------------------------------------------------
 
 
+def _additional_fields_query(
+    additional_fields: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated provider field codes to return in "
+            "additional_fields. These are fields that are not part of the "
+            "DNA entity model, for example 'sg_cut_in,sg_cut_out'."
+        ),
+    ),
+) -> Optional[list[str]]:
+    codes = [part.strip() for part in (additional_fields or "").split(",")]
+    return [code for code in codes if code] or None
+
+
+AdditionalFieldsDep = Annotated[Optional[list[str]], Depends(_additional_fields_query)]
+
+
+def _require_entity_type(entity_type: str) -> str:
+    """Normalise an entity type and reject ones DNA does not model."""
+    normalized = entity_type.lower()
+    if normalized not in ENTITY_MODELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported entity type: '{entity_type}'. "
+            f"Supported types: {list(ENTITY_MODELS.keys())}",
+        )
+    return normalized
+
+
 @app.get(
     "/version/{version_id}",
     tags=["Versions"],
@@ -547,11 +579,21 @@ async def websocket_endpoint(websocket: WebSocket):
     response_model=Version,
 )
 async def get_version(
-    version_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+    version_id: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    additional_fields: AdditionalFieldsDep,
 ) -> Version:
     """Get a version entity by its ID."""
     try:
-        return cast(Version, provider.get_entity("version", version_id))
+        return cast(
+            Version,
+            provider.get_entity(
+                "version",
+                version_id,
+                additional_fields=additional_fields,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -564,11 +606,21 @@ async def get_version(
     response_model=Playlist,
 )
 async def get_playlist(
-    playlist_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+    playlist_id: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    additional_fields: AdditionalFieldsDep,
 ) -> Playlist:
     """Get a playlist entity by its ID."""
     try:
-        return cast(Playlist, provider.get_entity("playlist", playlist_id))
+        return cast(
+            Playlist,
+            provider.get_entity(
+                "playlist",
+                playlist_id,
+                additional_fields=additional_fields,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -581,11 +633,21 @@ async def get_playlist(
     response_model=Shot,
 )
 async def get_shot(
-    shot_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+    shot_id: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    additional_fields: AdditionalFieldsDep,
 ) -> Shot:
     """Get a shot entity by its ID."""
     try:
-        return cast(Shot, provider.get_entity("shot", shot_id))
+        return cast(
+            Shot,
+            provider.get_entity(
+                "shot",
+                shot_id,
+                additional_fields=additional_fields,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -598,11 +660,21 @@ async def get_shot(
     response_model=Asset,
 )
 async def get_asset(
-    asset_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+    asset_id: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    additional_fields: AdditionalFieldsDep,
 ) -> Asset:
     """Get an asset entity by its ID."""
     try:
-        return cast(Asset, provider.get_entity("asset", asset_id))
+        return cast(
+            Asset,
+            provider.get_entity(
+                "asset",
+                asset_id,
+                additional_fields=additional_fields,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -615,11 +687,21 @@ async def get_asset(
     response_model=Task,
 )
 async def get_task(
-    task_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+    task_id: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    additional_fields: AdditionalFieldsDep,
 ) -> Task:
     """Get a task entity by its ID."""
     try:
-        return cast(Task, provider.get_entity("task", task_id))
+        return cast(
+            Task,
+            provider.get_entity(
+                "task",
+                task_id,
+                additional_fields=additional_fields,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -632,13 +714,97 @@ async def get_task(
     response_model=Note,
 )
 async def get_note(
-    note_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
+    note_id: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    additional_fields: AdditionalFieldsDep,
 ) -> Note:
     """Get a note entity by its ID."""
     try:
-        return cast(Note, provider.get_entity("note", note_id))
+        return cast(
+            Note,
+            provider.get_entity(
+                "note",
+                note_id,
+                additional_fields=additional_fields,
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get(
+    "/schema/{entity_type}",
+    tags=["Entities"],
+    summary="Get the field schema for an entity type",
+    description=(
+        "Return provider fields that are not part of the DNA model for this "
+        "entity type. DNA fields (name, status, and so on) are omitted unless "
+        "include_dna_fields is set, in which case they are returned with "
+        "source 'dna'. Linked fields (for example a version's task) are "
+        "returned as read-only."
+    ),
+    response_model=list[SchemaField],
+)
+async def get_entity_schema(
+    entity_type: str,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+    project_id: Optional[str] = Query(
+        None,
+        description=(
+            "Project ID as issued by the production tracking provider. "
+            "When set, choice values that vary by project are scoped to it."
+        ),
+    ),
+    include_dna_fields: bool = Query(
+        False,
+        description=(
+            "Also return fields that are on the DNA model, tagged with "
+            "source 'dna' and keyed by the DNA attribute name."
+        ),
+    ),
+) -> list[SchemaField]:
+    """Return the field schema for an entity type."""
+    normalized = _require_entity_type(entity_type)
+    try:
+        return provider.get_schema(
+            normalized, project_id, include_dna_fields=include_dna_fields
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.patch(
+    "/entities/{entity_type}/{entity_id}",
+    tags=["Entities"],
+    summary="Update an entity",
+    description=(
+        "Update DNA fields and provider-specific additional fields on an "
+        "existing entity. Linked fields cannot be changed through fields."
+    ),
+    response_model=EntityBase,
+)
+async def update_entity(
+    entity_type: str,
+    entity_id: str,
+    request: UpdateEntityRequest,
+    provider: ProdtrackProviderDep,
+    _: CurrentUserDep,
+) -> EntityBase:
+    """Update DNA fields and provider fields that are not on the model."""
+    normalized = _require_entity_type(entity_type)
+    try:
+        return provider.update_entity(
+            normalized,
+            entity_id,
+            request.fields,
+            request.additional_fields,
+        )
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # -----------------------------------------------------------------------------
@@ -724,6 +890,7 @@ async def create_note(
             content=request.content,
             project=request.project,
             note_links=note_links,
+            additional_fields=request.additional_fields or {},
         )
         return cast(Note, provider.add_entity("note", note))
     except Exception as e:
@@ -757,7 +924,9 @@ async def find_entities(
 
     try:
         filters = [f.model_dump() for f in request.filters]
-        return provider.find(entity_type, filters)
+        return provider.find(
+            entity_type, filters, additional_fields=request.additional_fields
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

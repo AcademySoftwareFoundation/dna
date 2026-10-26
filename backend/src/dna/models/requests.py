@@ -23,6 +23,13 @@ class CreateNoteRequest(BaseModel):
     note_links: Optional[list[EntityLink]] = Field(
         default=None, description="Entities to link this note to"
     )
+    additional_fields: Optional[dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Provider field codes that are not on the Note model, "
+            "for example {'sg_note_type': 'dailies'}."
+        ),
+    )
 
 
 class FilterCondition(BaseModel):
@@ -41,6 +48,13 @@ class FindRequest(BaseModel):
     )
     filters: list[FilterCondition] = Field(
         default_factory=list, description="List of filter conditions"
+    )
+    additional_fields: Optional[list[str]] = Field(
+        default=None,
+        description=(
+            "Provider field codes to include on each result under "
+            "additional_fields. Omit to skip the extra read."
+        ),
     )
 
 
@@ -108,6 +122,22 @@ class SearchResult(BaseModel):
     email: Optional[str] = Field(default=None, description="Email (for users)")
     project: Optional[dict[str, Any]] = Field(
         default=None, description="Project reference (for project-scoped entities)"
+    )
+
+
+class UpdateEntityRequest(BaseModel):
+    """Request model for updating an entity's DNA fields and provider extras."""
+
+    fields: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "DNA field names to update. Linked fields (tasks, notes, entity) "
+            "are not accepted here."
+        ),
+    )
+    additional_fields: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Provider field codes that are not on the DNA model.",
     )
 
 

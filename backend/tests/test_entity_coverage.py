@@ -16,6 +16,21 @@ from dna.models.entity import (
 )
 
 
+class TestAdditionalFields:
+    """Tests for provider fields that are not on the DNA model."""
+
+    def test_additional_fields_default_empty(self):
+        shot = Shot(id="1", name="shot_010")
+        assert shot.additional_fields == {}
+
+    def test_to_dict_includes_additional_fields(self):
+        shot = Shot(id="1", name="shot_010", additional_fields={"sg_cut_in": 1001})
+        result = shot.__to_dict__()
+        assert result["type"] == "Shot"
+        assert result["additional_fields"] == {"sg_cut_in": 1001}
+        assert result["name"] == "shot_010"
+
+
 class TestEntityRepr:
     """Tests for EntityBase.__repr__ method."""
 

@@ -9,7 +9,9 @@ import {
   ChevronDown,
   ExternalLink,
 } from 'lucide-react';
+import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
+import { VersionFieldEditor } from './VersionFieldEditor';
 import { useHotkeyConfig } from '../hotkeys';
 import { useVersionStatuses } from '../hooks';
 import { useFeatureFlags } from '../contexts';
@@ -40,6 +42,8 @@ interface VersionHeaderProps {
   hasInReview?: boolean;
   isCurrentVersionInReview?: boolean;
   isSettingInReview?: boolean;
+  version?: Version | null;
+  playlistId?: string | null;
 }
 
 const HeaderWrapper = styled.div`
@@ -271,13 +275,24 @@ const SetInReviewButton = styled.button<{ $isInReview?: boolean }>`
 `;
 
 const MetadataSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
+  flex: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto repeat(4, minmax(28px, auto));
+  align-content: center;
+  gap: 12px 32px;
+  min-width: 0;
 `;
 
 const VersionTitle = styled.h1`
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  padding-right: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin: 0;
   font-size: 28px;
   font-weight: 600;
@@ -399,6 +414,8 @@ export function VersionHeader({
   hasInReview = true,
   isCurrentVersionInReview = false,
   isSettingInReview = false,
+  version,
+  playlistId,
 }: VersionHeaderProps) {
   const { getLabel } = useHotkeyConfig();
   const { inReviewEnabled } = useFeatureFlags();
@@ -536,6 +553,9 @@ export function VersionHeader({
               ))}
             </LinksContainer>
           </MetadataRow>
+          {version && (
+            <VersionFieldEditor version={version} playlistId={playlistId} />
+          )}
         </MetadataSection>
       </MainContent>
     </HeaderWrapper>
