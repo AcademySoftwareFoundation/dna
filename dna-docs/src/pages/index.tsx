@@ -1,9 +1,8 @@
 import type {ReactNode} from 'react';
 import Link from '@docusaurus/Link';
-import useBaseUrl from '@docusaurus/useBaseUrl';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
-import ThemedImage from '@theme/ThemedImage';
+import AnimatedLogo from '@site/src/components/AnimatedLogo';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
 import Heading from '@theme/Heading';
 
@@ -14,16 +13,9 @@ function HomepageHeader() {
   return (
     <header className={styles.heroBanner}>
       <div className="container">
-        {/* The logo is the page heading; its alt text gives it a name. */}
+        {/* The logo is the page heading; the SVG's aria-label names it. */}
         <Heading as="h1" className={styles.title}>
-          <ThemedImage
-            className={styles.logo}
-            alt={siteConfig.title}
-            sources={{
-              light: useBaseUrl('/img/logo-full-light.svg'),
-              dark: useBaseUrl('/img/logo-full-dark.svg'),
-            }}
-          />
+          <AnimatedLogo className={styles.logo} />
         </Heading>
         <p className={styles.subtitle}>{siteConfig.tagline}</p>
         <div className={styles.buttons}>
