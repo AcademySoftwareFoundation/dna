@@ -19,6 +19,27 @@ function withBaseSlash(baseUrl: string): string {
   return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
 }
 
+type PrismTheme = typeof prismThemes.oneLight;
+
+// Recolour the One themes' green (strings, attr values, ...) to the emerald
+// used by the POST badge and 2xx tab in custom.css. Light mode takes a
+// darker shade of that emerald so code text stays readable on the pale
+// code background.
+function withEmeraldStrings(
+  theme: PrismTheme,
+  green: string,
+  emerald: string,
+): PrismTheme {
+  return {
+    ...theme,
+    styles: theme.styles.map((entry) =>
+      entry.style.color === green
+        ? {...entry, style: {...entry.style, color: emerald}}
+        : entry,
+    ),
+  };
+}
+
 const config: Config = {
   title: 'DNA Docs',
   tagline: 'Frontend guides and backend API reference',
@@ -207,8 +228,16 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} Dailies Notes Assistant: A Project of The Academy Software Foundation`,
     },
     prism: {
-      theme: prismThemes.oneLight,
-      darkTheme: prismThemes.oneDark,
+      theme: withEmeraldStrings(
+        prismThemes.oneLight,
+        'hsl(119, 34%, 47%)',
+        '#059669',
+      ),
+      darkTheme: withEmeraldStrings(
+        prismThemes.oneDark,
+        'hsl(95, 38%, 62%)',
+        '#34d399',
+      ),
       // bash isn't in prism-react-renderer's default bundle; needed for the
       // cURL tab below and the shell blocks in the guides.
       additionalLanguages: ['bash'],
@@ -217,7 +246,9 @@ const config: Config = {
     // offers all 18 generator targets; keep it to the commonly used ones.
     // Tabs render in this order.
     languageTabs: [
-      {language: 'curl', highlight: 'bash', logoClass: 'bash'},
+      // The theme has no 'bash' logo; 'curl' gets the tab its curl styling,
+      // and custom.css swaps in the official curl symbol.
+      {language: 'curl', highlight: 'bash', logoClass: 'curl'},
       // Default to requests; http.client stays available as a variant sub-tab.
       {language: 'python', highlight: 'python', logoClass: 'python', variant: 'requests'},
       // Browser fetch - what the frontend and Chrome extension actually use.
