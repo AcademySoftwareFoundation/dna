@@ -873,4 +873,26 @@ describe('ApiHandler', () => {
       );
     });
   });
+
+  describe('getTranscriptionLanguages', () => {
+    it('should GET the provider language list', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const mockResponse = {
+        languages: [
+          { code: 'en', label: 'English' },
+          { code: '', label: 'Auto-detect' },
+        ],
+        default: 'en',
+      };
+      mockAxiosInstance.get.mockResolvedValue({ data: mockResponse });
+
+      const result = await api.getTranscriptionLanguages();
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/transcription/languages',
+        undefined
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
 });

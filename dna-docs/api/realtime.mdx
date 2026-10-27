@@ -1,0 +1,189 @@
+---
+sidebar_position: 4
+title: Real-time
+---
+
+# Real-time
+
+The backend has two WebSocket endpoints. Neither appears in the OpenAPI
+reference, so they are described here.
+
+| Endpoint | Direction | Authentication | Available |
+|---|---|---|---|
+| `/ws` | Server → client events | None | Always |
+| `/transcription/extension/ingest` | Client → server transcript frames | `token` and `key` query parameters | When `DNA_ENABLE_EXTENSION_TRANSCRIPTION=true` |
+
+All frames are JSON text messages.
+
+## Event stream: `/ws`
+
+```
+ws://localhost:8000/ws
+```
+
+Connect and read. The server ignores anything you send, and there is no
+replay: a client that reconnects sees only events from then on. Every
+connected client receives every event; there is no per-playlist
+subscription, so filter on `playlist_id` yourself.
+
+Two frame shapes arrive.
+
+### Enveloped events
+
+```json
+{ "type": "bot.status_changed", "payload": { "platform": "google_meet", "meeting_id": "abc-defg-hij", "playlist_id": "45", "status": "joining", "vexa_meeting_id": 1842 } }
+```
+
+| `type` | When | `payload` |
+|---|---|---|
+| `bot.status_changed` | DNA dispatches (`joining`) or stops (`stopping`) a bot, and whenever the transcription provider reports a change (`waiting_room`, `in_call`, `transcribing`, `completed`, `failed`, `stopped`) | `platform`, `meeting_id`, `status`; `playlist_id` and `vexa_meeting_id` when known |
+| `transcription.completed` | The provider reports `completed` | Same payload as the triggering `bot.status_changed` |
+| `transcription.error` | The provider reports `failed` or `stopped` | Same payload as the triggering `bot.status_changed` |
+
+### Transcript frames
+
+Transcript ticks are **flat**: the whole message is the payload, so it can be
+handed to a transcript view without reshaping.
+
+```json
+{
+  "type": "transcript",
+  "playlist_id": "45",
+  "version_id": "6990",
+  "speaker": "Sam Reviewer",
+  "confirmed": [
+    { "segment_id": "9b914779:speaker-1:72", "text": "Alex, can you take the edge on 1042?", "start_time": 812.4, "end_time": 815.1, "absolute_start_time": "2026-10-14T17:13:32.400Z", "absolute_end_time": "2026-10-14T17:13:35.100Z" }
+  ],
+  "pending": [
+    { "text": "and then we can", "start_time": 815.1 }
+  ],
+  "ts": "2026-10-14T17:13:36.020Z"
+}
+```
+
+`confirmed` segments have been stored under `(playlist_id, version_id)` and
+are what `GET /transcription/segments/{playlist_id}/{version_id}` returns.
+`pending` is provisional text that may still change; show it, do not store
+it. `version_id` is the playlist's in-review version at the time of the
+frame, from its [metadata](/api/concepts#how-a-review-flows).
+
+## Inbound transcript ingest
+
+This is the socket the DNA browser extension uses to stream a transcript it
+captures itself, and the one to use if your tool records the review (for
+example from inside a ShotGrid page). DNA stores the segments exactly as it
+would from its own meeting bot, so everything downstream - AI suggestions,
+QC checks, transcript publishing - works unchanged.
+
+```
+ws://localhost:8000/transcription/extension/ingest?token=TOKEN&key=KEY
+```
+
+- `token`: a bearer token, validated like the `Authorization` header (see
+  [Authentication](/api/authentication)).
+- `key`: the deployment's `DNA_EXTENSION_KEY`. Omit when the deployment has
+  not set one.
+
+Before connecting, confirm the feature is on:
+`GET /transcription/extension/health` returns `200` when enabled and `404`
+when not.
+
+Before sending, make sure the playlist has metadata with `in_review` set and
+`transcription_paused` false. Frames for a playlist with no in-review version
+are acknowledged with `"stored": 0` and dropped.
+
+### Handshake
+
+On a successful connection the server sends:
+
+```json
+{ "type": "connected", "user": "sam.reviewer@studio.example" }
+```
+
+A rejected connection is closed with code `1008` and one of these reasons:
+`extension transcription disabled`, `invalid extension key`, `unauthorized`.
+
+### Frames you send
+
+**Transcript** (`type` may be omitted; it defaults to `transcript`):
+
+```json
+{
+  "type": "transcript",
+  "playlist_id": "45",
+  "speaker": "Sam Reviewer",
+  "confirmed": [
+    {
+      "segment_id": "rec-2026-10-14-0072",
+      "text": "Alex, can you take the edge on 1042?",
+      "absolute_start_time": "2026-10-14T17:13:32.400Z",
+      "absolute_end_time": "2026-10-14T17:13:35.100Z",
+      "start_time": 812.4,
+      "end_time": 815.1,
+      "speaker": "Sam Reviewer",
+      "language": "en"
+    }
+  ],
+  "pending": [],
+  "ts": "2026-10-14T17:13:36.020Z"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `playlist_id` | yes | Frames without it are dropped. |
+| `confirmed[].segment_id` | yes | Your stable ID for the segment. Sending the same ID again **updates** the stored text, so you can revise a segment after the fact. |
+| `confirmed[].text` | yes | Whitespace-only segments are skipped. |
+| `confirmed[].absolute_start_time` | yes | ISO 8601, UTC. Segments earlier than the playlist's `transcription_resumed_at` are discarded, which is how pause/resume works. |
+| `confirmed[].absolute_end_time` | no | Same format. |
+| `confirmed[].speaker` | no | Falls back to the frame-level `speaker`. |
+| `confirmed[].start_time`, `end_time` | no | Seconds from the start of the recording. |
+| `confirmed[].language` | no | BCP 47 code. |
+| `pending` | no | Broadcast to `/ws` clients for display; never stored. |
+| `ts` | no | Echoed back in the acknowledgement. |
+
+**Ping:** `{ "type": "ping", "ts": "..." }`
+
+### Frames you receive
+
+| Frame | Meaning |
+|---|---|
+| `{ "type": "ack", "stored": 1, "ts": "..." }` | The transcript frame was processed; `stored` is how many confirmed segments were written. `0` with a non-empty `confirmed` list means the playlist has no in-review version or transcription is paused. |
+| `{ "type": "pong", "ts": "..." }` | Reply to a ping. |
+| `{ "type": "error", "error": "invalid_json" \| "invalid_message" \| "unknown_type" }` | The last message was not usable. The socket stays open. |
+| `{ "type": "error", "error": "..." }` | Storing the segments raised; the text is the exception message. |
+
+### What happens to the segments
+
+Confirmed segments are upserted under the playlist's in-review version,
+and the same flat transcript frame is broadcast to every `/ws` client, so a
+DNA web app open on that playlist shows your transcript live. From there the
+segments feed `POST /generate-note`, `run-qc-checks` and `publish-transcript`
+like any other transcript.
+
+### Minimal client
+
+```python
+import asyncio, json, datetime
+import websockets  # pip install websockets
+
+URL = "ws://localhost:8000/transcription/extension/ingest?token=sam.reviewer@studio.example"
+
+async def main():
+    async with websockets.connect(URL) as ws:
+        print(await ws.recv())  # {"type": "connected", ...}
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        await ws.send(json.dumps({
+            "playlist_id": "45",
+            "speaker": "Sam Reviewer",
+            "confirmed": [{
+                "segment_id": "rec-0001",
+                "text": "Alex, can you take the edge on 1042?",
+                "absolute_start_time": now,
+            }],
+            "ts": now,
+        }))
+        print(await ws.recv())  # {"type": "ack", "stored": 1, ...}
+
+asyncio.run(main())
+```

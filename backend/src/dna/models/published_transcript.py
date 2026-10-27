@@ -53,6 +53,21 @@ class PublishedTranscript(BaseModel):
 class PublishedTranscriptSummary(BaseModel):
     """A playlist's published transcript, as listed for clients."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "version_id": "6990",
+                    "meeting_id": "abc-defg-hij",
+                    "entity_type": "CustomEntity01",
+                    "entity_id": "312",
+                    "name": "transcript-6990-2026-10-14",
+                    "updated_at": "2026-10-14T18:02:11Z",
+                }
+            ]
+        }
+    )
+
     version_id: str
     meeting_id: str
     entity_type: str

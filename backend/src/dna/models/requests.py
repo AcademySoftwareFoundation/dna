@@ -2,11 +2,20 @@
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+_REVIEWER = "sam.reviewer@studio.example"
+_PROJECT_REF = {"type": "Project", "id": "124", "name": "dpel-samples"}
+
+
+def _examples(*values: dict[str, Any]) -> ConfigDict:
+    return ConfigDict(json_schema_extra={"examples": list(values)})
 
 
 class EntityLink(BaseModel):
     """Reference to an existing entity for linking."""
+
+    model_config = _examples({"type": "Version", "id": "6990"})
 
     type: str = Field(description="Entity type (e.g., 'Version', 'Playlist', 'Shot')")
     id: str = Field(description="Entity ID")
@@ -14,6 +23,15 @@ class EntityLink(BaseModel):
 
 class CreateNoteRequest(BaseModel):
     """Request model for creating a new note."""
+
+    model_config = _examples(
+        {
+            "subject": "mk020_0010_comp_v003 - comp notes",
+            "content": "Soften the matte edge on 1042-1060 and recheck against the plate.",
+            "project": {"type": "Project", "id": "124"},
+            "note_links": [{"type": "Version", "id": "6990"}],
+        }
+    )
 
     subject: str = Field(description="Note subject line")
     content: Optional[str] = Field(default=None, description="Note body content")
@@ -35,6 +53,10 @@ class CreateNoteRequest(BaseModel):
 class FilterCondition(BaseModel):
     """A single filter condition for entity queries."""
 
+    model_config = _examples(
+        {"field": "name", "operator": "contains", "value": "mk020"}
+    )
+
     field: str = Field(description="DNA field name to filter on")
     operator: str = Field(description="Filter operator (e.g., 'is', 'contains', 'in')")
     value: Any = Field(description="Value to filter by")
@@ -42,6 +64,16 @@ class FilterCondition(BaseModel):
 
 class FindRequest(BaseModel):
     """Request model for finding entities."""
+
+    model_config = _examples(
+        {
+            "entity_type": "version",
+            "filters": [
+                {"field": "name", "operator": "contains", "value": "mk020"},
+                {"field": "status", "operator": "is", "value": "rev"},
+            ],
+        }
+    )
 
     entity_type: str = Field(
         description="DNA entity type to search (e.g., 'project', 'shot', 'version')"
@@ -61,6 +93,15 @@ class FindRequest(BaseModel):
 class GenerateNoteRequest(BaseModel):
     """Request model for generating an AI note suggestion."""
 
+    model_config = _examples(
+        {
+            "playlist_id": "45",
+            "version_id": "6990",
+            "user_email": _REVIEWER,
+            "additional_instructions": "Two sentences max; name the owner of each fix.",
+        }
+    )
+
     playlist_id: str = Field(description="Playlist ID")
     version_id: str = Field(description="Version ID")
     user_email: str = Field(description="User email address")
@@ -77,6 +118,23 @@ class GenerateNoteRequest(BaseModel):
 class GenerateNoteResponse(BaseModel):
     """Response model for AI note generation."""
 
+    model_config = _examples(
+        {
+            "suggestion": (
+                "Matte edge is crawling on 1042-1060 - Alex to soften the key and "
+                "recheck against the plate. Otherwise good to move to lighting."
+            ),
+            "prompt": (
+                "You are taking notes in a VFX dailies review...\n\n"
+                "Transcript:\nSam Reviewer: Alex, can you take the edge on 1042?\n..."
+            ),
+            "context": (
+                "Version: mk020_0010_comp_v003\nShot: mk020_0010\nTask: Comp\n"
+                "Department: Compositing\nStatus: rev"
+            ),
+        }
+    )
+
     suggestion: str = Field(description="The generated note suggestion")
     prompt: str = Field(description="The full prompt with values substituted")
     context: str = Field(description="The version context used for generation")
@@ -84,6 +142,15 @@ class GenerateNoteResponse(BaseModel):
 
 class SearchRequest(BaseModel):
     """Request model for unified entity search."""
+
+    model_config = _examples(
+        {
+            "query": "mk020",
+            "entity_types": ["shot", "version"],
+            "project_id": "124",
+            "limit": 5,
+        }
+    )
 
     query: str = Field(description="Text to search for (searches name field)")
     entity_types: list[str] = Field(
@@ -101,17 +168,31 @@ class SearchRequest(BaseModel):
 class AddVersionToPlaylistRequest(BaseModel):
     """Request model for adding an existing version to a playlist."""
 
+    model_config = _examples({"version_id": "6990"})
+
     version_id: str = Field(description="ID of an existing version to add")
 
 
 class CreatePlaylistRequest(BaseModel):
     """Request model for creating a new playlist in a project."""
 
+    model_config = _examples({"name": "Dailies 2026-10-14"})
+
     name: str = Field(description="Playlist name/code")
 
 
 class SearchResult(BaseModel):
     """Lightweight entity representation for search results."""
+
+    model_config = _examples(
+        {
+            "type": "Shot",
+            "id": "1207",
+            "name": "mk020_0010",
+            "description": "Hero walks into the market",
+            "project": _PROJECT_REF,
+        }
+    )
 
     type: str = Field(description="Entity type (e.g., 'User', 'Shot', 'Asset')")
     id: str = Field(description="Entity ID")
@@ -144,6 +225,8 @@ class UpdateEntityRequest(BaseModel):
 class StatusOption(BaseModel):
     """A status option from ShotGrid schema."""
 
+    model_config = _examples({"code": "rev", "name": "Pending Review"})
+
     code: str = Field(description="Status code (e.g., 'rev', 'apr', 'rej')")
     name: str = Field(description="Display name (e.g., 'Pending Review', 'Approved')")
 
@@ -151,12 +234,25 @@ class StatusOption(BaseModel):
 class PublishNoteTarget(BaseModel):
     """A single draft note to publish (user + version key)."""
 
+    model_config = _examples({"user_email": _REVIEWER, "version_id": "6990"})
+
     user_email: str
     version_id: str
 
 
 class PublishNotesRequest(BaseModel):
     """Request model for publishing draft notes."""
+
+    model_config = _examples(
+        {
+            "user_email": _REVIEWER,
+            "targets": [
+                {"user_email": _REVIEWER, "version_id": "6990"},
+                {"user_email": _REVIEWER, "version_id": "6991"},
+            ],
+            "status_version_ids": ["6990"],
+        }
+    )
 
     user_email: str
     targets: list[PublishNoteTarget] = Field(
@@ -174,6 +270,8 @@ class PublishNotesRequest(BaseModel):
 class UpdateVersionStatusRequest(BaseModel):
     """Request model for updating a version's status."""
 
+    model_config = _examples({"status": "apr", "playlist_id": "45"})
+
     status: str = Field(description="Status code to set on the version")
     playlist_id: Optional[str] = Field(
         default=None,
@@ -188,11 +286,23 @@ class UpdateVersionStatusRequest(BaseModel):
 class UpdateVersionStatusResponse(BaseModel):
     """Response model for updating a version's status."""
 
+    model_config = _examples({"success": True})
+
     success: bool
 
 
 class PublishNotesResponse(BaseModel):
     """Response model for publishing draft notes."""
+
+    model_config = _examples(
+        {
+            "published_count": 1,
+            "republished_count": 1,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "total": 2,
+        }
+    )
 
     published_count: int
     republished_count: int
@@ -204,11 +314,22 @@ class PublishNotesResponse(BaseModel):
 class PublishTranscriptRequest(BaseModel):
     """Request to publish a version's captured transcript."""
 
+    model_config = _examples({"version_id": "6990"})
+
     version_id: str = Field(description="Version whose segments to publish")
 
 
 class PublishTranscriptResponse(BaseModel):
     """Response from the publish-transcript endpoint."""
+
+    model_config = _examples(
+        {
+            "transcript_entity_id": "312",
+            "outcome": "created",
+            "skipped_reason": None,
+            "segments_count": 148,
+        }
+    )
 
     transcript_entity_id: str = Field(
         description="Entity ID of the row in the tracking system"

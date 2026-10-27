@@ -24,6 +24,7 @@ from dna.models.entity import (
     User,
     Version,
 )
+from dna.models.errors import ErrorResponse
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
@@ -82,6 +83,8 @@ from dna.models.transcription import (
     DispatchBotRequest,
     Platform,
     Transcript,
+    TranscriptionLanguage,
+    TranscriptionLanguagesResponse,
     TranscriptSegment,
 )
 from dna.models.user_settings import (
@@ -105,6 +108,7 @@ __all__ = [
     "DNAEntity",
     "ENTITY_MODELS",
     "EntityLink",
+    "ErrorResponse",
     "CreateNoteRequest",
     "CreatePlaylistRequest",
     "FilterCondition",
@@ -144,6 +148,8 @@ __all__ = [
     "BotStatusEnum",
     "DispatchBotRequest",
     "Platform",
+    "TranscriptionLanguage",
+    "TranscriptionLanguagesResponse",
     "TranscriptSegment",
     "UserSettings",
     "UserSettingsUpdate",
