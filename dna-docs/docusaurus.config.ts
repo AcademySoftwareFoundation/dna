@@ -40,6 +40,15 @@ const config: Config = {
 
   onBrokenLinks: 'throw',
 
+  // Same DM Sans the app loads (frontend/packages/app/src/index.css), plus a
+  // monospace face for code.
+  stylesheets: [
+    {
+      href: 'https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500&display=swap',
+      type: 'text/css',
+    },
+  ],
+
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
@@ -111,8 +120,10 @@ const config: Config = {
   themes: ['docusaurus-theme-openapi-docs'],
 
   themeConfig: {
+    // Dark-first like the DNA app; the navbar toggle still switches to light.
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'dark',
+      respectPrefersColorScheme: false,
     },
     navbar: {
       logo: {
@@ -123,9 +134,11 @@ const config: Config = {
 
       items: [
         {to: '/about', label: 'About', position: 'right'},
+        // Lands on the Introduction rather than the generated Guides
+        // category index; stays highlighted anywhere in the frontend docs.
         {
-          type: 'docSidebar',
-          sidebarId: 'frontendSidebar',
+          type: 'doc',
+          docId: 'guides/introduction',
           position: 'right',
           label: 'Frontend',
         },
@@ -144,7 +157,9 @@ const config: Config = {
       ],
     },
     footer: {
-      style: 'dark',
+      // 'light' lets custom.css colour the footer to match the page in both
+      // modes; 'dark' hardcodes Infima's grey.
+      style: 'light',
       links: [
         {
           title: 'Docs',
@@ -189,8 +204,8 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} Dailies Notes Assistant: A Project of The Academy Software Foundation`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: prismThemes.oneLight,
+      darkTheme: prismThemes.oneDark,
       // bash isn't in prism-react-renderer's default bundle; needed for the
       // cURL tab below and the shell blocks in the guides.
       additionalLanguages: ['bash'],
