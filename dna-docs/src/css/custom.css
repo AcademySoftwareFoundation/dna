@@ -1,33 +1,250 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Global styles. Docusaurus bundles Infima; most of the look comes from
+ * overriding its variables below, with a few component rules after.
+ *
+ * Palette mirrors the DNA app (frontend/packages/app/src/styles/theme.ts):
+ * near-black surfaces, indigo accent (#3e63dd), DM Sans.
  */
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #6B57C8;
-  --ifm-color-primary-dark: #6B57C8;
-  --ifm-color-primary-darker: #6B57C8;
-  --ifm-color-primary-darkest: #6B57C8;
-  --ifm-color-primary-light: #6B57C8;
-  --ifm-color-primary-lighter: #6B57C8;
-  --ifm-color-primary-lightest: #6B57C8;
-  --ifm-code-font-size: 95%;
-  --ifm-background-surface-color: #F2F2F2;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  /* Indigo accent. Shades follow Infima's lighten/darken steps. */
+  --ifm-color-primary: #3e63dd;
+  --ifm-color-primary-dark: #2650d9;
+  --ifm-color-primary-darker: #244bcd;
+  --ifm-color-primary-darkest: #1e3ea8;
+  --ifm-color-primary-light: #5676e1;
+  --ifm-color-primary-lighter: #6280e3;
+  --ifm-color-primary-lightest: #869dea;
+
+  --dna-accent: #3e63dd;
+  --dna-accent-hover: #3358d4;
+  --dna-accent-soft: rgba(62, 99, 221, 0.1);
+  --dna-hairline: rgba(14, 14, 22, 0.08);
+  --dna-text-muted: #5a5a76;
+  --dna-code-bg: #f6f6f9;
+
+  --ifm-font-family-base: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+  --ifm-heading-font-weight: 600;
+  --ifm-font-weight-semibold: 600;
+
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #ffffff;
+  --ifm-font-color-base: #2e2e45;
+  --ifm-heading-color: #0e0e16;
+
+  --ifm-navbar-height: 4rem;
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.8);
+
+  --ifm-toc-border-color: var(--dna-hairline);
+  --ifm-hr-border-color: var(--dna-hairline);
+  --ifm-table-border-color: var(--dna-hairline);
+  --ifm-table-stripe-background: transparent;
+  --ifm-table-head-background: var(--dna-code-bg);
+
+  --ifm-code-font-size: 90%;
+  --ifm-code-background: var(--dna-code-bg);
+  --ifm-code-border-radius: 6px;
+  --ifm-pre-border-radius: 12px;
+  --docusaurus-highlighted-code-line-bg: rgba(62, 99, 221, 0.1);
+
+  --ifm-menu-link-padding-vertical: 0.4rem;
+  --ifm-menu-color-background-active: var(--dna-accent-soft);
+  --ifm-menu-color-background-hover: rgba(14, 14, 22, 0.04);
+
+  --ifm-card-border-radius: 12px;
+  --ifm-button-border-radius: 8px;
+  --ifm-global-radius: 8px;
+
+  --ifm-footer-background-color: var(--ifm-background-color);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme='dark'] {
-  --ifm-color-primary: #6B57C8;
-  --ifm-color-primary-dark: #6B57C8;
-  --ifm-color-primary-darker: #6B57C8;
-  --ifm-color-primary-darkest: #6B57C8;
-  --ifm-color-primary-light: #6B57C8;
-  --ifm-color-primary-lighter: #6B57C8;
-  --ifm-color-primary-lightest: #6B57C8;
-  --docusaurus-highlighted-code-line-bg: #111117;
-  --ifm-background-color: #111117;
-  --ifm-background-surface-color: #14121E;
+  /* A lighter indigo keeps links readable on the near-black background. */
+  --ifm-color-primary: #7b93ec;
+  --ifm-color-primary-dark: #5c79e7;
+  --ifm-color-primary-darker: #4c6ce5;
+  --ifm-color-primary-darkest: #2048dc;
+  --ifm-color-primary-light: #9aadf1;
+  --ifm-color-primary-lighter: #aabaf3;
+  --ifm-color-primary-lightest: #d9e0fa;
+
+  --dna-accent-soft: rgba(62, 99, 221, 0.16);
+  --dna-hairline: rgba(255, 255, 255, 0.08);
+  --dna-text-muted: #6b6b82;
+  --dna-code-bg: #14141b;
+
+  --ifm-background-color: #0d0d12;
+  --ifm-background-surface-color: #0d0d12;
+  --ifm-font-color-base: #c9c9d6;
+  --ifm-heading-color: #f0f0f5;
+  --ifm-color-content-secondary: #a0a0b8;
+
+  --ifm-navbar-background-color: rgba(13, 13, 18, 0.75);
+  --ifm-menu-color-background-hover: rgba(255, 255, 255, 0.04);
+  --docusaurus-highlighted-code-line-bg: rgba(62, 99, 221, 0.18);
+}
+
+/* ---------- Typography ---------- */
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+.markdown h1:first-child {
+  --ifm-h1-font-size: 2.25rem;
+}
+
+/* ---------- Navbar ---------- */
+
+.navbar {
+  border-bottom: 1px solid var(--dna-hairline);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
+.navbar__link {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ---------- Sidebar ---------- */
+
+.theme-doc-sidebar-container {
+  border-right-color: var(--dna-hairline) !important;
+}
+
+.menu {
+  font-size: 0.9rem;
+}
+
+.menu__link,
+.menu__caret {
+  border-radius: 8px;
+}
+
+.menu__link {
+  color: var(--ifm-color-content-secondary);
+}
+
+.menu__link:hover {
+  color: var(--ifm-heading-color);
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  font-weight: 500;
+  color: var(--ifm-color-primary);
+}
+
+/* Categories read as section headings, not links. */
+.menu__link--sublist-caret,
+.menu__list-item-collapsible > .menu__link--sublist {
+  color: var(--ifm-heading-color);
+  font-weight: 600;
+}
+
+/* ---------- Table of contents ---------- */
+
+.table-of-contents {
+  border-left: none;
+  font-size: 0.82rem;
+}
+
+.table-of-contents__link {
+  color: var(--dna-text-muted);
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--ifm-color-primary);
+}
+
+/* ---------- Code ---------- */
+
+/* Swap the Prism theme's own background for the DNA surface colour. */
+.theme-code-block {
+  --prism-background-color: var(--dna-code-bg) !important;
+  border: 1px solid var(--dna-hairline);
+  box-shadow: none !important;
+}
+
+/* Prism also sets the theme background inline on the <pre>. */
+.theme-code-block pre {
+  background-color: var(--prism-background-color) !important;
+}
+
+:not(pre) > code {
+  border: 1px solid var(--dna-hairline);
+  padding: 0.1em 0.35em;
+}
+
+/* ---------- Admonitions ---------- */
+
+.theme-admonition {
+  --ifm-alert-border-width: 1px;
+  --ifm-alert-border-left-width: 1px;
+  --ifm-alert-border-radius: 12px;
+  --ifm-alert-shadow: none;
+  background-color: color-mix(
+    in srgb,
+    var(--ifm-alert-border-color) 8%,
+    var(--ifm-background-color)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--ifm-alert-border-color) 35%,
+    transparent
+  );
+  color: var(--ifm-font-color-base);
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: var(--dna-code-bg);
+  border: 1px solid var(--dna-hairline);
+  box-shadow: none;
+  transition: border-color 0.15s ease;
+}
+
+a.card:hover,
+.card:has(a:hover) {
+  border-color: var(--ifm-color-primary);
+}
+
+/* ---------- Buttons ---------- */
+
+/* Solid indigo in both modes, matching the app's primary button. */
+.button--primary {
+  --ifm-button-background-color: var(--dna-accent);
+  --ifm-button-border-color: var(--dna-accent);
+  --ifm-button-color: #ffffff;
+}
+
+.button--primary:hover {
+  --ifm-button-background-color: var(--dna-accent-hover);
+  --ifm-button-border-color: var(--dna-accent-hover);
+}
+
+/* ---------- Footer ---------- */
+
+.footer {
+  border-top: 1px solid var(--dna-hairline);
+  font-size: 0.875rem;
+}
+
+.footer__title {
+  color: var(--ifm-heading-color);
+}
+
+.footer__link-item {
+  color: var(--ifm-color-content-secondary);
+}
+
+.footer__copyright {
+  color: var(--dna-text-muted);
 }
