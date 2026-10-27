@@ -28,12 +28,12 @@ function findButton(root: Element, label: string): Element | null {
  * email input, the Radix Select triggers and their placeholders, and the
  * Continue buttons.
  */
-function findStep(root: Element): GuideStep | null {
+function findStep(root: Element, press: string): GuideStep | null {
   const email = root.querySelector<HTMLInputElement>('input[type="email"]');
   if (email) {
-    if (!email.value) return {target: email, title: 'Click the email field'};
+    if (!email.value) return {target: email, title: `${press} the email field`};
     const submit = email.form?.querySelector('button[type="submit"]');
-    return submit ? {target: submit, title: 'Click Continue'} : null;
+    return submit ? {target: submit, title: `${press} Continue`} : null;
   }
 
   const select = root.querySelector('[role="combobox"]');
@@ -47,7 +47,7 @@ function findStep(root: Element): GuideStep | null {
   }
 
   const next = findButton(root, 'Continue');
-  return next ? {target: next, title: 'Click Continue'} : null;
+  return next ? {target: next, title: `${press} Continue`} : null;
 }
 
 /** The login card: the app's page wrapper's only child. */
@@ -96,11 +96,14 @@ export function Guide({
     const root = rootRef.current;
     if (!app || !root) return;
 
+    // "Tap" when the main input is a finger, "Click" with a mouse.
+    const press = window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click';
+
     let frame = 0;
     const update = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const next = findStep(app);
+        const next = findStep(app, press);
         // Keep the same object while nothing changed, so the bubble
         // doesn't blink while it's re-placed.
         setStep((prev) =>
