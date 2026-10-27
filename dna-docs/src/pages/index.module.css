@@ -3,16 +3,53 @@
  * and scoped locally.
  */
 
+/* Navy-to-black fade with a faint indigo glow, as on the app's login screen. */
 .heroBanner {
-  padding: 4rem 0;
+  padding: 6rem 0 4rem;
   text-align: center;
   position: relative;
   overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse 60% 50% at 50% 0%,
+      rgba(62, 99, 221, 0.12),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #f3f4fb 0%, var(--ifm-background-color) 100%);
+}
+
+[data-theme='dark'] .heroBanner {
+  background:
+    radial-gradient(
+      ellipse 60% 50% at 50% 0%,
+      rgba(62, 99, 221, 0.14),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #11141f 0%, var(--ifm-background-color) 100%);
+}
+
+.logo {
+  height: 120px;
+  width: auto;
+}
+
+.title {
+  margin-bottom: 1.25rem;
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  color: var(--ifm-color-content-secondary);
+  margin-bottom: 2rem;
 }
 
 @media screen and (max-width: 996px) {
   .heroBanner {
-    padding: 2rem;
+    padding: 3rem 1rem 2rem;
+  }
+
+  .logo {
+    height: 88px;
   }
 }
 

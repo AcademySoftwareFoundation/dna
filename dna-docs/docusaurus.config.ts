@@ -2,6 +2,9 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
+import type {PluginOptions as SearchOptions} from '@easyops-cn/docusaurus-search-local';
+import dnaAppEmbed from './plugins/dna-app-embed';
+import searchHighlight from './plugins/search-highlight';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -16,6 +19,27 @@ function withBaseSlash(baseUrl: string): string {
   }
   const withLeading = baseUrl.startsWith('/') ? baseUrl : `/${baseUrl}`;
   return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
+}
+
+type PrismTheme = typeof prismThemes.oneLight;
+
+// Recolour the One themes' green (strings, attr values, ...) to the emerald
+// used by the POST badge and 2xx tab in custom.css. Light mode takes a
+// darker shade of that emerald so code text stays readable on the pale
+// code background.
+function withEmeraldStrings(
+  theme: PrismTheme,
+  green: string,
+  emerald: string,
+): PrismTheme {
+  return {
+    ...theme,
+    styles: theme.styles.map((entry) =>
+      entry.style.color === green
+        ? {...entry, style: {...entry.style, color: emerald}}
+        : entry,
+    ),
+  };
 }
 
 const config: Config = {
@@ -39,6 +63,15 @@ const config: Config = {
   deploymentBranch: 'gh-pages',
 
   onBrokenLinks: 'throw',
+
+  // Same DM Sans the app loads (frontend/packages/app/src/index.css), plus a
+  // monospace face for code.
+  stylesheets: [
+    {
+      href: 'https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500&display=swap',
+      type: 'text/css',
+    },
+  ],
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -68,6 +101,10 @@ const config: Config = {
   ],
 
   plugins: [
+    // Lets guides embed real DNA app components as live demos.
+    dnaAppEmbed,
+    // On-page search highlights for in-body results only.
+    searchHighlight,
     // Backend docs: a second content-docs instance at /api, rendered with the
     // OpenAPI theme's doc item so generated pages get the API demo panel.
     [
@@ -108,11 +145,33 @@ const config: Config = {
     'docusaurus-plugin-sass',
   ],
 
-  themes: ['docusaurus-theme-openapi-docs'],
+  themes: [
+    'docusaurus-theme-openapi-docs',
+    // Offline search: the index is built with the site, so it works on
+    // GitHub Pages with no external service. Only in production builds -
+    // `npm start` shows the search bar but has no index to search.
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        // Both docs instances: frontend guides and the backend API.
+        docsRouteBasePath: ['docs', 'api'],
+        docsDir: ['docs', 'api'],
+        indexBlog: false,
+        hashed: true,
+        explicitSearchResultPath: true,
+        highlightSearchTermsOnTargetPage: true,
+        // Icon-only search that opens on click (custom.css); no hotkey.
+        searchBarShortcut: false,
+        searchBarShortcutHint: false,
+      } satisfies SearchOptions,
+    ],
+  ],
 
   themeConfig: {
+    // Dark-first like the DNA app; the navbar toggle still switches to light.
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'dark',
+      respectPrefersColorScheme: false,
     },
     navbar: {
       logo: {
@@ -123,9 +182,11 @@ const config: Config = {
 
       items: [
         {to: '/about', label: 'About', position: 'right'},
+        // Lands on the Introduction rather than the generated Guides
+        // category index; stays highlighted anywhere in the frontend docs.
         {
-          type: 'docSidebar',
-          sidebarId: 'frontendSidebar',
+          type: 'doc',
+          docId: 'guides/introduction',
           position: 'right',
           label: 'Frontend',
         },
@@ -141,10 +202,15 @@ const config: Config = {
           label: 'GitHub',
           position: 'right',
         },
+        // Last right-hand item: sits just left of the light/dark toggle, and
+        // stays in the bar (top right) on mobile.
+        {type: 'search', position: 'right'},
       ],
     },
     footer: {
-      style: 'dark',
+      // 'light' lets custom.css colour the footer to match the page in both
+      // modes; 'dark' hardcodes Infima's grey.
+      style: 'light',
       links: [
         {
           title: 'Docs',
@@ -189,8 +255,16 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} Dailies Notes Assistant: A Project of The Academy Software Foundation`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: withEmeraldStrings(
+        prismThemes.oneLight,
+        'hsl(119, 34%, 47%)',
+        '#059669',
+      ),
+      darkTheme: withEmeraldStrings(
+        prismThemes.oneDark,
+        'hsl(95, 38%, 62%)',
+        '#34d399',
+      ),
       // bash isn't in prism-react-renderer's default bundle; needed for the
       // cURL tab below and the shell blocks in the guides.
       additionalLanguages: ['bash'],
@@ -199,7 +273,9 @@ const config: Config = {
     // offers all 18 generator targets; keep it to the commonly used ones.
     // Tabs render in this order.
     languageTabs: [
-      {language: 'curl', highlight: 'bash', logoClass: 'bash'},
+      // The theme has no 'bash' logo; 'curl' gets the tab its curl styling,
+      // and custom.css swaps in the official curl symbol.
+      {language: 'curl', highlight: 'bash', logoClass: 'curl'},
       // Default to requests; http.client stays available as a variant sub-tab.
       {language: 'python', highlight: 'python', logoClass: 'python', variant: 'requests'},
       // Browser fetch - what the frontend and Chrome extension actually use.

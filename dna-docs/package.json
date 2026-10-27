@@ -23,7 +23,9 @@
     "@docusaurus/core": "3.10.2",
     "@docusaurus/faster": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "^0.55.3",
     "@mdx-js/react": "^3.0.0",
+    "@radix-ui/themes": "^3.3.0",
     "clsx": "^2.0.0",
     "docusaurus-plugin-openapi-docs": "^5.2.0",
     "docusaurus-plugin-sass": "^0.2.6",
@@ -31,7 +33,8 @@
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sass": "^1.102.0"
+    "sass": "^1.102.0",
+    "styled-components": "^6.6.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.2",
