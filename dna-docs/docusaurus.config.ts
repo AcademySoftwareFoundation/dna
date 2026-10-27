@@ -2,7 +2,9 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
+import type {PluginOptions as SearchOptions} from '@easyops-cn/docusaurus-search-local';
 import dnaAppEmbed from './plugins/dna-app-embed';
+import searchHighlight from './plugins/search-highlight';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -101,6 +103,8 @@ const config: Config = {
   plugins: [
     // Lets guides embed real DNA app components as live demos.
     dnaAppEmbed,
+    // On-page search highlights for in-body results only.
+    searchHighlight,
     // Backend docs: a second content-docs instance at /api, rendered with the
     // OpenAPI theme's doc item so generated pages get the API demo panel.
     [
@@ -141,7 +145,27 @@ const config: Config = {
     'docusaurus-plugin-sass',
   ],
 
-  themes: ['docusaurus-theme-openapi-docs'],
+  themes: [
+    'docusaurus-theme-openapi-docs',
+    // Offline search: the index is built with the site, so it works on
+    // GitHub Pages with no external service. Only in production builds -
+    // `npm start` shows the search bar but has no index to search.
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        // Both docs instances: frontend guides and the backend API.
+        docsRouteBasePath: ['docs', 'api'],
+        docsDir: ['docs', 'api'],
+        indexBlog: false,
+        hashed: true,
+        explicitSearchResultPath: true,
+        highlightSearchTermsOnTargetPage: true,
+        // Icon-only search that opens on click (custom.css); no hotkey.
+        searchBarShortcut: false,
+        searchBarShortcutHint: false,
+      } satisfies SearchOptions,
+    ],
+  ],
 
   themeConfig: {
     // Dark-first like the DNA app; the navbar toggle still switches to light.
@@ -178,6 +202,9 @@ const config: Config = {
           label: 'GitHub',
           position: 'right',
         },
+        // Last right-hand item: sits just left of the light/dark toggle, and
+        // stays in the bar (top right) on mobile.
+        {type: 'search', position: 'right'},
       ],
     },
     footer: {

@@ -18,6 +18,8 @@
 
   --dna-accent: #3e63dd;
   --dna-accent-hover: #3358d4;
+  /* Indigo for small text and tints; lifted in dark mode to stay legible. */
+  --dna-accent-bright: var(--dna-accent);
   --dna-accent-soft: rgba(62, 99, 221, 0.1);
   --dna-hairline: rgba(14, 14, 22, 0.08);
   --dna-text-muted: #5a5a76;
@@ -72,6 +74,7 @@
   --ifm-color-primary-lightest: #d9e0fa;
 
   --dna-accent-soft: rgba(62, 99, 221, 0.16);
+  --dna-accent-bright: #5472e4;
   --dna-hairline: rgba(255, 255, 255, 0.08);
   --dna-text-muted: #6b6b82;
   --dna-code-bg: #14141b;
@@ -300,4 +303,192 @@ a.card:hover,
   background-color: var(--dna-emerald);
   border-color: var(--dna-emerald);
   color: var(--dna-emerald-text);
+}
+
+/* ---------- Search (@easyops-cn/docusaurus-search-local) ---------- */
+
+/*
+ * Navbar search is just a magnifying glass, sized and styled like the
+ * light/dark toggle beside it, that grows into a field when clicked (the
+ * input itself is the click target) and shrinks back when left empty.
+ * .navbar raises specificity over the plugin's own module styles.
+ */
+.navbar .navbar__search {
+  margin-left: 0.25rem;
+}
+
+/* The plugin's magnifying glass: centred in the 2rem collapsed circle. */
+.navbar .navbar__search > svg:first-child {
+  left: 0.45rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--ifm-navbar-link-color);
+}
+
+.navbar .navbar__search-input {
+  /* Collapsed, padding + border make up exactly the 2rem circle. */
+  width: 2rem;
+  height: 2rem;
+  padding: 0 0 0 calc(2rem - 2px);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--ifm-font-color-base);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition:
+    width 0.25s ease,
+    background-color var(--ifm-transition-fast),
+    border-color var(--ifm-transition-fast);
+}
+
+.navbar .navbar__search-input::placeholder {
+  color: transparent;
+}
+
+.navbar .navbar__search-input:hover {
+  background-color: var(--ifm-color-emphasis-200);
+}
+
+/* Open: while focused, or while it still holds a query. */
+.navbar .navbar__search-input:focus,
+.navbar .navbar__search-input:not(:placeholder-shown) {
+  width: 14rem;
+  padding: 0 0.75rem 0 2.1rem;
+  background-color: var(--dna-code-bg);
+  border-color: var(--dna-hairline);
+  cursor: text;
+}
+
+/* Room for the plugin's ✕, which sits 0.8rem in from the right edge. */
+.navbar .navbar__search-input:not(:placeholder-shown) {
+  padding-right: 2rem;
+}
+
+.navbar .navbar__search-input:focus {
+  outline: none;
+  border-color: var(--dna-accent);
+}
+
+.navbar .navbar__search-input:focus::placeholder {
+  color: var(--dna-text-muted);
+}
+
+/*
+ * Mobile: keep the light/dark toggle in the bar, right of search (Docusaurus
+ * otherwise moves it into the hamburger menu). These are CSS-module classes,
+ * named `<local>_<hash>` in dev and production builds alike.
+ *
+ * The open field fills the bar between the hamburger and the toggle, up to
+ * 22rem. On phones that needs the logo's space, so it steps aside while
+ * searching.
+ */
+@media (max-width: 996px) {
+  .navbar__items--right > [class*='colorModeToggle_'] {
+    display: block;
+    margin-left: 0.25rem;
+  }
+
+  /* Docusaurus pins search to the corner on mobile; flow it before the toggle. */
+  .navbar__items--right > [class*='navbarSearchContainer_'] {
+    position: static;
+  }
+
+  /* The hamburger menu's own copy of the toggle is redundant now. */
+  .navbar-sidebar__brand > [class*='toggle_'] {
+    display: none;
+  }
+
+  .navbar .navbar__search-input:focus,
+  .navbar .navbar__search-input:not(:placeholder-shown) {
+    width: min(calc(100vw - 6.75rem), 22rem);
+  }
+}
+
+/*
+ * Phones: the logo only steps aside while the field is focused. Unfocused
+ * but holding a query (the plugin leaves it there after a result, so ✕ can
+ * clear the on-page highlights), the field narrows to share the bar with
+ * the logo. It mustn't collapse on blur: that would move the ✕ out from
+ * under a tap on it. Shrinking from the left keeps the ✕ in place.
+ */
+@media (max-width: 640px) {
+  .navbar .navbar__search-input:not(:focus):not(:placeholder-shown) {
+    width: max(calc(100vw - 14rem), 6rem);
+  }
+
+  /* The plugin hides ✕ while unfocused on small screens; one tap to clear.
+     Extra ancestor outranks the plugin's rule, which loads after this file. */
+  .navbar .navbar__items .navbar__search [class*='searchClearButton_'] {
+    display: block;
+  }
+
+  /*
+   * Only the bar's own logo. The hamburger menu is rendered inside .navbar
+   * too and has its own .navbar__brand, which stays.
+   */
+  .navbar:has(.navbar__search-input:focus) .navbar__items .navbar__brand {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar .navbar__search-input {
+    transition: none;
+  }
+}
+
+/*
+ * The plugin's classes are hashed CSS modules; it's themed through these
+ * variables. The highlight colour is both the selected result's background
+ * (under white text) and the matched words in other results.
+ */
+:root {
+  --search-local-modal-background: var(--ifm-background-color);
+  --search-local-modal-shadow: 0 0 0 1px var(--dna-hairline),
+    0 12px 32px rgba(0, 0, 0, 0.12);
+  --search-local-hit-background: var(--dna-code-bg);
+  --search-local-hit-shadow: none;
+  --search-local-highlight-color: var(--dna-accent-bright);
+}
+
+[data-theme='dark'] {
+  --search-local-modal-shadow: 0 0 0 1px var(--dna-hairline),
+    0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* No keyboard shortcut, so no ⌘K badge (plugins/search-highlight-loader.js
+   keeps the ✕ that shares its slot). */
+.navbar [class*='searchHintContainer_'] {
+  display: none;
+}
+
+/* On-page highlights (mark.js) after opening an in-body search result. */
+mark[data-markjs] {
+  padding: 0 0.1em;
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--dna-accent-bright) 22%, transparent);
+  box-shadow: inset 0 -2px 0 var(--dna-accent-bright);
+  color: inherit;
+}
+
+[data-theme='dark'] mark[data-markjs] {
+  background-color: color-mix(in srgb, var(--dna-accent-bright) 32%, transparent);
+}
+
+/* ---------- Touch devices ---------- */
+
+/*
+ * iOS Safari zooms the page in, and leaves it zoomed, when a text field
+ * under 16px is focused: the navbar search, the login demo's email field
+ * (15px in the app), the API explorer's inputs. 16px on touch screens
+ * avoids that without disabling pinch zoom. !important beats component
+ * styles (styled-components, plugin CSS modules) that set their own size.
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
