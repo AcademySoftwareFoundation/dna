@@ -2,6 +2,7 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
+import dnaAppEmbed from './plugins/dna-app-embed';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -98,6 +99,8 @@ const config: Config = {
   ],
 
   plugins: [
+    // Lets guides embed real DNA app components as live demos.
+    dnaAppEmbed,
     // Backend docs: a second content-docs instance at /api, rendered with the
     // OpenAPI theme's doc item so generated pages get the API demo panel.
     [

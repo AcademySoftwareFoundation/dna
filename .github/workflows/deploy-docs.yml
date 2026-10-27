@@ -10,6 +10,8 @@ on:
     paths:
       - 'dna-docs/**'
       - 'backend/docs/openapi.json'
+      # Guides embed live app components (dna-docs/plugins/dna-app-embed.ts).
+      - 'frontend/packages/app/src/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
