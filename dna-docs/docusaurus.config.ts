@@ -134,9 +134,11 @@ const config: Config = {
 
       items: [
         {to: '/about', label: 'About', position: 'right'},
+        // Lands on the Introduction rather than the generated Guides
+        // category index; stays highlighted anywhere in the frontend docs.
         {
-          type: 'docSidebar',
-          sidebarId: 'frontendSidebar',
+          type: 'doc',
+          docId: 'guides/introduction',
           position: 'right',
           label: 'Frontend',
         },
