@@ -36,7 +36,7 @@
 
   --ifm-navbar-height: 4rem;
   --ifm-navbar-shadow: none;
-  --ifm-navbar-background-color: rgba(255, 255, 255, 0.8);
+  --dna-navbar-glass: rgba(255, 255, 255, 0.8);
 
   --ifm-toc-border-color: var(--dna-hairline);
   --ifm-hr-border-color: var(--dna-hairline);
@@ -82,7 +82,7 @@
   --ifm-heading-color: #f0f0f5;
   --ifm-color-content-secondary: #a0a0b8;
 
-  --ifm-navbar-background-color: rgba(13, 13, 18, 0.75);
+  --dna-navbar-glass: rgba(13, 13, 18, 0.75);
   --ifm-menu-color-background-hover: rgba(255, 255, 255, 0.04);
   --docusaurus-highlighted-code-line-bg: rgba(62, 99, 221, 0.18);
 }
@@ -101,8 +101,22 @@ h3 {
 
 /* ---------- Navbar ---------- */
 
+/*
+ * The frosted glass lives on a pseudo-element: backdrop-filter on .navbar
+ * itself would become the containing block for the position: fixed mobile
+ * sidebar inside it, collapsing the hamburger menu to the navbar's height.
+ */
 .navbar {
+  background-color: transparent;
   border-bottom: 1px solid var(--dna-hairline);
+}
+
+.navbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--dna-navbar-glass);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
 }
