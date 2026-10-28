@@ -45,13 +45,13 @@ const FeatureList: FeatureItem[] = [
 
 function Feature({title, to, description}: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className="padding-horiz--md">
-        <Heading as="h3">
-          <Link to={to}>{title}</Link>
+    <div className={clsx('col col--4', styles.feature)}>
+      <Link to={to} className={clsx('card', styles.card)}>
+        <Heading as="h3" className={styles.cardTitle}>
+          {title}
         </Heading>
-        <p>{description}</p>
-      </div>
+        <p className={styles.cardBody}>{description}</p>
+      </Link>
     </div>
   );
 }

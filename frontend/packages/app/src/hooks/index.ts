@@ -15,7 +15,10 @@ export {
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
   useSetInReview,
+  useInReviewChangedEvents,
 } from './usePlaylistMetadata';
+
+export { useFollowInReview } from './useFollowInReview';
 
 export { useTranscription } from './useTranscription';
 export type {

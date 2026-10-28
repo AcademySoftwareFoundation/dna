@@ -8,6 +8,7 @@ import { AuthProvider } from '../contexts/AuthContext';
 import { EventProvider } from '../contexts/EventContext';
 import { FeatureFlagsProvider } from '../contexts/FeatureFlagsContext';
 import { ThemeModeProvider } from '../contexts/ThemeContext';
+import { NoteFocusProvider } from '../contexts/NoteFocusContext';
 import { ToastProvider } from '../contexts/ToastContext';
 
 interface WrapperProps {
@@ -35,9 +36,11 @@ function AllTheProviders({ children }: WrapperProps) {
           <ThemeModeProvider>
             <FeatureFlagsProvider>
               <EventProvider>
-                <AuthProvider>
-                  <ToastProvider>{children}</ToastProvider>
-                </AuthProvider>
+                <NoteFocusProvider>
+                  <AuthProvider>
+                    <ToastProvider>{children}</ToastProvider>
+                  </AuthProvider>
+                </NoteFocusProvider>
               </EventProvider>
             </FeatureFlagsProvider>
           </ThemeModeProvider>

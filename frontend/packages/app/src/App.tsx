@@ -8,7 +8,10 @@ import {
 } from './components';
 import { useAuth } from './contexts';
 import { useGetVersionsForPlaylist } from './api';
-import { usePlaylistMetadata } from './hooks/usePlaylistMetadata';
+import {
+  useInReviewChangedEvents,
+  usePlaylistMetadata,
+} from './hooks/usePlaylistMetadata';
 
 function App() {
   const queryClient = useQueryClient();
@@ -27,6 +30,7 @@ function App() {
   const { data: playlistMetadata } = usePlaylistMetadata(
     selectedPlaylist?.id ?? null
   );
+  useInReviewChangedEvents(selectedPlaylist?.id ?? null);
 
   useEffect(() => {
     if (versions.length === 0) return;
