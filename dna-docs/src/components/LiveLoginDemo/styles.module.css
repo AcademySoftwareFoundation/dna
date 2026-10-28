@@ -2,12 +2,13 @@
   margin: 1.75rem 0;
 }
 
-/* A fixed-height window onto the app's full-page login screen. */
+/*
+ * A fixed-height window onto the app's full-page login screen. No border or
+ * background of its own: the login card sits straight on the docs page.
+ */
 .frame {
   position: relative;
   height: 600px;
-  border: 1px solid var(--dna-hairline);
-  border-radius: 12px;
   overflow: hidden;
   /* What the app's GlobalStyles set on :root, scoped to the demo. */
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
@@ -18,8 +19,9 @@
 
 /*
  * Fit the app's full-viewport layout into the frame: Radix's root theme and
- * the login page wrapper both size themselves to 100vh, and the wrapper's
- * background is fixed to the viewport.
+ * the login page wrapper both size themselves to 100vh. The wrapper also
+ * paints the app's page background (a gradient over its base colour); the
+ * docs page shows through instead.
  */
 .frame :global(.radix-themes) {
   min-height: 0 !important;
@@ -29,18 +31,38 @@
 .frame :global(.radix-themes) > div {
   min-height: 100% !important;
   height: 100%;
-  background-attachment: scroll !important;
+  background: none !important;
 }
 
 .root,
 .app,
 .placeholder {
   height: 100%;
-  background: var(--ifm-background-color);
 }
 
 .root {
   position: relative;
+}
+
+/*
+ * Marks the demo as interactive now that nothing frames it. Same accent as
+ * the guide bubble; above the demo but below the success overlay (z 2), so
+ * it goes with the demo while the checkmark shows.
+ */
+.badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--dna-accent-soft);
+  color: var(--dna-accent-bright);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 
 .caption {
@@ -67,7 +89,6 @@
   border: 2px solid var(--dna-accent);
   border-radius: 10px;
   animation: guidePulse 1.6s ease-out infinite;
-  transition: all 0.2s ease;
 }
 
 @keyframes guidePulse {
@@ -91,9 +112,6 @@
   line-height: 1.3;
   white-space: nowrap;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
-  transition:
-    top 0.2s ease,
-    left 0.2s ease;
 }
 
 /* Arrow: a square rotated into a point on the side facing the target. */

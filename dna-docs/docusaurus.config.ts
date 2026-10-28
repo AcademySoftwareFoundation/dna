@@ -44,7 +44,7 @@ function withEmeraldStrings(
 
 const config: Config = {
   title: 'DNA Docs',
-  tagline: 'Frontend guides and backend API reference',
+  tagline: 'A tool that combines live transcription and LLM integration to help VFX teams capture review feedback.',
   favicon: 'img/favicon.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -168,6 +168,9 @@ const config: Config = {
   ],
 
   themeConfig: {
+    // og:image / twitter:image for every page (link previews in Slack,
+    // GitHub, social). Resolved against `url` + `baseUrl` above.
+    image: 'img/dna-social-card.png',
     // Dark-first like the DNA app; the navbar toggle still switches to light.
     colorMode: {
       defaultMode: 'dark',
