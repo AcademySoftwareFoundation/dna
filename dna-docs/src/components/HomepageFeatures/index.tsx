@@ -12,22 +12,20 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Frontend Guides',
-    to: '/docs',
+    title: 'Realtime Transcription',
+    to: '/docs/5-transcription',
     description: (
       <>
-        Hand-written documentation authored in MDX, covering how to work with
-        the DNA frontend.
+        DNA combines realtime transcription with context about what is being reviewed to assist production with per-version transcriptions publishable to ShotGrid.
       </>
     ),
   },
   {
-    title: 'Backend API',
-    to: '/api',
+    title: 'Set Rules for Note QC',
+    to: '/docs/9-note-qc',
     description: (
       <>
-        A complete HTTP reference generated from the backend&apos;s OpenAPI
-        schema, so it tracks the server&apos;s real routes and models.
+        Build simple yet powerful checks — Production teams can write rules in natural language that the LLM can use to perform actions or suggest changes.
       </>
     ),
   },
@@ -36,8 +34,7 @@ const FeatureList: FeatureItem[] = [
     to: '/about',
     description: (
       <>
-        DNA is an Academy Software Foundation project. This site is
-        Apache-2.0 licensed and built from the upstream repository.
+        Open source and always evolving — Backed by big names such as Sony Imageworks, Industrial light & Magic, and Autodesk, DNA keeps growing with new features and flexibility.
       </>
     ),
   },
