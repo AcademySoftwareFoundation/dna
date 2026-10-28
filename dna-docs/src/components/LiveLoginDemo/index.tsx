@@ -16,6 +16,7 @@ export default function LiveLoginDemo({caption}: {caption?: ReactNode}): ReactNo
   return (
     <figure className={styles.figure}>
       <div className={styles.frame}>
+        <span className={styles.badge}>Demo</span>
         <BrowserOnly fallback={placeholder}>
           {() => (
             <Suspense fallback={placeholder}>

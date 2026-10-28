@@ -44,6 +44,27 @@
   position: relative;
 }
 
+/*
+ * Marks the demo as interactive now that nothing frames it. Same accent as
+ * the guide bubble; above the demo but below the success overlay (z 2), so
+ * it goes with the demo while the checkmark shows.
+ */
+.badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--dna-accent-soft);
+  color: var(--dna-accent-bright);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
 .caption {
   margin-top: 0.6rem;
   font-size: 0.875rem;

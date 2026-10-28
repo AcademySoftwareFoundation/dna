@@ -103,6 +103,31 @@ export default function LoginDemo() {
     return () => app.removeEventListener('click', onClick);
   }, []);
 
+  // Keep readers' password managers and browser autofill out of the field:
+  // it's read-only (which everything skips) and opted out by name for the
+  // managers that document one. The click-to-fill above still works, as it
+  // sets the value programmatically. Every reset remounts the form, so
+  // re-apply whenever the demo's markup changes.
+  useEffect(() => {
+    const app = appRef.current;
+    if (!app) return;
+    const optOut = () => {
+      const input = app.querySelector<HTMLInputElement>('input[type="email"]');
+      if (!input || input.readOnly) return;
+      input.readOnly = true;
+      input.autocomplete = 'off';
+      input.setAttribute('data-1p-ignore', ''); // 1Password
+      input.setAttribute('data-lpignore', 'true'); // LastPass
+      input.setAttribute('data-bwignore', ''); // Bitwarden
+      input.setAttribute('data-form-type', 'other'); // Dashlane
+      input.form?.setAttribute('autocomplete', 'off');
+    };
+    const observer = new MutationObserver(optOut);
+    observer.observe(app, {subtree: true, childList: true});
+    optOut();
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div ref={rootRef} className={styles.root}>
       <div ref={appRef} className={styles.app}>
