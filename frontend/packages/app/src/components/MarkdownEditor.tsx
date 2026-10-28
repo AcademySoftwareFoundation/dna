@@ -25,6 +25,7 @@ import {
   useMentionIndex,
   type MentionIndexContextValue,
 } from '../contexts/MentionIndexContext';
+import { useNoteFocus } from '../contexts/NoteFocusContext';
 import { MentionList, type MentionListHandle } from './MentionList';
 
 interface MarkdownEditorProps {
@@ -446,9 +447,21 @@ export function MarkdownEditor({
   const mentionActiveRef = useRef(false);
   mentionActiveRef.current = mention.active;
 
+  const noteFocus = useNoteFocus();
+  const setNoteFocused = noteFocus?.setNoteFocused;
+
+  useEffect(() => {
+    return () => {
+      setNoteFocused?.(false);
+    };
+  }, [setNoteFocused]);
+
+  const handleEditorSubtreeFocus = useCallback(() => {
+    setNoteFocused?.(true);
+  }, [setNoteFocused]);
+
   const handleEditorSubtreeBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
-      if (!onContentBlur) return;
       if (mentionActiveRef.current) {
         return;
       }
@@ -459,9 +472,10 @@ export function MarkdownEditor({
       if (related instanceof Node && e.currentTarget.contains(related)) {
         return;
       }
-      onContentBlur();
+      setNoteFocused?.(false);
+      onContentBlur?.();
     },
-    [onContentBlur]
+    [onContentBlur, setNoteFocused]
   );
 
   function mentionListLoading(
@@ -594,6 +608,15 @@ export function MarkdownEditor({
       }),
     ],
     content: value ? markdownToHtml(value) : '',
+    editorProps: {
+      handleKeyDown: (view, event) => {
+        if (event.key !== 'Escape' || mentionActiveRef.current) {
+          return false;
+        }
+        view.dom.blur();
+        return true;
+      },
+    },
     onUpdate: ({ editor }) => {
       if (isUpdatingRef.current) return;
       const html = editor.getHTML();
@@ -635,7 +658,8 @@ export function MarkdownEditor({
   return (
     <EditorWrapper
       $minHeight={minHeight}
-      onBlur={onContentBlur ? handleEditorSubtreeBlur : undefined}
+      onFocus={handleEditorSubtreeFocus}
+      onBlur={handleEditorSubtreeBlur}
     >
       <EditorContent_ editor={editor} />
       <Toolbar>

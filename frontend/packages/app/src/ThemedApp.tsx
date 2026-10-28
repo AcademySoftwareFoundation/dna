@@ -3,7 +3,13 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import App from './App';
 import { ACCENTS, getTheme, GlobalStyles } from './styles';
-import { EventProvider, ToastProvider, AuthProvider, useThemeMode } from './contexts';
+import {
+  EventProvider,
+  ToastProvider,
+  AuthProvider,
+  NoteFocusProvider,
+  useThemeMode,
+} from './contexts';
 import { HotkeysProvider } from './hotkeys';
 
 export function ThemedApp() {
@@ -17,7 +23,9 @@ export function ThemedApp() {
           <HotkeysProvider>
             <ToastProvider>
               <EventProvider>
-                <App />
+                <NoteFocusProvider>
+                  <App />
+                </NoteFocusProvider>
               </EventProvider>
             </ToastProvider>
           </HotkeysProvider>
