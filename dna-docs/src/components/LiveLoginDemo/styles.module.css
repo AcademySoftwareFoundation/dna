@@ -2,12 +2,13 @@
   margin: 1.75rem 0;
 }
 
-/* A fixed-height window onto the app's full-page login screen. */
+/*
+ * A fixed-height window onto the app's full-page login screen. No border or
+ * background of its own: the login card sits straight on the docs page.
+ */
 .frame {
   position: relative;
   height: 600px;
-  border: 1px solid var(--dna-hairline);
-  border-radius: 12px;
   overflow: hidden;
   /* What the app's GlobalStyles set on :root, scoped to the demo. */
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
@@ -18,8 +19,9 @@
 
 /*
  * Fit the app's full-viewport layout into the frame: Radix's root theme and
- * the login page wrapper both size themselves to 100vh, and the wrapper's
- * background is fixed to the viewport.
+ * the login page wrapper both size themselves to 100vh. The wrapper also
+ * paints the app's page background (a gradient over its base colour); the
+ * docs page shows through instead.
  */
 .frame :global(.radix-themes) {
   min-height: 0 !important;
@@ -29,14 +31,13 @@
 .frame :global(.radix-themes) > div {
   min-height: 100% !important;
   height: 100%;
-  background-attachment: scroll !important;
+  background: none !important;
 }
 
 .root,
 .app,
 .placeholder {
   height: 100%;
-  background: var(--ifm-background-color);
 }
 
 .root {

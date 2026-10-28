@@ -108,7 +108,11 @@ export default function LoginDemo() {
       <div ref={appRef} className={styles.app}>
         <DemoStateProvider key={run} mode={colorMode}>
           <ThemeProvider theme={theme}>
-            <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix}>
+            <Theme
+              appearance={colorMode}
+              accentColor={ACCENTS.blue.radix}
+              // The card sits straight on the docs page: no Radix background.
+              hasBackground={false}>
               <ProjectSelector
                 onSelectionComplete={(_project, selected) => {
                   setPlaylist(selected.code ?? `Playlist ${selected.id}`);
