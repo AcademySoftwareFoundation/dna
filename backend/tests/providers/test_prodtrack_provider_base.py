@@ -23,6 +23,20 @@ class TestProdtrackProviderBaseTranscriptContract:
                 body="Speaker: hi",
             )
 
+    def test_get_schema_raises_not_implemented(self):
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.get_schema("shot")
+
+    def test_conform_value_defaults_to_passthrough(self):
+        provider = ProdtrackProviderBase()
+        assert provider.conform_value_to_prodtrack_system("x", "date_time") == "x"
+
+    def test_update_entity_raises_not_implemented(self):
+        provider = ProdtrackProviderBase()
+        with pytest.raises(NotImplementedError, match="Subclasses must implement"):
+            provider.update_entity("shot", "1", {}, {})
+
     def test_update_transcript_raises_not_implemented(self):
         provider = ProdtrackProviderBase()
         with pytest.raises(NotImplementedError):

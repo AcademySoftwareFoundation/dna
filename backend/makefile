@@ -1,5 +1,8 @@
 DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker compose")
 
+# Mounted for tests that import scripts/export_openapi.py and read docs/openapi.json.
+TEST_MOUNTS := -v "$(abspath scripts):/app/scripts:ro" -v "$(abspath docs):/app/docs:ro"
+
 # Vexa stack — server-side bot transcription (pulls Vexa images).
 COMPOSE_LOCAL_VEXA := -f docker-compose.yml -f docker-compose.vexa.yml -f docker-compose.debug.yml -f docker-compose.local.yml -f docker-compose.local.vexa.yml
 
@@ -83,13 +86,19 @@ shell:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api bash
 
 test:
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm \
+		$(TEST_MOUNTS) \
+		api python -m pytest
 
 test-cov:
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm \
+		$(TEST_MOUNTS) \
+		api python -m pytest
 
 test-cov-html:
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm api python -m pytest
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml run --rm \
+		$(TEST_MOUNTS) \
+		api python -m pytest
 	@echo "Coverage report available at htmlcov/index.html"
 
 # Regenerate docs/openapi.json from the FastAPI app. Run after changing any

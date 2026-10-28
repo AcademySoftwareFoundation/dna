@@ -37,6 +37,13 @@ class EntityBase(BaseModel):
         populate_by_name=True,
     )
     id: str = Field(description="Entity ID")
+    additional_fields: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Provider fields that are not part of the DNA model, keyed by "
+            "the provider field code (for example 'sg_cut_in')."
+        ),
+    )
 
     @computed_field
     @property

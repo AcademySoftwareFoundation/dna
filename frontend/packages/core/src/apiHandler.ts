@@ -27,6 +27,10 @@ import {
   GenerateNoteResponse,
   AvailableModelsResponse,
   GetVersionStatusesParams,
+  GetEntitySchemaParams,
+  GetEntityParams,
+  SchemaField,
+  UpdateEntityParams,
   PublishNotesParams,
   PublishNotesResponse,
   PublishTranscriptParams,
@@ -35,6 +39,7 @@ import {
   UpdateVersionStatusParams,
   UpdateVersionStatusResponse,
   DraftNote,
+  DNAEntity,
   Playlist,
   PlaylistMetadata,
   Project,
@@ -366,6 +371,39 @@ class ApiHandler {
       ? `?project_id=${encodeURIComponent(params.projectId)}`
       : '';
     return this.get<StatusOption[]>(`/version-statuses${queryParams}`);
+  }
+
+  async getEntitySchema(params: GetEntitySchemaParams): Promise<SchemaField[]> {
+    const query = new URLSearchParams();
+    if (params.projectId) {
+      query.set('project_id', params.projectId);
+    }
+    if (params.includeDnaFields) {
+      query.set('include_dna_fields', 'true');
+    }
+    const queryString = query.toString();
+    return this.get<SchemaField[]>(
+      `/schema/${encodeURIComponent(params.entityType)}${queryString ? `?${queryString}` : ''}`
+    );
+  }
+
+  async getEntity(params: GetEntityParams): Promise<DNAEntity> {
+    const query = params.additionalFields?.length
+      ? `?additional_fields=${encodeURIComponent(params.additionalFields.join(','))}`
+      : '';
+    return this.get<DNAEntity>(
+      `/${encodeURIComponent(params.entityType.toLowerCase())}/${encodeURIComponent(params.entityId)}${query}`
+    );
+  }
+
+  async updateEntity(params: UpdateEntityParams): Promise<DNAEntity> {
+    return this.patch<DNAEntity>(
+      `/entities/${encodeURIComponent(params.entityType)}/${encodeURIComponent(params.entityId)}`,
+      {
+        fields: params.fields ?? {},
+        additional_fields: params.additionalFields ?? {},
+      }
+    );
   }
 
   async getPlaylistDraftNotes(playlistId: string): Promise<DraftNote[]> {

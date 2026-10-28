@@ -68,6 +68,11 @@ PARAM_DESCRIPTIONS: dict[str, str] = {
     "asset_id": _OPAQUE_ID.format(what="Asset"),
     "task_id": _OPAQUE_ID.format(what="Task"),
     "note_id": _OPAQUE_ID.format(what="Note"),
+    "entity_type": (
+        "Entity type name, for example `version`, `task`, `shot` or `asset`. "
+        "Unknown types are rejected with 400."
+    ),
+    "entity_id": _OPAQUE_ID.format(what="Entity"),
     "user_email": (
         "Email address of a user as recorded in the production tracking "
         "provider. On `/users/{user_email}/...` routes it must match the "

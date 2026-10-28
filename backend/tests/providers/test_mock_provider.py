@@ -315,6 +315,23 @@ def test_add_entity_raises(mock_provider):
         mock_provider.add_entity("shot", mock_provider.get_entity("shot", 100))
 
 
+def test_get_schema_returns_empty(mock_provider):
+    assert mock_provider.get_schema("shot", project_id="1") == []
+
+
+def test_update_entity_raises(mock_provider):
+    with pytest.raises(
+        NotImplementedError,
+        match="MockProdtrackProvider is read-only",
+    ):
+        mock_provider.update_entity("shot", "100", {"description": "x"}, {})
+
+
+def test_get_entity_ignores_additional_fields(mock_provider):
+    shot = mock_provider.get_entity("shot", "100", additional_fields=["sg_cut_in"])
+    assert shot.additional_fields == {}
+
+
 def test_publish_note_raises(mock_provider):
     with pytest.raises(
         NotImplementedError,

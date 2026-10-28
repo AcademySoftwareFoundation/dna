@@ -21,6 +21,7 @@ from dna.models.entity import (
     User,
     Version,
 )
+from dna.models.schema import SchemaField
 from dna.prodtrack_providers.prodtrack_provider_base import ProdtrackProviderBase
 
 _SG_TYPE_TO_DNA: dict[str, str] = {
@@ -197,8 +198,13 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         )
 
     def get_entity(
-        self, entity_type: str, entity_id: str, resolve_links: bool = True
+        self,
+        entity_type: str,
+        entity_id: str,
+        resolve_links: bool = True,
+        additional_fields: list[str] | None = None,
     ) -> EntityBase:
+        del additional_fields
         conn = self._get_conn()
         if entity_type == "project":
             row = conn.execute(
@@ -343,6 +349,27 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             "MockProdtrackProvider is read-only. Writes (add_entity) are not supported."
         )
 
+    def get_schema(
+        self,
+        entity_type: str,
+        project_id: str | None = None,
+        include_dna_fields: bool = False,
+    ) -> list[SchemaField]:
+        del entity_type, project_id, include_dna_fields
+        return []
+
+    def update_entity(
+        self,
+        entity_type: str,
+        entity_id: str,
+        fields: dict[str, Any],
+        additional_fields: dict[str, Any],
+    ) -> EntityBase:
+        del entity_type, entity_id, fields, additional_fields
+        raise NotImplementedError(
+            "MockProdtrackProvider is read-only. Writes (update_entity) are not supported."
+        )
+
     def _dna_field_to_sql(self, entity_type: str, dna_field: str) -> Optional[str]:
         mapping = {
             "project": {"id": "id", "name": "name"},
@@ -426,8 +453,13 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         return f"{entity_type}s"
 
     def find(
-        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+        self,
+        entity_type: str,
+        filters: list[dict[str, Any]],
+        limit: int = 0,
+        additional_fields: list[str] | None = None,
     ) -> list[EntityBase]:
+        del additional_fields
         conn = self._get_conn()
         table = self._table_for_entity_type(entity_type)
         where, params = self._build_where(entity_type, filters)

@@ -275,6 +275,8 @@ export function ContentArea({
         dateSubmitted={formatDate(version.created_at as string)}
         versionStatus={selectedVersionStatus}
         projectId={version.project?.id}
+        version={version}
+        playlistId={playlistId}
         thumbnailUrl={version.thumbnail}
         links={links}
         onBack={handleBack}

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
+    from dna.models.schema import SchemaField
 
 
 class UserNotFoundError(Exception):
@@ -45,7 +46,11 @@ class ProdtrackProviderBase:
         return ENTITY_MODELS.get(object_type, EntityBase)
 
     def get_entity(
-        self, entity_type: str, entity_id: str, resolve_links: bool = True
+        self,
+        entity_type: str,
+        entity_id: str,
+        resolve_links: bool = True,
+        additional_fields: list[str] | None = None,
     ) -> "EntityBase":
         """Get an entity by its ID.
 
@@ -55,15 +60,81 @@ class ProdtrackProviderBase:
                 native ID format.
             resolve_links: If True, recursively fetch linked entities.
                 If False, only include shallow links with id/name.
+            additional_fields: Provider field codes that are not on the DNA
+                model. Returned on the entity's ``additional_fields`` dict.
+                Omit to skip the extra read.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def get_schema(
+        self,
+        entity_type: str,
+        project_id: str | None = None,
+        include_dna_fields: bool = False,
+    ) -> list["SchemaField"]:
+        """Return the field schema for an entity type.
+
+        Args:
+            entity_type: DNA entity type (for example 'shot').
+            project_id: Optional project ID. Providers that scope schema
+                values per project (status lists) use this.
+            include_dna_fields: Also return fields that are on the DNA model,
+                tagged ``source="dna"`` and keyed by the DNA attribute name.
+
+        Returns:
+            Normalised field descriptions. DNA model fields are omitted unless
+            ``include_dna_fields`` is true.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def update_entity(
+        self,
+        entity_type: str,
+        entity_id: str,
+        fields: dict[str, Any],
+        additional_fields: dict[str, Any],
+    ) -> "EntityBase":
+        """Update DNA fields and provider-specific fields on an entity.
+
+        Args:
+            entity_type: DNA entity type.
+            entity_id: Opaque entity ID.
+            fields: DNA field names to write. Linked fields are rejected.
+            additional_fields: Provider field codes that are not on the model.
+
+        Returns:
+            The entity after the update, with ``additional_fields`` populated
+            for the codes that were written.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def conform_value_to_prodtrack_system(self, value: Any, data_type: str) -> Any:
+        """Normalise a field value to the form the production tracking system expects.
+
+        Args:
+            value: The value as received from the API (JSON types).
+            data_type: The provider data type of the field, for example
+                'date_time' or 'checkbox'.
+
+        Returns:
+            The value converted for writing. Providers override this to convert
+            the types they need; the default returns the value unchanged.
+
+        Raises:
+            ValueError: If the value cannot be represented for the data type.
+        """
+        return value
 
     def add_entity(self, entity_type: str, entity: "EntityBase") -> "EntityBase":
         """Add an entity to the production tracking system."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     def find(
-        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+        self,
+        entity_type: str,
+        filters: list[dict[str, Any]],
+        limit: int = 0,
+        additional_fields: list[str] | None = None,
     ) -> list["EntityBase"]:
         """Find entities matching the given filters.
 
@@ -71,6 +142,7 @@ class ProdtrackProviderBase:
             entity_type: The DNA entity type to search for (e.g., 'shot', 'version')
             filters: List of filter conditions in DNA format
             limit: Maximum number of entities to return. Defaults to 0 (no limit).
+            additional_fields: Provider field codes to include on each result.
 
         Returns:
             List of matching entities

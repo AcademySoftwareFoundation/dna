@@ -3,8 +3,8 @@
 import contextlib
 import logging
 import os
-from datetime import date
-from typing import Any, Optional, cast
+from datetime import date, datetime, timezone
+from typing import Any, Literal, Optional, cast
 
 from shotgun_api3 import Shotgun
 
@@ -16,6 +16,7 @@ from dna.models.entity import (
     User,
     Version,
 )
+from dna.models.schema import SchemaField, SchemaFieldOption
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
     UserNotFoundError,
@@ -222,6 +223,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         entity_mapping: Optional[dict] = None,
         entity_type: Optional[str] = None,
         resolve_links: bool = True,
+        additional_fields: Optional[list[str]] = None,
     ) -> EntityBase:
         if entity_mapping is None:
             entity_mapping = FIELD_MAPPING.get(entity_type)
@@ -247,6 +249,12 @@ class ShotgridProvider(ProdtrackProviderBase):
                 entity_data[dna_field_name] = self._resolve_linked_field(linked_data)
             else:
                 entity_data[dna_field_name] = self._convert_shallow_link(linked_data)
+
+        if additional_fields:
+            entity_data["additional_fields"] = {
+                code: _stringify_schema_value(sg_entity.get(code))
+                for code in additional_fields
+            }
 
         # Instantiate the Pydantic model
         model_class = ENTITY_MODELS[entity_type]
@@ -282,7 +290,11 @@ class ShotgridProvider(ProdtrackProviderBase):
         return model_class(id=dna_id, name=name)
 
     def get_entity(
-        self, entity_type: str, entity_id: str, resolve_links: bool = True
+        self,
+        entity_type: str,
+        entity_id: str,
+        resolve_links: bool = True,
+        additional_fields: Optional[list[str]] = None,
     ) -> EntityBase:
         """
         Get an entity by its ID.
@@ -295,6 +307,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             entity_id: The ID of the entity
             resolve_links: If True, recursively fetch linked entities.
                 If False, only include shallow links with id/name.
+            additional_fields: Provider field codes to copy onto the entity.
         """
         if not self._sg:
             raise ValueError("Not connected to ShotGrid")
@@ -308,7 +321,9 @@ class ShotgridProvider(ProdtrackProviderBase):
         fields = list(entity_mapping["fields"].keys())
         linked_fields_map = entity_mapping.get("linked_fields", {})
         linked_field_sg_names = list(linked_fields_map.keys())
-        all_field_names = list(set(fields + linked_field_sg_names))
+        all_field_names = list(
+            set(fields + linked_field_sg_names + list(additional_fields or []))
+        )
 
         # Query entity from ShotGrid
         sg_entity = self._sg.find_one(
@@ -321,7 +336,11 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError(f"Entity not found: {entity_type} {entity_id}")
 
         entity = self._convert_sg_entity_to_dna_entity(
-            sg_entity, entity_mapping, entity_type, resolve_links=resolve_links
+            sg_entity,
+            entity_mapping,
+            entity_type,
+            resolve_links=resolve_links,
+            additional_fields=additional_fields,
         )
         if entity_type == "version":
             version = cast(Version, entity)
@@ -392,6 +411,10 @@ class ShotgridProvider(ProdtrackProviderBase):
             if sg_linked:
                 sg_entity_data[sg_field_name] = sg_linked
 
+        for code, value in (entity.additional_fields or {}).items():
+            if value is not None:
+                sg_entity_data[code] = _to_sg_additional_value(value)
+
         # Create the entity in ShotGrid
         result = self._sg.create(entity_mapping["entity_id"], sg_entity_data)
 
@@ -406,8 +429,125 @@ class ShotgridProvider(ProdtrackProviderBase):
 
         return created_entity
 
+    def get_schema(
+        self,
+        entity_type: str,
+        project_id: str | None = None,
+        include_dna_fields: bool = False,
+    ) -> list[SchemaField]:
+        """Read the ShotGrid field schema.
+
+        DNA model fields are dropped unless ``include_dna_fields`` is set, in
+        which case they are returned keyed by DNA name. Linked fields are
+        read-only because they cannot be written through ``update_entity``.
+        """
+        if not self.sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        entity_mapping = FIELD_MAPPING.get(entity_type)
+        if entity_mapping is None:
+            raise ValueError(f"Unknown entity type: {entity_type}")
+
+        project_entity = (
+            {"type": "Project", "id": _to_sg_id(project_id)} if project_id else None
+        )
+        schema = self.sg.schema_field_read(
+            entity_mapping["entity_id"], project_entity=project_entity
+        )
+        if not schema:
+            return []
+
+        linked = entity_mapping.get("linked_fields", {})
+        sg_to_dna = entity_mapping["fields"]
+        fields: list[SchemaField] = []
+        for code, info in schema.items():
+            if not isinstance(info, dict):
+                continue
+            if code in sg_to_dna or code in linked:
+                if include_dna_fields:
+                    field = _to_schema_field(
+                        linked.get(code) or sg_to_dna[code], info, source="dna"
+                    )
+                    if code in linked:
+                        field = field.model_copy(update={"editable": False})
+                    fields.append(field)
+                continue
+            visible = info.get("visible")
+            if isinstance(visible, dict) and visible.get("value") is False:
+                continue
+            fields.append(_to_schema_field(code, info))
+        fields.sort(key=lambda field: field.code)
+        return fields
+
+    def conform_value_to_prodtrack_system(self, value: Any, data_type: str) -> Any:
+        if data_type == "date_time":
+            return _to_sg_datetime(value)
+        return value
+
+    def _conform_sg_data(self, sg_entity: str, sg_data: dict[str, Any]) -> None:
+        """Convert each value in ``sg_data`` to the type of its ShotGrid field."""
+        schema = self._sg.schema_field_read(sg_entity)
+        if not isinstance(schema, dict):
+            return
+        for code, value in sg_data.items():
+            info = schema.get(code)
+            data_type = (
+                (info.get("data_type") or {}).get("value")
+                if isinstance(info, dict)
+                else None
+            )
+            if data_type:
+                sg_data[code] = self.conform_value_to_prodtrack_system(value, data_type)
+
+    def update_entity(
+        self,
+        entity_type: str,
+        entity_id: str,
+        fields: dict[str, Any],
+        additional_fields: dict[str, Any],
+    ) -> EntityBase:
+        """Update DNA fields and extra ShotGrid fields, then re-read the entity."""
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        entity_mapping = FIELD_MAPPING.get(entity_type)
+        if entity_mapping is None:
+            raise ValueError(f"Unknown entity type: {entity_type}")
+
+        dna_to_sg = {dna: sg for sg, dna in entity_mapping["fields"].items()}
+        linked_names = set(entity_mapping.get("linked_fields", {}).values())
+        sg_data: dict[str, Any] = {}
+        for dna_name, value in fields.items():
+            if dna_name in linked_names:
+                raise ValueError(
+                    f"Linked field '{dna_name}' cannot be updated through fields"
+                )
+            sg_field = dna_to_sg.get(dna_name)
+            if sg_field is None or sg_field == "id":
+                raise ValueError(
+                    f"Unknown field '{dna_name}' for entity type '{entity_type}'"
+                )
+            sg_data[sg_field] = _to_sg_additional_value(value)
+        for code, value in additional_fields.items():
+            sg_data[code] = _to_sg_additional_value(value)
+
+        if sg_data:
+            self._conform_sg_data(entity_mapping["entity_id"], sg_data)
+            self._sg.update(entity_mapping["entity_id"], _to_sg_id(entity_id), sg_data)
+
+        return self.get_entity(
+            entity_type,
+            entity_id,
+            resolve_links=False,
+            additional_fields=list(additional_fields),
+        )
+
     def find(
-        self, entity_type: str, filters: list[dict[str, Any]], limit: int = 0
+        self,
+        entity_type: str,
+        filters: list[dict[str, Any]],
+        limit: int = 0,
+        additional_fields: Optional[list[str]] = None,
     ) -> list[EntityBase]:
         """Find entities matching the given filters.
 
@@ -416,6 +556,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             filters: List of filter conditions in DNA format.
                 Each filter is a dict with 'field', 'operator', and 'value' keys.
             limit: Maximum number of entities to return. Defaults to 0 (no limit).
+            additional_fields: Provider field codes to copy onto each entity.
 
         Returns:
             List of matching DNA entities
@@ -453,6 +594,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         sg_fields = list(entity_mapping["fields"].keys())
         linked_fields_map = entity_mapping.get("linked_fields", {})
         sg_fields.extend(linked_fields_map.keys())
+        sg_fields.extend(additional_fields or [])
 
         # Query ShotGrid
         sg_results = self._sg.find(
@@ -465,7 +607,10 @@ class ShotgridProvider(ProdtrackProviderBase):
         # Convert SG entities to DNA entities
         return [
             self._convert_sg_entity_to_dna_entity(
-                sg_entity, entity_mapping, entity_type
+                sg_entity,
+                entity_mapping,
+                entity_type,
+                additional_fields=additional_fields,
             )
             for sg_entity in sg_results
         ]
@@ -1352,6 +1497,81 @@ def _to_dna_link(value):
     if isinstance(value, dict) and "id" in value:
         return {**value, "id": str(value["id"])}
     return value
+
+
+def _stringify_schema_value(value: Any) -> Any:
+    """Stringify entity ids inside a schema field value."""
+    if isinstance(value, dict):
+        return _to_dna_link(value)
+    if isinstance(value, list):
+        return [_stringify_schema_value(item) for item in value]
+    return value
+
+
+def _to_sg_datetime(value: Any) -> Any:
+    """Convert an ISO 8601 string to a timezone-aware UTC datetime.
+
+    ShotGrid's client serialises ``datetime`` objects to the format the server
+    accepts, while raw ISO strings (for example with milliseconds) are rejected.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"Invalid date_time value: {value!r}") from exc
+    if not isinstance(value, datetime):
+        raise ValueError(f"Invalid date_time value: {value!r}")
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _to_sg_additional_value(value: Any) -> Any:
+    """Translate entity-link ids in an extra field back to ShotGrid integers."""
+    if isinstance(value, dict) and "type" in value and "id" in value:
+        return {**value, "id": _to_sg_id(str(value["id"]))}
+    if (
+        isinstance(value, list)
+        and value
+        and all(
+            isinstance(item, dict) and "type" in item and "id" in item for item in value
+        )
+    ):
+        return [_to_sg_additional_value(item) for item in value]
+    return value
+
+
+def _to_schema_field(
+    code: str, info: dict, source: Literal["dna", "provider"] = "provider"
+) -> SchemaField:
+    """Convert one ShotGrid schema_field_read entry into a SchemaField."""
+    data_type = (info.get("data_type") or {}).get("value") or ""
+    display_name = (info.get("name") or {}).get("value") or code
+    editable = bool((info.get("editable") or {}).get("value", False))
+    properties = info.get("properties") or {}
+    acceptable: Optional[list[SchemaFieldOption]] = None
+    if data_type in ("list", "status_list"):
+        valid = (properties.get("valid_values") or {}).get("value") or []
+        display = (properties.get("display_values") or {}).get("value") or {}
+        acceptable = [
+            SchemaFieldOption(value=str(item), label=str(display.get(item, item)))
+            for item in valid
+        ]
+    elif data_type in ("entity", "multi_entity"):
+        valid_types = (properties.get("valid_types") or {}).get("value") or []
+        acceptable = [
+            SchemaFieldOption(value=str(item), label=str(item)) for item in valid_types
+        ]
+    return SchemaField(
+        code=code,
+        display_name=str(display_name),
+        data_type=str(data_type),
+        editable=editable,
+        acceptable_values=acceptable,
+        source=source,
+    )
 
 
 def _to_sg_filter_value(dna_field: str, value):

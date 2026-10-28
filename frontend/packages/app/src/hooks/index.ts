@@ -64,3 +64,13 @@ export type {
 } from './useVersionStatuses';
 
 export { usePlaylistDraftNotes } from './usePlaylistDraftNotes';
+
+export {
+  useSelectedEntityFields,
+  useEntitySchemas,
+  useEntityFieldValues,
+  useUpdateEntityField,
+  getFieldTargets,
+  SELECTED_ENTITY_FIELDS_STORAGE_KEY,
+} from './useEntityFields';
+export type { EntityFieldTarget } from './useEntityFields';

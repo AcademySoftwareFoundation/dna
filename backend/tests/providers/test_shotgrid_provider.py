@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
@@ -1751,3 +1751,324 @@ def test_publish_note_returns_string_id_and_sends_int_links(shotgrid_provider):
 def test_get_entity_rejects_non_numeric_id(shotgrid_provider):
     with pytest.raises(ValueError, match="Invalid ShotGrid entity ID"):
         shotgrid_provider.get_entity("version", "abc")
+
+
+def _sg_schema_field(data_type, name, editable=True, visible=True, properties=None):
+    return {
+        "data_type": {"value": data_type},
+        "name": {"value": name},
+        "editable": {"value": editable},
+        "visible": {"value": visible},
+        "properties": properties or {},
+    }
+
+
+class TestShotgridSchemaAndAdditionalFields:
+    """Schema reads and fields that are not on the DNA models."""
+
+    def test_get_schema_filters_mapped_and_hidden_fields(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "code": _sg_schema_field("text", "Shot Code"),
+            "tasks": _sg_schema_field("multi_entity", "Tasks"),
+            "sg_retired": _sg_schema_field("text", "Retired", visible=False),
+            "sg_cut_in": _sg_schema_field("number", "Cut In"),
+            "sg_shot_type": _sg_schema_field(
+                "list",
+                "Shot Type",
+                properties={
+                    "valid_values": {"value": ["vfx", "plate"]},
+                    "display_values": {"value": {"vfx": "VFX", "plate": "Plate"}},
+                },
+            ),
+            "sg_sequence": _sg_schema_field(
+                "entity",
+                "Sequence",
+                properties={"valid_types": {"value": ["Sequence"]}},
+            ),
+            "sg_versions": _sg_schema_field(
+                "multi_entity",
+                "Versions",
+                properties={"valid_types": {"value": ["Version"]}},
+            ),
+            "description": _sg_schema_field("text", "Description"),
+        }
+
+        fields = shotgrid_provider.get_schema("shot", project_id="124")
+
+        shotgrid_provider.sg.schema_field_read.assert_called_once_with(
+            "Shot", project_entity={"type": "Project", "id": 124}
+        )
+        by_code = {field.code: field for field in fields}
+        assert set(by_code) == {
+            "sg_cut_in",
+            "sg_shot_type",
+            "sg_sequence",
+            "sg_versions",
+        }
+        assert by_code["sg_cut_in"].display_name == "Cut In"
+        assert by_code["sg_cut_in"].data_type == "number"
+        assert by_code["sg_cut_in"].editable is True
+        assert by_code["sg_cut_in"].acceptable_values is None
+        assert by_code["sg_shot_type"].acceptable_values[0].value == "vfx"
+        assert by_code["sg_shot_type"].acceptable_values[0].label == "VFX"
+        assert by_code["sg_sequence"].acceptable_values[0].value == "Sequence"
+        assert by_code["sg_versions"].data_type == "multi_entity"
+
+    def test_get_schema_without_project_passes_none(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {}
+        assert shotgrid_provider.get_schema("shot") == []
+        shotgrid_provider.sg.schema_field_read.assert_called_once_with(
+            "Shot", project_entity=None
+        )
+
+    def test_get_schema_includes_dna_fields_when_requested(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "id": _sg_schema_field("number", "Id", editable=False),
+            "code": _sg_schema_field("text", "Shot Code"),
+            "description": _sg_schema_field("text", "Description"),
+            "project": _sg_schema_field(
+                "entity",
+                "Project",
+                editable=False,
+                properties={"valid_types": {"value": ["Project"]}},
+            ),
+            "tasks": _sg_schema_field("multi_entity", "Tasks"),
+            "sg_cut_in": _sg_schema_field("number", "Cut In"),
+        }
+
+        fields = shotgrid_provider.get_schema("shot", include_dna_fields=True)
+
+        by_code = {field.code: field for field in fields}
+        assert set(by_code) == {
+            "id",
+            "name",
+            "description",
+            "project",
+            "tasks",
+            "sg_cut_in",
+        }
+        assert by_code["name"].source == "dna"
+        assert by_code["name"].display_name == "Shot Code"
+        assert by_code["description"].source == "dna"
+        assert by_code["description"].editable is True
+        assert by_code["project"].editable is False
+        assert by_code["sg_cut_in"].source == "provider"
+
+    def test_get_schema_marks_linked_dna_fields_read_only(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "tasks": _sg_schema_field("multi_entity", "Tasks", editable=True),
+        }
+
+        fields = shotgrid_provider.get_schema("shot", include_dna_fields=True)
+
+        assert [(f.code, f.source, f.editable) for f in fields] == [
+            ("tasks", "dna", False)
+        ]
+        assert shotgrid_provider.get_schema("shot") == []
+
+    def test_get_schema_skips_non_dict_entries(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {"weird": None}
+        assert shotgrid_provider.get_schema("shot") == []
+
+    def test_get_schema_unknown_type(self, shotgrid_provider):
+        with pytest.raises(ValueError, match="Unknown entity type"):
+            shotgrid_provider.get_schema("not_an_entity")
+
+    def test_get_schema_requires_connection(self, shotgrid_provider):
+        shotgrid_provider.sg = None
+        with pytest.raises(ValueError, match="Not connected"):
+            shotgrid_provider.get_schema("shot")
+
+    def test_get_entity_copies_additional_fields(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "code": "sh010",
+            "description": "hero",
+            "project": None,
+            "tasks": [],
+            "sg_cut_in": 1001,
+            "sg_sequence": {"type": "Sequence", "id": 9, "name": "mk020"},
+        }
+
+        shot = shotgrid_provider.get_entity(
+            "shot",
+            "1",
+            resolve_links=False,
+            additional_fields=["sg_cut_in", "sg_sequence", "sg_missing"],
+        )
+
+        assert shot.additional_fields["sg_cut_in"] == 1001
+        assert shot.additional_fields["sg_sequence"]["id"] == "9"
+        assert shot.additional_fields["sg_missing"] is None
+        requested = shotgrid_provider.sg.find_one.call_args.kwargs["fields"]
+        assert "sg_cut_in" in requested
+        assert "sg_sequence" in requested
+
+    def test_find_copies_additional_fields(self, shotgrid_provider):
+        shotgrid_provider.sg.find.return_value = [
+            {
+                "id": 1,
+                "code": "sh010",
+                "description": None,
+                "project": None,
+                "tasks": [],
+                "sg_cut_out": 1100,
+            }
+        ]
+
+        shots = shotgrid_provider.find("shot", [], additional_fields=["sg_cut_out"])
+
+        assert shots[0].additional_fields == {"sg_cut_out": 1100}
+        assert "sg_cut_out" in shotgrid_provider.sg.find.call_args.kwargs["fields"]
+
+    def test_add_entity_merges_additional_fields(self, shotgrid_provider):
+        shotgrid_provider.sg.create.return_value = {
+            "type": "Shot",
+            "id": 5,
+            "code": "sh010",
+        }
+        shot = Shot(
+            id="0",
+            name="sh010",
+            additional_fields={
+                "sg_cut_in": 1001,
+                "sg_sequence": {"type": "Sequence", "id": "9"},
+                "sg_empty": None,
+            },
+        )
+
+        created = shotgrid_provider.add_entity("shot", shot)
+
+        sg_data = shotgrid_provider.sg.create.call_args[0][1]
+        assert sg_data["sg_cut_in"] == 1001
+        assert sg_data["sg_sequence"] == {"type": "Sequence", "id": 9}
+        assert "sg_empty" not in sg_data
+        assert created.id == "5"
+
+    def test_update_entity_writes_dna_and_additional_fields(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "code": "sh010",
+            "description": "updated",
+            "project": {"type": "Project", "id": 4},
+            "tasks": [],
+            "sg_cut_in": 1005,
+        }
+
+        shot = shotgrid_provider.update_entity(
+            "shot",
+            "1",
+            {"description": "updated", "project": {"type": "Project", "id": "4"}},
+            {"sg_cut_in": 1005},
+        )
+
+        shotgrid_provider.sg.update.assert_called_once_with(
+            "Shot",
+            1,
+            {
+                "description": "updated",
+                "project": {"type": "Project", "id": 4},
+                "sg_cut_in": 1005,
+            },
+        )
+        assert shot.description == "updated"
+        assert shot.additional_fields == {"sg_cut_in": 1005}
+        assert shotgrid_provider.sg.find_one.call_args.kwargs["fields"]
+
+    def test_update_entity_conforms_date_time_values(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "sg_review_at": _sg_schema_field("date_time", "Review At"),
+            "sg_cut_in": _sg_schema_field("number", "Cut In"),
+        }
+        shotgrid_provider.sg.find_one.return_value = {"id": 1, "code": "sh010"}
+
+        shotgrid_provider.update_entity(
+            "shot",
+            "1",
+            {},
+            {"sg_review_at": "2025-02-03T10:45:00.123Z", "sg_cut_in": 1005},
+        )
+
+        shotgrid_provider.sg.schema_field_read.assert_called_once_with("Shot")
+        shotgrid_provider.sg.update.assert_called_once_with(
+            "Shot",
+            1,
+            {
+                "sg_review_at": datetime(
+                    2025, 2, 3, 10, 45, 0, 123000, tzinfo=timezone.utc
+                ),
+                "sg_cut_in": 1005,
+            },
+        )
+
+    def test_update_entity_rejects_invalid_date_time(self, shotgrid_provider):
+        shotgrid_provider.sg.schema_field_read.return_value = {
+            "sg_review_at": _sg_schema_field("date_time", "Review At"),
+        }
+
+        with pytest.raises(ValueError, match="Invalid date_time value"):
+            shotgrid_provider.update_entity(
+                "shot", "1", {}, {"sg_review_at": "not a date"}
+            )
+        shotgrid_provider.sg.update.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "value, expected",
+        [
+            (None, None),
+            ("2025-02-03T10:45:00Z", datetime(2025, 2, 3, 10, 45, tzinfo=timezone.utc)),
+            (
+                "2025-02-03T03:45:00-07:00",
+                datetime(2025, 2, 3, 10, 45, tzinfo=timezone.utc),
+            ),
+            ("2025-02-03T10:45:00", datetime(2025, 2, 3, 10, 45, tzinfo=timezone.utc)),
+            (
+                datetime(2025, 2, 3, 10, 45),
+                datetime(2025, 2, 3, 10, 45, tzinfo=timezone.utc),
+            ),
+        ],
+    )
+    def test_conform_date_time(self, shotgrid_provider, value, expected):
+        assert (
+            shotgrid_provider.conform_value_to_prodtrack_system(value, "date_time")
+            == expected
+        )
+
+    def test_conform_date_time_rejects_other_types(self, shotgrid_provider):
+        with pytest.raises(ValueError, match="Invalid date_time value"):
+            shotgrid_provider.conform_value_to_prodtrack_system(12, "date_time")
+
+    @pytest.mark.parametrize(
+        "value, data_type", [(True, "checkbox"), ("2025-02-03", "date"), (5, "number")]
+    )
+    def test_conform_leaves_other_types_unchanged(
+        self, shotgrid_provider, value, data_type
+    ):
+        assert (
+            shotgrid_provider.conform_value_to_prodtrack_system(value, data_type)
+            == value
+        )
+
+    def test_update_entity_rejects_unknown_and_linked_fields(self, shotgrid_provider):
+        with pytest.raises(ValueError, match="Unknown field 'nope'"):
+            shotgrid_provider.update_entity("shot", "1", {"nope": 1}, {})
+        with pytest.raises(ValueError, match="Linked field 'tasks'"):
+            shotgrid_provider.update_entity("shot", "1", {"tasks": []}, {})
+        with pytest.raises(ValueError, match="Unknown field 'id'"):
+            shotgrid_provider.update_entity("shot", "1", {"id": "9"}, {})
+        shotgrid_provider.sg.update.assert_not_called()
+
+    def test_update_entity_skips_update_when_nothing_to_write(self, shotgrid_provider):
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "code": "sh010",
+            "description": None,
+            "project": None,
+            "tasks": [],
+        }
+
+        shot = shotgrid_provider.update_entity("shot", "1", {}, {})
+
+        shotgrid_provider.sg.update.assert_not_called()
+        assert shot.id == "1"
+        assert shot.additional_fields == {}

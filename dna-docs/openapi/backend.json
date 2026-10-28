@@ -45,6 +45,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "description": {
             "anyOf": [
               {
@@ -285,6 +291,19 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider field codes that are not on the Note model, for example {'sg_note_type': 'dailies'}.",
+            "title": "Additional Fields"
+          },
           "content": {
             "anyOf": [
               {
@@ -779,6 +798,12 @@
       "EntityBase": {
         "description": "Base model for all DNA entities.",
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "id": {
             "description": "Entity ID",
             "title": "Id",
@@ -898,6 +923,21 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider field codes to include on each result under additional_fields. Omit to skip the extra read.",
+            "title": "Additional Fields"
+          },
           "entity_type": {
             "description": "DNA entity type to search (e.g., 'project', 'shot', 'version')",
             "title": "Entity Type",
@@ -1059,6 +1099,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "author": {
             "anyOf": [
               {
@@ -1498,6 +1544,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "code": {
             "anyOf": [
               {
@@ -1794,6 +1846,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "id": {
             "description": "Entity ID",
             "title": "Id",
@@ -2181,6 +2239,100 @@
         "title": "RunQCChecksResponse",
         "type": "object"
       },
+      "SchemaField": {
+        "description": "A field on an entity, either on the DNA model or provider-only.",
+        "examples": [
+          {
+            "code": "sg_cut_in",
+            "data_type": "number",
+            "display_name": "Cut In",
+            "editable": true,
+            "source": "provider"
+          }
+        ],
+        "properties": {
+          "acceptable_values": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SchemaFieldOption"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Allowed values for list, status, entity, and multi-entity fields. Null for free-form fields.",
+            "title": "Acceptable Values"
+          },
+          "code": {
+            "description": "Field code. For provider fields this is the provider code (e.g. 'sg_cut_in'); for DNA fields it is the DNA model attribute.",
+            "title": "Code",
+            "type": "string"
+          },
+          "data_type": {
+            "description": "Provider data type, e.g. 'text', 'number', 'entity', 'status_list'",
+            "title": "Data Type",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "Human-readable field name",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "editable": {
+            "description": "Whether the provider allows writes to this field",
+            "title": "Editable",
+            "type": "boolean"
+          },
+          "source": {
+            "default": "provider",
+            "description": "'dna' for fields on the DNA model (written via `fields`), 'provider' for provider-only fields (written via `additional_fields`).",
+            "enum": [
+              "dna",
+              "provider"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "display_name",
+          "data_type",
+          "editable"
+        ],
+        "title": "SchemaField",
+        "type": "object"
+      },
+      "SchemaFieldOption": {
+        "description": "One acceptable value for a choice or entity field.",
+        "examples": [
+          {
+            "label": "Pending Review",
+            "value": "rev"
+          }
+        ],
+        "properties": {
+          "label": {
+            "description": "Label to show for this value",
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "description": "Stored value (status code or entity type name)",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "SchemaFieldOption",
+        "type": "object"
+      },
       "SearchRequest": {
         "description": "Request model for unified entity search.",
         "examples": [
@@ -2335,6 +2487,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "description": {
             "anyOf": [
               {
@@ -2592,6 +2750,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "entity": {
             "anyOf": [
               {
@@ -2860,6 +3024,25 @@
         "title": "TranscriptionLanguagesResponse",
         "type": "object"
       },
+      "UpdateEntityRequest": {
+        "description": "Request model for updating an entity's DNA fields and provider extras.",
+        "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider field codes that are not on the DNA model.",
+            "title": "Additional Fields",
+            "type": "object"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "description": "DNA field names to update. Linked fields (tasks, notes, entity) are not accepted here.",
+            "title": "Fields",
+            "type": "object"
+          }
+        },
+        "title": "UpdateEntityRequest",
+        "type": "object"
+      },
       "UpdateVersionStatusRequest": {
         "description": "Request model for updating a version's status.",
         "examples": [
@@ -2924,6 +3107,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "email": {
             "anyOf": [
               {
@@ -3238,6 +3427,12 @@
           }
         ],
         "properties": {
+          "additional_fields": {
+            "additionalProperties": true,
+            "description": "Provider fields that are not part of the DNA model, keyed by the provider field code (for example 'sg_cut_in').",
+            "title": "Additional Fields",
+            "type": "object"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -3739,6 +3934,24 @@
               "title": "Asset Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+            "in": "query",
+            "name": "additional_fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+              "title": "Additional Fields"
+            }
           }
         ],
         "responses": {
@@ -3791,6 +4004,85 @@
         "summary": "Get an asset by ID",
         "tags": [
           "Assets"
+        ]
+      }
+    },
+    "/entities/{entity_type}/{entity_id}": {
+      "patch": {
+        "description": "Update DNA fields and provider-specific additional fields on an existing entity. Linked fields cannot be changed through fields.",
+        "operationId": "update_entity_entities__entity_type___entity_id__patch",
+        "parameters": [
+          {
+            "description": "Entity type name, for example `version`, `task`, `shot` or `asset`. Unknown types are rejected with 400.",
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Entity ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEntityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityBase"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update an entity",
+        "tags": [
+          "Entities"
         ]
       }
     },
@@ -4080,6 +4372,24 @@
               "title": "Note Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+            "in": "query",
+            "name": "additional_fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+              "title": "Additional Fields"
+            }
           }
         ],
         "responses": {
@@ -4148,6 +4458,24 @@
             "schema": {
               "title": "Playlist Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+            "in": "query",
+            "name": "additional_fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+              "title": "Additional Fields"
             }
           }
         ],
@@ -5635,6 +5963,99 @@
         ]
       }
     },
+    "/schema/{entity_type}": {
+      "get": {
+        "description": "Return provider fields that are not part of the DNA model for this entity type. DNA fields (name, status, and so on) are omitted unless include_dna_fields is set, in which case they are returned with source 'dna'. Linked fields (for example a version's task) are returned as read-only.",
+        "operationId": "get_entity_schema_schema__entity_type__get",
+        "parameters": [
+          {
+            "description": "Entity type name, for example `version`, `task`, `shot` or `asset`. Unknown types are rejected with 400.",
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project ID as issued by the production tracking provider. When set, choice values that vary by project are scoped to it.",
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Project ID as issued by the production tracking provider. When set, choice values that vary by project are scoped to it.",
+              "title": "Project Id"
+            }
+          },
+          {
+            "description": "Also return fields that are on the DNA model, tagged with source 'dna' and keyed by the DNA attribute name.",
+            "in": "query",
+            "name": "include_dna_fields",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Also return fields that are on the DNA model, tagged with source 'dna' and keyed by the DNA attribute name.",
+              "title": "Include Dna Fields",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SchemaField"
+                  },
+                  "title": "Response Get Entity Schema Schema  Entity Type  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get the field schema for an entity type",
+        "tags": [
+          "Entities"
+        ]
+      }
+    },
     "/search": {
       "post": {
         "description": "Unified search endpoint for @mentions and entity linking.",
@@ -5723,6 +6144,24 @@
               "title": "Shot Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+            "in": "query",
+            "name": "additional_fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+              "title": "Additional Fields"
+            }
           }
         ],
         "responses": {
@@ -5791,6 +6230,24 @@
             "schema": {
               "title": "Task Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+            "in": "query",
+            "name": "additional_fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+              "title": "Additional Fields"
             }
           }
         ],
@@ -7017,6 +7474,24 @@
             "schema": {
               "title": "Version Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+            "in": "query",
+            "name": "additional_fields",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated provider field codes to return in additional_fields. These are fields that are not part of the DNA entity model, for example 'sg_cut_in,sg_cut_out'.",
+              "title": "Additional Fields"
             }
           }
         ],
