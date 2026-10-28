@@ -168,6 +168,9 @@ const config: Config = {
   ],
 
   themeConfig: {
+    // og:image / twitter:image for every page (link previews in Slack,
+    // GitHub, social). Resolved against `url` + `baseUrl` above.
+    image: 'img/dna-social-card.png',
     // Dark-first like the DNA app; the navbar toggle still switches to light.
     colorMode: {
       defaultMode: 'dark',
