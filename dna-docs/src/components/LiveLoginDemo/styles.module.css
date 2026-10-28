@@ -67,7 +67,6 @@
   border: 2px solid var(--dna-accent);
   border-radius: 10px;
   animation: guidePulse 1.6s ease-out infinite;
-  transition: all 0.2s ease;
 }
 
 @keyframes guidePulse {
@@ -91,9 +90,6 @@
   line-height: 1.3;
   white-space: nowrap;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
-  transition:
-    top 0.2s ease,
-    left 0.2s ease;
 }
 
 /* Arrow: a square rotated into a point on the side facing the target. */
