@@ -318,17 +318,29 @@ a.card:hover,
 }
 
 /*
- * The plugin's magnifying glass: centred in the 2rem collapsed circle. The
- * plugin gives it z-index: 1 to sit over the input, which also lifts it over
- * the hamburger menu and its backdrop (both z-index: auto, later in the DOM).
- * Being positioned already paints it over the in-flow input, so auto suffices.
+ * The plugin's magnifying glass: centred in the 2rem collapsed circle. It
+ * keeps the plugin's z-index: 1, which it needs once the search index has
+ * loaded: autocomplete.js then makes the input position: relative, and the
+ * open field's background would paint over the glass.
  */
 .navbar .navbar__search > svg:first-child {
   left: 0.45rem;
   width: 1.1rem;
   height: 1.1rem;
   color: var(--ifm-navbar-link-color);
-  z-index: auto;
+}
+
+/*
+ * That z-index would also lift the glass over the hamburger menu, which
+ * Infima leaves at z-index: auto. Raise the menu and its backdrop above it
+ * (.navbar is its own stacking context, so this is local to the bar).
+ */
+.navbar-sidebar__backdrop {
+  z-index: 1;
+}
+
+.navbar-sidebar {
+  z-index: 2;
 }
 
 .navbar .navbar__search-input {
