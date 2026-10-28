@@ -317,12 +317,18 @@ a.card:hover,
   margin-left: 0.25rem;
 }
 
-/* The plugin's magnifying glass: centred in the 2rem collapsed circle. */
+/*
+ * The plugin's magnifying glass: centred in the 2rem collapsed circle. The
+ * plugin gives it z-index: 1 to sit over the input, which also lifts it over
+ * the hamburger menu and its backdrop (both z-index: auto, later in the DOM).
+ * Being positioned already paints it over the in-flow input, so auto suffices.
+ */
 .navbar .navbar__search > svg:first-child {
   left: 0.45rem;
   width: 1.1rem;
   height: 1.1rem;
   color: var(--ifm-navbar-link-color);
+  z-index: auto;
 }
 
 .navbar .navbar__search-input {
