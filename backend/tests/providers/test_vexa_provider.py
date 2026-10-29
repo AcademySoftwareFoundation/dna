@@ -274,13 +274,11 @@ class TestStopBot:
     """Tests for stop_bot method."""
 
     @pytest.mark.asyncio
-    async def test_stop_bot_success(self, vexa_provider):
-        """Test successful bot stop."""
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-
+    @pytest.mark.parametrize("status_code", [200, 202, 204])
+    async def test_stop_bot_success(self, vexa_provider, status_code):
+        """Test that any 2xx answer counts as a successful stop."""
         mock_client = mock.AsyncMock()
-        mock_client.delete.return_value = mock_response
+        mock_client.delete.return_value = httpx.Response(status_code)
         vexa_provider._client = mock_client
 
         result = await vexa_provider.stop_bot(Platform.GOOGLE_MEET, "abc-defg-hij")
@@ -289,13 +287,11 @@ class TestStopBot:
         mock_client.delete.assert_called_once_with("/bots/google_meet/abc-defg-hij")
 
     @pytest.mark.asyncio
-    async def test_stop_bot_failure(self, vexa_provider):
-        """Test bot stop failure."""
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 404
-
+    @pytest.mark.parametrize("status_code", [404, 500])
+    async def test_stop_bot_failure(self, vexa_provider, status_code):
+        """Test that a 4xx or 5xx answer reports a failed stop."""
         mock_client = mock.AsyncMock()
-        mock_client.delete.return_value = mock_response
+        mock_client.delete.return_value = httpx.Response(status_code)
         vexa_provider._client = mock_client
 
         result = await vexa_provider.stop_bot(Platform.TEAMS, "unknown-meeting")
