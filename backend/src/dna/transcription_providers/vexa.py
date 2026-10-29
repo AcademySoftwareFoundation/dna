@@ -165,7 +165,7 @@ class VexaTranscriptionProvider(TranscriptionProviderBase):
     async def stop_bot(self, platform: Platform, meeting_id: str) -> bool:
         """Stop a bot that is currently in a meeting."""
         response = await self.client.delete(f"/bots/{platform.value}/{meeting_id}")
-        return response.status_code == 200
+        return response.is_success
 
     async def get_bot_status(self, platform: Platform, meeting_id: str) -> BotStatus:
         """Get the current status of a bot by querying meetings endpoint."""
