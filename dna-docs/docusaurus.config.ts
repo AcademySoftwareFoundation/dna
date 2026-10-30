@@ -21,6 +21,8 @@ function withBaseSlash(baseUrl: string): string {
   return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
 }
 
+const baseUrl = docsBaseUrl ? withBaseSlash(docsBaseUrl) : '/';
+
 type PrismTheme = typeof prismThemes.oneLight;
 
 // Recolour the One themes' green (strings, attr values, ...) to the emerald
@@ -46,6 +48,18 @@ const config: Config = {
   title: 'DNA Docs',
   tagline: 'A tool that combines live transcription and LLM integration to help VFX teams capture review feedback.',
   favicon: 'img/favicon.svg',
+  // Safari (incl. iOS) doesn't take SVG favicons; it picks these PNGs, cut
+  // from the SVG, while Chrome and Firefox keep the vector. Unlike `favicon`,
+  // headTags aren't base-URL aware.
+  headTags: [32, 256].map((size) => ({
+    tagName: 'link',
+    attributes: {
+      rel: 'icon',
+      type: 'image/png',
+      sizes: `${size}x${size}`,
+      href: `${baseUrl}img/favicon-${size}.png`,
+    },
+  })),
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -55,7 +69,7 @@ const config: Config = {
   // Local builds keep the dev origin and a root base path. The GitHub Pages
   // workflow overrides both from the repository Pages settings.
   url: docsUrl && docsUrl.length > 0 ? docsUrl : 'http://localhost:3000',
-  baseUrl: docsBaseUrl ? withBaseSlash(docsBaseUrl) : '/',
+  baseUrl,
 
   // Used by `npm run deploy` to push the build to GitHub Pages.
   organizationName: 'AcademySoftwareFoundation',
