@@ -109,10 +109,9 @@ export function useAISuggestion({
     const unsubscribeFromGenerationSuccess =
       aiSuggestionManager.onGenerationSuccess(
         (changedPlaylistId, changedVersionId, generatedNote) => {
-          if (
-            changedPlaylistId !== playlistId ||
-            changedVersionId !== versionId
-          ) {
+          // Keep a finished note for any version in this playlist, even if
+          // the user has already switched away from it (#127).
+          if (changedPlaylistId !== playlistId) {
             return;
           }
           if (!isUsableSuggestion(generatedNote.suggestion)) {
@@ -120,7 +119,7 @@ export function useAISuggestion({
           }
 
           setNotesByVersionId((previousNotesByVersionId) => {
-            const existing = previousNotesByVersionId[versionId] ?? [];
+            const existing = previousNotesByVersionId[changedVersionId] ?? [];
             let nextNotesForVersion = [...existing, generatedNote.suggestion];
             if (nextNotesForVersion.length > MAX_NOTES_PER_VERSION) {
               nextNotesForVersion = nextNotesForVersion.slice(
@@ -130,17 +129,20 @@ export function useAISuggestion({
             const newestNoteIndexInVersion = nextNotesForVersion.length - 1;
             setIndexByVersionId((previousIndexesByVersionId) => ({
               ...previousIndexesByVersionId,
-              [versionId]: newestNoteIndexInVersion,
+              [changedVersionId]: newestNoteIndexInVersion,
             }));
             return {
               ...previousNotesByVersionId,
-              [versionId]: nextNotesForVersion,
+              [changedVersionId]: nextNotesForVersion,
             };
           });
-          setLastPrompt(generatedNote.prompt);
-          setLastContext(generatedNote.context);
+          if (changedVersionId === versionId) {
+            setLastPrompt(generatedNote.prompt);
+            setLastContext(generatedNote.context);
+          }
         }
       );
+
 
     return () => {
       unsubscribeFromGenerationState();
