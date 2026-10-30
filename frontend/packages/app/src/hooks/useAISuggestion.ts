@@ -196,10 +196,13 @@ export function useAISuggestion({
       return;
     }
 
-    if (
+    const versionChanged =
       prevVersionRef.current !== null &&
-      prevVersionRef.current !== versionId
-    ) {
+      prevVersionRef.current !== versionId;
+    const hasNote =
+      versionId != null && (notesByVersionId[versionId]?.length ?? 0) > 0;
+
+    if (versionChanged && !hasNote) {
       runGenerate().catch(() => {});
     }
 
@@ -211,6 +214,7 @@ export function useAISuggestion({
     userSettings,
     isEnabled,
     runGenerate,
+    notesByVersionId,
   ]);
 
   const handleTranscriptEvent = useCallback(
