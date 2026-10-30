@@ -1,0 +1,9 @@
+.label {
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ifm-color-content-secondary);
+}

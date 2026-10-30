@@ -1,17 +1,9 @@
 .features {
-  display: flex;
-  align-items: center;
-  padding: 1rem 0 4rem;
-  width: 100%;
-}
-
-.feature {
-  margin-bottom: 1rem;
+  padding: 1rem 0 3rem;
 }
 
 /* Base card look (border, surface, hover) comes from .card in custom.css. */
 .card {
-  height: 100%;
   padding: 1.5rem;
   color: inherit;
 }

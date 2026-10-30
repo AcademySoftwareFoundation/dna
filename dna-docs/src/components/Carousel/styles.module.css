@@ -1,0 +1,72 @@
+.track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1rem;
+}
+
+/* Lets the slide stretch to the row's height (e.g. equal-height cards). */
+.slide {
+  display: flex;
+}
+
+.slide > * {
+  flex: 1;
+}
+
+.dots {
+  display: none;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ifm-color-emphasis-300);
+  cursor: pointer;
+  transition: background-color var(--ifm-transition-fast);
+}
+
+.dot[aria-current='true'] {
+  background: var(--dna-accent);
+}
+
+/*
+ * Narrow screens: a snapping strip, bled out to the page edge so the
+ * neighbouring slide peeks in. Slide and padding are in viewport widths so
+ * every slide, first and last included, snaps to the centre of the screen.
+ */
+@media (max-width: 996px) {
+  .track {
+    grid-auto-columns: 80vw;
+    margin: 0 calc(-1 * var(--ifm-spacing-horizontal));
+    padding: 0 10vw;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+  }
+
+  .track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .slide {
+    scroll-snap-align: center;
+  }
+
+  .dots {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    scroll-behavior: auto;
+  }
+}
