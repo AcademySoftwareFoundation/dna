@@ -44,7 +44,10 @@ vi.mock('../api', () => ({
     onGenerationStateChange: vi.fn(() => () => {}),
     onGenerationSuccess: vi.fn((listener) => {
       mocks.successListeners.push(listener);
-      return () => {};
+      return () => {
+        const i = mocks.successListeners.indexOf(listener);
+        if (i >= 0) mocks.successListeners.splice(i, 1);
+      };
     }),
     // This is the call we count. It pretends the server answered.
     generateSuggestion: vi.fn(() =>
@@ -154,6 +157,72 @@ describe('useAISuggestion: regenerate on version change (issue #127)', () => {
     //    at 1 (acceptance criterion 1 of the issue).
     rerender({ versionId: 'A' });
     expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('generates once per new version and never again on the way back', () => {
+    // Walk forward A -> B -> C, giving each version a note as it arrives,
+    // then walk back C -> B -> A. Only the forward steps should generate.
+    const { rerender } = renderHook(
+      ({ versionId }) =>
+        useAISuggestion({ playlistId: PLAYLIST, versionId, userEmail: USER }),
+      { initialProps: { versionId: 'A' }, wrapper: createWrapper() }
+    );
+    pretendNoteWasGenerated('A', 'Note for A');
+
+    rerender({ versionId: 'B' });
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
+    pretendNoteWasGenerated('B', 'Note for B');
+
+    rerender({ versionId: 'C' });
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(2);
+    pretendNoteWasGenerated('C', 'Note for C');
+
+    rerender({ versionId: 'B' });
+    rerender({ versionId: 'A' });
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a note that finishes after the user has switched away', () => {
+    // The click-away case: A's note is still generating when the user
+    // moves to B. It finishes while B is on screen. Coming back to A must
+    // show that note and must not generate again.
+    const { result, rerender } = renderHook(
+      ({ versionId }) =>
+        useAISuggestion({ playlistId: PLAYLIST, versionId, userEmail: USER }),
+      { initialProps: { versionId: 'A' }, wrapper: createWrapper() }
+    );
+
+    rerender({ versionId: 'B' });
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
+
+    // A's note arrives late, while B is on screen.
+    pretendNoteWasGenerated('A', 'Late note for A');
+    pretendNoteWasGenerated('B', 'Note for B');
+
+    rerender({ versionId: 'A' });
+    expect(result.current.suggestion).toBe('Late note for A');
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('manual Regenerate still generates for a version that has a note', () => {
+    const { result } = renderHook(
+      ({ versionId }) =>
+        useAISuggestion({ playlistId: PLAYLIST, versionId, userEmail: USER }),
+      { initialProps: { versionId: 'A' }, wrapper: createWrapper() }
+    );
+    pretendNoteWasGenerated('A', 'Existing note for A');
+
+    act(() => {
+      result.current.regenerate();
+    });
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenLastCalledWith(
+      PLAYLIST,
+      'A',
+      USER,
+      expect.any(String),
+      { requireFresh: true }
+    );
   });
 
   it('does not generate on version change when the setting is off', () => {
