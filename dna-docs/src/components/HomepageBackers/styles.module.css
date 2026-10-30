@@ -1,0 +1,50 @@
+.backers {
+  padding: 0 0 4rem;
+}
+
+.backer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  padding: 0 1rem;
+  opacity: 0.7;
+  transition: opacity var(--ifm-transition-fast);
+}
+
+.backer:hover {
+  opacity: 1;
+}
+
+.logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* The PNGs are white on transparent. */
+[data-theme='light'] .logo {
+  filter: invert(1);
+}
+
+/* Per-logo tweaks so the four read at the same weight. */
+@media (min-width: 997px) {
+  /* The ASWF wordmark fills its column edge to edge; pull it in a touch. */
+  .logoAswf {
+    max-width: 92%;
+    max-height: 92%;
+  }
+
+  /* Imageworks is the squarest mark, so height-bound: let it stand a bit
+     taller than the row, and nudge it left of centre. */
+  .logoSpi {
+    max-height: 112%;
+    transform: translateX(-0.85rem);
+  }
+}
+
+@media (max-width: 996px) {
+  .backer {
+    height: 64px;
+  }
+}
