@@ -23,11 +23,15 @@ import type { UserSettings } from '@dna/core';
 // here, so the test can later pretend a note was generated.
 const mocks = vi.hoisted(() => ({
   successListeners: [] as Array<
-    (playlistId: string, versionId: string, note: {
-      suggestion: string;
-      prompt: string;
-      context: string;
-    }) => void
+    (
+      playlistId: string,
+      versionId: string,
+      note: {
+        suggestion: string;
+        prompt: string;
+        context: string;
+      }
+    ) => void
   >,
 }));
 
@@ -83,11 +87,14 @@ const settingsWithRegenerateOn: UserSettings = {
 // The hook reads settings through TanStack Query, so it needs a QueryClient
 // around it. We pre-load the settings into the client, so they are there on
 // the very first render and no fetch has to happen.
-function createWrapper() {
+function createWrapper(overrides: Partial<UserSettings> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  queryClient.setQueryData(['userSettings', USER], settingsWithRegenerateOn);
+  queryClient.setQueryData(['userSettings', USER], {
+    ...settingsWithRegenerateOn,
+    ...overrides,
+  });
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -100,7 +107,11 @@ function createWrapper() {
 function pretendNoteWasGenerated(versionId: string, text: string) {
   act(() => {
     for (const listener of mocks.successListeners) {
-      listener(PLAYLIST, versionId, { suggestion: text, prompt: 'p', context: 'c' });
+      listener(PLAYLIST, versionId, {
+        suggestion: text,
+        prompt: 'p',
+        context: 'c',
+      });
     }
   });
 }
@@ -132,12 +143,33 @@ describe('useAISuggestion: regenerate on version change (issue #127)', () => {
     rerender({ versionId: 'B' });
     expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
     expect(aiSuggestionManager.generateSuggestion).toHaveBeenLastCalledWith(
-      PLAYLIST, 'B', USER, undefined, undefined
+      PLAYLIST,
+      'B',
+      USER,
+      undefined,
+      undefined
     );
 
     // 4. Switch back to A. A already has a note, so the count should stay
     //    at 1 (acceptance criterion 1 of the issue).
     rerender({ versionId: 'A' });
     expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not generate on version change when the setting is off', () => {
+    // Acceptance criterion 3 of the issue: with the setting disabled,
+    // switching versions must not generate anything.
+    const { rerender } = renderHook(
+      ({ versionId }) =>
+        useAISuggestion({ playlistId: PLAYLIST, versionId, userEmail: USER }),
+      {
+        initialProps: { versionId: 'A' },
+        wrapper: createWrapper({ regenerate_on_version_change: false }),
+      }
+    );
+
+    rerender({ versionId: 'B' });
+    rerender({ versionId: 'A' });
+    expect(aiSuggestionManager.generateSuggestion).toHaveBeenCalledTimes(0);
   });
 });
