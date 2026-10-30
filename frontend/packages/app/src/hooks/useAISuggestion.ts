@@ -142,8 +142,7 @@ export function useAISuggestion({
           }
         }
       );
-
-
+      
     return () => {
       unsubscribeFromGenerationState();
       unsubscribeFromGenerationSuccess();
