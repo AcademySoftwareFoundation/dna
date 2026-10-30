@@ -2,6 +2,8 @@ import type {ReactNode} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import Heading from '@theme/Heading';
+import Carousel from '@site/src/components/Carousel';
+import SectionLabel from '@site/src/components/SectionLabel';
 import styles from './styles.module.css';
 
 type FeatureItem = {
@@ -16,7 +18,7 @@ const FeatureList: FeatureItem[] = [
     to: '/docs/5-transcription',
     description: (
       <>
-        DNA combines realtime transcription with context about what is being reviewed to assist production with per-version transcriptions publishable to ShotGrid.
+        DNA combines realtime transcription with shot context to assist production with per-version transcriptions publishable to your favorite production tracking platform.
       </>
     ),
   },
@@ -34,7 +36,7 @@ const FeatureList: FeatureItem[] = [
     to: '/about',
     description: (
       <>
-        Open source and always evolving — Backed by big names such as Sony Imageworks, Industrial light & Magic, and Autodesk, DNA keeps growing with new features and flexibility.
+        Open source and always evolving — Backed by big names such as Sony Pictures Imageworks, Industrial light & Magic, and Autodesk, DNA keeps growing with new features and flexibility.
       </>
     ),
   },
@@ -42,26 +44,26 @@ const FeatureList: FeatureItem[] = [
 
 function Feature({title, to, description}: FeatureItem) {
   return (
-    <div className={clsx('col col--4', styles.feature)}>
-      <Link to={to} className={clsx('card', styles.card)}>
-        <Heading as="h3" className={styles.cardTitle}>
-          {title}
-        </Heading>
-        <p className={styles.cardBody}>{description}</p>
-      </Link>
-    </div>
+    <Link to={to} className={clsx('card', styles.card)}>
+      <Heading as="h3" className={styles.cardTitle}>
+        {title}
+      </Heading>
+      <p className={styles.cardBody}>{description}</p>
+    </Link>
   );
 }
 
+/** Three cards in a row; swipeable one at a time on phones. */
 export default function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
       <div className="container">
-        <div className="row">
+        <SectionLabel>Features</SectionLabel>
+        <Carousel label="Features">
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />
           ))}
-        </div>
+        </Carousel>
       </div>
     </section>
   );
