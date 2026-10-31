@@ -109,8 +109,6 @@ export function useAISuggestion({
     const unsubscribeFromGenerationSuccess =
       aiSuggestionManager.onGenerationSuccess(
         (changedPlaylistId, changedVersionId, generatedNote) => {
-          // Keep a finished note for any version in this playlist, even if
-          // the user has already switched away from it (#127).
           if (changedPlaylistId !== playlistId) {
             return;
           }
