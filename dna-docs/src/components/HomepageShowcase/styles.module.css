@@ -1,0 +1,106 @@
+.showcase {
+  padding: 0 0 4rem;
+}
+
+/*
+ * The picture fills the row behind both columns; the copy takes the right
+ * column, over the part that has faded out. The row is as tall as the copy,
+ * at least enough to show the sidebar and the notes box.
+ */
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  min-height: 560px;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* What the app's GlobalStyles set on :root, scoped to the picture. */
+.frame {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+/*
+ * The fades are the page background itself, so they follow light/dark mode.
+ * Across: solid from just past the sidebar. Down: hides the cut-off bottom.
+ */
+.fadeRight,
+.fadeBottom {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.fadeRight {
+  background: linear-gradient(to right, transparent 32%, var(--ifm-background-color) 58%);
+}
+
+.fadeBottom {
+  background: linear-gradient(to bottom, transparent 60%, var(--ifm-background-color) 100%);
+}
+
+.copy {
+  position: relative;
+  z-index: 1;
+  grid-column: 2;
+  padding: 1rem 2rem 1rem 4rem;
+}
+
+.heading {
+  margin-bottom: 1rem;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+.copy p {
+  font-size: 0.975rem;
+  color: var(--ifm-color-content-secondary);
+}
+
+.copy p:last-child {
+  margin-bottom: 0;
+}
+
+/* Stacked: the picture's top, fading down into the copy. */
+@media (max-width: 996px) {
+  .row {
+    display: block;
+    min-height: 0;
+  }
+
+  .stage {
+    position: relative;
+    height: 240px;
+    margin-bottom: 1.5rem;
+  }
+
+  .fadeRight {
+    display: none;
+  }
+
+  .fadeBottom {
+    background: linear-gradient(to bottom, transparent 35%, var(--ifm-background-color) 100%);
+  }
+
+  .copy {
+    padding: 0;
+  }
+}
