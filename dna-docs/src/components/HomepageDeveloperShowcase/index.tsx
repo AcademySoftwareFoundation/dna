@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react';
+import Link from '@docusaurus/Link';
 import CodeBlock from '@theme/CodeBlock';
 import Heading from '@theme/Heading';
 import SectionLabel from '@site/src/components/SectionLabel';
@@ -57,6 +58,8 @@ const LLM = `def get_llm_provider() -> LLMProviderBase:
 
         return CustomProvider()`;
 
+const CLONE = 'git clone https://github.com/AcademySoftwareFoundation/dna.git';
+
 /**
  * Mirror of HomepageShowcase: backend code fading into the page from right
  * to left, with the copy on the left over the faded part.
@@ -104,6 +107,16 @@ export default function HomepageDeveloperShowcase(): ReactNode {
               infrastructure.
             </p>
           </div>
+        </div>
+        {/* Under both columns, with the code block's own copy button. */}
+        <div className={styles.clone}>
+          <SectionLabel>Clone Repository</SectionLabel>
+          <CodeBlock language="bash">{CLONE}</CodeBlock>
+          <p className={styles.quickstart}>
+            <Link href="https://github.com/AcademySoftwareFoundation/dna/blob/main/QUICKSTART.md">
+              Read the Quickstart guide →
+            </Link>
+          </p>
         </div>
       </div>
     </section>
