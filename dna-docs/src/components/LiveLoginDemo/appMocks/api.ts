@@ -1,6 +1,8 @@
+import {searchDemoEntities} from './entities';
+
 // Stands in for frontend/packages/app/src/api in docs demos (see
 // plugins/dna-app-embed.ts). Returns sample data in the shape of the app's
-// React Query hooks, without a backend.
+// React Query hooks and API handler, without a backend.
 
 const PROJECTS = [
   {type: 'Project' as const, id: '101', name: 'Griffin'},
@@ -23,6 +25,23 @@ function result<T>(data: T | undefined) {
 export function useGetProjectsForUser(userEmail: string | null) {
   return result(userEmail ? PROJECTS : undefined);
 }
+
+/** The notes editor's calls: entity search, and attachments that "upload" instantly. */
+export const apiHandler = {
+  searchEntities: async ({
+    query,
+    entityTypes,
+    limit = 10,
+  }: {
+    query: string;
+    entityTypes: string[];
+    projectId?: string;
+    limit?: number;
+  }) => searchDemoEntities(query, entityTypes, limit),
+  uploadAttachment: async (_file: File) => ({id: `demo-${Date.now()}`}),
+  deleteAttachment: async (_id: string) => {},
+  getAttachmentBlobUrl: async (_id: string) => '',
+};
 
 export function useGetPlaylistsForProject(projectId: string | null) {
   const playlists = projectId ? (PLAYLISTS[projectId] ?? []) : undefined;
