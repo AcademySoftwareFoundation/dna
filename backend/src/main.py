@@ -97,6 +97,7 @@ from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
 )
+from dna.email_providers.email_provider_base import EmailProviderBase, get_email_provider
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
     get_transcription_provider,
@@ -326,6 +327,12 @@ def get_llm_provider_cached() -> LLMProviderBase:
     return get_llm_provider()
 
 
+@lru_cache
+def get_email_provider_cached() -> EmailProviderBase:
+    """Get or create the email provider singleton."""
+    return get_email_provider()
+
+
 ProdtrackProviderDep = Annotated[
     ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
 ]
@@ -337,6 +344,8 @@ StorageProviderDep = Annotated[
 TranscriptionProviderDep = Annotated[
     TranscriptionProviderBase, Depends(get_transcription_provider_cached)
 ]
+
+EmailProviderDep = Annotated[EmailProviderBase, Depends(get_email_provider_cached)]
 
 LLMProviderDep = Annotated[LLMProviderBase, Depends(get_llm_provider_cached)]
 
