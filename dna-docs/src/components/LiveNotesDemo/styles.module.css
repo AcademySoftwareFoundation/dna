@@ -1,0 +1,92 @@
+/*
+ * The notes box at its natural size, straight on the docs page like the
+ * login card: it draws its own surface and border.
+ */
+.frame {
+  position: relative;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  font-family: inherit;
+}
+
+/* Positioned for the guide bubble, which renders inside it. */
+.app {
+  position: relative;
+}
+
+.app button,
+.app input {
+  font-family: inherit;
+}
+
+/* Roughly the editor's height before it loads. */
+.placeholder {
+  height: 300px;
+}
+
+/*
+ * Phones: the app's notes box is sized for a desktop column, so its option
+ * chips wrap into ragged rows and the toolbar breaks in two. Tighten it so
+ * To/CC/Subject share a line above Links, the pencil sits beside the title,
+ * and the toolbar fits on one line. The app's styled-components have hashed
+ * class names, so this reaches in by structure: NoteEditor's wrapper is the
+ * Radix theme's only child; its first child is the header (title row, then
+ * the options row); the toolbar follows the Tiptap editor's wrapper.
+ */
+@media (max-width: 640px) {
+  .app :global(.radix-themes) > div {
+    gap: 12px;
+    padding: 14px 14px 6px;
+  }
+
+  .app :global(.radix-themes) > div > div:first-child {
+    position: relative;
+    gap: 10px;
+  }
+
+  .app button[title='Edit note options'] {
+    position: absolute;
+    top: -2px;
+    right: 0;
+  }
+
+  .app :global(.radix-themes) > div > div:first-child > div:nth-child(2) > div {
+    gap: 6px;
+  }
+
+  .app :global(.radix-themes) > div > div:first-child > div:nth-child(2) > div > div {
+    min-height: 26px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .app div:has(> :global(.tiptap)) + div {
+    gap: 0;
+    padding: 6px;
+  }
+
+  .app div:has(> :global(.tiptap)) + div > button {
+    width: 26px;
+    height: 26px;
+  }
+
+  .app div:has(> :global(.tiptap)) + div > div {
+    margin: 3px 1px;
+  }
+}
+
+/* Narrow phones (360px Androids): a notch smaller keeps the toolbar on one line. */
+@media (max-width: 380px) {
+  .app div:has(> :global(.tiptap)) + div > button {
+    width: 24px;
+    height: 24px;
+  }
+}

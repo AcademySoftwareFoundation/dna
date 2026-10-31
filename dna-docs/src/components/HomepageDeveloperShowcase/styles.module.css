@@ -1,0 +1,125 @@
+.showcase {
+  padding: 0 0 4rem;
+}
+
+/*
+ * The code sits in the right part of the row and fades into the page
+ * leftwards; the copy takes the left column over the faded part. The row is
+ * as tall as the copy, at least enough to show a couple of excerpts.
+ */
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  min-height: 560px;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/*
+ * The excerpts hug the right edge at the width of their longest line, so no
+ * empty block trails to the right and their first columns reach as far left
+ * as they can before the fade.
+ */
+.code {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: max-content;
+  max-width: 66%;
+  font-size: 0.78rem;
+}
+
+.code :global(.theme-code-block) {
+  margin: 0;
+}
+
+/* Decoration, not a sample to take: no copy button. */
+.code :global(.theme-code-block) button {
+  display: none;
+}
+
+/*
+ * The fades are the page background itself, so they follow light/dark mode.
+ * Leftwards: solid under the copy, clear by the code's first columns.
+ * Down: hides the cut-off bottom.
+ */
+.fadeLeft,
+.fadeBottom {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Solid under the copy (its column ends at 50% less its padding). */
+.fadeLeft {
+  background: linear-gradient(to left, transparent 44%, var(--ifm-background-color) 60%);
+}
+
+.fadeBottom {
+  background: linear-gradient(to bottom, transparent 60%, var(--ifm-background-color) 100%);
+}
+
+.copy {
+  position: relative;
+  z-index: 1;
+  grid-column: 1;
+  padding: 1rem 4rem 1rem 2rem;
+}
+
+.heading {
+  margin-bottom: 1rem;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+.copy p {
+  font-size: 0.975rem;
+  color: var(--ifm-color-content-secondary);
+}
+
+.copy p:last-child {
+  margin-bottom: 0;
+}
+
+/* Stacked: the first excerpts, fading down into the copy. */
+@media (max-width: 996px) {
+  .row {
+    display: block;
+    min-height: 0;
+  }
+
+  .stage {
+    position: relative;
+    height: 260px;
+    margin-bottom: 1.5rem;
+  }
+
+  .code {
+    left: 0;
+    width: auto;
+    max-width: none;
+    font-size: 0.64rem;
+  }
+
+  .fadeLeft {
+    display: none;
+  }
+
+  .fadeBottom {
+    background: linear-gradient(to bottom, transparent 35%, var(--ifm-background-color) 100%);
+  }
+
+  .copy {
+    padding: 0;
+  }
+}
