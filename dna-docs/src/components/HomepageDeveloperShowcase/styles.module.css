@@ -87,8 +87,24 @@
   color: var(--ifm-color-content-secondary);
 }
 
-.copy p:last-child {
+.copy p:last-of-type {
   margin-bottom: 0;
+}
+
+/* The clone command, centred under both columns, copy button included. */
+.clone {
+  max-width: 560px;
+  margin: 3rem auto 0;
+}
+
+.clone :global(.theme-code-block) {
+  margin: 0;
+}
+
+.quickstart {
+  margin: 1rem 0 0;
+  font-size: 0.925rem;
+  text-align: center;
 }
 
 /* Stacked: the first excerpts, fading down into the copy. */
