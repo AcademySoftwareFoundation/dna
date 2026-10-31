@@ -352,7 +352,9 @@ class SendSummaryEmailRequest(BaseModel):
     )
 
     to_email: str = Field(description="Recipient email address")
-    cc_email: Optional[str] = Field(default=None, description="Optional CC email address")
+    cc_email: Optional[str] = Field(
+        default=None, description="Optional CC email address"
+    )
     playlist_url: str = Field(description="URL to the playlist")
 
 

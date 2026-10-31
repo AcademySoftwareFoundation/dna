@@ -10,7 +10,6 @@ from typing import Optional
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (
     Attachment,
-    Content,
     Email,
     Mail,
     To,

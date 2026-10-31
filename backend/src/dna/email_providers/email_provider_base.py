@@ -77,7 +77,6 @@ class EmailProviderBase(ABC):
         inline_images: Optional[dict[str, bytes]] = None,
     ) -> MIMEMultipart:
         """Build a MIME multipart email object with optional inline images."""
-        raise NotImplementedError()
 
     @abstractmethod
     async def build_message(
@@ -94,7 +93,6 @@ class EmailProviderBase(ABC):
         Returns:
             (subject, text_content, html_content)
         """
-        raise NotImplementedError()
 
     @abstractmethod
     async def send(
@@ -117,7 +115,6 @@ class EmailProviderBase(ABC):
         Returns:
             Provider message ID
         """
-        raise NotImplementedError()
 
     async def close(self):
 

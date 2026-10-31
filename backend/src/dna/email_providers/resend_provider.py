@@ -19,6 +19,16 @@ class ResendProvider(EmailProviderBase):
     def _get_provider_client(self):
         return httpx.AsyncClient(base_url="https://api.resend.com")
 
+    async def _post_email(self, payload: dict) -> str:
+        """Send a request to the Resend API and return the message ID."""
+        response = await self.client.post(
+            "/emails",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json=payload,
+        )
+        response.raise_for_status()
+        return response.json()["id"]
+
     async def send_email(
         self,
         *,
@@ -28,26 +38,20 @@ class ResendProvider(EmailProviderBase):
         html: str | None = None,
         from_email: str | None = None,
     ) -> str:
-        payload: dict = {
+        payload = {
             "from": from_email or self.from_email,
             "to": [to],
             "subject": subject,
         }
-        if html:
-            payload["html"] = html
+
         if text:
             payload["text"] = text
+        if html:
+            payload["html"] = html
 
-        response = await self.client.post(
-            "/emails",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json=payload,
-        )
-        response.raise_for_status()
-        return response.json()["id"]
+        return await self._post_email(payload)
 
     async def build_mime_obj(self, *args, **kwargs) -> MIMEMultipart:
-        # Resend uses its own API, so we'll skip MIME building
         raise NotImplementedError("Resend uses its own API")
 
     async def build_message(self, *args, **kwargs) -> tuple[str, str, str]:
@@ -73,23 +77,14 @@ class ResendProvider(EmailProviderBase):
             payload["cc"] = [cc]
 
         if inline_images:
-            attachments = []
-            for cid, image_data in inline_images.items():
-                attachments.append(
-                    {
-                        "content": base64.b64encode(image_data).decode(),
-                        "filename": cid,
-                        "content_type": "image/png",
-                        "disposition": "inline",
-                    }
-                )
-            payload["attachments"] = attachments
+            payload["attachments"] = [
+                {
+                    "content": base64.b64encode(image_data).decode(),
+                    "filename": cid,
+                    "content_type": "image/png",
+                    "disposition": "inline",
+                }
+                for cid, image_data in inline_images.items()
+            ]
 
-        response = await self.client.post(
-            "/emails",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json=payload,
-        )
-
-        response.raise_for_status()
-        return response.json()["id"]
+        return await self._post_email(payload)
