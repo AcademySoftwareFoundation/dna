@@ -38,6 +38,9 @@ const user = (id: string, name: string): DemoEntity => ({
   name,
   email: `${id}@example.com`,
 });
+
+/** CC'd on the notes demo's draft from the start. */
+export const DEMO_CC: DemoEntity = user('dennis.muren', 'Dennis Muren');
 const shot = (code: string): DemoEntity => ({type: 'Shot', id: `s-${code}`, name: code});
 const asset = (code: string): DemoEntity => ({type: 'Asset', id: `a-${code}`, name: code});
 const version = (code: string): DemoEntity => ({type: 'Version', id: `v-${code}`, name: code});
@@ -45,7 +48,7 @@ const task = (name: string): DemoEntity => ({type: 'Task', id: `t-${name.toLower
 
 export const DEMO_ENTITIES: DemoEntity[] = [
   DEMO_SUBMITTER,
-  user('dennis.muren', 'Dennis Muren'),
+  DEMO_CC,
   user('phil.tippett', 'Phil Tippett'),
   user('douglas.trumbull', 'Douglas Trumbull'),
   user('ray.harryhausen', 'Ray Harryhausen'),
@@ -68,17 +71,38 @@ export const DEMO_ENTITIES: DemoEntity[] = [
   asset('ornithopter'),
   asset('carryall'),
   asset('throne_room'),
+  // Today's review, earlier takes in the previous reviews, and a couple
+  // not in any playlist yet (what "Add Version" finds).
   version('TST_010_0010_comp_v001'),
   version('TST_010_0020_anim_v060'),
   version('TST_010_0030_comp_v020'),
   version('TST_010_0040_comp_v005'),
   version('TST_020_0010_anim_v024'),
   version('TST_020_0020_comp_v003'),
+  version('TST_010_0020_anim_v059'),
+  version('TST_010_0030_comp_v019'),
+  version('TST_020_0020_comp_v002'),
+  version('TST_010_0040_comp_v004'),
+  version('TST_020_0010_anim_v023'),
+  version('TST_020_0030_comp_v001'),
+  version('spaceship_rigged_001'),
   task('Animation'),
   task('Comp'),
   task('Lighting'),
   task('FX'),
 ];
+
+/** A sample version by name, in the app's Version shape. */
+export function demoVersion(name: string) {
+  const entity = DEMO_ENTITIES.find((e) => e.type === 'Version' && e.name === name);
+  return {
+    type: 'Version' as const,
+    id: entity?.id ?? `v-${name}`,
+    name,
+    user: {type: 'User' as const, id: DEMO_SUBMITTER.id, name: DEMO_SUBMITTER.name},
+    notes: [],
+  };
+}
 
 /** The app's own mention matching (prefix matches first) over the sample set. */
 export function searchDemoEntities(

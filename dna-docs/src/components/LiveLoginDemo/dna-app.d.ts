@@ -63,6 +63,52 @@ declare module '@dna-app/components/NoteEditor' {
   }): ReactNode;
 }
 
+declare module '@dna-app/components/SplitButton' {
+  import type {ReactNode} from 'react';
+
+  export function SplitButton(props: {
+    children?: ReactNode;
+    onClick?: () => void;
+    menuItems?: {label: string; onSelect?: () => void}[];
+    disabled?: boolean;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/AddVersionInput' {
+  import type {ReactNode} from 'react';
+
+  export function AddVersionInput(props: {
+    playlistId: string;
+    projectId?: string;
+    existingVersionIds?: string[];
+    onClose: () => void;
+    onVersionAdded?: (version: {type: 'Version'; id: string; name?: string}) => void;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/ChangePlaylistInput' {
+  import type {ReactNode} from 'react';
+
+  export function ChangePlaylistInput(props: {
+    projectId: string;
+    currentPlaylistId?: string;
+    onSelect: (playlist: {type: 'Playlist'; id: string; code?: string}) => void;
+    onClose: () => void;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/VersionCard' {
+  import type {ReactNode} from 'react';
+
+  export function VersionCard(props: {
+    version: {type: 'Version'; id: string; name?: string};
+    artistName?: string;
+    thumbnailUrl?: string;
+    selected?: boolean;
+    onClick?: () => void;
+  }): ReactNode;
+}
+
 declare module '@dna-app/styles/theme' {
   import type {ThemeProps} from '@radix-ui/themes';
 

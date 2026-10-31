@@ -75,6 +75,7 @@ export default function dnaAppEmbed(context: LoadContext): Plugin {
             'styled-components': path.join(docsModules, 'styled-components'),
             '@radix-ui/themes': path.join(docsModules, '@radix-ui/themes'),
             '@radix-ui/react-icons': path.join(docsModules, '@radix-ui/react-icons'),
+            '@tanstack/react-query': path.join(docsModules, '@tanstack/react-query'),
             '@tiptap/react': path.join(docsModules, '@tiptap/react'),
             '@tiptap/starter-kit': path.join(docsModules, '@tiptap/starter-kit'),
             '@tiptap/extension-placeholder': path.join(docsModules, '@tiptap/extension-placeholder'),
