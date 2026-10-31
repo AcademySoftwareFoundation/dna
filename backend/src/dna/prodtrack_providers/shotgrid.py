@@ -772,17 +772,31 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not user:
             raise ValueError(f"User not found: {user_email}")
 
+        filters = [["users", "is", user]]
+
+        allowed_types = [
+            t.strip()
+            for t in os.getenv("PROJECT_ALLOWED_TYPES", "").split(",")
+            if t.strip()
+        ]
+
+        if allowed_types:
+            filters.append(["sg_type", "in", allowed_types])
+
         # Find projects where this user is in the users list
         sg_projects = self._sg.find(
             "Project",
-            filters=[["users", "is", user]],
+            filters=filters,
             fields=["id", "name"],
         )
 
         entity_mapping = FIELD_MAPPING["project"]
         return [
             self._convert_sg_entity_to_dna_entity(
-                sg_project, entity_mapping, "project", resolve_links=False
+                sg_project,
+                entity_mapping,
+                "project",
+                resolve_links=False,
             )
             for sg_project in sg_projects
         ]
