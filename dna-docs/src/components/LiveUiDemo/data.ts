@@ -10,6 +10,8 @@ export interface DemoVersion {
 }
 
 export const ARTIST = 'John Dykstra';
+/** Who the note is addressed to. */
+export const NOTE_TO = 'Dennis Muren';
 export const DATE_SUBMITTED = 'Jan 25, 2026';
 
 export const VERSIONS: DemoVersion[] = [

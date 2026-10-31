@@ -35,6 +35,12 @@
   overflow: hidden;
 }
 
+/* A picture of the app (UiDemo with interactive off). */
+.rootStatic {
+  pointer-events: none;
+  user-select: none;
+}
+
 /* The design canvas; UiDemo sets its size, colours and scale inline. */
 .stage {
   position: absolute;

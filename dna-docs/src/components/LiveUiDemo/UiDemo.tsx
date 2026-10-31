@@ -6,7 +6,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
 import {ACCENTS} from '@dna-app/styles/theme';
 import {themeVars} from './themeVars';
-import {ARTIST, DATE_SUBMITTED, VERSIONS} from './data';
+import {ARTIST, DATE_SUBMITTED, NOTE_TO, VERSIONS} from './data';
 import {Guide, type GuideStep} from './Guide';
 import * as I from './icons';
 // The success checkmark, shared with the login demo.
@@ -44,8 +44,10 @@ const INITIALS = ARTIST.split(' ')
   .slice(0, 2);
 
 
-// Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
-export default function UiDemo() {
+// Browser-only: loaded by ./index.tsx inside <BrowserOnly>. With
+// `interactive` off it's a picture of the app: no guide, no checkmark, and
+// nothing responds to input (the homepage showcase).
+export default function UiDemo({interactive = true}: {interactive?: boolean}) {
   const {colorMode} = useColorMode();
   const vars = useMemo(() => themeVars(colorMode), [colorMode]);
   const thumbBase = useBaseUrl('img/demo/');
@@ -136,10 +138,19 @@ export default function UiDemo() {
     return () => clearTimeout(timer);
   }, [collapsed]);
 
-  // Scroll a selected card into view, as the app does for keyboard stepping.
+  // Keep the selected card in view within the list, as the app does for
+  // keyboard stepping. Scrolls only the list: scrollIntoView would also
+  // scroll the page to the demo, on load included.
   useEffect(() => {
-    cardRefs.current[selected]?.scrollIntoView({block: 'nearest'});
-  }, [selected]);
+    const card = cardRefs.current[selected];
+    const list = card?.parentElement;
+    if (!card || !list) return;
+    const c = card.getBoundingClientRect();
+    const l = list.getBoundingClientRect();
+    // Rects are in scaled pixels; scrollTop is in the canvas's own.
+    if (c.top < l.top) list.scrollTop += (c.top - l.top) / scale;
+    else if (c.bottom > l.bottom) list.scrollTop += (c.bottom - l.bottom) / scale;
+  }, [selected, scale]);
 
   const selectVersion = (index: number) => {
     if (index === selected) return;
@@ -171,7 +182,11 @@ export default function UiDemo() {
   };
 
   return (
-    <div ref={rootRef} className={styles.root} style={{height: DESIGN_HEIGHT * scale}}>
+    <div
+      ref={rootRef}
+      className={clsx(styles.root, !interactive && styles.rootStatic)}
+      style={{height: DESIGN_HEIGHT * scale}}
+      inert={!interactive}>
       <div className={styles.stage} style={stageStyle}>
         <Theme
           appearance={colorMode}
@@ -367,7 +382,7 @@ export default function UiDemo() {
                     To:
                     <Badge color="blue" size="2">
                       <I.User size={12} />
-                      {ARTIST}
+                      {NOTE_TO}
                     </Badge>
                   </span>
                   <span className={styles.chip}>
@@ -453,9 +468,9 @@ export default function UiDemo() {
         </Theme>
       </div>
 
-      {overlay === 'none' && <Guide step={step} rootRef={rootRef} />}
+      {interactive && overlay === 'none' && <Guide step={step} rootRef={rootRef} />}
 
-      {overlay !== 'none' && (
+      {interactive && overlay !== 'none' && (
         <div
           role="status"
           className={clsx(loginStyles.success, overlay === 'fading' && loginStyles.successOut)}>
