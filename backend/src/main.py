@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import uuid
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Optional, cast
@@ -27,6 +28,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from dna.auth.email import emails_match
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
+from dna.email_providers.email_provider_base import (
+    EmailProviderBase,
+    get_email_provider,
+)
 from dna.events import EventType, get_event_publisher
 from dna.glossary_config import (
     get_default_glossary_global,
@@ -69,6 +74,8 @@ from dna.models import (
     SchemaField,
     SearchRequest,
     SearchResult,
+    SendSummaryEmailRequest,
+    SendSummaryEmailResponse,
     Shot,
     StatusOption,
     StoredSegment,
@@ -97,7 +104,6 @@ from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
 )
-from dna.email_providers.email_provider_base import EmailProviderBase, get_email_provider
 from dna.transcription_providers.transcription_provider_base import (
     TranscriptionProviderBase,
     get_transcription_provider,
@@ -424,6 +430,75 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[str, Depends(get_current_user)]
+
+
+# -----------------------------------------------------------------------------
+# Playlist summary email
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/playlists/{playlist_id}/send-summary-email",
+    tags=["Playlists"],
+    summary="Send summary email for a playlist",
+    description="Send a summary email for a playlist with all versions and draft notes.",
+    response_model=SendSummaryEmailResponse,
+    responses=error_responses(400, 404, 500),
+)
+async def send_summary_email(
+    playlist_id: str,
+    request: SendSummaryEmailRequest,
+    email_provider: EmailProviderDep,
+    prodtrack: ProdtrackProviderDep,
+    storage: StorageProviderDep,
+    current_user: CurrentUserDep,
+) -> SendSummaryEmailResponse:
+    """Send a summary email for a playlist."""
+    try:
+        playlist = prodtrack.get_entity("playlist", playlist_id)
+        if not playlist:
+            raise HTTPException(status_code=404, detail="Playlist not found")
+
+        project_ref = getattr(playlist, "project", None)
+        project_id = project_ref.get("id") if isinstance(project_ref, dict) else None
+        if not project_id:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        project = prodtrack.get_entity("project", project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        versions = prodtrack.get_versions_for_playlist(playlist_id)
+        drafts = await storage.get_draft_notes_for_playlist(playlist_id)
+
+        subject, _text_content, html_content = await email_provider.build_message(
+            playlist=playlist,
+            project=project,
+            sent_by=User(id="", email=current_user),
+            versions=versions,
+            drafts=drafts,
+            playlist_url=request.playlist_url,
+        )
+
+        message_id = await email_provider.send(
+            to=request.to_email,
+            subject=subject,
+            html_content=html_content,
+            cc=request.cc_email,
+        )
+
+        return SendSummaryEmailResponse(
+            success=True,
+            message_id=message_id,
+            sent_at=datetime.now(timezone.utc),
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # -----------------------------------------------------------------------------

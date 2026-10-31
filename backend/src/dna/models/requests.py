@@ -1,5 +1,6 @@
 """Request models for API endpoints."""
 
+from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -337,3 +338,35 @@ class PublishTranscriptResponse(BaseModel):
     outcome: str = Field(description="created | updated | skipped")
     skipped_reason: Optional[str] = None
     segments_count: int
+
+
+class SendSummaryEmailRequest(BaseModel):
+    """Request model for sending a playlist summary email."""
+
+    model_config = _examples(
+        {
+            "to_email": "reviewer@studio.example",
+            "cc_email": "supervisor@studio.example",
+            "playlist_url": "https://example.com/playlist/45",
+        }
+    )
+
+    to_email: str = Field(description="Recipient email address")
+    cc_email: Optional[str] = Field(default=None, description="Optional CC email address")
+    playlist_url: str = Field(description="URL to the playlist")
+
+
+class SendSummaryEmailResponse(BaseModel):
+    """Response model for sending a playlist summary email."""
+
+    model_config = _examples(
+        {
+            "success": True,
+            "message_id": "msg_1234567890",
+            "sent_at": "2026-10-31T12:00:00Z",
+        }
+    )
+
+    success: bool
+    message_id: str
+    sent_at: datetime

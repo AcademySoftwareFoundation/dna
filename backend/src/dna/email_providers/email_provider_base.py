@@ -6,7 +6,12 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from typing import Optional
+from email.mime.multipart import MIMEMultipart
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from dna.models.draft_note import DraftNote
+    from dna.models.entity import Playlist, Project, User, Version
 
 
 class EmailProviderBase(ABC):
@@ -61,6 +66,58 @@ class EmailProviderBase(ABC):
         """
         Returns provider message id.
         """
+
+    @abstractmethod
+    async def build_mime_obj(
+        self,
+        to: str,
+        subject: str,
+        html_content: str,
+        cc: Optional[str] = None,
+        inline_images: Optional[dict[str, bytes]] = None,
+    ) -> MIMEMultipart:
+        """Build a MIME multipart email object with optional inline images."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def build_message(
+        self,
+        playlist: Playlist,
+        project: Project,
+        sent_by: User,
+        versions: list[Version],
+        drafts: list[DraftNote],
+        playlist_url: str,
+    ) -> tuple[str, str, str]:
+        """Build the email subject, text, and HTML content for a summary email.
+
+        Returns:
+            (subject, text_content, html_content)
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def send(
+        self,
+        to: str,
+        subject: str,
+        html_content: str,
+        cc: Optional[str] = None,
+        inline_images: Optional[dict[str, bytes]] = None,
+    ) -> str:
+        """Send an email using the configured provider.
+
+        Args:
+            to: Recipient email address
+            subject: Email subject
+            html_content: HTML content
+            cc: Optional CC email address
+            inline_images: Optional dict of {cid: image_data} for inline images
+
+        Returns:
+            Provider message ID
+        """
+        raise NotImplementedError()
 
     async def close(self):
 
