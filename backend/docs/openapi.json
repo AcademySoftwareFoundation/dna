@@ -2463,6 +2463,78 @@
         "title": "SearchResult",
         "type": "object"
       },
+      "SendSummaryEmailRequest": {
+        "description": "Request model for sending a playlist summary email.",
+        "examples": [
+          {
+            "cc_email": "supervisor@studio.example",
+            "playlist_url": "https://example.com/playlist/45",
+            "to_email": "reviewer@studio.example"
+          }
+        ],
+        "properties": {
+          "cc_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional CC email address",
+            "title": "Cc Email"
+          },
+          "playlist_url": {
+            "description": "URL to the playlist",
+            "title": "Playlist Url",
+            "type": "string"
+          },
+          "to_email": {
+            "description": "Recipient email address",
+            "title": "To Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to_email",
+          "playlist_url"
+        ],
+        "title": "SendSummaryEmailRequest",
+        "type": "object"
+      },
+      "SendSummaryEmailResponse": {
+        "description": "Response model for sending a playlist summary email.",
+        "examples": [
+          {
+            "message_id": "msg_1234567890",
+            "sent_at": "2026-10-31T12:00:00Z",
+            "success": true
+          }
+        ],
+        "properties": {
+          "message_id": {
+            "title": "Message Id",
+            "type": "string"
+          },
+          "sent_at": {
+            "format": "date-time",
+            "title": "Sent At",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message_id",
+          "sent_at"
+        ],
+        "title": "SendSummaryEmailResponse",
+        "type": "object"
+      },
       "Shot": {
         "description": "Shot entity model.\n\nRepresents a shot in a sequence/project.",
         "examples": [
@@ -5037,6 +5109,105 @@
         "tags": [
           "Publishing",
           "Transcription"
+        ]
+      }
+    },
+    "/playlists/{playlist_id}/send-summary-email": {
+      "post": {
+        "description": "Send a summary email for a playlist with all versions and draft notes.",
+        "operationId": "send_summary_email_playlists__playlist_id__send_summary_email_post",
+        "parameters": [
+          {
+            "description": "Playlist ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "playlist_id",
+            "required": true,
+            "schema": {
+              "title": "Playlist Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSummaryEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendSummaryEmailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Tracking system was updated but DNA bookkeeping failed; do not retry blindly"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Send summary email for a playlist",
+        "tags": [
+          "Playlists"
         ]
       }
     },

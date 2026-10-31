@@ -2,6 +2,9 @@
 # Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
 # Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
 # To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
+# Email: 
+#   EMAIL_PROVIDER=noop logs/swallows emails for local development. 
+#   Set EMAIL_PROVIDER=sendgrid | resend | smtp and provide the corresponding credentials to send real emails.
 services:
   api:
     environment:
