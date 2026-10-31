@@ -109,10 +109,7 @@ export function useAISuggestion({
     const unsubscribeFromGenerationSuccess =
       aiSuggestionManager.onGenerationSuccess(
         (changedPlaylistId, changedVersionId, generatedNote) => {
-          if (
-            changedPlaylistId !== playlistId ||
-            changedVersionId !== versionId
-          ) {
+          if (changedPlaylistId !== playlistId) {
             return;
           }
           if (!isUsableSuggestion(generatedNote.suggestion)) {
@@ -120,7 +117,7 @@ export function useAISuggestion({
           }
 
           setNotesByVersionId((previousNotesByVersionId) => {
-            const existing = previousNotesByVersionId[versionId] ?? [];
+            const existing = previousNotesByVersionId[changedVersionId] ?? [];
             let nextNotesForVersion = [...existing, generatedNote.suggestion];
             if (nextNotesForVersion.length > MAX_NOTES_PER_VERSION) {
               nextNotesForVersion = nextNotesForVersion.slice(
@@ -130,15 +127,17 @@ export function useAISuggestion({
             const newestNoteIndexInVersion = nextNotesForVersion.length - 1;
             setIndexByVersionId((previousIndexesByVersionId) => ({
               ...previousIndexesByVersionId,
-              [versionId]: newestNoteIndexInVersion,
+              [changedVersionId]: newestNoteIndexInVersion,
             }));
             return {
               ...previousNotesByVersionId,
-              [versionId]: nextNotesForVersion,
+              [changedVersionId]: nextNotesForVersion,
             };
           });
-          setLastPrompt(generatedNote.prompt);
-          setLastContext(generatedNote.context);
+          if (changedVersionId === versionId) {
+            setLastPrompt(generatedNote.prompt);
+            setLastContext(generatedNote.context);
+          }
         }
       );
 
@@ -196,10 +195,13 @@ export function useAISuggestion({
       return;
     }
 
-    if (
+    const versionChanged =
       prevVersionRef.current !== null &&
-      prevVersionRef.current !== versionId
-    ) {
+      prevVersionRef.current !== versionId;
+    const hasNote =
+      versionId != null && (notesByVersionId[versionId]?.length ?? 0) > 0;
+
+    if (versionChanged && !hasNote) {
       runGenerate().catch(() => {});
     }
 
@@ -211,6 +213,7 @@ export function useAISuggestion({
     userSettings,
     isEnabled,
     runGenerate,
+    notesByVersionId,
   ]);
 
   const handleTranscriptEvent = useCallback(
