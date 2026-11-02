@@ -1005,8 +1005,9 @@ function AITab({
               Regenerate notes on version change
             </CheckboxLabel>
             <CheckboxDescription>
-              Automatically regenerate the AI note when switching to a
-              different version in review.
+              When you switch to a version that has no AI note yet, generate one
+              automatically. Versions that already have a note are left as they
+              are.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
