@@ -28,12 +28,7 @@ const Platforms: Platform[] = [
   },
   {name: 'ftrack', href: 'https://www.ftrack.com/', logo: 'img/prodtracking/FtrackBacklight-Black.png'},
   {name: 'AYON', href: 'https://ayon.ynput.io/', logo: 'img/prodtracking/AYON_white.png'},
-  {
-    name: 'Kitsu',
-    href: 'https://www.cg-wire.com/kitsu',
-    logo: 'img/prodtracking/kitsu.png',
-    logoClassName: styles.logoKitsu,
-  },
+  {name: 'Kitsu', href: 'https://www.cg-wire.com/kitsu', logo: 'img/prodtracking/kitsu.png'},
 ];
 
 function PlatformLogo({name, href, logo, logoClassName}: Platform) {
