@@ -1,0 +1,52 @@
+/* The screenshot, pinned top-left and cropped by the stage like the UI mock. */
+.screenshot {
+  display: block;
+  width: 100%;
+  min-width: 900px;
+  height: auto;
+}
+
+.platforms {
+  margin-top: 3rem;
+}
+
+/* Logo row, matching the "Backed by" carousel. */
+.platform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 1.5rem;
+  opacity: 0.7;
+  transition: opacity var(--ifm-transition-fast);
+}
+
+.platform:hover {
+  opacity: 1;
+}
+
+.logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* The ShotGrid wordmark is heavy and wide; bring it to the others' weight. */
+.logoShotgrid {
+  max-height: 68%;
+}
+
+/* The PNGs are white on transparent. */
+[data-theme='light'] .logo {
+  filter: invert(1);
+}
+
+@media (max-width: 996px) {
+  .screenshot {
+    min-width: 640px;
+  }
+
+  .platform {
+    height: 52px;
+  }
+}
