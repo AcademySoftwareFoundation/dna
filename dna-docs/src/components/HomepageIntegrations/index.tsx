@@ -28,6 +28,12 @@ const Platforms: Platform[] = [
   },
   {name: 'ftrack', href: 'https://www.ftrack.com/', logo: 'img/prodtracking/FtrackBacklight-Black.png'},
   {name: 'AYON', href: 'https://ayon.ynput.io/', logo: 'img/prodtracking/AYON_white.png'},
+  {
+    name: 'Kitsu',
+    href: 'https://www.cg-wire.com/kitsu',
+    logo: 'img/prodtracking/kitsu.png',
+    logoClassName: styles.logoKitsu,
+  },
 ];
 
 function PlatformLogo({name, href, logo, logoClassName}: Platform) {
@@ -63,7 +69,7 @@ export default function HomepageIntegrations(): ReactNode {
           </div>
           <div className={showcase.copy}>
             <Heading as="h2" className={showcase.heading}>
-              Links up to where production already lives
+              Links up to where production lives
             </Heading>
             <p>
               DNA reads its projects, playlists, versions and people straight from your production

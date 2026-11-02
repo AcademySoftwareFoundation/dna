@@ -36,6 +36,11 @@
   max-height: 68%;
 }
 
+/* Kitsu's PNG has uneven padding, so it sits high and right; nudge it back. */
+.logoKitsu {
+  transform: translate(-0.75rem, 3px) scale(1.12);
+}
+
 /* The PNGs are white on transparent. */
 [data-theme='light'] .logo {
   filter: invert(1);
