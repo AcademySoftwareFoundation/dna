@@ -26,6 +26,8 @@ Production Tracking providers are the services that provide data to the backend 
 
 **ShotGrid** is the primary production tracking integration. To run without a ShotGrid seat, set **`PRODTRACK_PROVIDER=mock`**; the mock provider is read-only and backed by a SQLite database under `src/dna/prodtrack_providers/mock_data/`. See [Mock production tracking](#mock-production-tracking) below.
 
+**Kitsu** is also supported: set `PRODTRACK_PROVIDER=kitsu`. See [Kitsu production tracking](#kitsu-production-tracking).
+
 ### LLM
 
 LLM providers are the services that provide the LLM functionality to the backend.
@@ -118,6 +120,26 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
    - **Note regarding local LLM provider hostname:** <a id="local-llm-host"></a>If running DNA in a docker container and your LLM provider on your local host (e.g. ollama), using `localhost` in the URL won't work. Adding the `host.docker.internal` mapping to `extra_hosts:` provides an address to connect to your docker host from within the container. Note, that on Docker Desktop (on macOS or Windows), the mapping is created automatically, and this `extra_hosts:` entry is not necessary. Alternatively, you could use the hostname visible to your local network, or run your LLM provider in its own docker container, and refer to the container's name as the hostname.
 
 3. The `docker-compose.local.yml` file is gitignored, so your credentials will not be committed to the repository.
+
+
+### Kitsu production tracking
+
+Set `PRODTRACK_PROVIDER=kitsu`, `KITSU_URL` (for example `https://kitsu.studio.example`), and `KITSU_API_TOKEN`, the API token of a Kitsu bot with the **Studio Manager** role. The role lets the bot read every production and post comments on behalf of their authors, so DNA users must exist in Kitsu with the same email.
+
+| DNA | Kitsu |
+| --- | --- |
+| Version | Preview file (one revision of a task) |
+| Version status | Status of the task, which is shared by all its revisions |
+| Note | Comment on the task, tied to the revision through `preview_file_id`; the subject is kept in the comment's `data` |
+| Transcript | Comment on the task, with the text attached as a `.txt` file |
+| Additional fields | Metadata columns, stored in the entity's `data` |
+
+Current limitations:
+
+- **Thumbnails:** they load from Kitsu with the browser's Kitsu session, so only for users logged in to Kitsu on the same site as DNA (for example `dna.studio.example` and `kitsu.studio.example`).
+- **Scratch notes:** Kitsu has no comments on playlists, so these notes fail to publish.
+- **Edited marker:** the comment creation route takes neither the revision nor the subject, so the bot sets them with a second write and Kitsu shows the comment as edited by the bot.
+- **Note sync:** only comments tied to a revision come back to DNA, which excludes the comments written in Kitsu itself.
 
 ### Mock production tracking
 

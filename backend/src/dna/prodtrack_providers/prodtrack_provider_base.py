@@ -425,4 +425,9 @@ def get_prodtrack_provider() -> ProdtrackProviderBase:
 
         return ShotgridProvider()
 
+    if provider_type == "kitsu":
+        from dna.prodtrack_providers.kitsu import KitsuProvider
+
+        return KitsuProvider()
+
     raise ValueError(f"Unknown production tracking provider: {provider_type}")
