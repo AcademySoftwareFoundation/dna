@@ -1,0 +1,62 @@
+/* The sidebar's top, at its natural width, straight on the docs page. */
+.frame {
+  position: relative;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  font-family: inherit;
+}
+
+/* Positioned for the guide bubble and checkmark, which render inside it. */
+.root {
+  position: relative;
+}
+
+/* The app's sidebar width, framed like a screenshot; narrower columns shrink it. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  overflow: hidden;
+  color: var(--c-text);
+  background: var(--c-sidebar-bg);
+  border: 1px solid var(--c-sidebar-border);
+  border-radius: 12px;
+}
+
+.panel button,
+.panel input {
+  font-family: inherit;
+}
+
+/* A few cards' worth; the rest scrolls, and a new version scrolls into view. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 324px;
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
+.empty {
+  margin: 0;
+  padding: 24px 0;
+  font-size: 13px;
+  color: var(--c-text-muted);
+  text-align: center;
+}
+
+/* Roughly the panel's height before it loads. */
+.placeholder {
+  height: 470px;
+}
