@@ -13,28 +13,43 @@ import styles from './styles.module.css';
 type Platform = {
   name: string;
   href: string;
-  /** White-on-transparent PNG under static/img; inverted in light mode. */
-  logo: string;
-  /** Per-logo sizing tweak, for marks that read bigger than the others. */
-  logoClassName?: string;
+  /**
+   * PNG under static/img. A single white-on-transparent logo is inverted in
+   * light mode; a full-colour one comes as `{dark, light}`: white lettering
+   * for dark mode, black for light, colours untouched.
+   */
+  logo: string | {dark: string; light: string};
 };
 
 const Platforms: Platform[] = [
   {
-    name: 'Autodesk Flow Production Tracking (ShotGrid)',
+    name: 'Autodesk Flow Production Tracking',
     href: 'https://www.autodesk.com/products/flow-production-tracking/overview',
-    logo: 'img/prodtracking/sg.png',
-    logoClassName: styles.logoShotgrid,
+    logo: {dark: 'img/prodtracking/flow_white.png', light: 'img/prodtracking/flow_black.png'},
   },
-  {name: 'ftrack', href: 'https://www.ftrack.com/', logo: 'img/prodtracking/FtrackBacklight-Black.png'},
-  {name: 'AYON', href: 'https://ayon.ynput.io/', logo: 'img/prodtracking/AYON_white.png'},
-  {name: 'Kitsu', href: 'https://www.cg-wire.com/kitsu', logo: 'img/prodtracking/kitsu.png'},
+  {name: 'ftrack by Backlight', href: 'https://www.ftrack.com/', logo: 'img/prodtracking/ftrack.png'},
+  {
+    name: 'AYON',
+    href: 'https://ayon.ynput.io/',
+    logo: {dark: 'img/prodtracking/AYON_whiteG_dot.png', light: 'img/prodtracking/AYON_blackG_dot.png'},
+  },
+  {
+    name: 'Kitsu',
+    href: 'https://www.cg-wire.com/kitsu',
+    logo: {dark: 'img/prodtracking/kitsu_white.png', light: 'img/prodtracking/kitsu_black.png'},
+  },
 ];
 
-function PlatformLogo({name, href, logo, logoClassName}: Platform) {
+function PlatformLogo({name, href, logo}: Platform) {
+  const dark = useBaseUrl(typeof logo === 'string' ? logo : logo.dark);
+  const light = useBaseUrl(typeof logo === 'string' ? logo : logo.light);
   return (
     <Link href={href} className={styles.platform} title={name}>
-      <img src={useBaseUrl(logo)} alt={name} className={clsx(styles.logo, logoClassName)} />
+      {typeof logo === 'string' ? (
+        <img src={dark} alt={name} className={clsx(styles.logo, styles.logoInvert)} />
+      ) : (
+        <ThemedImage alt={name} className={styles.logo} sources={{dark, light}} />
+      )}
     </Link>
   );
 }

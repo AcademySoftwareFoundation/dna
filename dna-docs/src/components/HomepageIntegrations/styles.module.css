@@ -31,13 +31,8 @@
   object-fit: contain;
 }
 
-/* The ShotGrid wordmark is heavy and wide; bring it to the others' weight. */
-.logoShotgrid {
-  max-height: 68%;
-}
-
-/* The PNGs are white on transparent. */
-[data-theme='light'] .logo {
+/* Single white-on-transparent logos (no colour pair): flip for light mode. */
+[data-theme='light'] .logoInvert {
   filter: invert(1);
 }
 
