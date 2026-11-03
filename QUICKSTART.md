@@ -280,6 +280,7 @@ The React app will be available at `http://localhost:5173`.
 | `SHOTGRID_URL` | Yes\* | - | ShotGrid site URL (required when using ShotGrid) |
 | `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
 | `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
+| `PROJECT_ALLOWED_TYPES` | No | - | Comma-separated list of allowed ShotGrid project types (`sg_type`) to return for users. When unset or empty, projects are not filtered by type. |
 | `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
