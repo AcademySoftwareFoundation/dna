@@ -50,7 +50,7 @@
 }
 
 .fadeRight {
-  background: linear-gradient(to right, transparent 32%, var(--ifm-background-color) 58%);
+  background: linear-gradient(to right, transparent 28%, var(--ifm-background-color) 53%);
 }
 
 .fadeBottom {
