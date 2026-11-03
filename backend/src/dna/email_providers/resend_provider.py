@@ -1,6 +1,5 @@
 import base64
 import os
-from email.mime.multipart import MIMEMultipart
 from typing import Optional
 
 import httpx
@@ -28,31 +27,6 @@ class ResendProvider(EmailProviderBase):
         )
         response.raise_for_status()
         return response.json()["id"]
-
-    async def send_email(
-        self,
-        *,
-        to: str,
-        subject: str,
-        text: str | None = None,
-        html: str | None = None,
-        from_email: str | None = None,
-    ) -> str:
-        payload = {
-            "from": from_email or self.from_email,
-            "to": [to],
-            "subject": subject,
-        }
-
-        if text:
-            payload["text"] = text
-        if html:
-            payload["html"] = html
-
-        return await self._post_email(payload)
-
-    async def build_mime_obj(self, *args, **kwargs) -> MIMEMultipart:
-        raise NotImplementedError("Resend uses its own API")
 
     async def build_message(self, *args, **kwargs) -> tuple[str, str, str]:
         return EmailBuilder.build_message(*args, **kwargs)

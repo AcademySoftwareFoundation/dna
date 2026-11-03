@@ -4,11 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dna.email_providers.email_builder import EmailBuilder
-from dna.email_providers.email_provider_base import (
-    EmailProviderBase,
-    get_email_provider,
-)
+from dna.email_providers import EmailBuilder, EmailProviderBase, get_email_provider
 from dna.models.entity import Playlist, Project, User
 
 
@@ -19,27 +15,6 @@ class DummyEmailProvider(EmailProviderBase):
 
     def _get_provider_client(self):
         return None
-
-    async def send_email(
-        self,
-        *,
-        to: str,
-        subject: str,
-        text: str | None = None,
-        html: str | None = None,
-        from_email: str | None = None,
-    ) -> str:
-        raise NotImplementedError()
-
-    async def build_mime_obj(
-        self,
-        to: str,
-        subject: str,
-        html_content: str,
-        cc=None,
-        inline_images=None,
-    ):
-        raise NotImplementedError()
 
     async def build_message(
         self,
@@ -148,13 +123,6 @@ class TestGetEmailProvider:
 
 class TestEmailProviderBase:
     """Tests for EmailProviderBase methods."""
-
-    @pytest.mark.asyncio
-    async def test_build_mime_obj_raises_not_implemented(self):
-        """Test that build_mime_obj raises NotImplementedError."""
-        provider = DummyEmailProvider()
-        with pytest.raises(NotImplementedError):
-            await provider.build_mime_obj("to@example.com", "Subject", "<html>")
 
     @pytest.mark.asyncio
     async def test_build_message_raises_not_implemented(self):

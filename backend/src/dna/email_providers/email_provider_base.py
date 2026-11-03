@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from email.mime.multipart import MIMEMultipart
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -54,31 +53,6 @@ class EmailProviderBase(ABC):
     def _get_provider_client(self): ...
 
     @abstractmethod
-    async def send_email(
-        self,
-        *,
-        to: str,
-        subject: str,
-        text: str | None = None,
-        html: str | None = None,
-        from_email: str | None = None,
-    ) -> str:
-        """
-        Returns provider message id.
-        """
-
-    @abstractmethod
-    async def build_mime_obj(
-        self,
-        to: str,
-        subject: str,
-        html_content: str,
-        cc: Optional[str] = None,
-        inline_images: Optional[dict[str, bytes]] = None,
-    ) -> MIMEMultipart:
-        """Build a MIME multipart email object with optional inline images."""
-
-    @abstractmethod
     async def build_message(
         self,
         playlist: Playlist,
@@ -115,13 +89,6 @@ class EmailProviderBase(ABC):
         Returns:
             Provider message ID
         """
-
-    async def close(self):
-
-        if self._client and hasattr(self._client, "aclose"):
-            await self._client.aclose()
-
-        self._client = None
 
 
 def get_email_provider() -> EmailProviderBase:

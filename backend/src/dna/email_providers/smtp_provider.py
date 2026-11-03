@@ -30,29 +30,6 @@ class SMTPProvider(EmailProviderBase):
             start_tls=os.getenv("SMTP_START_TLS", "true").lower() == "true",
         )
 
-    async def send_email(
-        self,
-        *,
-        to: str,
-        subject: str,
-        text: str | None = None,
-        html: str | None = None,
-        from_email: str | None = None,
-    ) -> str:
-        msg = MIMEMultipart()
-        msg["From"] = from_email or self.from_email
-        msg["To"] = to
-        msg["Subject"] = subject
-        if html:
-            msg.attach(MIMEText(html, "html"))
-        if text:
-            msg.attach(MIMEText(text, "plain"))
-
-        await self.client.connect()
-        await self.client.send_message(msg)
-        await self.client.quit()
-        return "smtp"
-
     async def build_mime_obj(
         self,
         to: str,
