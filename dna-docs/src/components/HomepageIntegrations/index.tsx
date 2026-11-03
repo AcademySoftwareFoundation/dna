@@ -2,7 +2,6 @@ import type {ReactNode} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import ThemedImage from '@theme/ThemedImage';
 import Heading from '@theme/Heading';
 import Carousel from '@site/src/components/Carousel';
@@ -77,9 +76,6 @@ function PlatformLogo({name, href, logo, planned = false}: Platform) {
  * colour mode), then the supported platforms' logos.
  */
 export default function HomepageIntegrations(): ReactNode {
-  // Feature flag: see customFields.showPlatformLogos in docusaurus.config.ts.
-  const {siteConfig} = useDocusaurusContext();
-  const showPlatformLogos = siteConfig.customFields?.showPlatformLogos === true;
   return (
     <section className={showcase.showcase}>
       <div className="container">
@@ -118,16 +114,14 @@ export default function HomepageIntegrations(): ReactNode {
           </div>
         </div>
 
-        {showPlatformLogos && (
-          <div className={styles.platforms}>
-            <SectionLabel>Supported &amp; Planned Platforms</SectionLabel>
-            <Carousel label="Supported and planned production tracking platforms">
-              {Platforms.map((platform) => (
-                <PlatformLogo key={platform.name} {...platform} />
-              ))}
-            </Carousel>
-          </div>
-        )}
+        <div className={styles.platforms}>
+          <SectionLabel>Supported &amp; Planned Platforms</SectionLabel>
+          <Carousel label="Supported and planned production tracking platforms">
+            {Platforms.map((platform) => (
+              <PlatformLogo key={platform.name} {...platform} />
+            ))}
+          </Carousel>
+        </div>
       </div>
     </section>
   );
