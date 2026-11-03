@@ -61,6 +61,15 @@ const config: Config = {
     },
   })),
 
+  // Site feature flags, read by components via useDocusaurusContext().
+  customFields: {
+    // The homepage's "Supported & Planned Platforms" logo row, held back
+    // until the vendors approve logo use. Off in normal builds (CI included);
+    // preview it with DOCS_SHOW_PLATFORM_LOGOS=true. Remove the flag, and its
+    // check in src/components/HomepageIntegrations, once approved.
+    showPlatformLogos: process.env.DOCS_SHOW_PLATFORM_LOGOS === 'true',
+  },
+
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4

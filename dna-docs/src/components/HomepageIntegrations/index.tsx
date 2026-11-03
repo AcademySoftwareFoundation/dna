@@ -2,6 +2,7 @@ import type {ReactNode} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import ThemedImage from '@theme/ThemedImage';
 import Heading from '@theme/Heading';
 import Carousel from '@site/src/components/Carousel';
@@ -19,6 +20,8 @@ type Platform = {
    * for dark mode, black for light, colours untouched.
    */
   logo: string | {dark: string; light: string};
+  /** On the roadmap rather than shipped: dimmed, with a "Planned" tag. */
+  planned?: boolean;
 };
 
 const Platforms: Platform[] = [
@@ -27,30 +30,44 @@ const Platforms: Platform[] = [
     href: 'https://www.autodesk.com/products/flow-production-tracking/overview',
     logo: {dark: 'img/prodtracking/flow_white.png', light: 'img/prodtracking/flow_black.png'},
   },
-  {name: 'ftrack by Backlight', href: 'https://www.ftrack.com/', logo: 'img/prodtracking/ftrack.png'},
+  {
+    name: 'ftrack by Backlight',
+    href: 'https://www.ftrack.com/',
+    logo: 'img/prodtracking/ftrack.png',
+    planned: true,
+  },
   {
     name: 'AYON',
     href: 'https://ayon.ynput.io/',
     logo: {dark: 'img/prodtracking/AYON_whiteG_dot.png', light: 'img/prodtracking/AYON_blackG_dot.png'},
+    planned: true,
   },
   {
     name: 'Kitsu',
     href: 'https://www.cg-wire.com/kitsu',
     logo: {dark: 'img/prodtracking/kitsu_white.png', light: 'img/prodtracking/kitsu_black.png'},
+    planned: true,
   },
 ];
 
-function PlatformLogo({name, href, logo}: Platform) {
+function PlatformLogo({name, href, logo, planned = false}: Platform) {
   const dark = useBaseUrl(typeof logo === 'string' ? logo : logo.dark);
   const light = useBaseUrl(typeof logo === 'string' ? logo : logo.light);
+  const label = planned ? `${name} (planned)` : name;
   return (
-    <Link href={href} className={styles.platform} title={name}>
-      {typeof logo === 'string' ? (
-        <img src={dark} alt={name} className={clsx(styles.logo, styles.logoInvert)} />
-      ) : (
-        <ThemedImage alt={name} className={styles.logo} sources={{dark, light}} />
-      )}
-    </Link>
+    <div className={clsx(styles.platformItem, planned && styles.planned)}>
+      <Link href={href} className={styles.platform} title={label}>
+        {typeof logo === 'string' ? (
+          <img src={dark} alt={label} className={clsx(styles.logo, styles.logoInvert)} />
+        ) : (
+          <ThemedImage alt={label} className={styles.logo} sources={{dark, light}} />
+        )}
+      </Link>
+      {/* Shipped platforms keep the line empty so every logo sits level. */}
+      <span className={styles.tag} aria-hidden="true">
+        {planned ? 'Planned' : '\u00a0'}
+      </span>
+    </div>
   );
 }
 
@@ -60,6 +77,9 @@ function PlatformLogo({name, href, logo}: Platform) {
  * colour mode), then the supported platforms' logos.
  */
 export default function HomepageIntegrations(): ReactNode {
+  // Feature flag: see customFields.showPlatformLogos in docusaurus.config.ts.
+  const {siteConfig} = useDocusaurusContext();
+  const showPlatformLogos = siteConfig.customFields?.showPlatformLogos === true;
   return (
     <section className={showcase.showcase}>
       <div className="container">
@@ -79,7 +99,7 @@ export default function HomepageIntegrations(): ReactNode {
           </div>
           <div className={showcase.copy}>
             <Heading as="h2" className={showcase.heading}>
-              Links up to where production lives
+              Links up with where production lives
             </Heading>
             <p>
               DNA reads its projects, playlists, versions and people straight from your production
@@ -98,14 +118,16 @@ export default function HomepageIntegrations(): ReactNode {
           </div>
         </div>
 
-        <div className={styles.platforms}>
-          <SectionLabel>Supported Platforms</SectionLabel>
-          <Carousel label="Supported production tracking platforms">
-            {Platforms.map((platform) => (
-              <PlatformLogo key={platform.name} {...platform} />
-            ))}
-          </Carousel>
-        </div>
+        {showPlatformLogos && (
+          <div className={styles.platforms}>
+            <SectionLabel>Supported &amp; Planned Platforms</SectionLabel>
+            <Carousel label="Supported and planned production tracking platforms">
+              {Platforms.map((platform) => (
+                <PlatformLogo key={platform.name} {...platform} />
+              ))}
+            </Carousel>
+          </div>
+        )}
       </div>
     </section>
   );
