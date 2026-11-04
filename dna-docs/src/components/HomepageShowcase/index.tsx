@@ -35,7 +35,7 @@ export default function HomepageShowcase(): ReactNode {
           </div>
           <div className={styles.copy}>
             <Heading as="h2" className={styles.heading}>
-              Made around the people who run dailies
+              Made for the people who run dailies
             </Heading>
             <p>
               DNA grew out of user-story research with coordinators, supervisors and artists at
