@@ -571,7 +571,7 @@ function GeneralTab({
       <Section>
         <SectionTitle>Reset Settings</SectionTitle>
         <SectionDescription>
-            Resets all user settings excluding QC checks.
+            Resets user settings. Glossaries, keybindings, and QC checks are not affected.
         </SectionDescription>
         <Flex justify="center">
           <AlertDialog.Root>
@@ -583,7 +583,10 @@ function GeneralTab({
             <AlertDialog.Content maxWidth="400px">
               <AlertDialog.Title>Reset settings?</AlertDialog.Title>
               <AlertDialog.Description size="2">
-                This will reset all settings to their default values excluding QC checks.
+                This will reset all settings to their default values. Keybindings, glossaries and QC checks are not affected.
+                <br />
+                <br />
+                To reset keybindings, use the button at the bottom of the keybindings settings window.
               </AlertDialog.Description>
               <Flex gap="3" mt="4" justify="end">
                 <AlertDialog.Cancel>
@@ -640,10 +643,10 @@ function KeybindingsTab({
             />
           </KeybindingRow>
         ))}
-        <Flex mt="2" justify="end">
+        <Flex mt="2" justify="center">
           <AlertDialog.Root>
             <AlertDialog.Trigger>
-              <Button variant="soft" color="gray">
+              <Button variant="soft" color="red">
                 Reset to Defaults
               </Button>
             </AlertDialog.Trigger>
@@ -1198,6 +1201,9 @@ export function SettingsModal({
 
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
     useHotkeyConfig();
+  const { setMode, setAccent } = useThemeMode();
+  const { setInReviewEnabled, setTranscriptionEnabled, setAiEnabled } =
+    useFeatureFlags();
 
   const queryClient = useQueryClient();
 
@@ -1307,9 +1313,22 @@ export function SettingsModal({
       setSyncProdtrackTabOnVersionChange(true);
       setProdtrackPageType('version');
       setTranscriptionLanguage(DEFAULT_TRANSCRIPTION_LANGUAGE);
-      resetToDefaults();
+      // Appearance and feature toggles live in localStorage, not user settings,
+      // so they apply immediately. Setters no-op for env-locked flags.
+      setMode('dark');
+      setAccent('blue');
+      setInReviewEnabled(true);
+      setTranscriptionEnabled(true);
+      setAiEnabled(true);
       setIsDirty(true);
-  }, [settings, resetToDefaults]);
+  }, [
+    settings,
+    setMode,
+    setAccent,
+    setInReviewEnabled,
+    setTranscriptionEnabled,
+    setAiEnabled,
+  ]);
 
   const handleSave = useCallback(() => {
     const toPersisted = (current: string, fallback: string): string => {
