@@ -15,6 +15,8 @@ interface VersionCardProps {
   thumbnailUrl?: string;
   selected?: boolean;
   inReview?: boolean;
+  /** Shows the pinned marker next to the in-review eye. */
+  inReviewPinned?: boolean;
   noteStatus?: NoteStatus | null;
   onClick?: () => void;
   /**
@@ -23,6 +25,12 @@ interface VersionCardProps {
    * already in review always shows the plain indicator.
    */
   onSetInReview?: () => void;
+  /**
+   * Makes the in-review eye on the version already in review clickable: it
+   * pins that version, or unpins it when already pinned. Omit to keep the eye
+   * a plain indicator.
+   */
+  onTogglePin?: () => void;
   /**
    * Renders an X where the in-review eye would sit, for tiles that can be
    * removed instead of reviewed (scratch tiles). Mutually exclusive with the
@@ -96,25 +104,82 @@ const Title = styled.span`
   text-overflow: ellipsis;
 `;
 
+/**
+ * Right-hand column stretched to the card's height: note status / remove sit
+ * at the top, the in-review eye at the bottom so the two never compete for
+ * space.
+ */
 const IconsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
+  flex-shrink: 0;
+`;
+
+const TopIcons = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  align-self: flex-start;
-  margin-left: auto;
-  flex-shrink: 0;
+`;
+
+const BottomIcons = styled.div`
+  display: flex;
+  align-items: center;
+  margin-top: auto;
 `;
 
 const InReviewIcon = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   color: ${({ theme }) => theme.colors.accent.main};
 
   svg {
     width: 16px;
     height: 16px;
   }
+`;
+
+/** The in-review eye as a button: click to pin, or to unpin when pinned. */
+const InReviewButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.accent.main};
+  transition: filter ${({ theme }) => theme.transitions.fast};
+
+  &:hover,
+  &:focus-visible {
+    filter: drop-shadow(0 0 4px ${({ theme }) => theme.colors.accent.main});
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.accent.main};
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const PinnedTag = styled.span`
+  padding: 4px 8px;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.accent.subtle};
+  color: ${({ theme }) => theme.colors.accent.main};
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 `;
 
 /**
@@ -319,9 +384,11 @@ export function VersionCard({
   thumbnailUrl,
   selected = false,
   inReview = false,
+  inReviewPinned = false,
   noteStatus = null,
   onClick,
   onSetInReview,
+  onTogglePin,
   onRemove,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
@@ -359,15 +426,37 @@ export function VersionCard({
   );
 
   const renderEye = () => {
-    // Nothing to do: either setting in review is unavailable, or this version
-    // already holds it.
-    if (!onSetInReview || inReview) {
-      return inReview ? (
-        <InReviewIcon>
+    if (inReview) {
+      const content = (
+        <>
+          {inReviewPinned && <PinnedTag>Pinned</PinnedTag>}
           <Eye />
-        </InReviewIcon>
-      ) : null;
+        </>
+      );
+      if (!onTogglePin) {
+        return <InReviewIcon>{content}</InReviewIcon>;
+      }
+      const label = inReviewPinned ? 'Unpin from review' : 'Pin in review';
+      return (
+        <Tooltip content={label}>
+          <InReviewButton
+            type="button"
+            aria-label={label}
+            aria-pressed={inReviewPinned}
+            onClick={(e) => {
+              // Pinning shouldn't drag the selection along with it.
+              e.stopPropagation();
+              onTogglePin();
+            }}
+          >
+            {content}
+          </InReviewButton>
+        </Tooltip>
+      );
     }
+
+    // Setting in review is unavailable.
+    if (!onSetInReview) return null;
 
     return (
       <Tooltip content="Set in review">
@@ -385,6 +474,8 @@ export function VersionCard({
       </Tooltip>
     );
   };
+
+  const eye = onRemove ? null : renderEye();
 
   return (
     <Card $selected={selected} onClick={onClick}>
@@ -408,14 +499,17 @@ export function VersionCard({
         {department && <Department>{department}</Department>}
       </Content>
       <IconsContainer>
-        {noteStatus && (
-          <StatusBadge
-            status={noteStatus}
-            label={getStatusLabel(noteStatus)}
-            letter={getStatusLetter(noteStatus)}
-          />
-        )}
-        {onRemove ? renderRemove() : renderEye()}
+        <TopIcons>
+          {noteStatus && (
+            <StatusBadge
+              status={noteStatus}
+              label={getStatusLabel(noteStatus)}
+              letter={getStatusLetter(noteStatus)}
+            />
+          )}
+          {onRemove && renderRemove()}
+        </TopIcons>
+        {eye && <BottomIcons>{eye}</BottomIcons>}
       </IconsContainer>
     </Card>
   );

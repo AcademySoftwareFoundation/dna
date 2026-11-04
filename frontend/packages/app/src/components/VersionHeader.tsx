@@ -6,6 +6,8 @@ import {
   ChevronRight,
   RotateCw,
   Target,
+  Pin,
+  PinOff,
   ChevronDown,
   ExternalLink,
 } from 'lucide-react';
@@ -41,6 +43,8 @@ interface VersionHeaderProps {
   canGoNext?: boolean;
   hasInReview?: boolean;
   isCurrentVersionInReview?: boolean;
+  /** The in-review version is pinned; setting another version unpins it. */
+  isInReviewPinned?: boolean;
   isSettingInReview?: boolean;
   version?: Version | null;
   playlistId?: string | null;
@@ -254,7 +258,7 @@ const SetInReviewButton = styled.button<{ $isInReview?: boolean }>`
     ${({ theme, $isInReview }) =>
       $isInReview ? theme.colors.accent.main : theme.colors.border.default};
   border-radius: ${({ theme }) => theme.radii.md};
-  cursor: ${({ $isInReview }) => ($isInReview ? 'default' : 'pointer')};
+  cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
 
   &:hover:not(:disabled) {
@@ -413,6 +417,7 @@ export function VersionHeader({
   canGoNext = true,
   hasInReview = true,
   isCurrentVersionInReview = false,
+  isInReviewPinned = false,
   isSettingInReview = false,
   version,
   playlistId,
@@ -480,18 +485,26 @@ export function VersionHeader({
             {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
           </Thumbnail>
           {inReviewEnabled && (
-            <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
+            <Tooltip
+              content={
+                isCurrentVersionInReview
+                  ? `${isInReviewPinned ? 'Unpin from review' : 'Pin in review'} (${getLabel('setInReview')})`
+                  : isInReviewPinned
+                    ? `Set In Review and unpin the current version (${getLabel('setInReview')})`
+                    : `Set In Review (${getLabel('setInReview')})`
+              }
+            >
               <SetInReviewButton
                 $isInReview={isCurrentVersionInReview}
                 onClick={onSetInReview}
-                disabled={isCurrentVersionInReview || isSettingInReview}
+                disabled={isSettingInReview}
               >
                 {isSettingInReview ? (
                   <>Setting...</>
                 ) : isCurrentVersionInReview ? (
                   <>
-                    <Eye size={14} />
-                    In Review
+                    {isInReviewPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                    {isInReviewPinned ? 'Unpin' : 'Pin in Review'}
                   </>
                 ) : (
                   <>

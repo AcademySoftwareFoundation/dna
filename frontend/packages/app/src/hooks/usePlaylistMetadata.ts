@@ -23,7 +23,9 @@ export function useUpsertPlaylistMetadata(playlistId: string | null) {
   return useMutation<PlaylistMetadata, Error, PlaylistMetadataUpdate>({
     mutationFn: (data: PlaylistMetadataUpdate) =>
       apiHandler.upsertPlaylistMetadata({ playlistId: playlistId!, data }),
-    onSuccess: () => {
+    // Also refresh on failure: a 409 means someone pinned in the meantime, so
+    // the cached pin state is stale.
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ['playlistMetadata', playlistId],
       });
@@ -34,12 +36,33 @@ export function useUpsertPlaylistMetadata(playlistId: string | null) {
 export function useSetInReview(playlistId: string | null) {
   const mutation = useUpsertPlaylistMetadata(playlistId);
 
-  const setInReview = (versionId: string) => {
-    return mutation.mutateAsync({ in_review: versionId });
+  /**
+   * Set the in-review version. Pass `unpin` to take over from a pinned version;
+   * without it the backend rejects the move with a 409.
+   */
+  const setInReview = (versionId: string, unpin = false) => {
+    return mutation.mutateAsync(
+      unpin
+        ? { in_review: versionId, in_review_pinned: false }
+        : { in_review: versionId }
+    );
+  };
+
+  /**
+   * Pin (or unpin) the in-review version. Pinning also sends the version id so
+   * it lands on the version the user clicked even if in-review moved meanwhile.
+   */
+  const setInReviewPinned = (versionId: string, pinned: boolean) => {
+    return mutation.mutateAsync(
+      pinned
+        ? { in_review: versionId, in_review_pinned: true }
+        : { in_review_pinned: false }
+    );
   };
 
   return {
     setInReview,
+    setInReviewPinned,
     isLoading: mutation.isPending,
     error: mutation.error,
   };
@@ -62,6 +85,8 @@ export function useInReviewChangedEvents(playlistId: string | null) {
         queryClient.setQueryData<PlaylistMetadata | null>(queryKey, {
           ...existing,
           in_review: event.payload.in_review,
+          in_review_pinned:
+            event.payload.in_review_pinned ?? existing.in_review_pinned,
         });
         return;
       }

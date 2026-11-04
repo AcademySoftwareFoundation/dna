@@ -36,11 +36,15 @@ vi.mock('../contexts', () => ({
   }),
 }));
 
-function metadata(inReview: string | null): PlaylistMetadata {
+function metadata(
+  inReview: string | null,
+  inReviewPinned = false
+): PlaylistMetadata {
   return {
     _id: 'abc',
     playlist_id: '10',
     in_review: inReview,
+    in_review_pinned: inReviewPinned,
     meeting_id: null,
     platform: null,
     transcription_paused: false,
@@ -72,7 +76,7 @@ function renderInReviewEvents(
   });
 }
 
-function emit(playlistId: string, inReview: string) {
+function emit(playlistId: string, inReview: string, inReviewPinned?: boolean) {
   const subscription = subscriptions.find(
     (item) => item.eventType === 'playlist.in_review_changed'
   );
@@ -82,7 +86,11 @@ function emit(playlistId: string, inReview: string) {
   act(() => {
     subscription.callback({
       type: 'playlist.in_review_changed',
-      payload: { playlist_id: playlistId, in_review: inReview },
+      payload: {
+        playlist_id: playlistId,
+        in_review: inReview,
+        in_review_pinned: inReviewPinned,
+      },
     });
   });
 }
@@ -101,6 +109,30 @@ describe('useInReviewChangedEvents', () => {
 
     expect(queryClient.getQueryData(['playlistMetadata', '10'])).toEqual(
       metadata('200')
+    );
+  });
+
+  it('updates the cached pin state from the event', () => {
+    const queryClient = createClient();
+    queryClient.setQueryData(['playlistMetadata', '10'], metadata('100'));
+
+    renderInReviewEvents('10', queryClient);
+    emit('10', '100', true);
+
+    expect(queryClient.getQueryData(['playlistMetadata', '10'])).toEqual(
+      metadata('100', true)
+    );
+  });
+
+  it('keeps the cached pin state when the event omits it', () => {
+    const queryClient = createClient();
+    queryClient.setQueryData(['playlistMetadata', '10'], metadata('100', true));
+
+    renderInReviewEvents('10', queryClient);
+    emit('10', '100');
+
+    expect(queryClient.getQueryData(['playlistMetadata', '10'])).toEqual(
+      metadata('100', true)
     );
   });
 

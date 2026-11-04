@@ -142,15 +142,18 @@ export function ContentArea({
   const canGoNext = currentIndex >= 0 && currentIndex < versions.length - 1;
 
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId ?? null);
-  const { setInReview, isLoading: isSettingInReview } = useSetInReview(
-    playlistId ?? null
-  );
+  const {
+    setInReview,
+    setInReviewPinned,
+    isLoading: isSettingInReview,
+  } = useSetInReview(playlistId ?? null);
 
   const inReviewVersionId = playlistMetadata?.in_review;
   const inReviewVersion = inReviewVersionId
     ? versions.find((v) => v.id === inReviewVersionId)
     : versions.find((v) => v.status === IN_REVIEW_STATUS);
   const hasInReview = !!inReviewVersion;
+  const isInReviewPinned = !!playlistMetadata?.in_review_pinned;
   const isCurrentVersionInReview =
     version && inReviewVersionId ? version.id === inReviewVersionId : false;
 
@@ -172,9 +175,14 @@ export function ContentArea({
     }
   };
 
+  // Set in review → (on the version already in review) pin → unpin.
+  // Setting another version in review also unpins the current one.
   const handleSetInReview = async () => {
-    if (version && playlistId) {
-      await setInReview(version.id);
+    if (!version || !playlistId) return;
+    if (isCurrentVersionInReview) {
+      await setInReviewPinned(version.id, !isInReviewPinned);
+    } else {
+      await setInReview(version.id, isInReviewPinned);
     }
   };
 
@@ -295,6 +303,7 @@ export function ContentArea({
         canGoNext={canGoNext}
         hasInReview={hasInReview}
         isCurrentVersionInReview={isCurrentVersionInReview}
+        isInReviewPinned={isInReviewPinned}
         isSettingInReview={isSettingInReview}
         onRefresh={handleRefreshClick}
       />

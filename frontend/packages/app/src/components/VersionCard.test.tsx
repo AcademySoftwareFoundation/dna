@@ -53,6 +53,26 @@ describe('VersionCard in-review eye', () => {
     expect(onSetInReview).toHaveBeenCalledTimes(1);
   });
 
+  it('pins the version in review when its eye is clicked', () => {
+    const onClick = vi.fn();
+    const onTogglePin = vi.fn();
+    renderCard({ inReview: true, onClick, onTogglePin });
+
+    expect(screen.queryByText('Pinned')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Pin in review' }));
+    expect(onTogglePin).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('shows the pinned marker and offers unpin when pinned', () => {
+    const onTogglePin = vi.fn();
+    renderCard({ inReview: true, inReviewPinned: true, onTogglePin });
+
+    expect(screen.getByText('Pinned')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin from review' }));
+    expect(onTogglePin).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the version in review as an indicator only', () => {
     renderCard({ inReview: true, onSetInReview: vi.fn() });
     expect(screen.queryByRole('button')).not.toBeInTheDocument();

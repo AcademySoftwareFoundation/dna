@@ -1653,6 +1653,7 @@
             "_id": "67f0c31be4b0a1b2c3d4e601",
             "has_scratch": false,
             "in_review": "6990",
+            "in_review_pinned": false,
             "meeting_id": "abc-defg-hij",
             "platform": "google_meet",
             "playlist_id": "45",
@@ -1680,6 +1681,11 @@
               }
             ],
             "title": "In Review"
+          },
+          "in_review_pinned": {
+            "default": false,
+            "title": "In Review Pinned",
+            "type": "boolean"
           },
           "meeting_id": {
             "anyOf": [
@@ -1783,6 +1789,18 @@
             ],
             "description": "Version ID currently in review",
             "title": "In Review"
+          },
+          "in_review_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether the in-review version is pinned. While pinned, moving in_review to a different version returns 409 unless the same request sets this to false.",
+            "title": "In Review Pinned"
           },
           "meeting_id": {
             "anyOf": [
@@ -4730,7 +4748,7 @@
         ]
       },
       "put": {
-        "description": "Create or update metadata for a playlist (in-review version and meeting ID).",
+        "description": "Create or update metadata for a playlist (in-review version and meeting ID). When in_review or in_review_pinned is set, broadcasts playlist.in_review_changed to connected clients. While the in-review version is pinned, moving in_review to a different version is rejected with 409 unless the same request sets in_review_pinned to false.",
         "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
         "parameters": [
           {
@@ -4774,6 +4792,16 @@
               }
             },
             "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with the current state (e.g. the in-review version is pinned)"
           },
           "422": {
             "content": {
