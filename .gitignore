@@ -11,6 +11,8 @@ dist/
 .env.local
 *.mp3
 *.mp4
+# Docs-site hover clips are shipped assets, not captures.
+!dna-docs/static/video/*.mp4
 *.csv
 *.log
 experimental/spi/note_assistant_v2/backend/client_secret.json
