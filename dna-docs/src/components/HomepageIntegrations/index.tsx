@@ -36,15 +36,15 @@ const Platforms: Platform[] = [
     planned: true,
   },
   {
-    name: 'AYON',
-    href: 'https://ayon.ynput.io/',
-    logo: {dark: 'img/prodtracking/AYON_whiteG_dot.png', light: 'img/prodtracking/AYON_blackG_dot.png'},
-    planned: true,
-  },
-  {
     name: 'Kitsu',
     href: 'https://www.cg-wire.com/kitsu',
     logo: {dark: 'img/prodtracking/kitsu_white.png', light: 'img/prodtracking/kitsu_black.png'},
+    planned: true,
+  },
+  {
+    name: 'AYON',
+    href: 'https://ayon.ynput.io/',
+    logo: {dark: 'img/prodtracking/AYON_whiteG_dot.png', light: 'img/prodtracking/AYON_blackG_dot.png'},
     planned: true,
   },
 ];
