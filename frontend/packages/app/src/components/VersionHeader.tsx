@@ -272,9 +272,10 @@ const SetInReviewButton = styled.button<{ $isInReview?: boolean }>`
       $isInReview ? theme.colors.accent.main : theme.colors.border.strong};
   }
 
+  /* Only disabled while a request is in flight; requests are fast enough that
+     dimming would just read as a flicker. */
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 `;
 
@@ -498,10 +499,9 @@ export function VersionHeader({
                 $isInReview={isCurrentVersionInReview}
                 onClick={onSetInReview}
                 disabled={isSettingInReview}
+                aria-busy={isSettingInReview}
               >
-                {isSettingInReview ? (
-                  <>Setting...</>
-                ) : isCurrentVersionInReview ? (
+                {isCurrentVersionInReview ? (
                   <>
                     {isInReviewPinned ? <PinOff size={14} /> : <Pin size={14} />}
                     {isInReviewPinned ? 'Unpin' : 'Pin in Review'}

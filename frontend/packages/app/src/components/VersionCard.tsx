@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import styled, { type DefaultTheme } from 'styled-components';
-import { Eye, NotebookPen, X } from 'lucide-react';
+import styled, { css, type DefaultTheme } from 'styled-components';
+import { Eye, NotebookPen, Pin, PinOff, X } from 'lucide-react';
 import { Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
+import { ACCENTS } from '../styles';
 import { UserAvatar } from './UserAvatar';
 
 export type NoteStatus = 'published' | 'edited' | 'draft';
@@ -15,20 +16,19 @@ interface VersionCardProps {
   thumbnailUrl?: string;
   selected?: boolean;
   inReview?: boolean;
-  /** Shows the pinned marker next to the in-review eye. */
+  /** Shows the pin icon next to the in-review eye. */
   inReviewPinned?: boolean;
   noteStatus?: NoteStatus | null;
   onClick?: () => void;
   /**
    * Makes the eye a clickable "Set in review" affordance, revealed on card
-   * hover. Omit to render the eye as a non-interactive indicator. The version
-   * already in review always shows the plain indicator.
+   * hover. Not used on the version already in review; see onTogglePin.
    */
   onSetInReview?: () => void;
   /**
-   * Makes the in-review eye on the version already in review clickable: it
-   * pins that version, or unpins it when already pinned. Omit to keep the eye
-   * a plain indicator.
+   * Adds a pin button beside the eye on the version already in review: gray and
+   * revealed on card hover until pinned, then red. Clicking it pins or unpins.
+   * Omit to show plain indicators only.
    */
   onTogglePin?: () => void;
   /**
@@ -126,6 +126,7 @@ const TopIcons = styled.div`
 const BottomIcons = styled.div`
   display: flex;
   align-items: center;
+  gap: 6px;
   margin-top: auto;
 `;
 
@@ -142,44 +143,83 @@ const InReviewIcon = styled.span`
   }
 `;
 
-/** The in-review eye as a button: click to pin, or to unpin when pinned. */
-const InReviewButton = styled.button`
+/**
+ * Pin / unpin button beside the in-review eye. Unpinned it's gray, revealed on
+ * card hover, and glows pinkish red when hovered. Pinned it's pinkish red, and
+ * hovering adds the same glow and swaps to the crossed-out pin.
+ *
+ * $settling turns the hover effects off once a click has taken effect, until
+ * the cursor leaves, so a lingering cursor doesn't preview the opposite action.
+ */
+const PinButton = styled.button<{ $pinned: boolean; $settling: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   padding: 0;
   border: none;
+  border-radius: ${({ theme }) => theme.radii.sm};
   background: none;
   cursor: pointer;
-  color: ${({ theme }) => theme.colors.accent.main};
-  transition: filter ${({ theme }) => theme.transitions.fast};
-
-  &:hover,
-  &:focus-visible {
-    filter: drop-shadow(0 0 4px ${({ theme }) => theme.colors.accent.main});
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.accent.main};
-    outline-offset: 2px;
-    border-radius: 3px;
-  }
+  color: ${({ theme, $pinned }) =>
+    $pinned ? ACCENTS.pink.colors.main : theme.colors.text.muted};
+  opacity: ${({ $pinned }) => ($pinned ? 1 : 0)};
+  transition: opacity ${({ theme }) => theme.transitions.fast},
+    color ${({ theme }) => theme.transitions.fast},
+    filter ${({ theme }) => theme.transitions.fast};
 
   svg {
     width: 16px;
     height: 16px;
   }
-`;
 
-const PinnedTag = styled.span`
-  padding: 4px 8px;
-  border-radius: ${({ theme }) => theme.radii.sm};
-  background: ${({ theme }) => theme.colors.accent.subtle};
-  color: ${({ theme }) => theme.colors.accent.main};
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+  .unpin-icon {
+    display: none;
+  }
+
+  ${({ $pinned }) =>
+    !$pinned &&
+    css`
+      /* Nested so these keep winning over the card-hover reveal. */
+      ${Card}:hover & {
+        opacity: 0.5;
+
+        &:hover,
+        &:focus-visible {
+          opacity: 1;
+        }
+      }
+    `}
+
+  ${({ $pinned, $settling }) =>
+    !$settling &&
+    ($pinned
+      ? css`
+          &:hover,
+          &:focus-visible {
+            filter: drop-shadow(0 0 4px ${ACCENTS.pink.colors.main});
+
+            .pin-icon {
+              display: none;
+            }
+
+            .unpin-icon {
+              display: block;
+            }
+          }
+        `
+      : css`
+          &:hover,
+          &:focus-visible {
+            color: ${ACCENTS.pink.colors.main};
+            filter: drop-shadow(0 0 4px ${ACCENTS.pink.colors.main});
+          }
+        `)}
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid ${ACCENTS.pink.colors.main};
+    outline-offset: 2px;
+  }
 `;
 
 /**
@@ -392,6 +432,9 @@ export function VersionCard({
   onRemove,
 }: VersionCardProps) {
   const displayName = version.name || `Version ${version.id}`;
+  // The pin state a click asked for. Hover effects stay on until it arrives, so
+  // the button doesn't flash its resting look while the request is in flight.
+  const [pinSettleTarget, setPinSettleTarget] = useState<boolean | null>(null);
 
   const getStatusLetter = (status: NoteStatus) => {
     switch (status) {
@@ -427,31 +470,42 @@ export function VersionCard({
 
   const renderEye = () => {
     if (inReview) {
-      const content = (
-        <>
-          {inReviewPinned && <PinnedTag>Pinned</PinnedTag>}
-          <Eye />
-        </>
-      );
       if (!onTogglePin) {
-        return <InReviewIcon>{content}</InReviewIcon>;
+        return (
+          <InReviewIcon>
+            {inReviewPinned && <Pin aria-label="Pinned" />}
+            <Eye />
+          </InReviewIcon>
+        );
       }
-      const label = inReviewPinned ? 'Unpin from review' : 'Pin in review';
+      const pinLabel = inReviewPinned
+        ? 'Pinned, click to unpin'
+        : 'Pin in review';
       return (
-        <Tooltip content={label}>
-          <InReviewButton
-            type="button"
-            aria-label={label}
-            aria-pressed={inReviewPinned}
-            onClick={(e) => {
-              // Pinning shouldn't drag the selection along with it.
-              e.stopPropagation();
-              onTogglePin();
-            }}
-          >
-            {content}
-          </InReviewButton>
-        </Tooltip>
+        <>
+          <Tooltip content={pinLabel}>
+            <PinButton
+              type="button"
+              aria-label={pinLabel}
+              $pinned={inReviewPinned}
+              $settling={pinSettleTarget === inReviewPinned}
+              onClick={(e) => {
+                // Pinning shouldn't drag the selection along with it.
+                e.stopPropagation();
+                setPinSettleTarget(!inReviewPinned);
+                onTogglePin();
+              }}
+              onMouseLeave={() => setPinSettleTarget(null)}
+              onBlur={() => setPinSettleTarget(null)}
+            >
+              <Pin className="pin-icon" />
+              <PinOff className="unpin-icon" />
+            </PinButton>
+          </Tooltip>
+          <InReviewIcon>
+            <Eye />
+          </InReviewIcon>
+        </>
       );
     }
 

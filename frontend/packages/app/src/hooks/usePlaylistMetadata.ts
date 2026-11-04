@@ -23,12 +23,11 @@ export function useUpsertPlaylistMetadata(playlistId: string | null) {
   return useMutation<PlaylistMetadata, Error, PlaylistMetadataUpdate>({
     mutationFn: (data: PlaylistMetadataUpdate) =>
       apiHandler.upsertPlaylistMetadata({ playlistId: playlistId!, data }),
-    // Also refresh on failure: a 409 means someone pinned in the meantime, so
-    // the cached pin state is stale.
-    onSettled: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['playlistMetadata', playlistId],
-      });
+    // The response is the full metadata document, so write it straight into
+    // the cache: the UI settles when the request does, rather than whenever the
+    // in_review_changed event or a refetch happens to land.
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['playlistMetadata', playlistId], saved);
     },
   });
 }
