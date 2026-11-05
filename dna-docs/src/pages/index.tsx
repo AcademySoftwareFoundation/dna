@@ -8,6 +8,7 @@ import HomepageBackers from '@site/src/components/HomepageBackers';
 import HomepageShowcase from '@site/src/components/HomepageShowcase';
 import HomepageDeveloperShowcase from '@site/src/components/HomepageDeveloperShowcase';
 import HomepageIntegrations from '@site/src/components/HomepageIntegrations';
+import HomepageTranscription from '@site/src/components/HomepageTranscription';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
@@ -50,6 +51,7 @@ export default function Home(): ReactNode {
         <HomepageShowcase />
         <HomepageDeveloperShowcase />
         <HomepageIntegrations />
+        <HomepageTranscription />
       </main>
     </Layout>
   );

@@ -64,6 +64,13 @@
   padding: 1rem 2rem 1rem 4rem;
 }
 
+/* Mirrored: the picture pinned to the right with its own fades, the copy in
+   the left column (HomepageTranscription). */
+.rowReverse .copy {
+  grid-column: 1;
+  padding: 1rem 4rem 1rem 2rem;
+}
+
 .heading {
   margin-bottom: 1rem;
   font-size: 1.6rem;
@@ -100,7 +107,8 @@
     background: linear-gradient(to bottom, transparent 35%, var(--ifm-background-color) 100%);
   }
 
-  .copy {
+  .copy,
+  .rowReverse .copy {
     padding: 0;
   }
 }

@@ -1,0 +1,124 @@
+/* The app's bottom-right corner, pinned to the stage's right edge at life
+   size, so the fade runs leftward from it into the copy. Wide enough for
+   the Transcript panel plus a slice of the sidebar beside it. */
+.picture {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 640px;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--c-text);
+  /* The panel, tabs and slices bring their own surfaces; the page shows
+     through everywhere else, so the picture's edges never read as lines. */
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The fades are the page background, so they follow light/dark mode. In
+   picture pixels, not the stage's, so the left edge is always solid. */
+.fadeLeft,
+.fadeTop,
+.fadeBottom {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Across: the panel clear to near its left edge, the sidebar slice fading
+   out quickly beyond it. */
+.fadeLeft {
+  background: linear-gradient(to left, transparent 68%, var(--ifm-background-color) 96%);
+}
+
+/* Down: the notes box's toolbar receding above the tabs. */
+.fadeTop {
+  background: linear-gradient(to bottom, var(--ifm-background-color) 0%, transparent 18%);
+}
+
+/* Only on the stacked layout, where the short stage cuts the panel off. */
+.fadeBottom {
+  display: none;
+}
+
+.app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.app button {
+  font-family: inherit;
+}
+
+/* The sidebar's right edge: the cards' titles, their thumbnails off the
+   picture's left side. */
+.sidebarSlice {
+  margin-left: -260px;
+  /* Just the cards: the sidebar's own background and border would show as a
+     hard column and line where the fade hasn't finished. */
+  background: transparent;
+  border-right: none;
+}
+
+/* The content column: the notes box's bottom, then the tab strip and
+   Transcript panel taking the rest of the height. */
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  padding: 0 20px 20px;
+}
+
+/* The notes box, off the picture's top edge down to the end of its notes,
+   so just the formatting toolbar and the drag handle show above the tabs. */
+.notesSlice {
+  flex-shrink: 0;
+  margin-top: -200px;
+}
+
+/* Just the notes, not the app's roomy empty editor. */
+.editorArea {
+  min-height: 0;
+}
+
+.platforms {
+  margin-top: 3rem;
+}
+
+/* Full-colour brand marks, the same on both themes. */
+.logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* A wordmark (Zoom) is heavier than an icon at the same height, so it sits
+   a little shorter than the row to read level with the Meet and Teams marks. */
+.wordmark {
+  max-height: 30px;
+}
+
+@media (max-width: 996px) {
+  /* Stacked: the picture spans the short stage, its bottom fading into the
+     copy. No room for context there, so just the panel. */
+  .picture {
+    width: 100%;
+  }
+
+  .sidebarSlice,
+  .notesSlice,
+  .fadeLeft,
+  .fadeTop {
+    display: none;
+  }
+
+  .fadeBottom {
+    display: block;
+    background: linear-gradient(to bottom, transparent 35%, var(--ifm-background-color) 100%);
+  }
+}
