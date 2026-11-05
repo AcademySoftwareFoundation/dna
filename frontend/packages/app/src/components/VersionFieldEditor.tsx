@@ -25,6 +25,7 @@ import {
   useUpdateEntityField,
 } from '../hooks';
 import type { EntityFieldTarget } from '../hooks';
+import { useNomenclature } from '../nomenclature';
 
 // @radix-ui/themes omits asChild from Popover.Trigger's types even though
 // the underlying Radix primitive supports it.
@@ -157,10 +158,13 @@ function FieldPicker({
   isLoading,
   onToggle,
 }: FieldPickerProps) {
+  const t = useNomenclature();
   const [query, setQuery] = useState('');
 
   const groups = ENTITY_FIELD_LEVELS.map((level) => {
-    const levelLabel = entityLevelLabel(level, entityType);
+    const levelLabel = t.entityLabel(
+      entityLevelLabel(level, entityType)
+    ).singular;
     return {
       level,
       levelLabel,
@@ -265,6 +269,7 @@ export function VersionFieldEditor({
   version,
   playlistId,
 }: VersionFieldEditorProps) {
+  const t = useNomenclature();
   const entityType = version.entity?.type;
   const { selected, toggle } = useSelectedEntityFields();
   const { schemas, isLoading } = useEntitySchemas({
@@ -278,7 +283,9 @@ export function VersionFieldEditor({
   const rows = ENTITY_FIELD_LEVELS.flatMap((level) => {
     const target = targets[level];
     if (!target) return [];
-    const levelLabel = entityLevelLabel(level, entityType);
+    const levelLabel = t.entityLabel(
+      entityLevelLabel(level, entityType)
+    ).singular;
     return selected
       .filter((item) => item.level === level)
       .flatMap((item) => {

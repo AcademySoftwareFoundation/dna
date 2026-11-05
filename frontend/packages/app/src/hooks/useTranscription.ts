@@ -11,7 +11,7 @@ import type {
 } from '@dna/core';
 import { apiHandler } from '../api';
 import { usePlaylistMetadata } from './usePlaylistMetadata';
-import { useEventClient, useToast } from '../contexts';
+import { useEventClient, useNomenclature, useToast } from '../contexts';
 import {
   describeInvalidMeetingUrl,
   parseMeetingUrl,
@@ -40,6 +40,7 @@ export interface UseTranscriptionReturn {
 export function useTranscription({
   playlistId,
 }: UseTranscriptionOptions): UseTranscriptionReturn {
+  const t = useNomenclature();
   const queryClient = useQueryClient();
   const eventClient = useEventClient();
   const { showToast, dismissToast } = useToast();
@@ -247,7 +248,7 @@ export function useTranscription({
       language?: string | null
     ): Promise<BotSession> => {
       if (!playlistId) {
-        throw new Error('No playlist selected');
+        throw new Error(`No ${t.playlist.lower} selected`);
       }
 
       const parsed = parseMeetingUrl(meetingUrl);
@@ -270,7 +271,7 @@ export function useTranscription({
 
       return dispatchMutation.mutateAsync(request);
     },
-    [playlistId, dispatchMutation]
+    [playlistId, dispatchMutation, t.playlist.lower]
   );
 
   const stopBot = useCallback(async (): Promise<void> => {

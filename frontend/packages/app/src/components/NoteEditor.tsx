@@ -15,6 +15,7 @@ import { MarkdownEditor } from './MarkdownEditor';
 import { MentionIndexProvider } from '../contexts/MentionIndexContext';
 import type { LocalDraftNote } from '../hooks';
 import { apiHandler } from '../api';
+import { useNomenclature } from '../nomenclature';
 
 export interface StagedAttachment {
   id: string;
@@ -142,6 +143,7 @@ export function NoteDraftStatusBadges({
   draft: NoteDraftStatusFields | null;
   layout?: 'title' | 'inline';
 }) {
+  const t = useNomenclature();
   if (!draft) return null;
 
   const showPublished = draft.published;
@@ -158,11 +160,11 @@ export function NoteDraftStatusBadges({
   const badges = (
     <>
       {showPublished && (
-        <StatusBadge $compact={compact}>Published</StatusBadge>
+        <StatusBadge $compact={compact}>{t.publish.past}</StatusBadge>
       )}
       {showEdited && (
         <StatusBadge $isWarning $compact={compact}>
-          Published (Edited)
+          {t.publish.past} (Edited)
         </StatusBadge>
       )}
       {showDraftBadge && (
@@ -332,6 +334,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     },
     ref
   ) {
+    const t = useNomenclature();
     const isEmbedded = variant === 'embedded';
 
     const currentVersionAsSearchResult: SearchResult | undefined =
@@ -665,7 +668,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           <EditorHeader>
             {!isEmbedded && (
               <TitleRow>
-                <EditorTitle>Notes</EditorTitle>
+                <EditorTitle>{t.note.plural}</EditorTitle>
                 <NoteDraftStatusBadges draft={draftNote} layout="title" />
               </TitleRow>
             )}
@@ -702,7 +705,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
               attachmentFlashKey={attachFlashKey}
               animatePill={animatePill}
               onToggleAttachmentTray={() => setIsAttachmentTrayOpen((o) => !o)}
-              placeholder="Write your notes here... (supports **markdown**, type @ to mention)"
+              placeholder={`Write your ${t.note.lowerPlural} here... (supports **markdown**, type @ to mention)`}
               minHeight={MIN_HEIGHT}
               projectId={projectId}
               onMentionInsert={handleMentionInsert}

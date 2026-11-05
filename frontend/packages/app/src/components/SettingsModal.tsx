@@ -33,6 +33,7 @@ import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
 import { useThemeMode, useFeatureFlags } from '../contexts';
 import { ACCENTS, ACCENT_NAMES } from '../styles';
+import { useNomenclature } from '../nomenclature';
 
 // Radix Select can't represent '' as an item value, so auto-detect gets a
 // sentinel in the UI and is mapped back to '' for storage.
@@ -439,6 +440,7 @@ function GeneralTab({
   onProdtrackPageTypeChange,
   onSettingsReset
 }: GeneralTabProps) {
+  const t = useNomenclature();
   const { mode, setMode, accent, setAccent } = useThemeMode();
   const { inReviewEnabled, setInReviewEnabled, inReviewLocked, inReviewLockReason } =
     useFeatureFlags();
@@ -496,7 +498,7 @@ function GeneralTab({
         <AppearanceRow>
           <KeybindingLabel>
             <KeybindingName>Enable In Review</KeybindingName>
-            <KeybindingDesc>Show In Review / Set In Review controls and the version indicator</KeybindingDesc>
+            <KeybindingDesc>Show In Review / Set In Review controls and the {t.version.lower} indicator</KeybindingDesc>
           </KeybindingLabel>
           <LockableSwitch
             checked={inReviewEnabled}
@@ -514,7 +516,7 @@ function GeneralTab({
       </Section>
 
       <Section>
-        <SectionTitle>Production tracking (browser)</SectionTitle>
+        <SectionTitle>{t.productionTracking.singular} (browser)</SectionTitle>
         <SectionDescription>
           Requires the DNA tab sync Chrome extension.
         </SectionDescription>
@@ -526,13 +528,15 @@ function GeneralTab({
           />
           <CheckboxContent>
             <CheckboxLabel>
-              Sync PT tab when version changes
+              Sync {t.productionTracking.short} tab when {t.version.lower} changes
             </CheckboxLabel>
             <CheckboxDescription>
-              When enabled (default), the extension updates your
-              production-tracking tab whenever you select a different version.
-              Turn off to update the PT tab only with the &quot;PT tab&quot;
-              button in the version header.
+              When enabled (default), the extension updates your{' '}
+              {t.productionTracking.lower} tab whenever you select a different{' '}
+              {t.version.lower}. Turn off to update the{' '}
+              {t.productionTracking.short} tab only with the &quot;
+              {t.productionTracking.short} tab&quot; button in the{' '}
+              {t.version.lower} header.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
@@ -540,7 +544,7 @@ function GeneralTab({
         <CheckboxContent style={{ paddingTop: '8px' }}>
           <CheckboxLabel>Page to sync</CheckboxLabel>
           <CheckboxDescription>
-            Which production-tracking page opens when a version is selected.
+            Which {t.productionTracking.lower} page opens when a {t.version.lower} is selected.
           </CheckboxDescription>
         </CheckboxContent>
         <RadioGroupRoot
@@ -552,8 +556,8 @@ function GeneralTab({
               <RadioDot />
             </RadioIndicator>
             <CheckboxContent>
-              <CheckboxLabel>Version Detail</CheckboxLabel>
-              <CheckboxDescription>Open the version&apos;s detail page</CheckboxDescription>
+              <CheckboxLabel>{t.version.singular} Detail</CheckboxLabel>
+              <CheckboxDescription>Open the {t.version.lower}&apos;s detail page</CheckboxDescription>
             </CheckboxContent>
           </RadioItem>
           <RadioItem>
@@ -561,8 +565,10 @@ function GeneralTab({
               <RadioDot />
             </RadioIndicator>
             <CheckboxContent>
-              <CheckboxLabel>Shot / Asset Detail</CheckboxLabel>
-              <CheckboxDescription>Open the linked shot or asset detail page</CheckboxDescription>
+              <CheckboxLabel>
+                {t.shot.singular} / {t.asset.singular} Detail
+              </CheckboxLabel>
+              <CheckboxDescription>Open the linked {t.shot.lower} or {t.asset.lower} detail page</CheckboxDescription>
             </CheckboxContent>
           </RadioItem>
         </RadioGroupRoot>
@@ -775,6 +781,7 @@ function TranscriptionTab({
 // so it loads/saves itself against the current projectId and is independent of
 // the surrounding settings save-on-close flow.
 function ProjectGlossaryEditor({ projectId }: { projectId: string | null }) {
+  const t = useNomenclature();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
@@ -806,10 +813,10 @@ function ProjectGlossaryEditor({ projectId }: { projectId: string | null }) {
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <GlossaryRow>
         <GlossaryRowText>
-          <CheckboxLabel>Project glossary</CheckboxLabel>
+          <CheckboxLabel>{t.project.singular} glossary</CheckboxLabel>
           <CheckboxDescription>
-            Terms specific to the current production. Saved to this ShotGrid
-            project.
+            Terms specific to the current production. Saved to this{' '}
+            {t.productionTracking.lower} {t.project.lower}.
           </CheckboxDescription>
         </GlossaryRowText>
         <Dialog.Trigger>
@@ -823,7 +830,7 @@ function ProjectGlossaryEditor({ projectId }: { projectId: string | null }) {
         </Dialog.Trigger>
       </GlossaryRow>
       <Dialog.Content maxWidth="560px">
-        <Dialog.Title>Project glossary</Dialog.Title>
+        <Dialog.Title>{t.project.singular} glossary</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="3">
           Terms unique to this production. One term per line, in{' '}
           <code>term: definition</code> format.
@@ -887,6 +894,7 @@ function AITab({
   onRegenerateOnVersionChange,
   onRegenerateOnTranscriptUpdate,
 }: AITabProps) {
+  const t = useNomenclature();
   const { aiEnabled, setAiEnabled, aiLocked } = useFeatureFlags();
 
   if (isLoading) {
@@ -903,7 +911,7 @@ function AITab({
         <FeatureEnableLabel>
           <FeatureEnableName>Enable Feature</FeatureEnableName>
           <FeatureEnableDesc>
-            Show AI note suggestions and Note QC checks
+            Show AI {t.note.lower} suggestions and {t.note.singular} QC checks
           </FeatureEnableDesc>
         </FeatureEnableLabel>
         <LockableSwitch
@@ -922,7 +930,7 @@ function AITab({
         <Section>
           <SectionTitle>AI Model</SectionTitle>
           <SectionDescription>
-            Select which model to use for note generation.
+            Select which model to use for {t.note.lower} generation.
           </SectionDescription>
           <Select.Root
             value={
@@ -954,21 +962,21 @@ function AITab({
 
       <Section>
         <SectionTitle>
-          Note Generation
+          {t.note.singular} Generation
           <Tooltip
             content={
               <>
-                Customize the prompt used when generating notes from
-                transcript and version information. You can include
+                Customize the prompt used when generating {t.note.lowerPlural}{' '}
+                from transcript and {t.version.lower} information. You can include
                 the following tags in the prompt:
                 <br />
                 <br />
-                {'{{ transcript }}'} - What was said on this version
+                {'{{ transcript }}'} - What was said on this {t.version.lower}
                 <br />
-                {'{{ context }}'} - Includes context for the version
+                {'{{ context }}'} - Includes context for the {t.version.lower}
                 <br />
-                {'{{ notes }}'} - Any notes you took on this version
-                already
+                {'{{ notes }}'} - Any {t.note.lowerPlural} you took on this{' '}
+                {t.version.lower} already
                 <br />
                 {'{{ glossary_global }}'} - The global VFX glossary
                 <br />
@@ -982,12 +990,12 @@ function AITab({
           </Tooltip>
         </SectionTitle>
         <SectionDescription>
-          This prompt is used when generating notes via the transcript
-          and version information.
+          This prompt is used when generating {t.note.lowerPlural} via the
+          transcript and {t.version.lower} information.
         </SectionDescription>
         <TextAreaWrapper>
           <StyledTextArea
-            placeholder="Enter your custom prompt for generating notes..."
+            placeholder={`Enter your custom prompt for generating ${t.note.lowerPlural}...`}
             value={notePrompt}
             onChange={onNotePromptChange}
             disabled={isPending}
@@ -1002,11 +1010,11 @@ function AITab({
           />
           <CheckboxContent>
             <CheckboxLabel>
-              Regenerate notes on version change
+              Regenerate {t.note.lowerPlural} on {t.version.lower} change
             </CheckboxLabel>
             <CheckboxDescription>
-              Automatically regenerate the AI note when switching to a
-              different version in review.
+              Automatically regenerate the AI {t.note.lower} when switching to a
+              different {t.version.lower} in review.
             </CheckboxDescription>
           </CheckboxContent>
         </CheckboxRow>
@@ -1022,7 +1030,7 @@ function AITab({
               Regenerate on transcript update
             </CheckboxLabel>
             <CheckboxDescription>
-              Automatically regenerate the AI note when a new
+              Automatically regenerate the AI {t.note.lower} when a new
               transcript segment comes in or an existing segment is
               updated.
             </CheckboxDescription>
@@ -1037,7 +1045,7 @@ function AITab({
             content={
               <>
                 Glossaries are supplied to the AI as context whenever a
-                note is generated, helping it expand VFX shorthand and
+                {t.note.lower} is generated, helping it expand VFX shorthand and
                 production-specific terms correctly.
               </>
             }
@@ -1048,7 +1056,7 @@ function AITab({
           </Tooltip>
         </SectionTitle>
         <SectionDescription>
-          Terms supplied to the AI as context when generating notes.
+          Terms supplied to the AI as context when generating {t.note.lowerPlural}.
         </SectionDescription>
         <GlossaryRow>
           <GlossaryRowText>
@@ -1076,7 +1084,7 @@ function AITab({
       </Section>
 
       <Section>
-        <SectionTitle>Note QC</SectionTitle>
+        <SectionTitle>{t.note.singular} QC</SectionTitle>
         <NoteQCTab userEmail={userEmail} />
       </Section>
     </ModalContent>
@@ -1178,6 +1186,7 @@ export function SettingsModal({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: SettingsModalProps) {
+  const t = useNomenclature();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
@@ -1361,8 +1370,8 @@ export function SettingsModal({
       <Dialog.Content maxWidth="600px" style={{ maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
         <Dialog.Title>Settings</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="4">
-          Configure your preferences for note generation, AI assistance, and
-          keyboard shortcuts.
+          Configure your preferences for {t.note.lower} generation, AI
+          assistance, and keyboard shortcuts.
         </Dialog.Description>
 
         <Tabs.Root defaultValue="general" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>

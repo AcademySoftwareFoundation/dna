@@ -14,7 +14,7 @@ import { UserAvatar } from './UserAvatar';
 import { VersionFieldEditor } from './VersionFieldEditor';
 import { useHotkeyConfig } from '../hotkeys';
 import { useVersionStatuses } from '../hooks';
-import { useFeatureFlags } from '../contexts';
+import { useFeatureFlags, useNomenclature } from '../contexts';
 
 interface VersionHeaderProps {
   shotCode?: string;
@@ -408,7 +408,7 @@ export function VersionHeader({
   prodtrackTabUsesExtension = false,
   onSyncProdtrackTab,
   syncProdtrackDisabled = false,
-  syncProdtrackTitle = 'Open current version in production tracking (browser tab)',
+  syncProdtrackTitle,
   canGoBack = true,
   canGoNext = true,
   hasInReview = true,
@@ -417,19 +417,23 @@ export function VersionHeader({
   version,
   playlistId,
 }: VersionHeaderProps) {
+  const t = useNomenclature();
   const { getLabel } = useHotkeyConfig();
+  const syncTitle =
+    syncProdtrackTitle ??
+    `Open current ${t.version.lower} in ${t.productionTracking.lower} (browser tab)`;
   const { inReviewEnabled } = useFeatureFlags();
   const { statuses, isLoading: isLoadingStatuses } = useVersionStatuses({ projectId });
   const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
-  const displayCode = versionNumber || shotCode || 'Untitled Version';
+  const displayCode = versionNumber || shotCode || `Untitled ${t.version.singular}`;
 
   return (
     <HeaderWrapper>
       <TopBar>
-        <Tooltip content={`Previous Version (${getLabel('previousVersion')})`}>
+        <Tooltip content={`Previous ${t.version.singular} (${getLabel('previousVersion')})`}>
           <BackButton onClick={onBack} disabled={!canGoBack}>
             <ChevronLeft size={16} />
-            Previous Version
+            Previous {t.version.singular}
           </BackButton>
         </Tooltip>
         <TopBarActions>
@@ -440,36 +444,36 @@ export function VersionHeader({
             </InReviewButton>
           )}
           {prodtrackDetailUrl && prodtrackTabUsesExtension && onSyncProdtrackTab && (
-            <Tooltip content={syncProdtrackTitle}>
+            <Tooltip content={syncTitle}>
               <SyncProdtrackButton
                 type="button"
                 onClick={() => void onSyncProdtrackTab()}
                 disabled={syncProdtrackDisabled}
               >
                 <ExternalLink size={14} />
-                PT tab
+                {t.productionTracking.short} tab
               </SyncProdtrackButton>
             </Tooltip>
           )}
           {prodtrackDetailUrl && !prodtrackTabUsesExtension && (
-            <Tooltip content={syncProdtrackTitle}>
+            <Tooltip content={syncTitle}>
               <SyncProdtrackLink
                 href={prodtrackDetailUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 <ExternalLink size={14} />
-                PT tab
+                {t.productionTracking.short} tab
               </SyncProdtrackLink>
             </Tooltip>
           )}
-          <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>
+          <Tooltip content={`Next ${t.version.singular} (${getLabel('nextVersion')})`}>
             <NextVersionButton onClick={onNext} disabled={!canGoNext}>
-              Next Version
+              Next {t.version.singular}
               <ChevronRight size={16} />
             </NextVersionButton>
           </Tooltip>
-          <RefreshButton onClick={onRefresh} title="Refresh version info">
+          <RefreshButton onClick={onRefresh} title={`Refresh ${t.version.lower} info`}>
             <RotateCw size={16} />
           </RefreshButton>
         </TopBarActions>
@@ -524,7 +528,9 @@ export function VersionHeader({
             <MetadataValue>{dateSubmitted}</MetadataValue>
           </MetadataRow>
           <MetadataRow>
-            <MetadataLabel>Version Status:</MetadataLabel>
+            <MetadataLabel>
+              {t.version.singular} {t.status.singular}:
+            </MetadataLabel>
             <MetadataValue>
               <StatusSelectWrapper>
                 <StatusSelect

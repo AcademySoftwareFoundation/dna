@@ -14,7 +14,7 @@ import {
 } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler, useGetUserByEmail } from '../api';
-import { useFeatureFlags } from '../contexts';
+import { useFeatureFlags, useNomenclature } from '../contexts';
 
 interface ContentAreaProps {
   version?: Version | null;
@@ -214,11 +214,12 @@ export function ContentArea({
       autoSyncEnabled: shouldAutoSyncProdtrackTab,
     });
 
+  const t = useNomenclature();
   const syncProdtrackTitle = !activeProdtrackUrl
-    ? 'Production tracking URL is not available for this version.'
+    ? `${t.productionTracking.singular} URL is not available for this ${t.version.lower}.`
     : extensionAvailable
       ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
-      : 'Open production tracking in a new browser tab.';
+      : `Open ${t.productionTracking.lower} in a new browser tab.`;
 
   const syncProdtrackDisabled = !activeProdtrackUrl;
 
@@ -226,9 +227,9 @@ export function ContentArea({
     return (
       <ContentWrapper>
         <EmptyState>
-          <EmptyStateTitle>No version selected</EmptyStateTitle>
+          <EmptyStateTitle>No {t.version.lower} selected</EmptyStateTitle>
           <EmptyStateText>
-            Select a version from the sidebar to view its details
+            Select a {t.version.lower} from the sidebar to view its details
           </EmptyStateText>
         </EmptyState>
       </ContentWrapper>

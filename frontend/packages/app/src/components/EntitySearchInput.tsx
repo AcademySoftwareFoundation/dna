@@ -11,6 +11,7 @@ import {
 } from '@dna/core';
 import { useEntitySearch } from '../hooks/useEntitySearch';
 import { useMentionIndex } from '../contexts/MentionIndexContext';
+import { useNomenclature } from '../nomenclature';
 import { EntityPill, type EntityType } from './EntityPill/EntityPill';
 
 export interface EntitySearchInputProps {
@@ -138,6 +139,7 @@ export function EntitySearchInput({
   placeholder = 'Search...',
   lockedEntities = [],
 }: EntitySearchInputProps) {
+  const t = useNomenclature();
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -320,7 +322,9 @@ export function EntitySearchInput({
                 onClick={() => handleSelect(result)}
                 onMouseEnter={() => setHighlightedIndex(index)}
               >
-                <EntityTypeTag>{result.type}</EntityTypeTag>
+                <EntityTypeTag>
+                  {t.entityLabel(result.type).singular}
+                </EntityTypeTag>
                 <EntityNameSpan>{result.name}</EntityNameSpan>
                 {result.email && <EntityEmail>{result.email}</EntityEmail>}
               </DropdownItem>

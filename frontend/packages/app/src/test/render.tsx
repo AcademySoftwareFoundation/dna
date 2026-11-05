@@ -10,6 +10,7 @@ import { FeatureFlagsProvider } from '../contexts/FeatureFlagsContext';
 import { ThemeModeProvider } from '../contexts/ThemeContext';
 import { NoteFocusProvider } from '../contexts/NoteFocusContext';
 import { ToastProvider } from '../contexts/ToastContext';
+import { NomenclatureProvider } from '../nomenclature';
 
 interface WrapperProps {
   children: ReactNode;
@@ -35,13 +36,15 @@ function AllTheProviders({ children }: WrapperProps) {
         <Theme>
           <ThemeModeProvider>
             <FeatureFlagsProvider>
-              <EventProvider>
-                <NoteFocusProvider>
-                  <AuthProvider>
-                    <ToastProvider>{children}</ToastProvider>
-                  </AuthProvider>
-                </NoteFocusProvider>
-              </EventProvider>
+              <NomenclatureProvider>
+                <EventProvider>
+                  <NoteFocusProvider>
+                    <AuthProvider>
+                      <ToastProvider>{children}</ToastProvider>
+                    </AuthProvider>
+                  </NoteFocusProvider>
+                </EventProvider>
+              </NomenclatureProvider>
             </FeatureFlagsProvider>
           </ThemeModeProvider>
         </Theme>

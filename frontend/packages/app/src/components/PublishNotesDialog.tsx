@@ -46,6 +46,7 @@ import { UserAvatar } from './UserAvatar';
 import { NoteQCResultPill } from './NoteQCResultPill';
 import { NoteQCDiffModal } from './NoteQCDiffModal';
 import { useFeatureFlags } from '../contexts';
+import { useNomenclature } from '../nomenclature';
 
 interface PublishNotesDialogProps {
   open: boolean;
@@ -298,12 +299,14 @@ function displayNameFromEmail(email: string): string {
   return local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function fallbackVersion(versionId: string): Version {
+function fallbackVersion(versionId: string, versionLabel: string): Version {
   return {
     type: 'Version',
     id: versionId,
     name:
-      versionId === SCRATCH_VERSION_ID ? 'SCRATCH PAD' : `Version ${versionId}`,
+      versionId === SCRATCH_VERSION_ID
+        ? 'SCRATCH PAD'
+        : `${versionLabel} ${versionId}`,
     notes: [],
   };
 }
@@ -341,6 +344,7 @@ function PublishNoteRow({
   onQcToggleIgnore,
   onQcRefreshDraft,
 }: PublishNoteRowProps) {
+  const t = useNomenclature();
   const { aiEnabled } = useFeatureFlags();
   const registerFlush = useContext(RegisterFlushContext);
   const [fixOpen, setFixOpen] = useState(false);
@@ -358,9 +362,9 @@ function PublishNoteRow({
         : {
             type: 'Version',
             id: version.id,
-            name: version.name || `Version ${version.id}`,
+            name: version.name || `${t.version.singular} ${version.id}`,
           },
-    [isScratch, version.id, version.name]
+    [isScratch, version.id, version.name, t.version.singular]
   );
 
   const versionSubmitter: SearchResult | undefined = useMemo(() => {
@@ -385,7 +389,7 @@ function PublishNoteRow({
     return registerFlush(flushDebouncedSave);
   }, [registerFlush, flushDebouncedSave]);
 
-  const title = `${displayNameFromEmail(draftOwnerEmail)}'s Note`;
+  const title = `${displayNameFromEmail(draftOwnerEmail)}'s ${t.note.singular}`;
 
   const draftForModal = draftNote ?? backendToLocal(rowDraft);
 
@@ -591,6 +595,7 @@ function VersionStatusRow({
   onValueChange: (value: string) => void;
   onCheckedChange: (checked: boolean) => void;
 }) {
+  const t = useNomenclature();
   const { statuses, isLoading } = useVersionStatuses({ projectId });
   const hasChange = Boolean(value) && value !== (currentStatus ?? '');
   const currentStatusName =
@@ -600,13 +605,13 @@ function VersionStatusRow({
     <StatusRow>
       <Flex align="center" gap="2">
         <Checkbox
-          aria-label="Apply version status"
+          aria-label={`Apply ${t.version.lower} ${t.status.lower}`}
           checked={hasChange && checked}
           disabled={!hasChange}
           onCheckedChange={(c) => onCheckedChange(c === true)}
         />
         <Text size="2" weight="medium" color={hasChange ? undefined : 'gray'}>
-          Version Status
+          {t.version.singular} {t.status.singular}
         </Text>
         <StatusSelectWrapper>
           <StatusSelect
@@ -615,7 +620,9 @@ function VersionStatusRow({
             onChange={(e) => onValueChange(e.target.value)}
           >
             {isLoading && <option value="">Loading...</option>}
-            {!isLoading && !value && <option value="">Select status</option>}
+            {!isLoading && !value && (
+              <option value="">Select {t.status.lower}</option>
+            )}
             {statuses.map((status) => (
               <option key={status.code} value={status.code}>
                 {status.name}
@@ -679,6 +686,7 @@ function VersionPublishCard({
   onQcToggleIgnore,
   onQcRefreshDraft,
 }: VersionPublishCardProps) {
+  const t = useNomenclature();
   const sortedDrafts = useMemo(
     () =>
       [...drafts].sort((a, b) => {
@@ -694,9 +702,9 @@ function VersionPublishCard({
     () => ({
       type: 'Version',
       id: version.id,
-      name: version.name || `Version ${version.id}`,
+      name: version.name || `${t.version.singular} ${version.id}`,
     }),
-    [version.id, version.name]
+    [version.id, version.name, t.version.singular]
   );
 
   const versionSubmitter: SearchResult | undefined = useMemo(() => {
@@ -738,7 +746,7 @@ function VersionPublishCard({
             size="2"
             style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
-            {version.name || `Version ${version.id}`}
+            {version.name || `${t.version.singular} ${version.id}`}
           </Text>
           {!isScratch && (
             <Flex align="center" gap="2">
@@ -811,6 +819,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
   onPendingChange,
   showTitle = true,
 }) => {
+  const t = useNomenclature();
   const { aiEnabled } = useFeatureFlags();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -963,7 +972,10 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
 
     for (const [vid, drafts] of byVid) {
       if (!seen.has(vid)) {
-        ordered.push({ version: fallbackVersion(vid), drafts });
+        ordered.push({
+          version: fallbackVersion(vid, t.version.singular),
+          drafts,
+        });
       }
     }
 
@@ -976,7 +988,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
     }
 
     return ordered;
-  }, [notes, versions, pendingStatusByVersion]);
+  }, [notes, versions, pendingStatusByVersion, t.version.singular]);
 
   useEffect(() => {
     if (!open) return;
@@ -1174,13 +1186,15 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
       {successSummary ? (
         <Flex direction="column" gap="4" p="4">
           {showTitle && (
-            <Dialog.Title style={{ margin: 0 }}>Publish Notes</Dialog.Title>
+            <Dialog.Title style={{ margin: 0 }}>
+              {t.publish.verb} {t.note.plural}
+            </Dialog.Title>
           )}
           <Callout.Root color="green">
             <Callout.Icon>
               <Info size={16} />
             </Callout.Icon>
-            <Callout.Text>Publishing Complete!</Callout.Text>
+            <Callout.Text>{t.publish.progressive} Complete!</Callout.Text>
           </Callout.Root>
 
           <SummaryBox>
@@ -1189,23 +1203,33 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
             </Text>
             <ResultList>
               {successSummary.publishedCount > 0 && (
-                <li>Notes Published: {successSummary.publishedCount}</li>
+                <li>
+                  {t.note.plural} {t.publish.past}:{' '}
+                  {successSummary.publishedCount}
+                </li>
               )}
               {successSummary.republishedCount > 0 && (
-                <li>Notes Republished: {successSummary.republishedCount}</li>
+                <li>
+                  {t.note.plural} Re{t.publish.lowerPast}:{' '}
+                  {successSummary.republishedCount}
+                </li>
               )}
               {successSummary.imageCount > 0 && (
                 <li>Images Attached: {successSummary.imageCount}</li>
               )}
               {successSummary.statusCount > 0 && (
-                <li>Statuses Updated: {successSummary.statusCount}</li>
+                <li>
+                  {t.status.plural} Updated: {successSummary.statusCount}
+                </li>
               )}
               {successSummary.statusFailedCount > 0 && (
-                <li>Statuses Failed: {successSummary.statusFailedCount}</li>
+                <li>
+                  {t.status.plural} Failed: {successSummary.statusFailedCount}
+                </li>
               )}
               {successSummary.transcriptPublishedCount > 0 && (
                 <li>
-                  Transcripts Published:{' '}
+                  Transcripts {t.publish.past}:{' '}
                   {successSummary.transcriptPublishedCount}
                 </li>
               )}
@@ -1216,7 +1240,9 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                 </li>
               )}
               {successSummary.failedCount > 0 && (
-                <li>Notes Failed: {successSummary.failedCount}</li>
+                <li>
+                  {t.note.plural} Failed: {successSummary.failedCount}
+                </li>
               )}
             </ResultList>
           </SummaryBox>
@@ -1240,14 +1266,16 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
             }}
           >
             {showTitle && (
-              <Dialog.Title style={{ margin: 0 }}>Publish Notes</Dialog.Title>
+              <Dialog.Title style={{ margin: 0 }}>
+                {t.publish.verb} {t.note.plural}
+              </Dialog.Title>
             )}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger>
                 <IconButton
                   variant="ghost"
                   color="gray"
-                  aria-label="Batch note selection"
+                  aria-label={`Batch ${t.note.lower} selection`}
                   disabled={notes.length === 0}
                 >
                   <MoreVertical size={18} />
@@ -1259,13 +1287,15 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                     handleBatchSelect(allNotesSelected ? 'none' : 'all')
                   }
                 >
-                  {allNotesSelected ? 'Deselect all notes' : 'Select all notes'}
+                  {allNotesSelected
+                    ? `Deselect all ${t.note.lowerPlural}`
+                    : `Select all ${t.note.lowerPlural}`}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => handleBatchSelect('mine')}>
-                  Select only my notes
+                  Select only my {t.note.lowerPlural}
                 </DropdownMenu.Item>
                 <DropdownMenu.Item onSelect={() => handleBatchSelect('others')}>
-                  Select only notes from others
+                  Select only {t.note.lowerPlural} from others
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Item onSelect={handleBatchTranscriptSelect}>
@@ -1280,7 +1310,7 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
           <ScrollBody>
             {versionCards.length === 0 ? (
               <Text size="2" color="gray">
-                No notes to publish.
+                No {t.note.lowerPlural} to {t.publish.lower}.
               </Text>
             ) : (
               versionCards.map(({ version, drafts }) => (
@@ -1322,7 +1352,8 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
                   <Info size={16} />
                 </Callout.Icon>
                 <Callout.Text>
-                  {error?.message || 'Failed to publish notes'}
+                  {error?.message ||
+                    `Failed to ${t.publish.lower} ${t.note.lowerPlural}`}
                 </Callout.Text>
               </Callout.Root>
             </Flex>
@@ -1345,8 +1376,8 @@ export const PublishNotesTabContent: React.FC<PublishNotesTabContentProps> = ({
               >
                 {isPending && <SpinnerIcon size={14} />}
                 {isPending
-                  ? 'Publishing...'
-                  : `Publish selected${
+                  ? `${t.publish.progressive}...`
+                  : `${t.publish.verb} selected${
                       selectedCount + selectedStatusCount > 0
                         ? ` (${selectedCount + selectedStatusCount})`
                         : ''
@@ -1368,6 +1399,7 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
   notes,
   versions = [],
 }) => {
+  const t = useNomenclature();
   const [isPending, setIsPending] = useState(false);
 
   return (
@@ -1385,7 +1417,8 @@ export const PublishNotesDialog: React.FC<PublishNotesDialogProps> = ({
         }}
       >
         <Dialog.Description style={{ display: 'none' }}>
-          Review and publish draft notes to production tracking.
+          Review and {t.publish.lower} draft {t.note.lowerPlural} to{' '}
+          {t.productionTracking.lower}.
         </Dialog.Description>
         <PublishNotesTabContent
           open={open}

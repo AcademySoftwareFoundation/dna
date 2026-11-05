@@ -9,6 +9,7 @@ import {
   StyledSelectContent,
 } from './FormInputs';
 import { useAuth } from '../contexts';
+import { useNomenclature } from '../nomenclature';
 
 export const STORAGE_KEYS = {
   USER_EMAIL: 'dna_user_email',
@@ -294,6 +295,7 @@ export function clearUserSession(): void {
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
+  const t = useNomenclature();
   const { isAuthenticated, isLoading: isAuthLoading, user, signIn, signInWithEmail, signOut, authProvider } = useAuth();
   const [emailInput, setEmailInput] = useState('');
   const [step, setStep] = useState<Step>('loading');
@@ -447,32 +449,32 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
             {isLoadingProjects && (
               <LoadingWrapper>
                 <Spinner size="3" />
-                <LoadingText>Loading projects...</LoadingText>
+                <LoadingText>Loading {t.project.lowerPlural}...</LoadingText>
               </LoadingWrapper>
             )}
 
             {isProjectsError && (
               <ErrorText>
-                {projectsError?.message || 'Failed to load projects'}
+                {projectsError?.message || `Failed to load ${t.project.lowerPlural}`}
               </ErrorText>
             )}
 
             {projects && projects.length === 0 && (
-              <EmptyText>No projects found for this email.</EmptyText>
+              <EmptyText>No {t.project.lowerPlural} found for this email.</EmptyText>
             )}
 
             {projects && projects.length > 0 && (
               <Flex direction="column" gap="2">
-                <Label>Select a project</Label>
+                <Label>Select a {t.project.lower}</Label>
                 <Select.Root size="3" onValueChange={handleProjectSelect}>
-                  <StyledSelectTrigger placeholder="Choose a project..." />
+                  <StyledSelectTrigger placeholder={`Choose a ${t.project.lower}...`} />
                   <StyledSelectContent>
                     {projects.map((project) => (
                       <Select.Item
                         key={project.id}
                         value={project.id.toString()}
                       >
-                        {project.name || `Project ${project.id}`}
+                        {project.name || `${t.project.singular} ${project.id}`}
                       </Select.Item>
                     ))}
                   </StyledSelectContent>
@@ -491,7 +493,7 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
 
             <SelectionDisplay>
               <SelectionText>
-                {selectedProject?.name || `Project ${selectedProject?.id}`}
+                {selectedProject?.name || `${t.project.singular} ${selectedProject?.id}`}
               </SelectionText>
               <ChangeButton onClick={handleChangeProject}>Change</ChangeButton>
             </SelectionDisplay>
@@ -499,37 +501,37 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
             {isLoadingPlaylists && (
               <LoadingWrapper>
                 <Spinner size="3" />
-                <LoadingText>Loading playlists...</LoadingText>
+                <LoadingText>Loading {t.playlist.lowerPlural}...</LoadingText>
               </LoadingWrapper>
             )}
 
             {isPlaylistsError && (
               <ErrorText>
-                {playlistsError?.message || 'Failed to load playlists'}
+                {playlistsError?.message || `Failed to load ${t.playlist.lowerPlural}`}
               </ErrorText>
             )}
 
             {playlists && playlists.length === 0 && (
-              <EmptyText>No playlists found for this project.</EmptyText>
+              <EmptyText>No {t.playlist.lowerPlural} found for this {t.project.lower}.</EmptyText>
             )}
 
             {playlists && playlists.length > 0 && (
               <>
                 <Flex direction="column" gap="2">
-                  <Label>Select a playlist</Label>
+                  <Label>Select a {t.playlist.lower}</Label>
                   <Select.Root
                     size="3"
                     value={selectedPlaylistId}
                     onValueChange={handlePlaylistSelect}
                   >
-                    <StyledSelectTrigger placeholder="Choose a playlist..." />
+                    <StyledSelectTrigger placeholder={`Choose a ${t.playlist.lower}...`} />
                     <StyledSelectContent>
                       {playlists.map((playlist) => (
                         <Select.Item
                           key={playlist.id}
                           value={playlist.id.toString()}
                         >
-                          {playlist.code || `Playlist ${playlist.id}`}
+                          {playlist.code || `${t.playlist.singular} ${playlist.id}`}
                         </Select.Item>
                       ))}
                     </StyledSelectContent>

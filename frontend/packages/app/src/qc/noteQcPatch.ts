@@ -5,6 +5,10 @@ import type {
   SearchResult,
 } from '@dna/core';
 import type { LocalDraftNote } from '../hooks/useDraftNote';
+import {
+  DEFAULT_RESOLVED_NOMENCLATURE,
+  type ResolvedNomenclature,
+} from '../nomenclature';
 
 export type QCField =
   | 'content'
@@ -13,15 +17,6 @@ export type QCField =
   | 'to'
   | 'cc'
   | 'links';
-
-const FIELD_LABELS: Record<QCField, string> = {
-  content: 'note body',
-  subject: 'subject',
-  versionStatus: 'version status',
-  to: 'To',
-  cc: 'Cc',
-  links: 'links',
-};
 
 const EMBEDDED_NOTE_KEYS = new Set([
   'content',
@@ -32,8 +27,28 @@ const EMBEDDED_NOTE_KEYS = new Set([
   'version_status',
 ]);
 
-export function qcFieldLabel(f: QCField): string {
-  return FIELD_LABELS[f];
+export function qcFieldLabel(
+  f: QCField,
+  terms: ResolvedNomenclature = DEFAULT_RESOLVED_NOMENCLATURE
+): string {
+  switch (f) {
+    case 'content':
+      return `${terms.note.lower} body`;
+    case 'subject':
+      return 'subject';
+    case 'versionStatus':
+      return `${terms.version.lower} ${terms.status.lower}`;
+    case 'to':
+      return 'To';
+    case 'cc':
+      return 'Cc';
+    case 'links':
+      return 'links';
+    default: {
+      const unreachable: never = f;
+      return unreachable;
+    }
+  }
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -308,7 +323,8 @@ export function mergeQCResultPatches(
 
 export function fixAllDisabledReason(
   draft: LocalDraftNote,
-  results: NoteQCResult[]
+  results: NoteQCResult[],
+  terms: ResolvedNomenclature = DEFAULT_RESOLVED_NOMENCLATURE
 ): string | null {
   if (results.length < 2) {
     return null;
@@ -321,7 +337,7 @@ export function fixAllDisabledReason(
   }
   const overlap = findOverlappingQCFields(draft, results);
   if (overlap.length > 0) {
-    const parts = overlap.map(qcFieldLabel).join(', ');
+    const parts = overlap.map((f) => qcFieldLabel(f, terms)).join(', ');
     return `Multiple checks suggest changes to the same field (${parts}). Apply fixes one at a time so nothing is overwritten.`;
   }
   return null;
@@ -341,14 +357,15 @@ function formatRecipientList(list: SearchResult[]): string {
 
 export function getQCPreviewRows(
   draft: LocalDraftNote,
-  qc: NoteQCResult
+  qc: NoteQCResult,
+  terms: ResolvedNomenclature = DEFAULT_RESOLVED_NOMENCLATURE
 ): QCPreviewRow[] {
   const suggested = applyNormalizedQCToDraft(draft, qc);
   const rows: QCPreviewRow[] = [];
   if (suggested.content !== draft.content) {
     rows.push({
       field: 'content',
-      label: qcFieldLabel('content'),
+      label: qcFieldLabel('content', terms),
       current: (draft.content ?? '') || '(empty)',
       suggested: (suggested.content ?? '') || '(empty)',
     });
@@ -356,7 +373,7 @@ export function getQCPreviewRows(
   if (suggested.subject !== draft.subject) {
     rows.push({
       field: 'subject',
-      label: qcFieldLabel('subject'),
+      label: qcFieldLabel('subject', terms),
       current: (draft.subject ?? '') || '(empty)',
       suggested: (suggested.subject ?? '') || '(empty)',
     });
@@ -364,7 +381,7 @@ export function getQCPreviewRows(
   if (suggested.versionStatus !== draft.versionStatus) {
     rows.push({
       field: 'versionStatus',
-      label: qcFieldLabel('versionStatus'),
+      label: qcFieldLabel('versionStatus', terms),
       current: (draft.versionStatus ?? '') || '(empty)',
       suggested: (suggested.versionStatus ?? '') || '(empty)',
     });
@@ -372,7 +389,7 @@ export function getQCPreviewRows(
   if (!recipientsEqual(suggested.to, draft.to)) {
     rows.push({
       field: 'to',
-      label: qcFieldLabel('to'),
+      label: qcFieldLabel('to', terms),
       current: formatRecipientList(draft.to),
       suggested: formatRecipientList(suggested.to),
     });
@@ -380,7 +397,7 @@ export function getQCPreviewRows(
   if (!recipientsEqual(suggested.cc, draft.cc)) {
     rows.push({
       field: 'cc',
-      label: qcFieldLabel('cc'),
+      label: qcFieldLabel('cc', terms),
       current: formatRecipientList(draft.cc),
       suggested: formatRecipientList(suggested.cc),
     });
@@ -388,7 +405,7 @@ export function getQCPreviewRows(
   if (!recipientsEqual(suggested.links, draft.links)) {
     rows.push({
       field: 'links',
-      label: qcFieldLabel('links'),
+      label: qcFieldLabel('links', terms),
       current: formatRecipientList(draft.links),
       suggested: formatRecipientList(suggested.links),
     });

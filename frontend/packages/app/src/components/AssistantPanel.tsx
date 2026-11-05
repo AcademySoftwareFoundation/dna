@@ -8,6 +8,7 @@ import { PromptDebugPanel } from './PromptDebugPanel';
 import { useAISuggestion } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { useFeatureFlags } from '../contexts';
+import { useNomenclature } from '../nomenclature';
 
 const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 // To re-enable the Other Pending Notes tab, set this to true
@@ -70,6 +71,7 @@ export function AssistantPanel({
   userEmail,
   onInsertNote,
 }: AssistantPanelProps) {
+  const t = useNomenclature();
   const { transcriptionEnabled, aiEnabled } = useFeatureFlags();
 
   const {
@@ -125,7 +127,7 @@ export function AssistantPanel({
           )}
           {SHOW_OTHER_NOTES_TAB && (
             <StyledTabsTrigger value="other">
-              Other Pending Notes
+              Other Pending {t.note.plural}
             </StyledTabsTrigger>
           )}
           {isDevMode && (

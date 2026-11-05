@@ -5,6 +5,7 @@ import { Eye, NotebookPen, X } from 'lucide-react';
 import { Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { UserAvatar } from './UserAvatar';
+import { useNomenclature } from '../nomenclature';
 
 export type NoteStatus = 'published' | 'edited' | 'draft';
 
@@ -324,7 +325,8 @@ export function VersionCard({
   onSetInReview,
   onRemove,
 }: VersionCardProps) {
-  const displayName = version.name || `Version ${version.id}`;
+  const t = useNomenclature();
+  const displayName = version.name || `${t.version.singular} ${version.id}`;
 
   const getStatusLetter = (status: NoteStatus) => {
     switch (status) {
@@ -336,8 +338,8 @@ export function VersionCard({
 
   const getStatusLabel = (status: NoteStatus) => {
     switch (status) {
-      case 'published': return 'Published';
-      case 'edited': return 'Published (Edited)';
+      case 'published': return t.publish.past;
+      case 'edited': return `${t.publish.past} (Edited)`;
       case 'draft': return 'Draft';
     }
   };

@@ -3,6 +3,7 @@ import { Button, Dialog, Flex, Text } from '@radix-ui/themes';
 import type { NoteQCResult } from '@dna/core';
 import type { LocalDraftNote } from '../hooks/useDraftNote';
 import { buildLocalPatch, getQCPreviewRows } from '../qc/noteQcPatch';
+import { useNomenclature } from '../nomenclature';
 
 export interface NoteQCDiffModalProps {
   open: boolean;
@@ -19,6 +20,7 @@ export const NoteQCDiffModal: React.FC<NoteQCDiffModalProps> = ({
   qcResult,
   onApply,
 }) => {
+  const t = useNomenclature();
   const [pending, setPending] = React.useState(false);
 
   React.useEffect(() => {
@@ -28,8 +30,8 @@ export const NoteQCDiffModal: React.FC<NoteQCDiffModalProps> = ({
   const dialogOpen = Boolean(open && qcResult);
 
   const previewRows = React.useMemo(
-    () => (qcResult ? getQCPreviewRows(draft, qcResult) : []),
-    [draft, qcResult]
+    () => (qcResult ? getQCPreviewRows(draft, qcResult, t) : []),
+    [draft, qcResult, t]
   );
 
   const handleApply = async (qc: NoteQCResult) => {

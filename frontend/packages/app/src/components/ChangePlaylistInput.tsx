@@ -5,6 +5,7 @@ import { Popover } from '@radix-ui/themes';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Playlist } from '@dna/core';
 import { apiHandler, useGetPlaylistsForProject } from '../api';
+import { useNomenclature } from '../nomenclature';
 
 export interface ChangePlaylistInputProps {
   projectId: string;
@@ -145,8 +146,8 @@ const ErrorText = styled.div`
   color: ${({ theme }) => theme.colors.status.error};
 `;
 
-function playlistLabel(playlist: Playlist): string {
-  return playlist.code || `Playlist ${playlist.id}`;
+function playlistLabel(playlist: Playlist, fallbackName: string): string {
+  return playlist.code || `${fallbackName} ${playlist.id}`;
 }
 
 export function ChangePlaylistInput({
@@ -155,6 +156,7 @@ export function ChangePlaylistInput({
   onSelect,
   onClose,
 }: ChangePlaylistInputProps) {
+  const t = useNomenclature();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -197,7 +199,9 @@ export function ChangePlaylistInput({
     (playlist) =>
       playlist.id !== currentPlaylistId &&
       (lowerQuery.length === 0 ||
-        playlistLabel(playlist).toLowerCase().includes(lowerQuery))
+        playlistLabel(playlist, t.playlist.singular)
+          .toLowerCase()
+          .includes(lowerQuery))
   );
 
   const canCreate = trimmedQuery.length > 0;
@@ -262,7 +266,7 @@ export function ChangePlaylistInput({
               onFocus={() => setIsOpen(true)}
               onBlur={() => setIsOpen(false)}
               onKeyDown={handleKeyDown}
-              placeholder="Change playlist..."
+              placeholder={`Change ${t.playlist.lower}...`}
             />
             {isPending && <Loader2 size={14} className="animate-spin" />}
           </FieldContainer>
@@ -280,16 +284,16 @@ export function ChangePlaylistInput({
               <ErrorText>
                 {error instanceof Error
                   ? error.message
-                  : 'Failed to create playlist'}
+                  : `Failed to create ${t.playlist.lower}`}
               </ErrorText>
             )}
             {isLoading ? (
               <LoadingState>
                 <Loader2 size={14} className="animate-spin" />
-                Loading playlists...
+                Loading {t.playlist.lowerPlural}...
               </LoadingState>
             ) : optionCount === 0 ? (
-              <EmptyState>No playlists found</EmptyState>
+              <EmptyState>No {t.playlist.lowerPlural} found</EmptyState>
             ) : (
               <>
                 {filtered.map((playlist, index) => (
@@ -303,7 +307,7 @@ export function ChangePlaylistInput({
                     onMouseEnter={() => setHighlightedIndex(index)}
                   >
                     <PlaylistNameSpan>
-                      {playlistLabel(playlist)}
+                      {playlistLabel(playlist, t.playlist.singular)}
                     </PlaylistNameSpan>
                   </DropdownItem>
                 ))}
@@ -319,7 +323,7 @@ export function ChangePlaylistInput({
                   >
                     <Plus size={14} />
                     <PlaylistNameSpan>
-                      Add Playlist &ldquo;{trimmedQuery}&rdquo;
+                      Add {t.playlist.singular} &ldquo;{trimmedQuery}&rdquo;
                     </PlaylistNameSpan>
                   </DropdownItem>
                 )}
@@ -328,7 +332,10 @@ export function ChangePlaylistInput({
           </div>
         </StyledPopoverContent>
       </Popover.Root>
-      <CloseButton onClick={onClose} aria-label="Close change playlist">
+      <CloseButton
+        onClick={onClose}
+        aria-label={`Close change ${t.playlist.lower}`}
+      >
         <X size={14} />
       </CloseButton>
     </Wrapper>
