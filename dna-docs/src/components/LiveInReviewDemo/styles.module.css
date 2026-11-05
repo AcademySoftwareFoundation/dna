@@ -13,7 +13,7 @@
 
 /* Same shape as the demo at its design size (DESIGN_* in InReviewDemo). */
 .placeholder {
-  aspect-ratio: 790 / 420;
+  aspect-ratio: 790 / 520;
 }
 
 .root {
@@ -119,6 +119,119 @@
   flex-direction: column;
   gap: 4px;
   font-size: 14px;
+}
+
+/* ---------- Transcript tab ---------- */
+
+/* Bottom of the header column: the app's tab strip, then the Transcript
+   panel, taking the rest of the column's height. */
+.transcript {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  margin-top: auto;
+}
+
+/* The panel, in the app's AI Assistant / Transcript card. */
+.panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--c-bg-surface);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: 12px;
+}
+
+/* The app's connection status bar. */
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  background: var(--c-success);
+  border-radius: 50%;
+}
+
+.emptyState {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--c-text-muted);
+  text-align: center;
+}
+
+.emptyState svg {
+  opacity: 0.3;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.segmentList {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0;
+  overflow-y: auto;
+}
+
+/* Speaker runs read as one block: a little room above the first segment of
+   a run, almost none between its continuations. */
+.segment {
+  padding: 0 16px 2px;
+}
+
+.segmentFirst {
+  padding-top: 10px;
+}
+
+.segmentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.speaker {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.timestamp {
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+
+.segmentText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--c-text-2);
+}
+
+/* Still being spoken. */
+.segmentPending {
+  font-style: italic;
+  color: var(--c-text-muted);
+  opacity: 0.75;
 }
 
 /* The header button on the version in review: solid accent outline, as in

@@ -23,5 +23,6 @@ export function themeVars(mode: 'dark' | 'light'): CSSProperties {
     '--c-accent-subtle': colors.accent.subtle,
     '--c-accent-gradient': colors.accent.gradient,
     '--c-error': colors.status.error,
+    '--c-success': colors.status.success,
   } as CSSProperties;
 }

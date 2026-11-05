@@ -13,6 +13,7 @@ import {ARTIST, DATE_SUBMITTED} from '../LiveUiDemo/data';
 import {Guide, type GuideStep} from '../LiveUiDemo/Guide';
 import * as I from '../LiveUiDemo/icons';
 import {themeVars} from '../LiveUiDemo/themeVars';
+import {TranscriptFeed} from './TranscriptFeed';
 // The success checkmark, shared with the other demos.
 import loginStyles from '../LiveLoginDemo/styles.module.css';
 // The header chrome, from the UI demo.
@@ -25,7 +26,7 @@ import styles from './styles.module.css';
  * is about a column's width, so the cards and buttons come out life-size.
  */
 export const DESIGN_WIDTH = 790;
-export const DESIGN_HEIGHT = 420;
+export const DESIGN_HEIGHT = 520;
 
 /**
  * The guide's steps, in order: set the version on screen in review from the
@@ -96,6 +97,18 @@ export default function InReviewDemo() {
     const observer = new ResizeObserver(fit);
     observer.observe(root);
     fit();
+    return () => observer.disconnect();
+  }, []);
+
+  // The transcript feed only streams while the demo is on screen.
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), {
+      threshold: 0.2,
+    });
+    observer.observe(root);
     return () => observer.disconnect();
   }, []);
 
@@ -307,6 +320,15 @@ export default function InReviewDemo() {
                     </div>
                   </div>
                 </div>
+
+                {/* The app's Transcript tab: segments land on whichever
+                    version is in review. */}
+                <TranscriptFeed
+                  targetName={inReview === null ? null : VERSIONS[inReview].name}
+                  shown={isCurrentInReview}
+                  active={visible && overlay === 'none'}
+                  resetKey={run}
+                />
               </div>
             </div>
           </Theme>
