@@ -92,10 +92,13 @@ export default function MenusDemo() {
     [added],
   );
 
-  // Show the newly added version (the list is capped at a few cards).
+  // Show the newly added version (the list is capped at a few cards). Scrolls
+  // only the list: scrollIntoView would also scroll the page, which on iOS
+  // yanks the demo around.
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (added) listRef.current?.lastElementChild?.scrollIntoView({block: 'nearest'});
+    const list = listRef.current;
+    if (added && list) list.scrollTop = list.scrollHeight;
   }, [added, current.length]);
 
   // Guide steps: open the menu, add a version, open it again, change the
@@ -161,7 +164,7 @@ export default function MenusDemo() {
   const [settle, setSettle] = useState(0);
   useEffect(() => {
     if (!menuItem) return;
-    menuItem.focus();
+    menuItem.focus({preventScroll: true});
     const timers = [60, 220].map((ms) => setTimeout(() => setSettle((n) => n + 1), ms));
     return () => timers.forEach(clearTimeout);
   }, [menuItem]);
