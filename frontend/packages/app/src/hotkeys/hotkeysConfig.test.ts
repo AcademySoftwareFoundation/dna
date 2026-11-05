@@ -32,7 +32,7 @@ describe('buildHotkeyActions', () => {
       'AI Insert Comment'
     );
     expect(actions.find((a) => a.id === 'setInReview')?.description).toBe(
-      'Mark the current take as in review'
+      'Mark the current take as in review, or pin or unpin it if it already is'
     );
   });
 });

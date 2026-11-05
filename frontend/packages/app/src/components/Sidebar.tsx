@@ -391,7 +391,8 @@ export function Sidebar({
   );
 
   const inReviewVersionId = playlistMetadata?.in_review;
-  const { setInReview } = useSetInReview(playlistId);
+  const inReviewPinned = !!playlistMetadata?.in_review_pinned;
+  const { setInReview, setInReviewPinned } = useSetInReview(playlistId);
   const noteFocus = useNoteFocus();
   const { follow, setFollow } = useFollowInReview({
     enabled: inReviewEnabled,
@@ -655,11 +656,22 @@ export function Sidebar({
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
                 inReview={inReviewEnabled && inReviewVersionId === version.id}
+                inReviewPinned={
+                  inReviewEnabled &&
+                  inReviewPinned &&
+                  inReviewVersionId === version.id
+                }
                 noteStatus={noteStatusFor(version.id)}
                 onClick={() => onVersionSelect?.(version)}
+                // Taking over from a pinned version also unpins it.
                 onSetInReview={
                   inReviewEnabled
-                    ? () => void setInReview(version.id)
+                    ? () => void setInReview(version.id, inReviewPinned)
+                    : undefined
+                }
+                onTogglePin={
+                  inReviewEnabled && inReviewVersionId === version.id
+                    ? () => void setInReviewPinned(version.id, !inReviewPinned)
                     : undefined
                 }
               />

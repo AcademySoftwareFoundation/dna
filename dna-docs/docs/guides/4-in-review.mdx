@@ -4,13 +4,14 @@ slug: /4-in-reivew
 title: In-Review Workflow
 ---
 
+import LiveInReviewDemo from '@site/src/components/LiveInReviewDemo';
+
 ## Setting a Version to In-Review
 
 "In-review" marks the version currently on screen in your dailies session, so notes and transcript segments land on the right version. Hover a version card and use the Set In Review control, press the Set In Review keyboard shortcut, or let the [RV integration](./7-rv-integration.mdx) set it automatically. A version indicator shows which version is currently in review, so you always know where new notes will land.
 
-<Figure
-  src="img/4-in-review/set-in-review.gif"
-  width="100%"
-  alt="DNA version in review"
-  caption=".gif shows the how to set a version in review."
-/>
+## Pinning
+
+Pinning allows users to continue to pipe transcript segments directly to a version regardless of changes triggered by In-Review integrations. For example, if using RV, moving on to the next version will not change which version is In-Review, if another version is pinned.
+
+<LiveInReviewDemo caption="Follow the steps to set a version in review from its card, jump to it, pin it, take over from the pin, and set it back from the header." />

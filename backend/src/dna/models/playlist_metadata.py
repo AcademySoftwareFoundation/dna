@@ -27,6 +27,12 @@ class PlaylistMetadataUpdate(BaseModel):
     in_review: Optional[str] = Field(
         default=None, description="Version ID currently in review"
     )
+    in_review_pinned: Optional[bool] = Field(
+        default=None,
+        description="Whether the in-review version is pinned. While pinned, "
+        "moving in_review to a different version returns 409 unless the same "
+        "request sets this to false.",
+    )
     meeting_id: Optional[str] = Field(default=None, description="Associated meeting ID")
     platform: Optional[str] = Field(default=None, description="Meeting platform")
     vexa_meeting_id: Optional[int] = Field(
@@ -58,6 +64,7 @@ class PlaylistMetadata(BaseModel):
                     "_id": "67f0c31be4b0a1b2c3d4e601",
                     "playlist_id": "45",
                     "in_review": "6990",
+                    "in_review_pinned": False,
                     "meeting_id": "abc-defg-hij",
                     "platform": "google_meet",
                     "vexa_meeting_id": 1842,
@@ -72,6 +79,7 @@ class PlaylistMetadata(BaseModel):
     id: str = Field(alias="_id")
     playlist_id: str
     in_review: Optional[str] = None
+    in_review_pinned: bool = False
     meeting_id: Optional[str] = None
     platform: Optional[str] = None
     vexa_meeting_id: Optional[int] = None

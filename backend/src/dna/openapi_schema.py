@@ -93,6 +93,7 @@ _ERROR_DESCRIPTIONS: dict[int, str] = {
     401: "Missing or invalid bearer token",
     403: "Authenticated user does not match the user in the path",
     404: "Not found",
+    409: "Conflicts with the current state (e.g. the in-review version is pinned)",
     422: "Request is well-formed but cannot be fulfilled in the current state",
     500: "Tracking system was updated but DNA bookkeeping failed; do not retry blindly",
     501: "Configured production tracking provider does not support this operation",

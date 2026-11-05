@@ -98,8 +98,10 @@ class TestPlaylistMetadataEndpoints:
 
     @pytest.fixture
     def mock_storage_provider(self):
-        """Create a mock storage provider."""
-        return mock.AsyncMock()
+        """Create a mock storage provider with no existing metadata."""
+        provider = mock.AsyncMock()
+        provider.get_playlist_metadata.return_value = None
+        return provider
 
     def test_get_playlist_metadata_returns_200(self, mock_storage_provider):
         """Test GET /playlists/{playlist_id}/metadata returns metadata."""
@@ -287,6 +289,7 @@ class TestPlaylistMetadataInReviewBroadcast:
     def test_upsert_with_in_review_broadcasts(self):
         """PUT with in_review broadcasts the change to WebSocket clients."""
         storage = mock.AsyncMock()
+        storage.get_playlist_metadata.return_value = None
         storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
             _id="abc123",
             playlist_id="10",
@@ -303,7 +306,39 @@ class TestPlaylistMetadataInReviewBroadcast:
             message = ws.receive_json()
             assert message == {
                 "type": "playlist.in_review_changed",
-                "payload": {"playlist_id": "10", "in_review": "200"},
+                "payload": {
+                    "playlist_id": "10",
+                    "in_review": "200",
+                    "in_review_pinned": False,
+                },
+            }
+
+    def test_pin_broadcasts_pin_state(self):
+        """PUT with only in_review_pinned broadcasts the new pin state."""
+        storage = mock.AsyncMock()
+        storage.get_playlist_metadata.return_value = None
+        storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review="200",
+            in_review_pinned=True,
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+
+        with client.websocket_connect("/ws") as ws:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"in_review_pinned": True},
+            )
+            assert response.status_code == 200
+            message = ws.receive_json()
+            assert message == {
+                "type": "playlist.in_review_changed",
+                "payload": {
+                    "playlist_id": "10",
+                    "in_review": "200",
+                    "in_review_pinned": True,
+                },
             }
 
     def test_upsert_without_in_review_does_not_publish(self):
@@ -324,6 +359,80 @@ class TestPlaylistMetadataInReviewBroadcast:
             )
             assert response.status_code == 200
             publisher.publish.assert_not_awaited()
+
+
+class TestPlaylistMetadataPinning:
+    """Pinning the in-review version blocks moving it until unpinned."""
+
+    def teardown_method(self):
+        reset_event_publisher()
+        app.dependency_overrides.clear()
+
+    def _storage(self, *, pinned: bool):
+        storage = mock.AsyncMock()
+        storage.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review="200",
+            in_review_pinned=pinned,
+        )
+        storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review="200",
+            in_review_pinned=pinned,
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        return storage
+
+    def test_pinned_rejects_different_version(self):
+        storage = self._storage(pinned=True)
+        response = client.put("/playlists/10/metadata", json={"in_review": "300"})
+        assert response.status_code == 409
+        storage.upsert_playlist_metadata.assert_not_awaited()
+
+    def test_pinned_allows_different_version_when_unpinning(self):
+        storage = self._storage(pinned=True)
+        response = client.put(
+            "/playlists/10/metadata",
+            json={"in_review": "300", "in_review_pinned": False},
+        )
+        assert response.status_code == 200
+        storage.upsert_playlist_metadata.assert_awaited_once()
+
+    def test_pinned_rejects_different_version_when_staying_pinned(self):
+        storage = self._storage(pinned=True)
+        response = client.put(
+            "/playlists/10/metadata",
+            json={"in_review": "300", "in_review_pinned": True},
+        )
+        assert response.status_code == 409
+        storage.upsert_playlist_metadata.assert_not_awaited()
+
+    def test_pinned_allows_same_version(self):
+        storage = self._storage(pinned=True)
+        response = client.put("/playlists/10/metadata", json={"in_review": "200"})
+        assert response.status_code == 200
+        storage.upsert_playlist_metadata.assert_awaited_once()
+
+    def test_unpin_allowed_while_pinned(self):
+        storage = self._storage(pinned=True)
+        response = client.put(
+            "/playlists/10/metadata", json={"in_review_pinned": False}
+        )
+        assert response.status_code == 200
+        storage.upsert_playlist_metadata.assert_awaited_once()
+
+    def test_unpinned_allows_different_version(self):
+        storage = self._storage(pinned=False)
+        response = client.put("/playlists/10/metadata", json={"in_review": "300"})
+        assert response.status_code == 200
+        storage.upsert_playlist_metadata.assert_awaited_once()
+
+    def test_in_review_pinned_defaults_false(self):
+        metadata = PlaylistMetadata(_id="abc", playlist_id="10")
+        assert metadata.in_review_pinned is False
+        assert PlaylistMetadataUpdate().in_review_pinned is None
 
 
 class TestMongoDBPlaylistMetadataProvider:
