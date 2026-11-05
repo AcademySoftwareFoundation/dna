@@ -39,6 +39,7 @@ export interface BotStatusEventPayload {
 export interface InReviewChangedEventPayload {
   playlist_id: string;
   in_review: string;
+  in_review_pinned?: boolean;
 }
 
 export type EventCallback<T = unknown> = (event: DNAEvent<T>) => void;

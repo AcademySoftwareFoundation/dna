@@ -1,0 +1,245 @@
+/* A window onto the sidebar list and version header, framed like the UI demo. */
+.frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--dna-hairline);
+  border-radius: 12px;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Same shape as the demo at its design size (DESIGN_* in InReviewDemo). */
+.placeholder {
+  aspect-ratio: 790 / 520;
+}
+
+.root {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* The design canvas; InReviewDemo sets its size, colours and scale inline. */
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  color: var(--c-text);
+  background: var(--c-bg-base);
+}
+
+.stage :global(.radix-themes) {
+  min-height: 0 !important;
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+.app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.app button {
+  font-family: inherit;
+}
+
+/* The app's sidebar, cut down to its card list. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 372px;
+  overflow: hidden;
+  background: var(--c-sidebar-bg);
+  border-right: 1px solid var(--c-sidebar-border);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+/* The content column's top: the version header and nothing below it. */
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+}
+
+/* The app's preview, a little smaller so the header fits the narrower column. */
+.preview {
+  width: 200px;
+  height: 128px;
+  overflow: hidden;
+  background: var(--c-bg-overlay);
+  border-radius: 12px;
+}
+
+.preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--c-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The column is too narrow for the app's label / value rows, so labels sit
+   above their values instead. */
+.meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.metaRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+/* ---------- Transcript tab ---------- */
+
+/* Bottom of the header column: the app's tab strip, then the Transcript
+   panel, taking the rest of the column's height. */
+.transcript {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  margin-top: auto;
+}
+
+/* The panel, in the app's AI Assistant / Transcript card. */
+.panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--c-bg-surface);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: 12px;
+}
+
+/* The app's connection status bar. */
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  background: var(--c-success);
+  border-radius: 50%;
+}
+
+.emptyState {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--c-text-muted);
+  text-align: center;
+}
+
+.emptyState svg {
+  opacity: 0.3;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.segmentList {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0;
+  overflow-y: auto;
+}
+
+/* Speaker runs read as one block: a little room above the first segment of
+   a run, almost none between its continuations. */
+.segment {
+  padding: 0 16px 2px;
+}
+
+.segmentFirst {
+  padding-top: 10px;
+}
+
+.segmentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.speaker {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.timestamp {
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+
+.segmentText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--c-text-2);
+}
+
+/* Still being spoken. */
+.segmentPending {
+  font-style: italic;
+  color: var(--c-text-muted);
+  opacity: 0.75;
+}
+
+/* The header button on the version in review: solid accent outline, as in
+   the app. */
+.setInReviewActive,
+.setInReviewActive:hover:not(:disabled) {
+  color: var(--c-accent);
+  background: var(--c-accent-subtle);
+  border-style: solid;
+  border-color: var(--c-accent);
+}

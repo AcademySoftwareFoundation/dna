@@ -53,6 +53,64 @@ describe('VersionCard in-review eye', () => {
     expect(onSetInReview).toHaveBeenCalledTimes(1);
   });
 
+  it('pins the version in review from its pin button', () => {
+    const onClick = vi.fn();
+    const onTogglePin = vi.fn();
+    renderCard({ inReview: true, onClick, onTogglePin });
+
+    expect(
+      screen.queryByRole('button', { name: 'Pinned, click to unpin' })
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Pin in review' }));
+    expect(onTogglePin).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('unpins from the pin icon, leaving the eye as an indicator', () => {
+    const onClick = vi.fn();
+    const onTogglePin = vi.fn();
+    renderCard({ inReview: true, inReviewPinned: true, onClick, onTogglePin });
+
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Pinned, click to unpin' })
+    );
+    expect(onTogglePin).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('keeps its look after a click until the pin state actually changes', () => {
+    const card = (inReviewPinned: boolean) => (
+      <ThemeProvider theme={darkTheme}>
+        <Theme>
+          <VersionCard
+            version={version}
+            inReview
+            inReviewPinned={inReviewPinned}
+            onTogglePin={vi.fn()}
+          />
+        </Theme>
+      </ThemeProvider>
+    );
+    const pinButton = () => screen.getAllByRole('button')[0];
+
+    const unsettledGray = render(card(false));
+    const unsettledGrayClass = pinButton().className;
+    unsettledGray.unmount();
+
+    const { rerender } = render(card(true));
+    const pinnedClass = pinButton().className;
+    fireEvent.click(pinButton());
+    expect(pinButton().className).toBe(pinnedClass);
+
+    rerender(card(false));
+    expect(pinButton().className).not.toBe(unsettledGrayClass);
+
+    fireEvent.mouseLeave(pinButton());
+    expect(pinButton().className).toBe(unsettledGrayClass);
+  });
+
   it('shows the version in review as an indicator only', () => {
     renderCard({ inReview: true, onSetInReview: vi.fn() });
     expect(screen.queryByRole('button')).not.toBeInTheDocument();

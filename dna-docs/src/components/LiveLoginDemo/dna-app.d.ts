@@ -105,7 +105,13 @@ declare module '@dna-app/components/VersionCard' {
     artistName?: string;
     thumbnailUrl?: string;
     selected?: boolean;
+    inReview?: boolean;
+    inReviewPinned?: boolean;
     onClick?: () => void;
+    /** The hover-revealed eye on versions not in review. */
+    onSetInReview?: () => void;
+    /** The pin beside the eye on the version in review. */
+    onTogglePin?: () => void;
   }): ReactNode;
 }
 

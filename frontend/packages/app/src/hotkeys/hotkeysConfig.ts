@@ -39,7 +39,8 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   {
     id: 'setInReview',
     label: 'Set In Review',
-    description: 'Mark the current version as in review',
+    description:
+      'Mark the current version as in review, or pin or unpin it if it already is',
     defaultKeys: 'meta+shift+v',
   },
   {

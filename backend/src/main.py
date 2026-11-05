@@ -624,7 +624,7 @@ async def websocket_endpoint(websocket: WebSocket):
       Consumed by the frontend `TranscriptManager`.
     - bot.status_changed: Bot status updates
     - transcription.completed / transcription.error: Transcription lifecycle events
-    - playlist.in_review_changed: In-review version changed for a playlist
+    - playlist.in_review_changed: In-review version or its pin state changed
 
     Most events use `{"type": "event.type", "payload": {...}}`. The
     `transcript` event is flat — the whole message IS the payload so it can
@@ -1946,9 +1946,13 @@ async def get_playlist_metadata(
     summary="Create or update playlist metadata",
     description=(
         "Create or update metadata for a playlist (in-review version and meeting ID). "
-        "When in_review is set, broadcasts playlist.in_review_changed to connected clients."
+        "When in_review or in_review_pinned is set, broadcasts "
+        "playlist.in_review_changed to connected clients. While the in-review "
+        "version is pinned, moving in_review to a different version is rejected "
+        "with 409 unless the same request sets in_review_pinned to false."
     ),
     response_model=PlaylistMetadata,
+    responses=error_responses(409),
 )
 async def upsert_playlist_metadata(
     playlist_id: str,
@@ -1958,17 +1962,31 @@ async def upsert_playlist_metadata(
 ) -> PlaylistMetadata:
     """Create or update playlist metadata.
 
-    When ``in_review`` is set, broadcasts ``playlist.in_review_changed`` so
-    connected clients can update the in-review indicator.
+    When ``in_review`` or ``in_review_pinned`` is set, broadcasts
+    ``playlist.in_review_changed`` so connected clients can update the
+    in-review indicator and pin state.
     """
-    metadata = await provider.upsert_playlist_metadata(playlist_id, data)
     if data.in_review is not None:
+        existing = await provider.get_playlist_metadata(playlist_id)
+        if (
+            existing is not None
+            and existing.in_review_pinned
+            and data.in_review != existing.in_review
+            and data.in_review_pinned is not False
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="The in-review version is pinned; unpin it to change it",
+            )
+    metadata = await provider.upsert_playlist_metadata(playlist_id, data)
+    if data.in_review is not None or data.in_review_pinned is not None:
         event_publisher = get_event_publisher()
         await event_publisher.publish(
             EventType.PLAYLIST_IN_REVIEW_CHANGED,
             {
                 "playlist_id": playlist_id,
                 "in_review": metadata.in_review,
+                "in_review_pinned": metadata.in_review_pinned,
             },
         )
     return metadata
