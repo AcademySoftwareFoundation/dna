@@ -40,12 +40,17 @@ const timeNow = () => new Date().toLocaleTimeString([], {hour: '2-digit', minute
  * The stream belongs to the in-review version, so it's only shown while
  * that version is the one on screen; on any other version the tab shows no
  * segments, and the stream carries on behind it.
+ *
+ * With `loop` on, a transcript that runs out starts the next one instead of
+ * stopping, so the feed streams for as long as it's active (the homepage).
  */
 export function TranscriptFeed({
   targetName,
   shown,
   active,
   resetKey,
+  loop = false,
+  allTabs = false,
 }: {
   /** The in-review version's name, or null for none. */
   targetName: string | null;
@@ -54,6 +59,10 @@ export function TranscriptFeed({
   active: boolean;
   /** Bumped when the demo resets, to start over. */
   resetKey: number;
+  /** Roll on to the next transcript when one runs out. */
+  loop?: boolean;
+  /** Show the app's full tab strip (AI Assistant beside Transcript). */
+  allTabs?: boolean;
 }) {
   // What the feed is currently streaming to, and where it is in the text.
   const [streamingTo, setStreamingTo] = useState<string | null>(null);
@@ -107,6 +116,14 @@ export function TranscriptFeed({
       const transcript = TRANSCRIPTS[cursor.transcript];
       const line = transcript.lines[cursor.line];
       if (!line) {
+        if (loop && streamingTo !== null) {
+          // A beat at the end, then the next transcript to the same version.
+          timer = setTimeout(() => {
+            start(streamingTo);
+            timer = setTimeout(tick, WORD_MS);
+          }, SENTENCE_MS * 2);
+          return;
+        }
         setFinished(true);
         return;
       }
@@ -132,7 +149,7 @@ export function TranscriptFeed({
 
     timer = setTimeout(tick, WORD_MS);
     return () => clearTimeout(timer);
-  }, [active, targetName, streamingTo]);
+  }, [active, targetName, streamingTo, loop]);
 
   // Keep the newest words in view.
   const listRef = useRef<HTMLDivElement>(null);
@@ -146,8 +163,14 @@ export function TranscriptFeed({
 
   return (
     <div className={styles.transcript}>
-      {/* The app's tab strip above the panel, just the Transcript tab. */}
+      {/* The app's tab strip above the panel: just the Transcript tab, or
+          both with Transcript active. */}
       <div className={uiStyles.tabs}>
+        {allTabs && (
+          <button type="button" className={uiStyles.tab}>
+            AI Assistant
+          </button>
+        )}
         <button type="button" className={clsx(uiStyles.tab, uiStyles.tabActive)}>
           Transcript
         </button>
