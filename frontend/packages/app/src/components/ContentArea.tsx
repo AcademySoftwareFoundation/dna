@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
 import { SCRATCH_VERSION_ID } from '@dna/core';
@@ -11,6 +11,7 @@ import {
   useSetInReview,
   useDraftNote,
   useProdtrackTabSync,
+  useVersionStatuses,
 } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler, useGetUserByEmail } from '../api';
@@ -124,9 +125,25 @@ export function ContentArea({
 
   const selectedVersionStatus = draftNote?.versionStatus || (version?.status ?? '');
 
+  const [statusFlashKey, setStatusFlashKey] = useState(0);
+  // So returning to a version, which remounts the header, doesn't replay it.
+  useEffect(() => setStatusFlashKey(0), [version?.id]);
+
+  const { statuses: versionStatuses } = useVersionStatuses({
+    projectId: version?.project?.id,
+  });
+
   const handleVersionStatusChange = useCallback((code: string) => {
     void saveVersionStatus(code);
   }, [saveVersionStatus]);
+
+  // Picked from the note editor, where the change would otherwise be easy to
+  // miss. The dropdown doesn't need this: it's already showing focus.
+  const handleVersionStatusCommand = useCallback((code: string) => {
+    if (code === selectedVersionStatus) return;
+    void saveVersionStatus(code);
+    setStatusFlashKey((key) => key + 1);
+  }, [saveVersionStatus, selectedVersionStatus]);
 
   const handleRefreshClick = useCallback(() => {
     // Clear the draft's status override so the display falls back to the
@@ -282,6 +299,7 @@ export function ContentArea({
         submittedBy={version.user?.name}
         dateSubmitted={formatDate(version.created_at as string)}
         versionStatus={selectedVersionStatus}
+        statusFlashKey={statusFlashKey}
         projectId={version.project?.id}
         version={version}
         playlistId={playlistId}
@@ -315,6 +333,8 @@ export function ContentArea({
         updateDraftNote={updateDraftNote}
         saveAttachmentIds={saveAttachmentIds}
         defaultHeight={assistantPanelVisible ? undefined : 300}
+        versionStatuses={versionStatuses}
+        onVersionStatusSelect={handleVersionStatusCommand}
       />
       <AssistantPanel
         playlistId={playlistId}

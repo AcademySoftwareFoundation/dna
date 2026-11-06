@@ -460,6 +460,54 @@ describe('useDraftNote', () => {
     );
   });
 
+  it('keeps a status set in the same tick as the note edit that follows it', async () => {
+    mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
+    mockedApiHandler.upsertDraftNote.mockResolvedValue({
+      ...mockDraftNote,
+      content: 'Looks good',
+      version_status: 'apr',
+    });
+
+    const { result } = renderHook(
+      () =>
+        useDraftNote({
+          playlistId: '1',
+          versionId: '2',
+          userEmail: 'test@example.com',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.draftNote?.content).toBe('Test content');
+    });
+
+    // The "/" status command: set the status, then remove the typed text.
+    act(() => {
+      void result.current.saveVersionStatus('apr');
+      result.current.updateDraftNote({ content: 'Looks good' });
+    });
+
+    await waitFor(() => {
+      expect(mockedApiHandler.upsertDraftNote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ content: 'Looks good' }),
+        })
+      );
+    });
+
+    expect(mockedApiHandler.upsertDraftNote).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: 'Looks good',
+          version_status: 'apr',
+        }),
+      })
+    );
+    expect(result.current.draftNote?.versionStatus).toBe('apr');
+    expect(result.current.draftNote?.content).toBe('Looks good');
+  });
+
   it('optimistically updates draftNote query cache for version_status', async () => {
     mockedApiHandler.getDraftNote.mockResolvedValue(mockDraftNote);
     let resolveUpsert!: (value: DraftNote) => void;
