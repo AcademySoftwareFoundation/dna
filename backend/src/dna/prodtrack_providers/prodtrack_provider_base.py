@@ -227,7 +227,7 @@ class ProdtrackProviderBase:
             playlist_id: The ID of the playlist
 
         Returns:
-            List of Version entities in the playlist
+            List of Version entities in the playlist, in playlist order
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

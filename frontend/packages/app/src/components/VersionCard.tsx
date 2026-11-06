@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { css, type DefaultTheme } from 'styled-components';
 import { Eye, NotebookPen, Pin, PinOff, X } from 'lucide-react';
-import { Tooltip } from '@radix-ui/themes';
+import { Badge, Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { ACCENTS } from '../styles';
 import { UserAvatar } from './UserAvatar';
@@ -371,9 +371,10 @@ const ArtistName = styled.span`
   text-overflow: ellipsis;
 `;
 
-const Department = styled.span`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.text.muted};
+// The same soft accent pill a linked entity gets in the Fields panel.
+const Department = styled(Badge)`
+  align-self: flex-start;
+  text-transform: uppercase;
 `;
 
 function StatusBadge({ status, label, letter }: { status: NoteStatus; label: string; letter: string }) {
@@ -550,7 +551,7 @@ export function VersionCard({
             <ArtistName>{artistName}</ArtistName>
           </ArtistRow>
         )}
-        {department && <Department>{department}</Department>}
+        {department && <Department variant="soft">{department}</Department>}
       </Content>
       <IconsContainer>
         <TopIcons>

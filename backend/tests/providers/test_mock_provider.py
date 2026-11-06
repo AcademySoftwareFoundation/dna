@@ -467,6 +467,25 @@ def test_get_versions_for_playlist(mock_provider):
     assert versions[0].task is not None
 
 
+def test_get_versions_for_playlist_keeps_playlist_order(mock_db_path):
+    """Order follows insertion into the playlist, not version ID."""
+    conn = sqlite3.connect(mock_db_path)
+    conn.execute("DELETE FROM playlist_versions")
+    source = conn.execute("SELECT * FROM versions WHERE id = '300'").fetchone()
+    placeholders = ", ".join("?" for _ in source)
+    conn.execute(f"INSERT INTO versions VALUES ({placeholders})", ("100", *source[1:]))
+    for version_id in ("300", "100"):
+        conn.execute(
+            "INSERT INTO playlist_versions (playlist_id, version_id) VALUES ('400', ?)",
+            (version_id,),
+        )
+    conn.commit()
+    conn.close()
+    provider = MockProdtrackProvider(db_path=mock_db_path)
+    versions = provider.get_versions_for_playlist(400)
+    assert [v.id for v in versions] == ["300", "100"]
+
+
 def test_get_versions_for_playlist_empty(mock_provider):
     versions = mock_provider.get_versions_for_playlist(999)
     assert versions == []

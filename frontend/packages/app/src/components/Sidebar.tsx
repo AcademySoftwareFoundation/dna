@@ -22,6 +22,7 @@ import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
+import { SortVersionsDialog } from './SortVersionsDialog';
 import { PublishDialog } from './PublishDialog';
 import { scopePublishToVersion } from './publishScope';
 import { createReviewExporters } from '../export/exporters';
@@ -34,9 +35,15 @@ import {
   usePlaylistDraftNotes,
   useSetInReview,
   useFollowInReview,
+  useSortedVersions,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
-import { useFeatureFlags, useNoteFocus, useToast } from '../contexts';
+import {
+  useFeatureFlags,
+  useNoteFocus,
+  useToast,
+  useVersionSort,
+} from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -333,6 +340,7 @@ export function Sidebar({
     null
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
   const versionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<ExpandableSearchHandle>(null);
@@ -349,13 +357,15 @@ export function Sidebar({
   useHotkeyAction('focusSearch', () => searchRef.current?.focus());
 
   const {
-    data: versions,
+    data: playlistVersions,
     isLoading,
     isFetching,
     isError,
     error,
     refetch,
   } = useGetVersionsForPlaylist(playlistId);
+  const versions = useSortedVersions(playlistVersions);
+  const { sort } = useVersionSort();
 
   const { data: user } = useGetUserByEmail(userEmail);
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
@@ -540,6 +550,7 @@ export function Sidebar({
       label: 'Change Playlist',
       onSelect: () => setToolbarInput('change-playlist'),
     },
+    { label: 'Sort Versions', onSelect: () => setIsSortOpen(true) },
     { label: 'Add Version', onSelect: () => setToolbarInput('add-version') },
     { label: 'Add Scratch Pad', onSelect: handleAddScratch },
   ];
@@ -645,7 +656,11 @@ export function Sidebar({
               <VersionCard
                 version={version}
                 artistName={version.user?.name}
-                department={version.task?.pipeline_step?.name}
+                department={
+                  sort.field === 'pipeline_step'
+                    ? version.task?.pipeline_step?.name
+                    : undefined
+                }
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
                 inReview={inReviewEnabled && inReviewVersionId === version.id}
@@ -837,6 +852,8 @@ export function Sidebar({
       )}
 
 
+
+      <SortVersionsDialog open={isSortOpen} onOpenChange={setIsSortOpen} />
 
       {playlistId && (
         <PublishDialog

@@ -74,3 +74,5 @@ export {
   SELECTED_ENTITY_FIELDS_STORAGE_KEY,
 } from './useEntityFields';
 export type { EntityFieldTarget } from './useEntityFields';
+
+export { useSortedVersions } from './useSortedVersions';

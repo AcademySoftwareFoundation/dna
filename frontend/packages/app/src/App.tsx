@@ -12,6 +12,9 @@ import {
   useInReviewChangedEvents,
   usePlaylistMetadata,
 } from './hooks/usePlaylistMetadata';
+import { useSortedVersions } from './hooks/useSortedVersions';
+
+const NO_VERSIONS: Version[] = [];
 
 function App() {
   const queryClient = useQueryClient();
@@ -23,9 +26,10 @@ function App() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
 
-  const { data: versions = [], refetch } = useGetVersionsForPlaylist(
+  const { data: playlistVersions, refetch } = useGetVersionsForPlaylist(
     selectedPlaylist?.id ?? null
   );
+  const versions = useSortedVersions(playlistVersions) ?? NO_VERSIONS;
 
   const { data: playlistMetadata } = usePlaylistMetadata(
     selectedPlaylist?.id ?? null
