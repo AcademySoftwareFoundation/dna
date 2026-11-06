@@ -19,6 +19,10 @@ const ENTITY_ICONS: Record<string, string> = {
   project: '🗂️',
 };
 
+const GROUP_LABELS: Record<string, string> = {
+  status: 'STATUSES',
+};
+
 const List = styled.div`
   background: ${({ theme }) => theme.colors.bg.surface};
   border: 1px solid ${({ theme }) => theme.colors.border.default};
@@ -178,7 +182,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
       <List>
         {Object.entries(grouped).map(([type, typeItems]) => (
           <div key={type}>
-            <GroupHeader>{type.toUpperCase()}S</GroupHeader>
+            <GroupHeader>{GROUP_LABELS[type] ?? `${type.toUpperCase()}S`}</GroupHeader>
             {typeItems.map((item) => {
               const currentIndex = flatIndex++;
               return (
@@ -195,7 +199,9 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                       setSelectedIndex(currentIndex);
                   }}
                 >
-                  <EntityIcon>{ENTITY_ICONS[type] ?? '•'}</EntityIcon>
+                  {type !== 'status' && (
+                    <EntityIcon>{ENTITY_ICONS[type] ?? '•'}</EntityIcon>
+                  )}
                   <span>{item.name}</span>
                   {item.email && <EntityEmail>{item.email}</EntityEmail>}
                 </Item>

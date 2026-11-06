@@ -19,7 +19,7 @@ import {
   Minus,
   Image,
 } from 'lucide-react';
-import { SearchResult, filterMentionCandidates } from '@dna/core';
+import { SearchResult, StatusOption, filterMentionCandidates } from '@dna/core';
 import { apiHandler } from '../api';
 import {
   useMentionIndex,
@@ -27,6 +27,7 @@ import {
 } from '../contexts/MentionIndexContext';
 import { useNoteFocus } from '../contexts/NoteFocusContext';
 import { MentionList, type MentionListHandle } from './MentionList';
+import { StatusCommand, type StatusCommandAttrs } from './statusCommand';
 
 interface MarkdownEditorProps {
   value?: string;
@@ -42,6 +43,10 @@ interface MarkdownEditorProps {
   minHeight?: number;
   projectId?: string | null;
   onMentionInsert?: (entity: SearchResult) => void;
+  /** Statuses offered by the "/" command. */
+  versionStatuses?: StatusOption[];
+  /** Enables the "/" command; called with the picked status code. */
+  onVersionStatusSelect?: (code: string) => void;
 }
 
 const turndownService = new TurndownService({
@@ -380,6 +385,18 @@ interface MentionSuggestionState {
   isLoading: boolean;
 }
 
+interface StatusMenuState {
+  items: SearchResult[];
+  rect: DOMRect | null;
+  command: ((attrs: StatusCommandAttrs) => void) | null;
+}
+
+const CLOSED_STATUS_MENU: StatusMenuState = {
+  items: [],
+  rect: null,
+  command: null,
+};
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -393,6 +410,8 @@ export function MarkdownEditor({
   minHeight = 80,
   projectId,
   onMentionInsert,
+  versionStatuses,
+  onVersionStatusSelect,
 }: MarkdownEditorProps) {
   const isUpdatingRef = useRef(false);
   const lastValueRef = useRef(value);
@@ -421,6 +440,11 @@ export function MarkdownEditor({
   const mentionIndexRef = useRef<MentionIndexContextValue | null>(null);
   mentionIndexRef.current = mentionCtx;
   const mentionActiveQueryRef = useRef('');
+  const statusListRef = useRef<MentionListHandle | null>(null);
+  const versionStatusesRef = useRef(versionStatuses);
+  versionStatusesRef.current = versionStatuses;
+  const onVersionStatusSelectRef = useRef(onVersionStatusSelect);
+  onVersionStatusSelectRef.current = onVersionStatusSelect;
 
   useEffect(() => {
     projectIdRef.current = projectId;
@@ -444,6 +468,9 @@ export function MarkdownEditor({
     isLoading: false,
   });
 
+  const [statusMenu, setStatusMenu] =
+    useState<StatusMenuState>(CLOSED_STATUS_MENU);
+
   const mentionActiveRef = useRef(false);
   mentionActiveRef.current = mention.active;
 
@@ -462,6 +489,8 @@ export function MarkdownEditor({
 
   const handleEditorSubtreeBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
+      // Reopens on the next keystroke if the editor gets focus back.
+      setStatusMenu(CLOSED_STATUS_MENU);
       if (mentionActiveRef.current) {
         return;
       }
@@ -606,11 +635,42 @@ export function MarkdownEditor({
           }),
         },
       }),
+      StatusCommand.configure({
+        isEnabled: () => onVersionStatusSelectRef.current != null,
+        getStatuses: () => versionStatusesRef.current ?? [],
+        onSelect: (code) => onVersionStatusSelectRef.current?.(code),
+        render: () => {
+          const show = (props: {
+            items: SearchResult[];
+            clientRect?: (() => DOMRect | null) | null;
+            command: (attrs: StatusCommandAttrs) => void;
+          }) =>
+            setStatusMenu({
+              items: props.items,
+              rect: props.clientRect?.() ?? null,
+              command: props.command,
+            });
+          return {
+            onStart: show,
+            onUpdate: show,
+            // The list only exists while there are matches, so with none Enter
+            // falls through to the editor and typing a path isn't interrupted.
+            onKeyDown: (props) =>
+              props.event.key !== 'Escape' &&
+              (statusListRef.current?.onKeyDown(props) ?? false),
+            onExit: () => setStatusMenu(CLOSED_STATUS_MENU),
+          };
+        },
+      }),
     ],
     content: value ? markdownToHtml(value) : '',
     editorProps: {
       handleKeyDown: (view, event) => {
-        if (event.key !== 'Escape' || mentionActiveRef.current) {
+        if (
+          event.key !== 'Escape' ||
+          mentionActiveRef.current ||
+          statusListRef.current
+        ) {
           return false;
         }
         view.dom.blur();
@@ -777,6 +837,26 @@ export function MarkdownEditor({
               items={mention.items}
               command={handleMentionCommand}
               loading={mention.isLoading}
+            />
+          </MentionDropdownWrapper>,
+          document.body
+        )}
+
+      {statusMenu.items.length > 0 &&
+        statusMenu.rect &&
+        statusMenu.command &&
+        createPortal(
+          <MentionDropdownWrapper
+            data-mention-dropdown=""
+            style={{
+              top: statusMenu.rect.bottom + 4,
+              left: statusMenu.rect.left,
+            }}
+          >
+            <MentionList
+              ref={statusListRef}
+              items={statusMenu.items}
+              command={statusMenu.command}
             />
           </MentionDropdownWrapper>,
           document.body

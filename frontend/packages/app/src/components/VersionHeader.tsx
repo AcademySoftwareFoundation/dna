@@ -1,4 +1,4 @@
-import styled, { css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import { Tooltip } from '@radix-ui/themes';
 import {
   ChevronLeft,
@@ -25,6 +25,8 @@ interface VersionHeaderProps {
   submittedByImageUrl?: string;
   dateSubmitted?: string;
   versionStatus?: string;
+  /** Glows the status select each time this increases; 0 for no glow. */
+  statusFlashKey?: number;
   projectId?: string;
   thumbnailUrl?: string;
   links?: string[];
@@ -375,6 +377,29 @@ const StatusSelect = styled.select`
   }
 `;
 
+const statusFlash = keyframes`
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+`;
+
+// Laid over the select rather than animating it, because replaying an animation
+// on the select itself would mean remounting it and losing its focus.
+const StatusFlash = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: ${({ theme }) => theme.colors.accent.subtle};
+  border: 1px solid ${({ theme }) => theme.colors.accent.main};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.accent.subtle};
+  animation: ${statusFlash} 1.1s ease-out;
+`;
+
 const StatusSelectIcon = styled.div`
   position: absolute;
   right: 8px;
@@ -400,6 +425,7 @@ export function VersionHeader({
   submittedByImageUrl,
   dateSubmitted,
   versionStatus,
+  statusFlashKey = 0,
   projectId,
   thumbnailUrl,
   links = [],
@@ -555,6 +581,9 @@ export function VersionHeader({
                 <StatusSelectIcon>
                   <ChevronDown size={12} />
                 </StatusSelectIcon>
+                {statusFlashKey > 0 && (
+                  <StatusFlash key={statusFlashKey} data-testid="status-flash" />
+                )}
               </StatusSelectWrapper>
             </MetadataValue>
           </MetadataRow>

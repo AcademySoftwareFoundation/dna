@@ -9,7 +9,7 @@ import {
 } from 'react';
 import styled from 'styled-components';
 import { X, Image, ImageOff } from 'lucide-react';
-import { SearchResult, Version } from '@dna/core';
+import { SearchResult, StatusOption, Version } from '@dna/core';
 import { NoteOptionsInline } from './NoteOptionsInline';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MentionIndexProvider } from '../contexts/MentionIndexContext';
@@ -35,6 +35,10 @@ interface NoteEditorProps {
   onNoteContentBlur?: () => void;
   /** Override the initial editor height (pixels). Defaults to DEFAULT_HEIGHT. */
   defaultHeight?: number;
+  /** Statuses offered by the "/" command. */
+  versionStatuses?: StatusOption[];
+  /** Enables the "/" command; called with the picked status code. */
+  onVersionStatusSelect?: (code: string) => void;
 }
 
 export interface NoteEditorHandle {
@@ -329,6 +333,8 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       variant = 'default',
       onNoteContentBlur,
       defaultHeight,
+      versionStatuses,
+      onVersionStatusSelect,
     },
     ref
   ) {
@@ -706,6 +712,8 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
               minHeight={MIN_HEIGHT}
               projectId={projectId}
               onMentionInsert={handleMentionInsert}
+              versionStatuses={versionStatuses}
+              onVersionStatusSelect={onVersionStatusSelect}
             />
           </EditorContent>
 
