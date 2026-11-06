@@ -2,6 +2,11 @@
 # Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
 # Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
 # To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
+# Email:
+#   EMAIL_PROVIDER=noop logs/swallows emails for local development.
+#   Set EMAIL_PROVIDER=sendgrid | resend | smtp and provide the corresponding credentials to send real emails.
+#   Google SMTP uses smtp.gmail.com:587 with STARTTLS. SMTP_PASSWORD is a Google
+#   App Password, and SMTP_FROM_EMAIL must match SMTP_USERNAME.
 services:
   api:
     environment:
@@ -14,6 +19,13 @@ services:
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
       - AUTH_PROVIDER=none
+      - EMAIL_PROVIDER=smtp
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_START_TLS=true
+      - SMTP_USERNAME=YOUR_GMAIL_ADDRESS
+      - SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD
+      - SMTP_FROM_EMAIL=YOUR_GMAIL_ADDRESS
       # Transcript publishing (V1, disabled by default). Set to "true" to
       # expose POST /playlists/{id}/publish-transcript. See DEPLOYMENT.md
       # for the ShotGrid site-setup checklist the custom entity depends on.
