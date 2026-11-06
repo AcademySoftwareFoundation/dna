@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { useNomenclature } from '../nomenclature';
 
 interface PromptDebugPanelProps {
   prompt: string | null;
@@ -49,10 +50,11 @@ const EmptyState = styled.div`
 `;
 
 export function PromptDebugPanel({ prompt, context }: PromptDebugPanelProps) {
+  const t = useNomenclature();
   if (!prompt && !context) {
     return (
       <EmptyState>
-        No prompt data available. Generate a note to see the prompt.
+        No prompt data available. Generate a {t.note.lower} to see the prompt.
       </EmptyState>
     );
   }
@@ -60,7 +62,7 @@ export function PromptDebugPanel({ prompt, context }: PromptDebugPanelProps) {
   return (
     <PanelWrapper>
       <Section>
-        <SectionTitle>Version Context</SectionTitle>
+        <SectionTitle>{t.version.singular} Context</SectionTitle>
         <CodeBlock>{context || 'No context available'}</CodeBlock>
       </Section>
 

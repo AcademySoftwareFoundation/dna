@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Dialog, Flex } from '@radix-ui/themes';
 import type { DraftNote, Version } from '@dna/core';
 import { PublishNotesTabContent } from './PublishNotesDialog';
+import { useNomenclature } from '../nomenclature';
 
 export interface PublishDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ export function PublishDialog({
   notes,
   versions = [],
 }: PublishDialogProps) {
+  const t = useNomenclature();
   const [isPending, setIsPending] = useState(false);
 
   return (
@@ -34,7 +36,8 @@ export function PublishDialog({
         }}
       >
         <Dialog.Description style={{ display: 'none' }}>
-          Review and publish notes and transcripts to production tracking.
+          Review and {t.publish.lower} {t.note.lowerPlural} and transcripts to{' '}
+          {t.productionTracking.lower}.
         </Dialog.Description>
         <Flex
           align="center"
@@ -43,7 +46,7 @@ export function PublishDialog({
           p="4"
           style={{ borderBottom: '1px solid var(--gray-a6)', flexShrink: 0 }}
         >
-          <Dialog.Title style={{ margin: 0 }}>Publish</Dialog.Title>
+          <Dialog.Title style={{ margin: 0 }}>{t.publish.verb}</Dialog.Title>
         </Flex>
         <PublishNotesTabContent
           open={open}

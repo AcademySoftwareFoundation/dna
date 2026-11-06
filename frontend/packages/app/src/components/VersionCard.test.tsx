@@ -4,6 +4,7 @@ import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { darkTheme } from '../styles/theme';
+import { NomenclatureProvider } from '../nomenclature';
 import { VersionCard } from './VersionCard';
 
 const version = { id: '7190', name: 'TST_010_0010_comp_v001' } as Version;
@@ -12,7 +13,9 @@ function renderCard(props: Partial<Parameters<typeof VersionCard>[0]> = {}) {
   return render(
     <ThemeProvider theme={darkTheme}>
       <Theme>
-        <VersionCard version={version} {...props} />
+        <NomenclatureProvider>
+          <VersionCard version={version} {...props} />
+        </NomenclatureProvider>
       </Theme>
     </ThemeProvider>
   );
@@ -84,12 +87,14 @@ describe('VersionCard in-review eye', () => {
     const card = (inReviewPinned: boolean) => (
       <ThemeProvider theme={darkTheme}>
         <Theme>
-          <VersionCard
-            version={version}
-            inReview
-            inReviewPinned={inReviewPinned}
-            onTogglePin={vi.fn()}
-          />
+          <NomenclatureProvider>
+            <VersionCard
+              version={version}
+              inReview
+              inReviewPinned={inReviewPinned}
+              onTogglePin={vi.fn()}
+            />
+          </NomenclatureProvider>
         </Theme>
       </ThemeProvider>
     );

@@ -8,6 +8,7 @@ import {
   type Version,
 } from '@dna/core';
 import { apiHandler } from '../api';
+import type { ResolvedNomenclature } from '../nomenclature';
 
 /**
  * Fetch everything a review export needs, fresh, so the file reflects the
@@ -21,6 +22,7 @@ export async function loadReviewExportData({
   userEmail,
   transcriptionEnabled,
   queryClient,
+  terms,
 }: {
   playlistId: string;
   projectId: string | null;
@@ -29,6 +31,7 @@ export async function loadReviewExportData({
   userEmail: string;
   transcriptionEnabled: boolean;
   queryClient: QueryClient;
+  terms: ResolvedNomenclature;
 }): Promise<ReviewExportData> {
   const exportedAt = new Date();
   const [draftNotes, segmentEntries, statuses, transcripts, playlists] =
@@ -77,7 +80,7 @@ export async function loadReviewExportData({
 
   const playlistName =
     playlists.find((p) => p.id === playlistId)?.code ||
-    `Playlist ${playlistId}`;
+    `${terms.playlist.singular} ${playlistId}`;
 
   // The scratch tile only carries the project id; name it like the others.
   const projectNames = new Map(

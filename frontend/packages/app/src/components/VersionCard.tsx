@@ -6,6 +6,7 @@ import { Tooltip } from '@radix-ui/themes';
 import type { Version } from '@dna/core';
 import { ACCENTS } from '../styles';
 import { UserAvatar } from './UserAvatar';
+import { useNomenclature } from '../nomenclature';
 
 export type NoteStatus = 'published' | 'edited' | 'draft';
 
@@ -431,7 +432,8 @@ export function VersionCard({
   onTogglePin,
   onRemove,
 }: VersionCardProps) {
-  const displayName = version.name || `Version ${version.id}`;
+  const t = useNomenclature();
+  const displayName = version.name || `${t.version.singular} ${version.id}`;
   // The pin state a click asked for. Hover effects stay on until it arrives, so
   // the button doesn't flash its resting look while the request is in flight.
   const [pinSettleTarget, setPinSettleTarget] = useState<boolean | null>(null);
@@ -446,8 +448,8 @@ export function VersionCard({
 
   const getStatusLabel = (status: NoteStatus) => {
     switch (status) {
-      case 'published': return 'Published';
-      case 'edited': return 'Published (Edited)';
+      case 'published': return t.publish.past;
+      case 'edited': return `${t.publish.past} (Edited)`;
       case 'draft': return 'Draft';
     }
   };

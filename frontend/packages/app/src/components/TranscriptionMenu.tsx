@@ -31,6 +31,7 @@ import {
 import { apiHandler } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { SplitButton } from './SplitButton';
+import { useNomenclature } from '../nomenclature';
 
 interface TranscriptionMenuProps {
   playlistId: string | null;
@@ -357,6 +358,7 @@ export function TranscriptionMenu({
   playlistId,
   collapsed = false,
 }: TranscriptionMenuProps) {
+  const t = useNomenclature();
   const [meetingUrl, setMeetingUrl] = useState('');
   const [passcode, setPasscode] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -736,7 +738,7 @@ export function TranscriptionMenu({
 
           {!playlistId && (
             <Text size="1" color="gray">
-              Select a playlist to enable transcription
+              Select a {t.playlist.lower} to enable transcription
             </Text>
           )}
         </MenuContainer>

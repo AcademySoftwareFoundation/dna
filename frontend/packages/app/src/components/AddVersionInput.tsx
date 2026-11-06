@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Version, normalizeEntitySearchQuery } from '@dna/core';
 import { apiHandler } from '../api';
 import { useEntitySearch } from '../hooks/useEntitySearch';
+import { useNomenclature } from '../nomenclature';
 
 export interface AddVersionInputProps {
   playlistId: string;
@@ -154,6 +155,7 @@ export function AddVersionInput({
   onClose,
   onVersionAdded,
 }: AddVersionInputProps) {
+  const t = useNomenclature();
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -258,7 +260,7 @@ export function AddVersionInput({
               onFocus={() => trimmedQuery.length > 0 && setIsOpen(true)}
               onBlur={() => setIsOpen(false)}
               onKeyDown={handleKeyDown}
-              placeholder="Add version..."
+              placeholder={`Add ${t.version.lower}...`}
             />
             {isPending && <Loader2 size={14} className="animate-spin" />}
           </FieldContainer>
@@ -276,7 +278,7 @@ export function AddVersionInput({
               <ErrorText>
                 {error instanceof Error
                   ? error.message
-                  : 'Failed to add version'}
+                  : `Failed to add ${t.version.lower}`}
               </ErrorText>
             )}
             {isLoading ? (
@@ -286,7 +288,7 @@ export function AddVersionInput({
               </LoadingState>
             ) : availableResults.length === 0 ? (
               trimmedQuery.length > 0 && !isError ? (
-                <EmptyState>No versions found</EmptyState>
+                <EmptyState>No {t.version.lowerPlural} found</EmptyState>
               ) : null
             ) : (
               availableResults.map((result, index) => (
@@ -306,7 +308,10 @@ export function AddVersionInput({
           </div>
         </StyledPopoverContent>
       </Popover.Root>
-      <CloseButton onClick={onClose} aria-label="Close add version">
+      <CloseButton
+        onClick={onClose}
+        aria-label={`Close add ${t.version.lower}`}
+      >
         <X size={14} />
       </CloseButton>
     </Wrapper>

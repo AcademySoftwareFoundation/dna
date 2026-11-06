@@ -36,7 +36,12 @@ import {
   useFollowInReview,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
-import { useFeatureFlags, useNoteFocus, useToast } from '../contexts';
+import {
+  useFeatureFlags,
+  useNomenclature,
+  useNoteFocus,
+  useToast,
+} from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -437,9 +442,10 @@ export function Sidebar({
 
   const { showToast } = useToast();
   const theme = useTheme();
+  const t = useNomenclature();
   const exporters = useMemo(
-    () => createReviewExporters({ accent: theme.colors.accent.main }),
-    [theme.colors.accent.main]
+    () => createReviewExporters({ accent: theme.colors.accent.main, terms: t }),
+    [theme.colors.accent.main, t]
   );
   const [exportingLabel, setExportingLabel] = useState<string | null>(null);
 
@@ -466,12 +472,13 @@ export function Sidebar({
         userEmail,
         transcriptionEnabled,
         queryClient,
+        terms: t,
       });
       await exporter.export(data, destination);
       const count = data.rows.length;
       showToast({
         title: `${label} exported`,
-        description: `${count} version${count === 1 ? '' : 's'} saved.`,
+        description: `${count} ${count === 1 ? t.version.lower : t.version.lowerPlural} saved.`,
         type: 'success',
       });
     } catch (err) {
@@ -492,7 +499,7 @@ export function Sidebar({
         disabled={!selectedVersionId}
         onSelect={() => setPublishScope('selected')}
       >
-        Publish Selected
+        {t.publish.verb} Selected
       </DropdownMenu.Item>
       {exporters.map((exporter) => {
         const { label } = exporter.fileType;
@@ -537,10 +544,10 @@ export function Sidebar({
 
   const playlistMenuItems = [
     {
-      label: 'Change Playlist',
+      label: `Change ${t.playlist.singular}`,
       onSelect: () => setToolbarInput('change-playlist'),
     },
-    { label: 'Add Version', onSelect: () => setToolbarInput('add-version') },
+    { label: `Add ${t.version.singular}`, onSelect: () => setToolbarInput('add-version') },
     { label: 'Add Scratch Pad', onSelect: handleAddScratch },
   ];
 
@@ -571,7 +578,7 @@ export function Sidebar({
     if (!playlistId) {
       return (
         <StateContainer>
-          <StateText>Select a playlist to view versions</StateText>
+          <StateText>Select a {t.playlist.lower} to view {t.version.lowerPlural}</StateText>
         </StateContainer>
       );
     }
@@ -580,7 +587,7 @@ export function Sidebar({
       return (
         <StateContainer>
           <LoadingSpinner />
-          <StateText>Loading versions...</StateText>
+          <StateText>Loading {t.version.lowerPlural}...</StateText>
         </StateContainer>
       );
     }
@@ -589,7 +596,7 @@ export function Sidebar({
       return (
         <StateContainer>
           <ErrorIcon />
-          <StateText>{error?.message || 'Failed to load versions'}</StateText>
+          <StateText>{error?.message || `Failed to load ${t.version.lowerPlural}`}</StateText>
         </StateContainer>
       );
     }
@@ -597,7 +604,7 @@ export function Sidebar({
     if ((!versions || versions.length === 0) && !hasScratch) {
       return (
         <StateContainer>
-          <StateText>No versions in this playlist</StateText>
+          <StateText>No {t.version.lowerPlural} in this {t.playlist.lower}</StateText>
         </StateContainer>
       );
     }
@@ -688,11 +695,11 @@ export function Sidebar({
                   variant="solid"
                   onClick={() => setPublishScope('all')}
                 >
-                  Publish
+                  {t.publish.verb}
                 </Button>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger>
-                    <Button size="2" variant="solid" aria-label="More publish options">
+                    <Button size="2" variant="solid" aria-label={`More ${t.publish.lower} options`}>
                       <ChevronDown size={14} />
                     </Button>
                   </DropdownMenu.Trigger>
@@ -727,11 +734,11 @@ export function Sidebar({
               variant="solid"
               onClick={() => setPublishScope('all')}
             >
-              Publish
+              {t.publish.verb}
             </Button>
             <DropdownMenu.Root>
               <DropdownMenu.Trigger>
-                <Button size="2" variant="solid" aria-label="More publish options">
+                <Button size="2" variant="solid" aria-label={`More ${t.publish.lower} options`}>
                   <ChevronDown size={14} />
                 </Button>
               </DropdownMenu.Trigger>
@@ -767,7 +774,7 @@ export function Sidebar({
                   menuItems={playlistMenuItems}
                   onClick={() => refetch()}
                 >
-                  Reload Playlist
+                  Reload {t.playlist.singular}
                 </SplitButton>
                 {inReviewEnabled && (
                   <FollowRow>
@@ -788,7 +795,7 @@ export function Sidebar({
           {!toolbarInputOpen && (
             <ExpandableSearch
               ref={searchRef}
-              placeholder="Search versions..."
+              placeholder={`Search ${t.version.lowerPlural}...`}
               versions={versions}
               selectedVersionId={selectedVersionId}
               onVersionSelect={handleSearchVersionSelect}

@@ -16,12 +16,14 @@ import {
   type ReviewExportData,
   type ReviewRow,
 } from '@dna/core';
+import type { ResolvedNomenclature } from '../nomenclature';
 
 export interface ReviewPdfOptions {
   /** Hex accent color from the user's theme. */
   accent: string;
   /** Version ID → JPEG data URL, from `loadThumbnails`. */
   thumbnails: Map<string, string>;
+  terms: ResolvedNomenclature;
 }
 
 /** Notes longer than this may split across pages instead of moving whole. */
@@ -120,12 +122,25 @@ const styles = StyleSheet.create({
   },
 });
 
-function Summary({ rows, accent }: { rows: ReviewRow[]; accent: string }) {
+function Summary({
+  rows,
+  accent,
+  terms,
+}: {
+  rows: ReviewRow[];
+  accent: string;
+  terms: ResolvedNomenclature;
+}) {
   const { versions, notes, statusChanges } = summarizeReview(rows);
   const items = [
-    [versions, versions === 1 ? 'Version' : 'Versions'],
-    [notes, notes === 1 ? 'Note' : 'Notes'],
-    [statusChanges, statusChanges === 1 ? 'Status change' : 'Status changes'],
+    [versions, versions === 1 ? terms.version.singular : terms.version.plural],
+    [notes, notes === 1 ? terms.note.singular : terms.note.plural],
+    [
+      statusChanges,
+      statusChanges === 1
+        ? `${terms.status.singular} change`
+        : `${terms.status.singular} changes`,
+    ],
   ] as const;
   return (
     <View style={styles.summary}>
@@ -185,7 +200,7 @@ function VersionCard({
         </View>
 
         <Text style={styles.sectionLabel} minPresenceAhead={24}>
-          Note
+          {options.terms.note.singular}
         </Text>
         {row.note ? (
           // One paragraph per author, rather than a tall blank line.
@@ -195,7 +210,7 @@ function VersionCard({
             </Text>
           ))
         ) : (
-          <Text style={styles.empty}>No note</Text>
+          <Text style={styles.empty}>No {options.terms.note.lower}</Text>
         )}
       </View>
 
@@ -231,7 +246,11 @@ export function ReviewPdfDocument({
         <Text style={styles.subtitle}>
           {data.title} · Exported {date}
         </Text>
-        <Summary rows={data.rows} accent={options.accent} />
+        <Summary
+          rows={data.rows}
+          accent={options.accent}
+          terms={options.terms}
+        />
 
         {data.rows.map((row) => (
           <VersionCard

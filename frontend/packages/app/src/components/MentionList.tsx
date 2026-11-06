@@ -8,6 +8,7 @@ import {
 import styled from 'styled-components';
 import { Loader2 } from 'lucide-react';
 import { SearchResult } from '@dna/core';
+import { useNomenclature } from '../nomenclature';
 
 const ENTITY_ICONS: Record<string, string> = {
   user: '👤',
@@ -98,6 +99,7 @@ export interface MentionListHandle {
 
 export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
   function MentionList({ items, command, loading = false }, ref) {
+    const t = useNomenclature();
     const [selectedIndex, setSelectedIndex] = useState(0);
     const activeItemRef = useRef<HTMLDivElement | null>(null);
     const isKeyboardNavRef = useRef(false);
@@ -178,7 +180,9 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
       <List>
         {Object.entries(grouped).map(([type, typeItems]) => (
           <div key={type}>
-            <GroupHeader>{type.toUpperCase()}S</GroupHeader>
+            <GroupHeader>
+              {t.entityLabel(type).plural.toUpperCase()}
+            </GroupHeader>
             {typeItems.map((item) => {
               const currentIndex = flatIndex++;
               return (

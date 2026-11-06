@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '../test/render';
 import { HotkeysProvider } from '../hotkeys';
+import { NomenclatureProvider } from '../nomenclature';
 import { VersionHeader } from './VersionHeader';
 import { apiHandler } from '../api';
 
@@ -51,5 +52,38 @@ describe('VersionHeader', () => {
     );
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('uses studio terminology from the nomenclature config', () => {
+    render(
+      <NomenclatureProvider
+        overrides={{
+          version: { singular: 'Take', plural: 'Takes' },
+          status: { singular: 'Stage' },
+          productionTracking: { singular: 'ShotGrid', short: 'SG' },
+        }}
+      >
+        <HotkeysProvider>
+          <VersionHeader
+            shotCode="SHOT"
+            versionNumber="v001"
+            projectId="1"
+            prodtrackDetailUrl="https://studio.shotgrid.autodesk.com/detail/Version/1"
+            prodtrackTabUsesExtension
+            onSyncProdtrackTab={vi.fn()}
+          />
+        </HotkeysProvider>
+      </NomenclatureProvider>
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Previous Take/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Next Take/ })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /SG tab/ })).toBeInTheDocument();
+    expect(screen.getByText('Take Stage:')).toBeInTheDocument();
+    expect(screen.queryByText(/Version/)).not.toBeInTheDocument();
   });
 });

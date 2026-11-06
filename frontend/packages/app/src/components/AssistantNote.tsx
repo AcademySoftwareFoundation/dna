@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SplitButton } from './SplitButton';
+import { useNomenclature } from '../nomenclature';
 
 interface AssistantNoteProps {
   suggestion?: string | null;
@@ -323,6 +324,7 @@ export function AssistantNote({
   onPreviousVersion,
   onNextVersion,
 }: AssistantNoteProps) {
+  const t = useNomenclature();
   const { getLabel } = useHotkeyConfig();
   const [showInstructions, setShowInstructions] = useState(false);
   const [instructions, setInstructions] = useState('');
@@ -416,18 +418,18 @@ export function AssistantNote({
         {isLoading && (
           <LoadingState>
             <SpinnerIcon size={16} />
-            Generating note suggestion...
+            Generating {t.note.lower} suggestion...
           </LoadingState>
         )}
 
         {error && !isLoading && (
-          <ErrorState>Failed to generate note: {error.message}</ErrorState>
+          <ErrorState>Failed to generate {t.note.lower}: {error.message}</ErrorState>
         )}
 
         {showEmptyState && (
           <EmptyState>
-            No note has been generated yet. Click Regenerate to create an
-            AI-powered note suggestion.
+            No {t.note.lower} has been generated yet. Click Regenerate to create
+            an AI-powered {t.note.lower} suggestion.
           </EmptyState>
         )}
 
@@ -445,16 +447,16 @@ export function AssistantNote({
                 <Tooltip content="Copy to clipboard">
                   <ActionButton
                     onClick={handleCopy}
-                    aria-label="Copy note to clipboard"
+                    aria-label={`Copy ${t.note.lower} to clipboard`}
                   >
                     <Copy size={12} />
                     Copy
                   </ActionButton>
                 </Tooltip>
-                <Tooltip content={`Insert below your note (${getLabel('aiInsert')})`}>
+                <Tooltip content={`Insert below your ${t.note.lower} (${getLabel('aiInsert')})`}>
                   <ActionButton
                     onClick={handleInsert}
-                    aria-label="Insert note below yours"
+                    aria-label={`Insert ${t.note.lower} below yours`}
                   >
                     <ArrowDownToLine size={12} />
                     Insert
@@ -466,7 +468,7 @@ export function AssistantNote({
               <VersionNav>
                 <VersionChevronButton
                   type="button"
-                  aria-label="Previous AI note version"
+                  aria-label={`Previous AI ${t.note.lower} version`}
                   $atLimit={!canGoPrevious}
                   disabled={!canGoPrevious}
                   onClick={() => onPreviousVersion?.()}
@@ -476,7 +478,7 @@ export function AssistantNote({
                 <VersionNavIndex>{activeOrdinal}</VersionNavIndex>
                 <VersionChevronButton
                   type="button"
-                  aria-label="Next AI note version"
+                  aria-label={`Next AI ${t.note.lower} version`}
                   $atLimit={!canGoNext}
                   disabled={!canGoNext}
                   onClick={() => onNextVersion?.()}

@@ -5,6 +5,7 @@ import { Copy, ArrowDownToLine, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { DraftNote } from '@dna/core';
 import { useOtherDraftNotes } from '../hooks';
+import { useNomenclature } from '../nomenclature';
 
 interface OtherNotesPanelProps {
   playlistId?: string | null;
@@ -258,6 +259,7 @@ function NoteItem({
   onInsertAndDelete,
   isDeleting,
 }: NoteItemProps) {
+  const t = useNomenclature();
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleInsertAndDelete = () => {
@@ -291,15 +293,18 @@ function NoteItem({
         </NoteContent>
         <ActionBar>
           <Tooltip content="Copy to clipboard">
-            <ActionButton onClick={onCopy} aria-label="Copy note to clipboard">
+            <ActionButton
+              onClick={onCopy}
+              aria-label={`Copy ${t.note.lower} to clipboard`}
+            >
               <Copy size={12} />
               Copy
             </ActionButton>
           </Tooltip>
-          <Tooltip content="Insert below your note">
+          <Tooltip content={`Insert below your ${t.note.lower}`}>
             <ActionButton
               onClick={onInsert}
-              aria-label="Insert note below yours"
+              aria-label={`Insert ${t.note.lower} below yours`}
             >
               <ArrowDownToLine size={12} />
               Insert
@@ -310,7 +315,7 @@ function NoteItem({
               <AlertDialog.Trigger>
                 <DangerButton
                   disabled={isDeleting}
-                  aria-label="Insert and delete original note"
+                  aria-label={`Insert and delete original ${t.note.lower}`}
                 >
                   <Trash2 size={12} />
                   Insert & Delete
@@ -318,11 +323,13 @@ function NoteItem({
               </AlertDialog.Trigger>
             </Tooltip>
             <AlertDialog.Content maxWidth="400px">
-              <AlertDialog.Title>Delete Original Note?</AlertDialog.Title>
+              <AlertDialog.Title>
+                Delete Original {t.note.singular}?
+              </AlertDialog.Title>
               <AlertDialog.Description size="2">
-                This will insert the note content below yours and permanently
-                delete {note.user_email}&apos;s draft note. This action cannot
-                be undone.
+                This will insert the {t.note.lower} content below yours and
+                permanently delete {note.user_email}&apos;s draft {t.note.lower}
+                . This action cannot be undone.
               </AlertDialog.Description>
               <Flex gap="3" mt="4" justify="end">
                 <AlertDialog.Cancel>
@@ -354,6 +361,7 @@ export function OtherNotesPanel({
   userEmail,
   onInsertNote,
 }: OtherNotesPanelProps) {
+  const t = useNomenclature();
   const { otherNotes, isLoading, deleteOtherNote, isDeleting } =
     useOtherDraftNotes({
       playlistId,
@@ -381,7 +389,9 @@ export function OtherNotesPanel({
   if (isLoading) {
     return (
       <PanelWrapper>
-        <LoadingState>Loading notes from other users...</LoadingState>
+        <LoadingState>
+          Loading {t.note.lowerPlural} from other users...
+        </LoadingState>
       </PanelWrapper>
     );
   }
@@ -389,7 +399,7 @@ export function OtherNotesPanel({
   if (otherNotes.length === 0) {
     return (
       <PanelWrapper>
-        <EmptyState>No notes from other users yet</EmptyState>
+        <EmptyState>No {t.note.lowerPlural} from other users yet</EmptyState>
       </PanelWrapper>
     );
   }
