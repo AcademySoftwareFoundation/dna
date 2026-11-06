@@ -1367,6 +1367,86 @@ class TestShotgridProviderGetVersionsForPlaylist:
         filters = version_call[1]["filters"]
         assert filters == [["id", "in", [10, 20]]]
 
+    @staticmethod
+    def _find_for_playlist_order(connections):
+        """A sg.find that answers connections, and versions by ascending ID."""
+
+        def find(entity_type, filters=None, fields=None):
+            if entity_type == "PlaylistVersionConnection":
+                if isinstance(connections, Exception):
+                    raise connections
+                return connections
+            if entity_type == "Version":
+                ids = sorted(filters[0][2])
+                return [{"id": vid, "code": f"v{vid}"} for vid in ids]
+            return []
+
+        return find
+
+    def test_get_versions_for_playlist_follows_sort_order(self, shotgrid_provider):
+        """Versions come back by sg_sort_order, not ID or versions-field order."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "versions": [
+                {"type": "Version", "id": 10},
+                {"type": "Version", "id": 20},
+                {"type": "Version", "id": 30},
+            ],
+        }
+        shotgrid_provider.sg.find.side_effect = self._find_for_playlist_order(
+            [
+                {"version": {"id": 10}, "sg_sort_order": 30},
+                {"version": {"id": 20}, "sg_sort_order": 10},
+                {"version": {"id": 30}, "sg_sort_order": 20},
+            ]
+        )
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert [v.id for v in results] == ["20", "30", "10"]
+
+    def test_get_versions_for_playlist_unset_sort_order_goes_last(
+        self, shotgrid_provider
+    ):
+        """Versions with no sg_sort_order follow, in versions-field order."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "versions": [
+                {"type": "Version", "id": 30},
+                {"type": "Version", "id": 10},
+                {"type": "Version", "id": 20},
+            ],
+        }
+        shotgrid_provider.sg.find.side_effect = self._find_for_playlist_order(
+            [
+                {"version": {"id": 30}, "sg_sort_order": None},
+                {"version": {"id": 20}, "sg_sort_order": 5},
+            ]
+        )
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert [v.id for v in results] == ["20", "30", "10"]
+
+    def test_get_versions_for_playlist_survives_sort_order_failure(
+        self, shotgrid_provider
+    ):
+        """If sg_sort_order can't be read, the versions field's order is used."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 1,
+            "versions": [
+                {"type": "Version", "id": 30},
+                {"type": "Version", "id": 10},
+            ],
+        }
+        shotgrid_provider.sg.find.side_effect = self._find_for_playlist_order(
+            RuntimeError("API read() invalid field")
+        )
+
+        results = shotgrid_provider.get_versions_for_playlist(1)
+
+        assert [v.id for v in results] == ["30", "10"]
+
     def test_get_versions_for_playlist_raises_error_when_not_connected(self):
         """Test that get_versions_for_playlist raises error when not connected."""
         provider = ShotgridProvider(
@@ -1416,6 +1496,7 @@ class TestShotgridProviderGetVersionsForPlaylist:
         }
 
         shotgrid_provider.sg.find.side_effect = [
+            [],  # Playlist version connections
             [
                 {
                     "id": 100,

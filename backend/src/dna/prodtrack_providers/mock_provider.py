@@ -309,7 +309,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
             versions = []
             if resolve_links:
                 for vrow in conn.execute(
-                    "SELECT version_id FROM playlist_versions WHERE playlist_id = ? ORDER BY version_id",
+                    "SELECT version_id FROM playlist_versions WHERE playlist_id = ? ORDER BY rowid",
                     (entity_id,),
                 ).fetchall():
                     versions.append(
@@ -610,7 +610,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         version_ids = [
             r["version_id"]
             for r in conn.execute(
-                "SELECT version_id FROM playlist_versions WHERE playlist_id = ? ORDER BY version_id",
+                "SELECT version_id FROM playlist_versions WHERE playlist_id = ? ORDER BY rowid",
                 (playlist_id,),
             ).fetchall()
         ]

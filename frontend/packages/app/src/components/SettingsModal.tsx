@@ -12,7 +12,6 @@ import {
   Tooltip,
 } from '@radix-ui/themes';
 import * as Tabs from '@radix-ui/react-tabs';
-import * as RadioGroup from '@radix-ui/react-radio-group';
 import { Loader2, Info, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRecordHotkeys } from 'react-hotkeys-hook';
@@ -31,7 +30,15 @@ import type { HotkeyAction } from '../hotkeys/hotkeysConfig';
 import { apiHandler } from '../api';
 import { NoteQCTab } from './NoteQCTab';
 import { useHotkeyConfig } from '../hotkeys';
-import { useThemeMode, useFeatureFlags } from '../contexts';
+import { useThemeMode, useFeatureFlags, useVersionSort } from '../contexts';
+import { DEFAULT_VERSION_SORT } from './versionSort';
+import {
+  OptionContent,
+  OptionDescription,
+  OptionLabel,
+  RadioOption,
+  RadioOptionGroup,
+} from './RadioOption';
 import { ACCENTS, ACCENT_NAMES } from '../styles';
 
 // Radix Select can't represent '' as an item value, so auto-detect gets a
@@ -57,10 +64,16 @@ const ModalContent = styled.div`
   gap: 24px;
 `;
 
-const Section = styled.div`
+const Section = styled.div<{ $divider?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 12px;
+  ${({ theme, $divider }) =>
+    $divider &&
+    `
+    padding-top: 16px;
+    border-top: 1px solid ${theme.colors.border.subtle};
+  `}
 `;
 
 const SectionTitle = styled.h3`
@@ -112,23 +125,6 @@ const CheckboxRow = styled.label`
   gap: 10px;
   padding: 8px 0;
   cursor: pointer;
-`;
-
-const CheckboxContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`;
-
-const CheckboxLabel = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.text.primary};
-`;
-
-const CheckboxDescription = styled.span`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.text.muted};
 `;
 
 const TooltipIcon = styled.span`
@@ -199,56 +195,6 @@ const StyledTabsTrigger = styled(Tabs.Trigger)`
   }
 `;
 
-const RadioGroupRoot = styled(RadioGroup.Root)`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`;
-
-const RadioItem = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-`;
-
-const RadioIndicator = styled(RadioGroup.Item)`
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid ${({ theme }) => theme.colors.border.default};
-  background: transparent;
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: border-color ${({ theme }) => theme.transitions.fast};
-
-  &[data-state='checked'] {
-    border-color: ${({ theme }) => theme.colors.accent.main};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.accent.main};
-    outline-offset: 2px;
-  }
-`;
-
-const RadioDot = styled(RadioGroup.Indicator)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-
-  &::after {
-    content: '';
-    display: block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: ${({ theme }) => theme.colors.accent.main};
-  }
-`;
-
 const SwatchRow = styled.div`
   display: flex;
   align-items: center;
@@ -281,16 +227,13 @@ const Swatch = styled.button<{ $color: string; $selected: boolean }>`
   }
 `;
 
-const AppearanceRow = styled.div`
+const AppearanceRow = styled.div<{ $divider?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
-
-  &:last-child {
-    border-bottom: none;
-  }
+  border-bottom: ${({ theme, $divider }) =>
+    $divider ? `1px solid ${theme.colors.border.subtle}` : 'none'};
 `;
 
 const KeybindingRow = styled.div`
@@ -465,7 +408,7 @@ function GeneralTab({
             onCheckedChange={(checked) => setMode(checked ? 'light' : 'dark')}
           />
         </AppearanceRow>
-        <AppearanceRow>
+        <AppearanceRow $divider>
           <KeybindingLabel>
             <KeybindingName>Accent Color</KeybindingName>
             <KeybindingDesc>
@@ -511,6 +454,13 @@ function GeneralTab({
             }
           />
         </AppearanceRow>
+        <AppearanceRow>
+          <KeybindingLabel>
+            <KeybindingName>Enable RV Link</KeybindingName>
+            <KeybindingDesc>Coming soon</KeybindingDesc>
+          </KeybindingLabel>
+          <Switch checked={false} disabled />
+        </AppearanceRow>
       </Section>
 
       <Section>
@@ -524,51 +474,45 @@ function GeneralTab({
             onCheckedChange={onSyncProdtrackTabOnVersionChange}
             disabled={isPending}
           />
-          <CheckboxContent>
-            <CheckboxLabel>
+          <OptionContent>
+            <OptionLabel>
               Sync PT tab when version changes
-            </CheckboxLabel>
-            <CheckboxDescription>
+            </OptionLabel>
+            <OptionDescription>
               When enabled (default), the extension updates your
               production-tracking tab whenever you select a different version.
               Turn off to update the PT tab only with the &quot;PT tab&quot;
               button in the version header.
-            </CheckboxDescription>
-          </CheckboxContent>
+            </OptionDescription>
+          </OptionContent>
         </CheckboxRow>
 
-        <CheckboxContent style={{ paddingTop: '8px' }}>
-          <CheckboxLabel>Page to sync</CheckboxLabel>
-          <CheckboxDescription>
+        <OptionContent style={{ paddingTop: '8px' }}>
+          <OptionLabel>Page to sync</OptionLabel>
+          <OptionDescription>
             Which production-tracking page opens when a version is selected.
-          </CheckboxDescription>
-        </CheckboxContent>
-        <RadioGroupRoot
+          </OptionDescription>
+        </OptionContent>
+        <RadioOptionGroup
           value={prodtrackPageType}
           onValueChange={(v) => onProdtrackPageTypeChange(v as 'version' | 'entity')}
         >
-          <RadioItem>
-            <RadioIndicator value="version" id="pt-version">
-              <RadioDot />
-            </RadioIndicator>
-            <CheckboxContent>
-              <CheckboxLabel>Version Detail</CheckboxLabel>
-              <CheckboxDescription>Open the version&apos;s detail page</CheckboxDescription>
-            </CheckboxContent>
-          </RadioItem>
-          <RadioItem>
-            <RadioIndicator value="entity" id="pt-entity">
-              <RadioDot />
-            </RadioIndicator>
-            <CheckboxContent>
-              <CheckboxLabel>Shot / Asset Detail</CheckboxLabel>
-              <CheckboxDescription>Open the linked shot or asset detail page</CheckboxDescription>
-            </CheckboxContent>
-          </RadioItem>
-        </RadioGroupRoot>
+          <RadioOption
+            value="version"
+            id="pt-version"
+            label="Version Detail"
+            description="Open the version's detail page"
+          />
+          <RadioOption
+            value="entity"
+            id="pt-entity"
+            label="Shot / Asset Detail"
+            description="Open the linked shot or asset detail page"
+          />
+        </RadioOptionGroup>
       </Section>
 
-      <Section>
+      <Section $divider>
         <SectionTitle>Reset Settings</SectionTitle>
         <SectionDescription>
             Resets user settings. Glossaries, keybindings, and QC checks are not affected.
@@ -809,11 +753,11 @@ function ProjectGlossaryEditor({ projectId }: { projectId: string | null }) {
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <GlossaryRow>
         <GlossaryRowText>
-          <CheckboxLabel>Project glossary</CheckboxLabel>
-          <CheckboxDescription>
+          <OptionLabel>Project glossary</OptionLabel>
+          <OptionDescription>
             Terms specific to the current production. Saved to this ShotGrid
             project.
-          </CheckboxDescription>
+          </OptionDescription>
         </GlossaryRowText>
         <Dialog.Trigger>
           <Button
@@ -1003,16 +947,16 @@ function AITab({
             onCheckedChange={onRegenerateOnVersionChange}
             disabled={isPending}
           />
-          <CheckboxContent>
-            <CheckboxLabel>
+          <OptionContent>
+            <OptionLabel>
               Regenerate notes on version change
-            </CheckboxLabel>
-            <CheckboxDescription>
+            </OptionLabel>
+            <OptionDescription>
               When you switch to a version that has no AI note yet, generate one
               automatically. Versions that already have a note are left as they
               are.
-            </CheckboxDescription>
-          </CheckboxContent>
+            </OptionDescription>
+          </OptionContent>
         </CheckboxRow>
 
         <CheckboxRow>
@@ -1021,16 +965,16 @@ function AITab({
             onCheckedChange={onRegenerateOnTranscriptUpdate}
             disabled={isPending}
           />
-          <CheckboxContent>
-            <CheckboxLabel>
+          <OptionContent>
+            <OptionLabel>
               Regenerate on transcript update
-            </CheckboxLabel>
-            <CheckboxDescription>
+            </OptionLabel>
+            <OptionDescription>
               Automatically regenerate the AI note when a new
               transcript segment comes in or an existing segment is
               updated.
-            </CheckboxDescription>
-          </CheckboxContent>
+            </OptionDescription>
+          </OptionContent>
         </CheckboxRow>
       </Section>
 
@@ -1056,11 +1000,11 @@ function AITab({
         </SectionDescription>
         <GlossaryRow>
           <GlossaryRowText>
-            <CheckboxLabel>Global glossary</CheckboxLabel>
-            <CheckboxDescription>
+            <OptionLabel>Global glossary</OptionLabel>
+            <OptionDescription>
               Industry-wide VFX terms, shared across all productions. Maintained
               in the open-source repo — open a PR to contribute.
-            </CheckboxDescription>
+            </OptionDescription>
           </GlossaryRowText>
           <Button
             asChild
@@ -1202,6 +1146,7 @@ export function SettingsModal({
   const { getAllActions, getKeysForAction, setKeysForAction, resetToDefaults } =
     useHotkeyConfig();
   const { setMode, setAccent } = useThemeMode();
+  const { setSort } = useVersionSort();
   const { setInReviewEnabled, setTranscriptionEnabled, setAiEnabled } =
     useFeatureFlags();
 
@@ -1317,6 +1262,7 @@ export function SettingsModal({
       // so they apply immediately. Setters no-op for env-locked flags.
       setMode('dark');
       setAccent('blue');
+      setSort(DEFAULT_VERSION_SORT);
       setInReviewEnabled(true);
       setTranscriptionEnabled(true);
       setAiEnabled(true);
@@ -1325,6 +1271,7 @@ export function SettingsModal({
     settings,
     setMode,
     setAccent,
+    setSort,
     setInReviewEnabled,
     setTranscriptionEnabled,
     setAiEnabled,

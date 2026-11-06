@@ -841,6 +841,45 @@ class ShotgridProvider(ProdtrackProviderBase):
             sg_playlist, entity_mapping, "playlist", resolve_links=False
         )
 
+    def _playlist_version_ids_in_order(
+        self, playlist_id: str, version_ids: list[int]
+    ) -> list[int]:
+        """Sort a playlist's version IDs by the connection's sg_sort_order.
+
+        Versions with no sort order go last. Those, and any ties, keep the order
+        of the playlist's versions field, which is also the fallback when the
+        sort order can't be read: a wrong order shouldn't stop a playlist loading.
+        """
+        try:
+            connections = self._sg.find(
+                "PlaylistVersionConnection",
+                filters=[
+                    [
+                        "playlist",
+                        "is",
+                        {"type": "Playlist", "id": _to_sg_id(playlist_id)},
+                    ]
+                ],
+                fields=["version", "sg_sort_order"],
+            )
+        except Exception:
+            logger.warning(
+                "Could not read sg_sort_order for playlist %s",
+                playlist_id,
+                exc_info=True,
+            )
+            return version_ids
+
+        sort_orders = {
+            c["version"]["id"]: c["sg_sort_order"]
+            for c in connections
+            if c.get("version") and c.get("sg_sort_order") is not None
+        }
+        return sorted(
+            version_ids,
+            key=lambda vid: (vid not in sort_orders, sort_orders.get(vid, 0)),
+        )
+
     def get_versions_for_playlist(self, playlist_id: str) -> list[Version]:
         """Get versions for a playlist.
 
@@ -848,7 +887,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             playlist_id: The ID of the playlist
 
         Returns:
-            List of Version entities in the playlist
+            List of Version entities in the playlist, in playlist order
         """
         if not self._sg:
             raise ValueError("Not connected to ShotGrid")
@@ -862,16 +901,23 @@ class ShotgridProvider(ProdtrackProviderBase):
         if not sg_playlist or not sg_playlist.get("versions"):
             return []
 
-        version_ids = [v["id"] for v in sg_playlist["versions"]]
+        version_ids = self._playlist_version_ids_in_order(
+            playlist_id, [v["id"] for v in sg_playlist["versions"]]
+        )
 
         entity_mapping = FIELD_MAPPING["version"]
         version_fields = list(entity_mapping["fields"].keys()) + list(
             entity_mapping["linked_fields"].keys()
         )
-        sg_versions = self._sg.find(
-            "Version",
-            filters=[["id", "in", version_ids]],
-            fields=version_fields,
+        # find() doesn't follow the ID list, so put the playlist's order back.
+        positions = {vid: i for i, vid in enumerate(version_ids)}
+        sg_versions = sorted(
+            self._sg.find(
+                "Version",
+                filters=[["id", "in", version_ids]],
+                fields=version_fields,
+            ),
+            key=lambda v: positions.get(v["id"], len(positions)),
         )
 
         # Collect unique task IDs from versions
