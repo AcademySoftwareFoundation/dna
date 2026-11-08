@@ -15,4 +15,5 @@ export * from './aiSuggestionManager';
 export * from './extension';
 export * from './reviewExport';
 export * from './entityFields';
+export * from './sessions';
 export * from './transcriptionLanguages';

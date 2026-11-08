@@ -49,6 +49,7 @@ function metadata(
     platform: null,
     transcription_paused: false,
     has_scratch: false,
+    session_ids: [],
   };
 }
 
@@ -62,7 +63,7 @@ function createClient() {
 }
 
 function renderInReviewEvents(
-  playlistId: string | null,
+  playlistId: string | readonly string[] | null,
   queryClient: QueryClient
 ) {
   function Wrapper({ children }: { children: ReactNode }) {
@@ -133,6 +134,26 @@ describe('useInReviewChangedEvents', () => {
 
     expect(queryClient.getQueryData(['playlistMetadata', '10'])).toEqual(
       metadata('100', true)
+    );
+  });
+
+  it('updates every playlist in a session', () => {
+    const queryClient = createClient();
+    queryClient.setQueryData(['playlistMetadata', '10'], metadata('100'));
+    queryClient.setQueryData(['playlistMetadata', '11'], {
+      ...metadata(null),
+      playlist_id: '11',
+    });
+
+    renderInReviewEvents(['10', '11'], queryClient);
+    emit('11', '300');
+
+    expect(queryClient.getQueryData(['playlistMetadata', '11'])).toMatchObject({
+      playlist_id: '11',
+      in_review: '300',
+    });
+    expect(queryClient.getQueryData(['playlistMetadata', '10'])).toEqual(
+      metadata('100')
     );
   });
 

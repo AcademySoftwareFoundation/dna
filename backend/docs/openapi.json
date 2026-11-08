@@ -370,6 +370,26 @@
         "title": "CreatePlaylistRequest",
         "type": "object"
       },
+      "CreateSessionRequest": {
+        "description": "Request body for creating a session.",
+        "examples": [
+          {
+            "name": "Morning dailies"
+          }
+        ],
+        "properties": {
+          "name": {
+            "description": "Display name for the session",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateSessionRequest",
+        "type": "object"
+      },
       "DispatchBotRequest": {
         "description": "Request to dispatch a bot to a meeting.",
         "examples": [
@@ -1657,6 +1677,9 @@
             "meeting_id": "abc-defg-hij",
             "platform": "google_meet",
             "playlist_id": "45",
+            "session_ids": [
+              "sess-1"
+            ],
             "transcription_paused": false,
             "vexa_meeting_id": 1842
           }
@@ -1713,6 +1736,14 @@
             "title": "Playlist Id",
             "type": "string"
           },
+          "session_ids": {
+            "description": "Session IDs this playlist is linked to",
+            "items": {
+              "type": "string"
+            },
+            "title": "Session Ids",
+            "type": "array"
+          },
           "transcription_paused": {
             "default": false,
             "title": "Transcription Paused",
@@ -1760,6 +1791,12 @@
           }
         ],
         "properties": {
+          "clear_in_review": {
+            "default": false,
+            "description": "If true, clears in_review and in_review_pinned. Rejected with 409 while the in-review version is pinned unless the same request sets in_review_pinned to false.",
+            "title": "Clear In Review",
+            "type": "boolean"
+          },
           "clear_resumed_at": {
             "default": false,
             "description": "If True, clears transcription_resumed_at. Used when starting a new transcription session.",
@@ -1825,6 +1862,21 @@
             ],
             "description": "Meeting platform",
             "title": "Platform"
+          },
+          "session_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Session IDs this playlist belongs to. Replaces the stored list. Omit to leave the current links unchanged; send an empty list to unlink the playlist from every session.",
+            "title": "Session Ids"
           },
           "transcription_paused": {
             "anyOf": [
@@ -2479,6 +2531,100 @@
           "name"
         ],
         "title": "SearchResult",
+        "type": "object"
+      },
+      "Session": {
+        "description": "An external review session.",
+        "examples": [
+          {
+            "created_at": "2026-10-14T15:02:41+00:00",
+            "id": "sess-1",
+            "name": "Morning dailies",
+            "project_id": "124",
+            "updated_at": "2026-10-14T16:45:10+00:00"
+          }
+        ],
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Creation time",
+            "title": "Created At"
+          },
+          "id": {
+            "description": "Session ID as issued by the session provider",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name",
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project this session belongs to",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last update time",
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "project_id"
+        ],
+        "title": "Session",
+        "type": "object"
+      },
+      "SessionPlaylists": {
+        "description": "Playlists DNA has linked to a session.",
+        "examples": [
+          {
+            "playlist_ids": [
+              "45",
+              "46"
+            ],
+            "session_id": "sess-1"
+          }
+        ],
+        "properties": {
+          "playlist_ids": {
+            "description": "Playlist IDs linked to this session, in link order",
+            "items": {
+              "type": "string"
+            },
+            "title": "Playlist Ids",
+            "type": "array"
+          },
+          "session_id": {
+            "description": "Session ID",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "SessionPlaylists",
         "type": "object"
       },
       "Shot": {
@@ -3668,7 +3814,7 @@
       "name": "DNA Project",
       "url": "https://github.com/AcademySoftwareFoundation/dna"
     },
-    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n\n### Authentication\nSend `Authorization: Bearer <token>` on every request except **Health**. The\nconfigured `AUTH_PROVIDER` validates the token (Google OAuth in production)\nand extracts the caller's email; most calls only return data when that email\nbelongs to a user in the tracking provider. Errors are `{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
+    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n  **Sessions** read an external session provider (`SESSION_PROVIDER`; 404 when\n  it is `none`) and store which playlists belong to a session in DNA.\n\n### Authentication\nSend `Authorization: Bearer <token>` on every request except **Health**. The\nconfigured `AUTH_PROVIDER` validates the token (Google OAuth in production)\nand extracts the caller's email; most calls only return data when that email\nbelongs to a user in the tracking provider. Errors are `{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
     "title": "DNA Backend",
     "version": "0.1.0"
   },
@@ -4748,7 +4894,7 @@
         ]
       },
       "put": {
-        "description": "Create or update metadata for a playlist (in-review version and meeting ID). When in_review or in_review_pinned is set, broadcasts playlist.in_review_changed to connected clients. While the in-review version is pinned, moving in_review to a different version is rejected with 409 unless the same request sets in_review_pinned to false.",
+        "description": "Create or update metadata for a playlist (in-review version, meeting ID, and session links). When in_review, in_review_pinned, or clear_in_review is set, broadcasts playlist.in_review_changed to connected clients. While the in-review version is pinned, moving in_review to a different version or clearing it is rejected with 409 unless the same request sets in_review_pinned to false.",
         "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
         "parameters": [
           {
@@ -5991,6 +6137,176 @@
         ]
       }
     },
+    "/projects/{project_id}/sessions": {
+      "get": {
+        "description": "Retrieve sessions for the specified project from the session provider. Returns 404 when sessions are not enabled.",
+        "operationId": "get_sessions_for_project_projects__project_id__sessions_get",
+        "parameters": [
+          {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Session"
+                  },
+                  "title": "Response Get Sessions For Project Projects  Project Id  Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get sessions for a project",
+        "tags": [
+          "Sessions"
+        ]
+      },
+      "post": {
+        "description": "Create a session in the session provider. Returns 404 when sessions are not enabled, and 501 when the provider cannot create sessions.",
+        "operationId": "create_session_projects__project_id__sessions_post",
+        "parameters": [
+          {
+            "description": "Project ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Configured production tracking provider does not support this operation"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a session",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
     "/schema/{entity_type}": {
       "get": {
         "description": "Return provider fields that are not part of the DNA model for this entity type. DNA fields (name, status, and so on) are omitted unless include_dna_fields is set, in which case they are returned with source 'dna'. Linked fields (for example a version's task) are returned as read-only.",
@@ -6155,6 +6471,144 @@
         "summary": "Search entities across multiple types",
         "tags": [
           "Entities"
+        ]
+      }
+    },
+    "/sessions/{session_id}": {
+      "get": {
+        "description": "Retrieve one session from the session provider. Returns 404 when sessions are not enabled or the session does not exist.",
+        "operationId": "get_session_sessions__session_id__get",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get a session",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}/playlists": {
+      "get": {
+        "description": "Retrieve the playlist IDs DNA has linked to a session. Returns 404 when sessions are not enabled or the session does not exist.",
+        "operationId": "get_session_playlists_sessions__session_id__playlists_get",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPlaylists"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get playlists linked to a session",
+        "tags": [
+          "Sessions"
         ]
       }
     },
@@ -7728,8 +8182,12 @@
       "name": "Publishing"
     },
     {
-      "description": "DNA's review state for a playlist: the version in review, the linked meeting, and transcription flags.",
+      "description": "DNA's review state for a playlist: the version in review, the linked meeting, session links, and transcription flags.",
       "name": "Playlist Metadata"
+    },
+    {
+      "description": "External review sessions from the session provider, and the playlists DNA has linked to each session. Routes return 404 when SESSION_PROVIDER is none.",
+      "name": "Sessions"
     },
     {
       "description": "Per-project terminology stored in DNA and injected into AI prompts.",
@@ -7765,6 +8223,7 @@
         "Draft Notes",
         "Publishing",
         "Playlist Metadata",
+        "Sessions",
         "Project Glossary",
         "Transcription",
         "Note QC",

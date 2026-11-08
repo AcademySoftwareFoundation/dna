@@ -18,7 +18,22 @@ export {
   useInReviewChangedEvents,
 } from './usePlaylistMetadata';
 
+export {
+  useGetSessionsForProject,
+  useCreateSession,
+  useSessionPlaylists,
+  useAddPlaylistToSession,
+  useRemovePlaylistFromSession,
+} from './useSessions';
+
+export {
+  useSessionPlaylistMetadata,
+  useSessionSetInReview,
+} from './useSessionInReview';
+
 export { useFollowInReview } from './useFollowInReview';
+
+export { usePrefetchPlaylistVersions } from './usePrefetchPlaylistVersions';
 
 export { useTranscription } from './useTranscription';
 export type {

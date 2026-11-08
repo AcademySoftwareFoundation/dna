@@ -5,7 +5,7 @@
 # Bootstrap script for new contributors.
 # Checks prerequisites, copies example configs, installs frontend dependencies,
 # configures transcription (Vexa bot or browser extension + WhisperLive),
-# and starts the full DNA stack.
+# the session provider, and starts the full DNA stack.
 #
 # Usage:
 #   ./bootstrap.sh           # first-time setup, or change one setting if already configured
@@ -239,6 +239,15 @@ current_prodtrack_label() {
     local provider
     provider="$(read_compose_value PRODTRACK_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
     echo "${provider:-mock}"
+}
+
+current_session_label() {
+    local provider
+    provider="$(read_compose_value SESSION_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    case "${provider:-none}" in
+        mock) echo "mock" ;;
+        *) echo "disabled" ;;
+    esac
 }
 
 current_feature_flags_label() {
@@ -811,6 +820,38 @@ configure_prodtrack() {
     esac
 }
 
+# ── step 5.5: session provider ────────────────────────────────────────────────
+
+configure_session_provider() {
+    echo ""
+    echo -e "${BOLD}Session provider${NC}"
+    echo "  Sessions link several playlists for one review. DNA stores the"
+    echo "  links; the provider lists and creates the sessions."
+    echo ""
+    echo -e "  1) Disabled  ${BOLD}(default)${NC}"
+    echo "     Session routes return 404, and the session UI is locked off"
+    echo ""
+    echo "  2) Mock"
+    echo "     In-memory sessions for local development, and the session UI locked on"
+    echo ""
+    read -r -p "  Choice [1]: " session_choice
+    session_choice="${session_choice:-1}"
+    echo ""
+
+    case "$session_choice" in
+        2|[mM]ock)
+            ensure_env_var "SESSION_PROVIDER" "mock" "$BACKEND_DIR/docker-compose.local.yml"
+            set_feature_flag "VITE_FEATURE_SESSIONS" "true" "$FRONTEND_ENV"
+            ok "Mock session provider configured (SESSION_PROVIDER=mock, VITE_FEATURE_SESSIONS=true)"
+            ;;
+        *)
+            ensure_env_var "SESSION_PROVIDER" "none" "$BACKEND_DIR/docker-compose.local.yml"
+            set_feature_flag "VITE_FEATURE_SESSIONS" "false" "$FRONTEND_ENV"
+            ok "Sessions disabled (SESSION_PROVIDER=none, VITE_FEATURE_SESSIONS=false)"
+            ;;
+    esac
+}
+
 # ── step 6: frontend feature flags ────────────────────────────────────────────
 
 # Walk In Review → Transcription → AI (outer doll to inner), enforcing the
@@ -1214,18 +1255,20 @@ change_settings() {
     echo ""
 
     while true; do
-        local llm_label route_label pt_label flags_label settings_choice
+        local llm_label route_label pt_label session_label flags_label settings_choice
         llm_label="$(current_llm_label)"
         route_label="$(current_transcription_label)"
         pt_label="$(current_prodtrack_label)"
+        session_label="$(current_session_label)"
         flags_label="$(current_feature_flags_label)"
 
         echo -e "${BOLD}Settings${NC}"
         echo "  1) LLM provider            (${llm_label})"
         echo "  2) Transcription           (${route_label})"
         echo "  3) Production tracking     (${pt_label})"
-        echo "  4) Feature flags           (${flags_label})"
-        echo "  5) Done"
+        echo "  4) Sessions                (${session_label})"
+        echo "  5) Feature flags           (${flags_label})"
+        echo "  6) Done"
         echo ""
         if ! read -r -p "  Choice: " settings_choice; then
             echo ""
@@ -1251,16 +1294,20 @@ change_settings() {
                 remind_restart
                 ;;
             4)
+                configure_session_provider
+                remind_restart
+                ;;
+            5)
                 configure_feature_flags
                 remind_restart
                 ;;
-            5|[dD]one|[qQ]|[qQ]uit)
+            6|[dD]one|[qQ]|[qQ]uit)
                 ok "No further changes."
                 restart_backend_if_running
                 return 0
                 ;;
             *)
-                warn "Enter 1-5."
+                warn "Enter 1-6."
                 ;;
         esac
         echo ""
@@ -1306,6 +1353,7 @@ main() {
         configure_llm
         apply_transcription_route
         configure_prodtrack
+        configure_session_provider
         configure_feature_flags
         install_frontend
         echo ""

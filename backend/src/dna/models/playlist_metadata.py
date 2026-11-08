@@ -46,6 +46,18 @@ class PlaylistMetadataUpdate(BaseModel):
         description="Whether the playlist has a scratch tile — a placeholder "
         "for a note on the playlist entity rather than on a version.",
     )
+    session_ids: Optional[list[str]] = Field(
+        default=None,
+        description="Session IDs this playlist belongs to. Replaces the stored "
+        "list. Omit to leave the current links unchanged; send an empty list "
+        "to unlink the playlist from every session.",
+    )
+    clear_in_review: bool = Field(
+        default=False,
+        description="If true, clears in_review and in_review_pinned. Rejected "
+        "with 409 while the in-review version is pinned unless the same "
+        "request sets in_review_pinned to false.",
+    )
     clear_resumed_at: bool = Field(
         default=False,
         description="If True, clears transcription_resumed_at. "
@@ -70,6 +82,7 @@ class PlaylistMetadata(BaseModel):
                     "vexa_meeting_id": 1842,
                     "transcription_paused": False,
                     "has_scratch": False,
+                    "session_ids": ["sess-1"],
                     "transcription_resumed_at": None,
                 }
             ]
@@ -85,6 +98,10 @@ class PlaylistMetadata(BaseModel):
     vexa_meeting_id: Optional[int] = None
     transcription_paused: bool = False
     has_scratch: bool = False
+    session_ids: list[str] = Field(
+        default_factory=list,
+        description="Session IDs this playlist is linked to",
+    )
     transcription_resumed_at: Optional[datetime] = Field(
         default=None,
         description="Timestamp when transcription was last resumed. "

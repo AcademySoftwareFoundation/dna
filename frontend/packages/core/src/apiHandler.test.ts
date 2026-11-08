@@ -348,6 +348,68 @@ describe('ApiHandler', () => {
     });
   });
 
+  describe('sessions', () => {
+    it('lists sessions for a project', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const sessions = [{ id: 'sess-1', name: 'Morning dailies', project_id: '42' }];
+      mockAxiosInstance.get.mockResolvedValue({ data: sessions });
+
+      const result = await api.getSessionsForProject({ projectId: '42' });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/projects/42/sessions',
+        undefined
+      );
+      expect(result).toEqual(sessions);
+    });
+
+    it('creates a session', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const session = { id: 'sess-2', name: 'Lighting', project_id: '42' };
+      mockAxiosInstance.post.mockResolvedValue({ data: session });
+
+      const result = await api.createSession({
+        projectId: '42',
+        name: 'Lighting',
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/projects/42/sessions',
+        { name: 'Lighting' },
+        undefined
+      );
+      expect(result).toEqual(session);
+    });
+
+    it('gets one session', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const session = { id: 'sess-1', name: 'Morning dailies', project_id: '42' };
+      mockAxiosInstance.get.mockResolvedValue({ data: session });
+
+      const result = await api.getSession({ sessionId: 'sess-1' });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/sessions/sess-1',
+        undefined
+      );
+      expect(result).toEqual(session);
+    });
+
+    it('gets playlists linked to a session', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const linked = { session_id: 'sess-1', playlist_ids: ['45', '46'] };
+      mockAxiosInstance.get.mockResolvedValue({ data: linked });
+
+      const result = await api.getSessionPlaylists({ sessionId: 'sess-1' });
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/sessions/sess-1/playlists',
+        undefined
+      );
+      expect(result).toEqual(linked);
+    });
+  });
+
   describe('getVersionsForPlaylist', () => {
     it('should make GET request to correct endpoint', async () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });

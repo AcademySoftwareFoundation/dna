@@ -56,6 +56,12 @@ import {
   StatusOption,
   AddVersionToPlaylistParams,
   CreatePlaylistParams,
+  CreateSessionParams,
+  GetSessionParams,
+  GetSessionPlaylistsParams,
+  GetSessionsForProjectParams,
+  Session,
+  SessionPlaylists,
   NoteQCCheck,
   NoteQCCheckCreate,
   NoteQCCheckUpdate,
@@ -194,6 +200,35 @@ class ApiHandler {
     return this.post<Playlist>(`/projects/${params.projectId}/playlists`, {
       name: params.name,
     });
+  }
+
+  async getSessionsForProject(
+    params: GetSessionsForProjectParams
+  ): Promise<Session[]> {
+    return this.get<Session[]>(
+      `/projects/${encodeURIComponent(params.projectId)}/sessions`
+    );
+  }
+
+  async createSession(params: CreateSessionParams): Promise<Session> {
+    return this.post<Session>(
+      `/projects/${encodeURIComponent(params.projectId)}/sessions`,
+      { name: params.name }
+    );
+  }
+
+  async getSession(params: GetSessionParams): Promise<Session> {
+    return this.get<Session>(
+      `/sessions/${encodeURIComponent(params.sessionId)}`
+    );
+  }
+
+  async getSessionPlaylists(
+    params: GetSessionPlaylistsParams
+  ): Promise<SessionPlaylists> {
+    return this.get<SessionPlaylists>(
+      `/sessions/${encodeURIComponent(params.sessionId)}/playlists`
+    );
   }
 
   async getVersionsForPlaylist(

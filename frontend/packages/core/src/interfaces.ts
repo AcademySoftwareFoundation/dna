@@ -221,6 +221,8 @@ export interface PlaylistMetadata {
   platform: Platform | null;
   transcription_paused: boolean;
   has_scratch: boolean;
+  /** Session IDs this playlist is linked to. Empty when unlinked. */
+  session_ids: string[];
 }
 
 export interface PlaylistMetadataUpdate {
@@ -230,6 +232,40 @@ export interface PlaylistMetadataUpdate {
   platform?: Platform | null;
   transcription_paused?: boolean;
   has_scratch?: boolean;
+  /** Replaces the stored session links. Omit to leave them unchanged. */
+  session_ids?: string[];
+  /** Clears in_review and in_review_pinned on this playlist. */
+  clear_in_review?: boolean;
+}
+
+export interface Session {
+  id: string;
+  name: string;
+  project_id: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SessionPlaylists {
+  session_id: string;
+  playlist_ids: string[];
+}
+
+export interface GetSessionsForProjectParams {
+  projectId: string;
+}
+
+export interface CreateSessionParams {
+  projectId: string;
+  name: string;
+}
+
+export interface GetSessionParams {
+  sessionId: string;
+}
+
+export interface GetSessionPlaylistsParams {
+  sessionId: string;
 }
 
 export interface GetPlaylistMetadataParams {

@@ -1,0 +1,40 @@
+---
+sidebar_position: 4.5
+slug: /sessions
+title: Sessions
+---
+
+Sessions exist so DNA can plug into the review session system your studio already uses. DNA does not define what a session is. A session provider in the backend lists and creates those sessions. DNA only stores which playlists belong to each one.
+
+Once sessions are set up, one session holds several playlists. You switch between them in the header instead of going back to the project menu.
+
+## Opening a session
+
+After you pick a project, open an existing session or create one. If that session already has playlists, DNA opens the first of them. You choose a playlist only when the session does not have one yet.
+
+<Figure
+  src="img/sessions/open-session.png"
+  width="420px"
+  alt="Open an existing session or create a new one"
+  caption="Open an existing session, or create one."
+/>
+
+## Playlists in the session
+
+Each playlist is a tab. **+ Add playlist** brings in another playlist from the project. The X beside a tab takes that playlist out of the session. A dot means that playlist has the version in review. A pin means that version is pinned.
+
+<Figure
+  src="img/sessions/playlist-tabs.png"
+  alt="Session header with playlist tabs, an in-review dot, and a pin"
+  caption="One session, several playlists. The dot marks in review. The pin holds it there."
+/>
+
+## In review and pinning
+
+A session has one in-review version. Setting a version in review clears it on the other playlists in the session. [In-Review Workflow](./4-in-review.mdx) covers how to set it on a version.
+
+Pinning keeps that version in review when something else tries to move it, including another playlist in the session. DNA will not move in review off a pinned playlist until you unpin it.
+
+## Your studio's sessions
+
+To follow how your studio runs reviews, add a session provider. It lists the sessions for a project, fetches one, and can create one. DNA then links playlists to those session ids. A mock provider is included for local setup.

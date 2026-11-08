@@ -92,6 +92,14 @@ class TestPlaylistMetadataModels:
         update2 = PlaylistMetadataUpdate(transcription_paused=False)
         assert update2.transcription_paused is False
 
+    def test_playlist_metadata_session_ids_default_empty(self):
+        """Session links default to an empty list."""
+        metadata = PlaylistMetadata(_id="abc123", playlist_id="10")
+        assert metadata.session_ids == []
+        update = PlaylistMetadataUpdate()
+        assert update.session_ids is None
+        assert update.clear_in_review is False
+
 
 class TestPlaylistMetadataEndpoints:
     """Tests for playlist metadata API endpoints."""
@@ -360,6 +368,58 @@ class TestPlaylistMetadataInReviewBroadcast:
             assert response.status_code == 200
             publisher.publish.assert_not_awaited()
 
+    def test_clear_in_review_broadcasts_cleared_state(self):
+        """PUT with clear_in_review broadcasts a cleared in-review version."""
+        storage = mock.AsyncMock()
+        storage.get_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review="200",
+        )
+        storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review=None,
+            in_review_pinned=False,
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+
+        with client.websocket_connect("/ws") as ws:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"clear_in_review": True},
+            )
+            assert response.status_code == 200
+            message = ws.receive_json()
+            assert message == {
+                "type": "playlist.in_review_changed",
+                "payload": {
+                    "playlist_id": "10",
+                    "in_review": None,
+                    "in_review_pinned": False,
+                },
+            }
+
+    def test_session_ids_are_passed_to_storage(self):
+        """PUT with session_ids replaces the stored session links."""
+        storage = mock.AsyncMock()
+        storage.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            session_ids=["sess-1"],
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+
+        response = client.put(
+            "/playlists/10/metadata",
+            json={"session_ids": ["sess-1"]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["session_ids"] == ["sess-1"]
+        update = storage.upsert_playlist_metadata.await_args.args[1]
+        assert update.session_ids == ["sess-1"]
+
 
 class TestPlaylistMetadataPinning:
     """Pinning the in-review version blocks moving it until unpinned."""
@@ -433,6 +493,21 @@ class TestPlaylistMetadataPinning:
         metadata = PlaylistMetadata(_id="abc", playlist_id="10")
         assert metadata.in_review_pinned is False
         assert PlaylistMetadataUpdate().in_review_pinned is None
+
+    def test_pinned_rejects_clear_in_review(self):
+        storage = self._storage(pinned=True)
+        response = client.put("/playlists/10/metadata", json={"clear_in_review": True})
+        assert response.status_code == 409
+        storage.upsert_playlist_metadata.assert_not_awaited()
+
+    def test_pinned_allows_clear_when_unpinning(self):
+        storage = self._storage(pinned=True)
+        response = client.put(
+            "/playlists/10/metadata",
+            json={"clear_in_review": True, "in_review_pinned": False},
+        )
+        assert response.status_code == 200
+        storage.upsert_playlist_metadata.assert_awaited_once()
 
 
 class TestMongoDBPlaylistMetadataProvider:
@@ -547,6 +622,62 @@ class TestMongoDBPlaylistMetadataProvider:
         assert "meeting_id" not in update_dict["$set"]
 
     @pytest.mark.asyncio
+    async def test_upsert_clear_in_review_sets_nulls(
+        self, provider_with_mock, mock_collection
+    ):
+        """clear_in_review writes null in_review and unpins, and is not stored."""
+        from bson import ObjectId
+
+        mock_collection.find_one_and_update.return_value = {
+            "_id": ObjectId(),
+            "playlist_id": "10",
+            "in_review": None,
+            "in_review_pinned": False,
+        }
+
+        await provider_with_mock.upsert_playlist_metadata(
+            "10",
+            PlaylistMetadataUpdate(clear_in_review=True, in_review="999"),
+        )
+
+        update_dict = mock_collection.find_one_and_update.call_args[0][1]
+        assert update_dict["$set"]["in_review"] is None
+        assert update_dict["$set"]["in_review_pinned"] is False
+        assert "clear_in_review" not in update_dict["$set"]
+
+    @pytest.mark.asyncio
+    async def test_get_playlist_metadata_by_session(
+        self, provider_with_mock, mock_collection
+    ):
+        """Session lookup queries the session_ids array and keeps order."""
+        from bson import ObjectId
+
+        docs = [
+            {
+                "_id": ObjectId(),
+                "playlist_id": "45",
+                "session_ids": ["sess-1"],
+            },
+            {
+                "_id": ObjectId(),
+                "playlist_id": "46",
+                "session_ids": ["sess-1"],
+            },
+        ]
+
+        async def _docs():
+            for doc in docs:
+                yield doc
+
+        mock_collection.find.return_value.sort.return_value = _docs()
+
+        result = await provider_with_mock.get_playlist_metadata_by_session("sess-1")
+
+        assert [item.playlist_id for item in result] == ["45", "46"]
+        mock_collection.find.assert_called_once_with({"session_ids": "sess-1"})
+        mock_collection.find.return_value.sort.assert_called_once_with("_id", 1)
+
+    @pytest.mark.asyncio
     async def test_delete_playlist_metadata_returns_true(
         self, provider_with_mock, mock_collection
     ):
@@ -592,3 +723,6 @@ class TestStorageProviderBasePlaylistMetadata:
 
         with pytest.raises(NotImplementedError):
             await provider.delete_playlist_metadata(1)
+
+        with pytest.raises(NotImplementedError):
+            await provider.get_playlist_metadata_by_session("sess-1")

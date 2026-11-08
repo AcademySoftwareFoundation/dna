@@ -38,7 +38,7 @@ export interface BotStatusEventPayload {
 
 export interface InReviewChangedEventPayload {
   playlist_id: string;
-  in_review: string;
+  in_review: string | null;
   in_review_pinned?: boolean;
 }
 

@@ -444,6 +444,8 @@ function GeneralTab({
   const { mode, setMode, accent, setAccent } = useThemeMode();
   const { inReviewEnabled, setInReviewEnabled, inReviewLocked, inReviewLockReason } =
     useFeatureFlags();
+  const { sessionsEnabled, setSessionsEnabled, sessionsLocked, sessionsLockReason } =
+    useFeatureFlags();
 
   if (isLoading) {
     return (
@@ -510,6 +512,28 @@ function GeneralTab({
                 : inReviewLocked
                   ? `${inReviewEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration`
                   : undefined
+            }
+          />
+        </AppearanceRow>
+      </Section>
+
+      <Section>
+        <SectionTitle>Sessions</SectionTitle>
+        <AppearanceRow>
+          <KeybindingLabel>
+            <KeybindingName>Enable Sessions</KeybindingName>
+            <KeybindingDesc>
+              Group {t.playlist.lowerPlural} in a session and show them as tabs
+            </KeybindingDesc>
+          </KeybindingLabel>
+          <LockableSwitch
+            checked={sessionsEnabled}
+            onCheckedChange={setSessionsEnabled}
+            locked={sessionsLocked}
+            tooltip={
+              sessionsLockReason === 'pipeline'
+                ? `${sessionsEnabled ? 'Enabled' : 'Disabled'} by pipeline configuration`
+                : undefined
             }
           />
         </AppearanceRow>

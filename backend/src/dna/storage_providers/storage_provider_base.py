@@ -86,6 +86,12 @@ class StorageProviderBase:
         """Get playlist metadata by meeting ID (reverse lookup)."""
         raise NotImplementedError()
 
+    async def get_playlist_metadata_by_session(
+        self, session_id: str
+    ) -> list["PlaylistMetadata"]:
+        """Get playlist metadata documents linked to a session."""
+        raise NotImplementedError()
+
     async def upsert_playlist_metadata(
         self, playlist_id: str, data: "PlaylistMetadataUpdate"
     ) -> "PlaylistMetadata":

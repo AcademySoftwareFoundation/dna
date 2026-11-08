@@ -2,11 +2,14 @@ import { useState, useEffect, type ReactNode } from 'react';
 import styled from 'styled-components';
 import type { Playlist, Version } from '@dna/core';
 import { Sidebar } from './Sidebar';
+import { AppHeader } from './AppHeader';
 
 interface LayoutProps {
   children: ReactNode;
+  playlistTabs?: ReactNode;
   onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
+  sessionPlaylistIds?: readonly string[] | null;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
@@ -18,19 +21,25 @@ const COLLAPSE_BREAKPOINT = 1024;
 
 const LayoutWrapper = styled.div`
   display: flex;
+  flex-direction: column;
   width: 100%;
-  min-height: 100%;
+  height: 100vh;
+  overflow: hidden;
   background: ${({ theme }) => theme.colors.bg.base};
 `;
 
-const Main = styled.main<{ $sidebarCollapsed: boolean }>`
+const Workspace = styled.div`
+  display: flex;
   flex: 1;
-  margin-left: ${({ theme, $sidebarCollapsed }) =>
-    $sidebarCollapsed
-      ? theme.sizes.sidebar.collapsed
-      : theme.sizes.sidebar.expanded};
+  min-height: 0;
+  width: 100%;
+`;
+
+const Main = styled.main`
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
   padding: 24px 0 24px 32px;
-  transition: margin-left ${({ theme }) => theme.transitions.base};
   background:
     radial-gradient(
         ellipse 80% 50% at 50% -20%,
@@ -39,13 +48,14 @@ const Main = styled.main<{ $sidebarCollapsed: boolean }>`
       )
       fixed,
     ${({ theme }) => theme.colors.bg.base};
-  min-height: 100%;
 `;
 
 export function Layout({
   children,
+  playlistTabs,
   onPlaylistChange,
   playlistId,
+  sessionPlaylistIds,
   projectId,
   selectedVersionId,
   onVersionSelect,
@@ -69,18 +79,28 @@ export function Layout({
 
   return (
     <LayoutWrapper>
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
-        onPlaylistChange={onPlaylistChange}
+      <AppHeader
+        playlistTabs={playlistTabs}
         playlistId={playlistId}
         projectId={projectId}
-        selectedVersionId={selectedVersionId}
-        onVersionSelect={onVersionSelect}
         userEmail={userEmail}
+        selectedVersionId={selectedVersionId}
         onLogout={onLogout}
       />
-      <Main $sidebarCollapsed={sidebarCollapsed}>{children}</Main>
+      <Workspace>
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+          onPlaylistChange={onPlaylistChange}
+          playlistId={playlistId}
+          sessionPlaylistIds={sessionPlaylistIds}
+          projectId={projectId}
+          selectedVersionId={selectedVersionId}
+          onVersionSelect={onVersionSelect}
+          userEmail={userEmail}
+        />
+        <Main>{children}</Main>
+      </Workspace>
     </LayoutWrapper>
   );
 }

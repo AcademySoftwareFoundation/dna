@@ -59,6 +59,17 @@ Authentication is handled by pluggable auth providers, configured via the `AUTH_
 
 The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
 
+### Sessions
+
+Session providers supply external review sessions. DNA stores which playlists belong to a session on playlist metadata (`session_ids`); the provider lists, gets, and creates the sessions themselves. Configure it with `SESSION_PROVIDER`:
+
+| Value | Provider | Use case |
+|-------|----------|----------|
+| `none` | Disabled (default) | Session routes return 404 |
+| `mock` | In-memory mock | Local development. Seeds two sample sessions the first time a project's sessions are listed, and accepts creates |
+
+The frontend enables the session UI separately with `VITE_FEATURE_SESSIONS`. `./bootstrap.sh` sets both: Disabled writes `SESSION_PROVIDER=none` and locks the session UI off, and Mock writes `SESSION_PROVIDER=mock` and locks it on.
+
 ## Setup
 
 To setup the backend, you need to have the following:

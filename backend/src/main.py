@@ -41,6 +41,7 @@ from dna.models import (
     BotStatus,
     CreateNoteRequest,
     CreatePlaylistRequest,
+    CreateSessionRequest,
     DispatchBotRequest,
     DraftNote,
     DraftNoteUpdate,
@@ -69,6 +70,8 @@ from dna.models import (
     SchemaField,
     SearchRequest,
     SearchResult,
+    Session,
+    SessionPlaylists,
     Shot,
     StatusOption,
     StoredSegment,
@@ -93,6 +96,10 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     get_prodtrack_provider,
 )
 from dna.qc.qc_runner import run_qc_checks_for_draft
+from dna.session_providers.session_provider_base import (
+    SessionProviderBase,
+    get_session_provider,
+)
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -121,6 +128,8 @@ or feed a transcript in from your own tool.
 - **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist
   review state, transcripts, user settings, QC checks and glossaries. The
   **Publishing** endpoints push that data into the tracking provider.
+  **Sessions** read an external session provider (`SESSION_PROVIDER`; 404 when
+  it is `none`) and store which playlists belong to a session in DNA.
 
 ### Authentication
 Send `Authorization: Bearer <token>` on every request except **Health**. The
@@ -236,7 +245,15 @@ tags_metadata = [
         "name": "Playlist Metadata",
         "description": (
             "DNA's review state for a playlist: the version in review, the "
-            "linked meeting, and transcription flags."
+            "linked meeting, session links, and transcription flags."
+        ),
+    },
+    {
+        "name": "Sessions",
+        "description": (
+            "External review sessions from the session provider, and the "
+            "playlists DNA has linked to each session. Routes return 404 when "
+            "SESSION_PROVIDER is none."
         ),
     },
     {
@@ -339,6 +356,20 @@ TranscriptionProviderDep = Annotated[
 ]
 
 LLMProviderDep = Annotated[LLMProviderBase, Depends(get_llm_provider_cached)]
+
+
+@lru_cache
+def get_session_provider_cached() -> Optional[SessionProviderBase]:
+    """Get or create the session provider singleton.
+
+    Returns None when SESSION_PROVIDER is none (sessions disabled).
+    """
+    return get_session_provider()
+
+
+SessionProviderDep = Annotated[
+    Optional[SessionProviderBase], Depends(get_session_provider_cached)
+]
 
 
 @lru_cache
@@ -1945,11 +1976,12 @@ async def get_playlist_metadata(
     tags=["Playlist Metadata"],
     summary="Create or update playlist metadata",
     description=(
-        "Create or update metadata for a playlist (in-review version and meeting ID). "
-        "When in_review or in_review_pinned is set, broadcasts "
-        "playlist.in_review_changed to connected clients. While the in-review "
-        "version is pinned, moving in_review to a different version is rejected "
-        "with 409 unless the same request sets in_review_pinned to false."
+        "Create or update metadata for a playlist (in-review version, meeting "
+        "ID, and session links). When in_review, in_review_pinned, or "
+        "clear_in_review is set, broadcasts playlist.in_review_changed to "
+        "connected clients. While the in-review version is pinned, moving "
+        "in_review to a different version or clearing it is rejected with 409 "
+        "unless the same request sets in_review_pinned to false."
     ),
     response_model=PlaylistMetadata,
     responses=error_responses(409),
@@ -1962,24 +1994,31 @@ async def upsert_playlist_metadata(
 ) -> PlaylistMetadata:
     """Create or update playlist metadata.
 
-    When ``in_review`` or ``in_review_pinned`` is set, broadcasts
-    ``playlist.in_review_changed`` so connected clients can update the
-    in-review indicator and pin state.
+    When ``in_review``, ``in_review_pinned``, or ``clear_in_review`` is set,
+    broadcasts ``playlist.in_review_changed`` so connected clients can update
+    the in-review indicator and pin state.
     """
-    if data.in_review is not None:
+    if data.in_review is not None or data.clear_in_review:
         existing = await provider.get_playlist_metadata(playlist_id)
         if (
             existing is not None
             and existing.in_review_pinned
-            and data.in_review != existing.in_review
             and data.in_review_pinned is not False
         ):
-            raise HTTPException(
-                status_code=409,
-                detail="The in-review version is pinned; unpin it to change it",
+            clears_or_moves = data.clear_in_review or (
+                data.in_review is not None and data.in_review != existing.in_review
             )
+            if clears_or_moves:
+                raise HTTPException(
+                    status_code=409,
+                    detail="The in-review version is pinned; unpin it to change it",
+                )
     metadata = await provider.upsert_playlist_metadata(playlist_id, data)
-    if data.in_review is not None or data.in_review_pinned is not None:
+    if (
+        data.in_review is not None
+        or data.in_review_pinned is not None
+        or data.clear_in_review
+    ):
         event_publisher = get_event_publisher()
         await event_publisher.publish(
             EventType.PLAYLIST_IN_REVIEW_CHANGED,
@@ -2010,6 +2049,126 @@ async def delete_playlist_metadata(
     if not deleted:
         raise HTTPException(status_code=404, detail="Playlist metadata not found")
     return True
+
+
+# -----------------------------------------------------------------------------
+# Session endpoints
+# -----------------------------------------------------------------------------
+
+
+def _sessions_enabled(provider: Optional[SessionProviderBase]) -> bool:
+    """True when a session provider is configured."""
+    return provider is not None
+
+
+def _require_session_provider(
+    provider: Optional[SessionProviderBase],
+) -> SessionProviderBase:
+    """Return the session provider, or 404 when sessions are disabled."""
+    if not _sessions_enabled(provider) or provider is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return provider
+
+
+@app.get(
+    "/projects/{project_id}/sessions",
+    tags=["Sessions"],
+    summary="Get sessions for a project",
+    description=(
+        "Retrieve sessions for the specified project from the session "
+        "provider. Returns 404 when sessions are not enabled."
+    ),
+    response_model=list[Session],
+    responses=error_responses(404),
+)
+async def get_sessions_for_project(
+    project_id: str,
+    provider: SessionProviderDep,
+    _: CurrentUserDep,
+) -> list[Session]:
+    """Get sessions for a project."""
+    session_provider = _require_session_provider(provider)
+    return session_provider.get_sessions_for_project(project_id)
+
+
+@app.post(
+    "/projects/{project_id}/sessions",
+    tags=["Sessions"],
+    summary="Create a session",
+    description=(
+        "Create a session in the session provider. Returns 404 when sessions "
+        "are not enabled, and 501 when the provider cannot create sessions."
+    ),
+    response_model=Session,
+    responses=error_responses(400, 404, 501),
+)
+async def create_session(
+    project_id: str,
+    request: CreateSessionRequest,
+    provider: SessionProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Create a session for a project."""
+    session_provider = _require_session_provider(provider)
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Session name is required")
+    try:
+        return session_provider.create_session(project_id, name)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e) or "Not implemented")
+
+
+@app.get(
+    "/sessions/{session_id}",
+    tags=["Sessions"],
+    summary="Get a session",
+    description=(
+        "Retrieve one session from the session provider. Returns 404 when "
+        "sessions are not enabled or the session does not exist."
+    ),
+    response_model=Session,
+    responses=error_responses(404),
+)
+async def get_session(
+    session_id: str,
+    provider: SessionProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Get a session by ID."""
+    session_provider = _require_session_provider(provider)
+    session = session_provider.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+@app.get(
+    "/sessions/{session_id}/playlists",
+    tags=["Sessions"],
+    summary="Get playlists linked to a session",
+    description=(
+        "Retrieve the playlist IDs DNA has linked to a session. Returns 404 "
+        "when sessions are not enabled or the session does not exist."
+    ),
+    response_model=SessionPlaylists,
+    responses=error_responses(404),
+)
+async def get_session_playlists(
+    session_id: str,
+    provider: SessionProviderDep,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> SessionPlaylists:
+    """Get playlist IDs linked to a session."""
+    session_provider = _require_session_provider(provider)
+    if session_provider.get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    linked = await storage.get_playlist_metadata_by_session(session_id)
+    return SessionPlaylists(
+        session_id=session_id,
+        playlist_ids=[item.playlist_id for item in linked],
+    )
 
 
 # -----------------------------------------------------------------------------

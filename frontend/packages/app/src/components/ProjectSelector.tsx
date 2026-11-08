@@ -1,14 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import styled from 'styled-components';
-import { Button, Flex, Select, Spinner } from '@radix-ui/themes';
-import { Playlist, Project } from '@dna/core';
-import { useGetProjectsForUser, useGetPlaylistsForProject } from '../api';
+import { ChevronDown } from 'lucide-react';
+import { Button, Flex, Popover, Select, Spinner } from '@radix-ui/themes';
+import * as Tabs from '@radix-ui/react-tabs';
+import { Playlist, Project, Session } from '@dna/core';
+import {
+  apiHandler,
+  useGetProjectsForUser,
+  useGetPlaylistsForProject,
+} from '../api';
 import { Logo } from './Logo';
 import {
   StyledSelectTrigger,
   StyledSelectContent,
 } from './FormInputs';
-import { useAuth } from '../contexts';
+import { useAuth, useFeatureFlags } from '../contexts';
+import { useCreateSession, useGetSessionsForProject } from '../hooks/useSessions';
 import { useNomenclature } from '../nomenclature';
 
 export const STORAGE_KEYS = {
@@ -20,7 +28,8 @@ interface ProjectSelectorProps {
   onSelectionComplete: (
     project: Project,
     playlist: Playlist,
-    userEmail: string
+    userEmail: string,
+    session?: Session
   ) => void;
 }
 
@@ -152,12 +161,276 @@ const EmptyText = styled.p`
   padding: 24px;
 `;
 
-type Step = 'loading' | 'signin' | 'project' | 'playlist';
+type Step = 'loading' | 'signin' | 'project' | 'session' | 'playlist';
 
 const StyledForm = styled.form`
   display: flex;
   flex-direction: column;
   gap: 16px;
+`;
+
+const SessionModeTabs = styled(Tabs.Root)`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+const SessionTabsList = styled(Tabs.List)`
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
+`;
+
+const SessionSelectButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  background: ${({ theme }) => theme.colors.bg.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  border-radius: ${({ theme }) => theme.radii.md};
+  box-shadow: none;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.text.primary};
+  cursor: pointer;
+  transition:
+    border-color ${({ theme }) => theme.transitions.fast},
+    box-shadow ${({ theme }) => theme.transitions.fast};
+
+  &:focus,
+  &[data-state='open'] {
+    border-color: ${({ theme }) => theme.colors.accent.main};
+    box-shadow: 0 0 0 1px ${({ theme }) => theme.colors.accent.main};
+  }
+
+  span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span[data-placeholder] {
+    color: ${({ theme }) => theme.colors.text.muted};
+  }
+
+  svg {
+    flex-shrink: 0;
+    color: ${({ theme }) => theme.colors.text.muted};
+  }
+`;
+
+const SessionSelectMenu = styled(Popover.Content)`
+  &&.rt-PopoverContent {
+    width: var(--radix-popover-trigger-width);
+    padding: 0;
+    overflow: hidden;
+    background: ${({ theme }) => theme.colors.bg.elevated};
+    border: 1px solid ${({ theme }) => theme.colors.border.subtle};
+    border-radius: ${({ theme }) => theme.radii.md};
+    box-shadow: ${({ theme }) => theme.shadows.lg};
+  }
+`;
+
+const SessionSearchInput = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  background: transparent;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.text.primary};
+  outline: none;
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.text.muted};
+  }
+`;
+
+const SessionOptionList = styled.div`
+  max-height: 240px;
+  overflow-y: auto;
+`;
+
+const SessionOption = styled.button<{ $highlighted: boolean }>`
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: ${({ theme, $highlighted }) =>
+    $highlighted ? theme.colors.accent.subtle : 'transparent'};
+  color: ${({ theme, $highlighted }) =>
+    $highlighted ? theme.colors.accent.main : theme.colors.text.primary};
+  font-family: ${({ theme }) => theme.fonts.sans};
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.accent.subtle};
+    color: ${({ theme }) => theme.colors.accent.main};
+  }
+`;
+
+const SessionSearchEmpty = styled.div`
+  padding: 12px;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
+interface SessionSelectProps {
+  sessions: Session[];
+  value: string;
+  onValueChange: (sessionId: string) => void;
+}
+
+function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const selected = sessions.find((session) => session.id === value);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleSessions = sessions.filter((session) =>
+    session.name.toLowerCase().includes(normalizedQuery)
+  );
+
+  const closeMenu = () => {
+    setOpen(false);
+    setQuery('');
+    setHighlightedIndex(0);
+  };
+
+  const chooseSession = (sessionId: string) => {
+    onValueChange(sessionId);
+    closeMenu();
+  };
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (visibleSessions.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlightedIndex((index) =>
+        index < visibleSessions.length - 1 ? index + 1 : 0
+      );
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlightedIndex((index) =>
+        index > 0 ? index - 1 : visibleSessions.length - 1
+      );
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const session = visibleSessions[highlightedIndex];
+      if (session) chooseSession(session.id);
+    }
+  };
+
+  return (
+    <Popover.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (next) {
+          setOpen(true);
+          return;
+        }
+        closeMenu();
+      }}
+    >
+      <Popover.Trigger>
+        <SessionSelectButton
+          type="button"
+          role="combobox"
+          aria-label={selected?.name ?? 'Choose a session...'}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          data-state={open ? 'open' : 'closed'}
+        >
+          <span data-placeholder={selected ? undefined : ''}>
+            {selected?.name ?? 'Choose a session...'}
+          </span>
+          <ChevronDown size={16} />
+        </SessionSelectButton>
+      </Popover.Trigger>
+      <SessionSelectMenu
+        side="bottom"
+        align="start"
+        sideOffset={4}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          searchRef.current?.focus();
+        }}
+      >
+        <SessionSearchInput
+          ref={searchRef}
+          aria-label="Search sessions"
+          placeholder="Search sessions..."
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setHighlightedIndex(0);
+          }}
+          onKeyDown={handleSearchKeyDown}
+        />
+        <SessionOptionList role="listbox" aria-label="Sessions">
+          {visibleSessions.length === 0 ? (
+            <SessionSearchEmpty>No sessions found</SessionSearchEmpty>
+          ) : (
+            visibleSessions.map((session, index) => (
+              <SessionOption
+                key={session.id}
+                type="button"
+                role="option"
+                aria-selected={session.id === value}
+                $highlighted={index === highlightedIndex}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => chooseSession(session.id)}
+              >
+                {session.name}
+              </SessionOption>
+            ))
+          )}
+        </SessionOptionList>
+      </SessionSelectMenu>
+    </Popover.Root>
+  );
+}
+
+const SessionTabsTrigger = styled(Tabs.Trigger)`
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  color: ${({ theme }) => theme.colors.text.muted};
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color ${({ theme }) => theme.transitions.fast},
+    border-color ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.text.secondary};
+  }
+
+  &[data-state='active'] {
+    color: ${({ theme }) => theme.colors.text.primary};
+    border-bottom-color: ${({ theme }) => theme.colors.text.primary};
+  }
 `;
 
 const StyledInput = styled.input`
@@ -295,12 +568,22 @@ export function clearUserSession(): void {
 }
 
 export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
+  const queryClient = useQueryClient();
   const t = useNomenclature();
+  const { sessionsEnabled } = useFeatureFlags();
   const { isAuthenticated, isLoading: isAuthLoading, user, signIn, signInWithEmail, signOut, authProvider } = useAuth();
   const [emailInput, setEmailInput] = useState('');
   const [step, setStep] = useState<Step>('loading');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState('');
+  const [newSessionName, setNewSessionName] = useState('');
+  const [chosenSessionMode, setChosenSessionMode] = useState<
+    'existing' | 'create' | null
+  >(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>('');
+  const [isOpeningSession, setIsOpeningSession] = useState(false);
+  const [sessionOpenError, setSessionOpenError] = useState<string | null>(null);
 
   const userEmail = user?.email || null;
 
@@ -319,11 +602,11 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
 
     if (storedProject) {
       setSelectedProject(storedProject);
-      setStep('playlist');
+      setStep(sessionsEnabled ? 'session' : 'playlist');
     } else {
       setStep('project');
     }
-  }, [isAuthenticated, isAuthLoading, userEmail]);
+  }, [isAuthenticated, isAuthLoading, userEmail, sessionsEnabled]);
 
   const {
     data: projects,
@@ -339,13 +622,39 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     error: playlistsError,
   } = useGetPlaylistsForProject(selectedProject?.id ?? null);
 
+  const {
+    data: sessions,
+    isLoading: isLoadingSessions,
+    isError: isSessionsError,
+    error: sessionsError,
+  } = useGetSessionsForProject(
+    sessionsEnabled ? (selectedProject?.id ?? null) : null
+  );
+  const createSession = useCreateSession(selectedProject?.id ?? null);
+  const hasSessions = (sessions?.length ?? 0) > 0;
+  const sessionMode = chosenSessionMode ?? (hasSessions ? 'existing' : 'create');
+
+  const handleSessionModeChange = (value: string) => {
+    if (value === 'create') {
+      setChosenSessionMode('create');
+      setSelectedSessionId('');
+      return;
+    }
+    setChosenSessionMode('existing');
+    setNewSessionName('');
+  };
+
   const handleProjectSelect = (projectId: string) => {
     const project = projects?.find((p) => p.id === projectId);
     if (project) {
       setSelectedProject(project);
       saveProject(project);
       setSelectedPlaylistId('');
-      setStep('playlist');
+      setSelectedSession(null);
+      setSelectedSessionId('');
+      setNewSessionName('');
+      setChosenSessionMode(null);
+      setStep(sessionsEnabled ? 'session' : 'playlist');
     }
   };
 
@@ -359,8 +668,51 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
         (p) => p.id.toString() === selectedPlaylistId
       );
       if (playlist) {
-        onSelectionComplete(selectedProject, playlist, userEmail);
+        if (sessionsEnabled && !selectedSession) return;
+        onSelectionComplete(
+          selectedProject,
+          playlist,
+          userEmail,
+          selectedSession ?? undefined
+        );
       }
+    }
+  };
+
+  const handleSessionContinue = async () => {
+    if (!selectedProject || !userEmail) return;
+    setSessionOpenError(null);
+    if (sessionMode === 'create') {
+      const name = newSessionName.trim();
+      if (!name) return;
+      const created = await createSession.mutateAsync(name);
+      setSelectedSession(created);
+      setStep('playlist');
+      return;
+    }
+    const existing = sessions?.find((session) => session.id === selectedSessionId);
+    if (!existing) return;
+    setIsOpeningSession(true);
+    try {
+      const linked = await apiHandler.getSessionPlaylists({
+        sessionId: existing.id,
+      });
+      const playlist = linked.playlist_ids
+        .map((id) => playlists?.find((item) => item.id.toString() === id))
+        .find((item): item is Playlist => item != null);
+      setSelectedSession(existing);
+      if (playlist) {
+        queryClient.setQueryData(['sessionPlaylists', existing.id], linked);
+        onSelectionComplete(selectedProject, playlist, userEmail, existing);
+        return;
+      }
+      setStep('playlist');
+    } catch (error) {
+      setSessionOpenError(
+        error instanceof Error ? error.message : 'Failed to open session'
+      );
+    } finally {
+      setIsOpeningSession(false);
     }
   };
 
@@ -368,6 +720,10 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     clearStoredProject();
     setSelectedProject(null);
     setSelectedPlaylistId('');
+    setSelectedSession(null);
+    setSelectedSessionId('');
+    setNewSessionName('');
+    setChosenSessionMode(null);
     signOut();
     setStep('signin');
   };
@@ -376,7 +732,17 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
     clearStoredProject();
     setSelectedProject(null);
     setSelectedPlaylistId('');
+    setSelectedSession(null);
+    setSelectedSessionId('');
+    setNewSessionName('');
+    setChosenSessionMode(null);
     setStep('project');
+  };
+
+  const handleChangeSession = () => {
+    setSelectedSession(null);
+    setSelectedPlaylistId('');
+    setStep('session');
   };
 
   if (step === 'loading') {
@@ -484,6 +850,94 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
           </FormSection>
         )}
 
+        {step === 'session' && (
+          <FormSection>
+            <SelectionDisplay>
+              <SelectionText>{userEmail}</SelectionText>
+              <ChangeButton onClick={handleSignOut}>Sign out</ChangeButton>
+            </SelectionDisplay>
+
+            <SelectionDisplay>
+              <SelectionText>
+                {selectedProject?.name || `${t.project.singular} ${selectedProject?.id}`}
+              </SelectionText>
+              <ChangeButton onClick={handleChangeProject}>Change</ChangeButton>
+            </SelectionDisplay>
+
+            {isLoadingSessions && (
+              <LoadingWrapper>
+                <Spinner size="3" />
+                <LoadingText>Loading sessions...</LoadingText>
+              </LoadingWrapper>
+            )}
+
+            {isSessionsError && (
+              <ErrorText>
+                {sessionsError?.message || 'Failed to load sessions'}
+              </ErrorText>
+            )}
+
+            {!isLoadingSessions && (
+              <>
+                <SessionModeTabs
+                  value={sessionMode}
+                  onValueChange={handleSessionModeChange}
+                >
+                  <SessionTabsList>
+                    <SessionTabsTrigger value="existing">
+                      Open Existing
+                    </SessionTabsTrigger>
+                    <SessionTabsTrigger value="create">
+                      Create New
+                    </SessionTabsTrigger>
+                  </SessionTabsList>
+                  <Tabs.Content value="existing">
+                    {hasSessions ? (
+                      <SessionSelect
+                        sessions={sessions ?? []}
+                        value={selectedSessionId}
+                        onValueChange={setSelectedSessionId}
+                      />
+                    ) : (
+                      <EmptyText>No sessions yet.</EmptyText>
+                    )}
+                  </Tabs.Content>
+                  <Tabs.Content value="create">
+                    <StyledInput
+                      value={newSessionName}
+                      placeholder="Session name"
+                      onChange={(event) => {
+                        setNewSessionName(event.target.value);
+                      }}
+                    />
+                  </Tabs.Content>
+                </SessionModeTabs>
+                {createSession.isError && (
+                  <ErrorText>
+                    {createSession.error?.message || 'Failed to create session'}
+                  </ErrorText>
+                )}
+                {sessionOpenError && <ErrorText>{sessionOpenError}</ErrorText>}
+                <Button
+                  size="3"
+                  onClick={() => {
+                    void handleSessionContinue();
+                  }}
+                  disabled={
+                    createSession.isPending ||
+                    isOpeningSession ||
+                    (sessionMode === 'create'
+                      ? newSessionName.trim().length === 0
+                      : !selectedSessionId)
+                  }
+                >
+                  Continue
+                </Button>
+              </>
+            )}
+          </FormSection>
+        )}
+
         {step === 'playlist' && (
           <FormSection>
             <SelectionDisplay>
@@ -497,6 +951,13 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
               </SelectionText>
               <ChangeButton onClick={handleChangeProject}>Change</ChangeButton>
             </SelectionDisplay>
+
+            {sessionsEnabled && selectedSession && (
+              <SelectionDisplay>
+                <SelectionText>{selectedSession.name}</SelectionText>
+                <ChangeButton onClick={handleChangeSession}>Change</ChangeButton>
+              </SelectionDisplay>
+            )}
 
             {isLoadingPlaylists && (
               <LoadingWrapper>

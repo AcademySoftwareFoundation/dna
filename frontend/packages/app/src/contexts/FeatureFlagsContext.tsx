@@ -10,6 +10,7 @@ import {
 const TRANSCRIPTION_KEY = 'dna-transcription-enabled';
 const AI_KEY = 'dna-ai-enabled';
 const IN_REVIEW_KEY = 'dna-in-review-enabled';
+const SESSIONS_KEY = 'dna-sessions-enabled';
 
 function readEnvOverride(envValue: string | undefined): boolean | null {
   if (envValue === 'true') return true;
@@ -20,19 +21,24 @@ function readEnvOverride(envValue: string | undefined): boolean | null {
 const ENV_TRANSCRIPTION = readEnvOverride(import.meta.env.VITE_FEATURE_TRANSCRIPTION);
 const ENV_IN_REVIEW = readEnvOverride(import.meta.env.VITE_FEATURE_IN_REVIEW);
 const ENV_AI = readEnvOverride(import.meta.env.VITE_FEATURE_AI);
+const ENV_SESSIONS = readEnvOverride(import.meta.env.VITE_FEATURE_SESSIONS);
 
 interface FeatureFlagsContextValue {
   transcriptionEnabled: boolean;
   aiEnabled: boolean;
   inReviewEnabled: boolean;
+  sessionsEnabled: boolean;
   transcriptionLocked: boolean;
   aiLocked: boolean;
   inReviewLocked: boolean;
+  sessionsLocked: boolean;
   transcriptionLockReason: string | null;
   inReviewLockReason: string | null;
+  sessionsLockReason: string | null;
   setTranscriptionEnabled: (enabled: boolean) => void;
   setAiEnabled: (enabled: boolean) => void;
   setInReviewEnabled: (enabled: boolean) => void;
+  setSessionsEnabled: (enabled: boolean) => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | null>(null);
@@ -54,6 +60,12 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     if (ENV_IN_REVIEW !== null) return ENV_IN_REVIEW;
     const stored = localStorage.getItem(IN_REVIEW_KEY);
     return stored === null ? true : stored === 'true';
+  });
+
+  const [sessionsEnabled, setSessionsState] = useState(() => {
+    if (ENV_SESSIONS !== null) return ENV_SESSIONS;
+    const stored = localStorage.getItem(SESSIONS_KEY);
+    return stored === null ? false : stored === 'true';
   });
 
   // Russian-doll dependency: AI ⊆ Transcription ⊆ In Review.
@@ -80,15 +92,23 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setInReviewState(enabled);
   }, []);
 
+  const setSessionsEnabled = useCallback((enabled: boolean) => {
+    if (ENV_SESSIONS !== null) return;
+    localStorage.setItem(SESSIONS_KEY, String(enabled));
+    setSessionsState(enabled);
+  }, []);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
         transcriptionEnabled,
         aiEnabled,
         inReviewEnabled,
+        sessionsEnabled,
         transcriptionLocked: ENV_TRANSCRIPTION !== null || aiEnabled,
         aiLocked: ENV_AI !== null,
         inReviewLocked: ENV_IN_REVIEW !== null || transcriptionEnabled,
+        sessionsLocked: ENV_SESSIONS !== null,
         transcriptionLockReason:
           ENV_TRANSCRIPTION !== null
             ? 'pipeline'
@@ -101,9 +121,11 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
             : transcriptionEnabled
               ? 'transcription'
               : null,
+        sessionsLockReason: ENV_SESSIONS !== null ? 'pipeline' : null,
         setTranscriptionEnabled,
         setAiEnabled,
         setInReviewEnabled,
+        setSessionsEnabled,
       }}
     >
       {children}

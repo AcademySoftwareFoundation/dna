@@ -9,6 +9,7 @@ import { AssistantPanel } from './AssistantPanel';
 import {
   usePlaylistMetadata,
   useSetInReview,
+  useSessionSetInReview,
   useDraftNote,
   useProdtrackTabSync,
 } from '../hooks';
@@ -20,6 +21,7 @@ interface ContentAreaProps {
   version?: Version | null;
   versions?: Version[];
   playlistId?: string | null;
+  sessionPlaylistIds?: readonly string[] | null;
   userEmail?: string | null;
   onVersionSelect?: (version: Version) => void;
   onRefresh?: () => void;
@@ -81,6 +83,7 @@ export function ContentArea({
   version,
   versions = [],
   playlistId,
+  sessionPlaylistIds,
   userEmail,
   onVersionSelect,
   onRefresh,
@@ -142,11 +145,17 @@ export function ContentArea({
   const canGoNext = currentIndex >= 0 && currentIndex < versions.length - 1;
 
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId ?? null);
+  const inSession = !!sessionPlaylistIds && sessionPlaylistIds.length > 0;
+  const singleReview = useSetInReview(inSession ? null : (playlistId ?? null));
+  const sessionReview = useSessionSetInReview(
+    inSession ? (playlistId ?? null) : null,
+    inSession ? sessionPlaylistIds : null
+  );
   const {
     setInReview,
     setInReviewPinned,
     isLoading: isSettingInReview,
-  } = useSetInReview(playlistId ?? null);
+  } = inSession ? sessionReview : singleReview;
 
   const inReviewVersionId = playlistMetadata?.in_review;
   const inReviewVersion = inReviewVersionId

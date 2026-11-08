@@ -67,16 +67,26 @@ export function useSetInReview(playlistId: string | null) {
   };
 }
 
-export function useInReviewChangedEvents(playlistId: string | null) {
+export function useInReviewChangedEvents(
+  playlistId: string | readonly string[] | null
+) {
   const queryClient = useQueryClient();
+  const playlistKey =
+    playlistId == null
+      ? ''
+      : typeof playlistId === 'string'
+        ? playlistId
+        : playlistId.join('\0');
 
   const handleEvent = useCallback(
     (event: DNAEvent<InReviewChangedEventPayload>) => {
-      if (!playlistId || event.payload.playlist_id !== playlistId) {
+      const ids = playlistKey ? playlistKey.split('\0') : [];
+      if (!ids.includes(event.payload.playlist_id)) {
         return;
       }
 
-      const queryKey = ['playlistMetadata', playlistId];
+      const targetId = event.payload.playlist_id;
+      const queryKey = ['playlistMetadata', targetId];
       const existing = queryClient.getQueryData<PlaylistMetadata | null>(
         queryKey
       );
@@ -92,12 +102,12 @@ export function useInReviewChangedEvents(playlistId: string | null) {
 
       void queryClient.invalidateQueries({ queryKey });
     },
-    [playlistId, queryClient]
+    [playlistKey, queryClient]
   );
 
   useEventSubscription<InReviewChangedEventPayload>(
     'playlist.in_review_changed',
     handleEvent,
-    { enabled: !!playlistId }
+    { enabled: playlistKey.length > 0 }
   );
 }

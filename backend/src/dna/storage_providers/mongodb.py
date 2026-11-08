@@ -63,6 +63,10 @@ class MongoDBStorageProvider(StorageProviderBase):
             unique=True,
             name="project_glossary_by_project",
         )
+        await self.playlist_metadata_collection.create_index(
+            [("session_ids", 1)],
+            name="playlist_metadata_by_session",
+        )
         self._indexes_ensured = True
 
     @property
@@ -259,8 +263,11 @@ class MongoDBStorageProvider(StorageProviderBase):
         update_fields = {
             k: v
             for k, v in data.model_dump().items()
-            if v is not None and k != "clear_resumed_at"
+            if v is not None and k not in ("clear_resumed_at", "clear_in_review")
         }
+        if data.clear_in_review:
+            update_fields["in_review"] = None
+            update_fields["in_review_pinned"] = False
 
         unset_fields: dict[str, Any] = {}
 
@@ -288,6 +295,19 @@ class MongoDBStorageProvider(StorageProviderBase):
         query = {"playlist_id": playlist_id}
         result = await self.playlist_metadata_collection.delete_one(query)
         return result.deleted_count > 0
+
+    async def get_playlist_metadata_by_session(
+        self, session_id: str
+    ) -> list[PlaylistMetadata]:
+        """Return playlist metadata linked to a session, oldest first."""
+        cursor = self.playlist_metadata_collection.find(
+            {"session_ids": session_id}
+        ).sort("_id", 1)
+        results = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(PlaylistMetadata(**doc))
+        return results
 
     async def upsert_segment(
         self,
