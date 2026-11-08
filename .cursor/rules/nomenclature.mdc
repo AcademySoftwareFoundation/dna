@@ -1,0 +1,23 @@
+---
+name: nomenclature
+description: Check for studio terminology and use the frontend nomenclature system for user-facing words.
+alwaysApply: true
+---
+
+# Terminology
+
+User-facing words for studio concepts go through the nomenclature system. Check it before writing labels, placeholders, tooltips, toasts, empty states, or settings copy.
+
+Existing terms live in `frontend/packages/app/src/nomenclature/nomenclature.ts`: `version`, `playlist`, `session`, `project`, `shot`, `asset`, `task`, `note`, `status`, `productionTracking`, and `publish`. Read `t.<term>.singular`, `plural`, `lower`, or `lowerPlural` from `useNomenclature()`. `productionTracking` also has `short`. `publish` uses `verb`, `past`, and `progressive`.
+
+```tsx
+const t = useNomenclature();
+// Choose a session...
+`Choose a ${t.session.lower}...`
+// + Add playlist
+`+ Add ${t.playlist.lower}`
+```
+
+Do not hardcode those words in the frontend. API fields, code identifiers, and stored data keep their names.
+
+When planning a feature, look for a new concept the user will see named. If the UI might introduce one, ask whether it should be a customizable term before building. A new term is added to the nomenclature config, its tests, `frontend/packages/app/.env.example`, and `dna-docs/docs/guides/11-customizing-terminology.mdx`.

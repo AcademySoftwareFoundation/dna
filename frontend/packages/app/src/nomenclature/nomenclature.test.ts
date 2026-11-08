@@ -35,6 +35,15 @@ describe('resolveNomenclature', () => {
     expect(t.version.singular).toBe('Take');
     expect(t.version.lowerPlural).toBe('takes');
     expect(t.playlist).toEqual(resolveNomenclature().playlist);
+    expect(t.session.singular).toBe('Session');
+    expect(t.session.plural).toBe('Sessions');
+    expect(t.session.lower).toBe('session');
+  });
+
+  it('renames a session and derives its plural', () => {
+    const t = resolveNomenclature({ session: { singular: 'Reel' } });
+    expect(t.session.plural).toBe('Reels');
+    expect(t.session.lowerPlural).toBe('reels');
   });
 
   it('derives a plural when only the singular is overridden', () => {

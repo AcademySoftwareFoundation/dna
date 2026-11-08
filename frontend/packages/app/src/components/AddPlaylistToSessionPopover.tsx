@@ -139,7 +139,7 @@ export function AddPlaylistToSessionPopover({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <AddButton type="button">+ Add playlist</AddButton>
+        <AddButton type="button">+ Add {t.playlist.lower}</AddButton>
       </PopoverTrigger>
       <Popover.Content side="bottom" align="end" sideOffset={4}>
         <Panel>
@@ -182,7 +182,9 @@ export function AddPlaylistToSessionPopover({
               </Row>
             )}
             {!isLoading && available.length === 0 && trimmed.length === 0 && (
-              <Status>Every {t.playlist.lower} is already in this session.</Status>
+              <Status>
+                Every {t.playlist.lower} is already in this {t.session.lower}.
+              </Status>
             )}
           </List>
         </Panel>

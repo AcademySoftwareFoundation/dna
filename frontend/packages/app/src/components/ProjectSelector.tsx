@@ -295,6 +295,7 @@ interface SessionSelectProps {
 }
 
 function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
+  const t = useNomenclature();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -354,13 +355,13 @@ function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
         <SessionSelectButton
           type="button"
           role="combobox"
-          aria-label={selected?.name ?? 'Choose a session...'}
+          aria-label={selected?.name ?? `Choose a ${t.session.lower}...`}
           aria-expanded={open}
           aria-haspopup="listbox"
           data-state={open ? 'open' : 'closed'}
         >
           <span data-placeholder={selected ? undefined : ''}>
-            {selected?.name ?? 'Choose a session...'}
+            {selected?.name ?? `Choose a ${t.session.lower}...`}
           </span>
           <ChevronDown size={16} />
         </SessionSelectButton>
@@ -376,8 +377,8 @@ function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
       >
         <SessionSearchInput
           ref={searchRef}
-          aria-label="Search sessions"
-          placeholder="Search sessions..."
+          aria-label={`Search ${t.session.lowerPlural}`}
+          placeholder={`Search ${t.session.lowerPlural}...`}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -385,9 +386,9 @@ function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
           }}
           onKeyDown={handleSearchKeyDown}
         />
-        <SessionOptionList role="listbox" aria-label="Sessions">
+        <SessionOptionList role="listbox" aria-label={t.session.plural}>
           {visibleSessions.length === 0 ? (
-            <SessionSearchEmpty>No sessions found</SessionSearchEmpty>
+            <SessionSearchEmpty>No {t.session.lowerPlural} found</SessionSearchEmpty>
           ) : (
             visibleSessions.map((session, index) => (
               <SessionOption
@@ -709,7 +710,9 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
       setStep('playlist');
     } catch (error) {
       setSessionOpenError(
-        error instanceof Error ? error.message : 'Failed to open session'
+        error instanceof Error
+          ? error.message
+          : `Failed to open ${t.session.lower}`
       );
     } finally {
       setIsOpeningSession(false);
@@ -867,13 +870,13 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
             {isLoadingSessions && (
               <LoadingWrapper>
                 <Spinner size="3" />
-                <LoadingText>Loading sessions...</LoadingText>
+                <LoadingText>Loading {t.session.lowerPlural}...</LoadingText>
               </LoadingWrapper>
             )}
 
             {isSessionsError && (
               <ErrorText>
-                {sessionsError?.message || 'Failed to load sessions'}
+                {sessionsError?.message || `Failed to load ${t.session.lowerPlural}`}
               </ErrorText>
             )}
 
@@ -899,13 +902,13 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
                         onValueChange={setSelectedSessionId}
                       />
                     ) : (
-                      <EmptyText>No sessions yet.</EmptyText>
+                      <EmptyText>No {t.session.lowerPlural} yet.</EmptyText>
                     )}
                   </Tabs.Content>
                   <Tabs.Content value="create">
                     <StyledInput
                       value={newSessionName}
-                      placeholder="Session name"
+                      placeholder={`${t.session.singular} name`}
                       onChange={(event) => {
                         setNewSessionName(event.target.value);
                       }}
@@ -914,7 +917,8 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
                 </SessionModeTabs>
                 {createSession.isError && (
                   <ErrorText>
-                    {createSession.error?.message || 'Failed to create session'}
+                    {createSession.error?.message ||
+                      `Failed to create ${t.session.lower}`}
                   </ErrorText>
                 )}
                 {sessionOpenError && <ErrorText>{sessionOpenError}</ErrorText>}

@@ -2,6 +2,7 @@ import { useQueryClient, useQueries } from '@tanstack/react-query';
 import { findInReviewHolders, type PlaylistMetadata } from '@dna/core';
 import { apiHandler } from '../api';
 import { useToast } from '../contexts/ToastContext';
+import { useNomenclature } from '../nomenclature';
 import { useInReviewChangedEvents, useSetInReview } from './usePlaylistMetadata';
 
 function isConflict(error: unknown): boolean {
@@ -34,6 +35,7 @@ export function useSessionSetInReview(
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const active = useSetInReview(activePlaylistId);
+  const t = useNomenclature();
   const inSession = !!sessionPlaylistIds && sessionPlaylistIds.length > 0;
 
   useInReviewChangedEvents(inSession ? sessionPlaylistIds : null);
@@ -75,8 +77,7 @@ export function useSessionSetInReview(
             showToast({
               type: 'error',
               title: 'In review is pinned',
-              description:
-                'Unpin it on the other playlist before moving in review.',
+              description: `Unpin it on the other ${t.playlist.lower} before moving in review.`,
             });
             return;
           }

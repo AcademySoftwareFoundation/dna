@@ -4,6 +4,7 @@ import { waitFor } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import { render, screen } from '../test/render';
 import { apiHandler } from '../api';
+import { NomenclatureProvider } from '../nomenclature';
 import { ProjectSelector, STORAGE_KEYS } from './ProjectSelector';
 
 const flags = vi.hoisted(() => ({ sessionsEnabled: true }));
@@ -161,5 +162,22 @@ describe('ProjectSelector sessions', () => {
 
     expect(screen.getByText('Select a playlist')).toBeInTheDocument();
     expect(screen.queryByText('Select a session')).not.toBeInTheDocument();
+  });
+
+  it('uses the studio name for a session', async () => {
+    const user = userEvent.setup();
+    render(
+      <NomenclatureProvider overrides={{ session: { singular: 'Reel' } }}>
+        <ProjectSelector onSelectionComplete={vi.fn()} />
+      </NomenclatureProvider>
+    );
+
+    expect(
+      screen.getByRole('combobox', { name: 'Choose a reel...' })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Create New' }));
+
+    expect(screen.getByPlaceholderText('Reel name')).toBeInTheDocument();
   });
 });

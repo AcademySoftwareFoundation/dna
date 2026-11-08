@@ -188,7 +188,9 @@ export function SessionTabs({
         if (playlist) onPlaylistChange(playlist);
       }}
     >
-      <StyledTabsList aria-label="Session playlists">
+      <StyledTabsList
+        aria-label={`${t.session.singular} ${t.playlist.lowerPlural}`}
+      >
         {tabIds
           .filter((playlistId) => !hiddenIds.has(playlistId))
           .map((playlistId) => {
@@ -207,7 +209,7 @@ export function SessionTabs({
                 </StyledTabsTrigger>
                 <RemoveButton
                   type="button"
-                  aria-label={`Remove ${label} from session`}
+                    aria-label={`Remove ${label} from ${t.session.lower}`}
                   onClick={() => removePlaylistFromSession(playlistId)}
                 >
                   <RemoveIcon aria-hidden="true" />

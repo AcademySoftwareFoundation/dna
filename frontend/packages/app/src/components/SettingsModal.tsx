@@ -518,12 +518,12 @@ function GeneralTab({
       </Section>
 
       <Section>
-        <SectionTitle>Sessions</SectionTitle>
+        <SectionTitle>{t.session.plural}</SectionTitle>
         <AppearanceRow>
           <KeybindingLabel>
-            <KeybindingName>Enable Sessions</KeybindingName>
+            <KeybindingName>Enable {t.session.plural}</KeybindingName>
             <KeybindingDesc>
-              Group {t.playlist.lowerPlural} in a session and show them as tabs
+              Group {t.playlist.lowerPlural} in a {t.session.lower} and show them as tabs
             </KeybindingDesc>
           </KeybindingLabel>
           <LockableSwitch
