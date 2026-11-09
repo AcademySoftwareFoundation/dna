@@ -139,3 +139,11 @@ declare module '@dna-app/styles/theme' {
 
   export function getTheme(mode: 'dark' | 'light', accent?: AccentName): Theme;
 }
+
+declare module '@dna-app/nomenclature/nomenclature' {
+  /**
+   * The app's default terminology, which appMocks/nomenclature hands to the
+   * demoed components. Only passed through, so its shape isn't spelled out.
+   */
+  export const DEFAULT_RESOLVED_NOMENCLATURE: Readonly<Record<string, unknown>>;
+}
