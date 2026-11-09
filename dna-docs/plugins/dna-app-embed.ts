@@ -8,11 +8,11 @@ import type {LoadContext, Plugin} from '@docusaurus/types';
  * src/components/LiveLoginDemo.
  *
  * - `@dna-app/...` resolves to the app's source.
- * - The app's API, contexts, mention index and entity search modules are
- *   swapped for the fakes in src/components/LiveLoginDemo/appMocks when
- *   imported from the app's components folder, so demos need no backend,
- *   auth provider or React Query (the first two would also pull in Vite-only
- *   `import.meta.env`).
+ * - The app's API, contexts, nomenclature, mention index and entity search
+ *   modules are swapped for the fakes in src/components/LiveLoginDemo/appMocks
+ *   when imported from the app's components folder, so demos need no backend,
+ *   auth provider, terminology provider or React Query (the first three would
+ *   also pull in Vite-only `import.meta.env`).
  * - SVGs under the app's source load as URLs, as they do in Vite, rather
  *   than as React components (Docusaurus' SVGR default for TSX imports).
  * - Shared libraries always resolve from dna-docs/node_modules: the app's
@@ -37,6 +37,7 @@ export default function dnaAppEmbed(context: LoadContext): Plugin {
     '../contexts': path.join(mocks, 'contexts.ts'),
     '../contexts/MentionIndexContext': path.join(mocks, 'mentionIndex.tsx'),
     '../hooks/useEntitySearch': path.join(mocks, 'useEntitySearch.ts'),
+    '../nomenclature': path.join(mocks, 'nomenclature.ts'),
   };
   const replaced = new RegExp(
     `^(${Object.keys(replacements)
