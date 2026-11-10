@@ -4,6 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 import type {PluginOptions as SearchOptions} from '@easyops-cn/docusaurus-search-local';
 import dnaAppEmbed from './plugins/dna-app-embed';
+import defaultNotePrompt from './plugins/default-note-prompt';
 import searchHighlight from './plugins/search-highlight';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -117,6 +118,8 @@ const config: Config = {
   plugins: [
     // Lets guides embed real DNA app components as live demos.
     dnaAppEmbed,
+    // The backend's default note prompt, for the AI guide's prompt demo.
+    defaultNotePrompt,
     // On-page search highlights for in-body results only.
     searchHighlight,
     // Backend docs: a second content-docs instance at /api, rendered with the
