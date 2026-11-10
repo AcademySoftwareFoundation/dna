@@ -120,13 +120,25 @@ h3 {
   inset: 0;
   z-index: -1;
   background-color: var(--dna-navbar-glass);
+  /* Unprefixed only: the build's CSS minifier (Lightning CSS) adds any
+     vendor prefix the target browsers need, and keeps just the last of a
+     prefixed/unprefixed pair - with -webkit- last, Chrome and Firefox got
+     no blur. */
   backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
 }
 
 .navbar__link {
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+/* Highlight a dropdown's label (Developer Docs) on its own page (`.active`)
+   or while one of its sections is open, like the other navbar links.
+   Docusaurus only does the latter in the mobile menu, not the desktop
+   dropdown. */
+.navbar__item.dropdown > .navbar__link.active,
+.navbar__item.dropdown:has(.dropdown__link--active) > .navbar__link {
+  color: var(--ifm-navbar-link-active-color);
 }
 
 /* ---------- Sidebar ---------- */

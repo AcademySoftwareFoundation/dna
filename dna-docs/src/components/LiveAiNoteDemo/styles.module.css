@@ -1,0 +1,62 @@
+/* The content column's AI Assistant / Transcript tabs, framed like the
+   other demos. */
+.frame {
+  position: relative;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  font-family: inherit;
+}
+
+/* Positioned for the guide bubble and checkmark, which render inside it. */
+.root {
+  position: relative;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 380px;
+  padding: 8px 20px 20px;
+  color: var(--c-text);
+  background: var(--c-bg-base);
+  border: 1px solid var(--dna-hairline);
+  border-radius: 12px;
+}
+
+.app button {
+  font-family: inherit;
+}
+
+/* Under the tabs: the AI card at its own height, or the transcript filling
+   the rest and scrolling. The app pads its tab content 16px. */
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 16px;
+  overflow-y: auto;
+}
+
+/* The cowbells in the regenerated note: bold in its markdown, highlighted
+   here. Only the AI card's note uses bold. */
+.body li strong {
+  padding: 0 0.2em;
+  font-weight: 600;
+  color: #1a1a1a;
+  background: #fde047;
+  border-radius: 3px;
+}
+
+/* The demo's height before it loads. */
+.placeholder {
+  height: 382px;
+}

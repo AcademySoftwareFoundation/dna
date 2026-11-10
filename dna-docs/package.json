@@ -41,6 +41,7 @@
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "sass": "^1.102.0",
     "styled-components": "^6.6.0",
     "turndown": "^7.2.2"
@@ -49,8 +50,10 @@
     "@docusaurus/module-type-aliases": "3.10.2",
     "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
+    "@types/js-yaml": "^4.0.9",
     "@types/react": "^19.0.0",
     "@types/turndown": "^5.0.6",
+    "js-yaml": "^4.3.2",
     "typescript": "~6.0.2"
   },
   "browserslist": {

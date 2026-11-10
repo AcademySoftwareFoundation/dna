@@ -26,7 +26,11 @@ export function useGetProjectsForUser(userEmail: string | null) {
   return result(userEmail ? PROJECTS : undefined);
 }
 
-/** The notes editor's calls: entity search, and attachments that "upload" instantly. */
+/**
+ * The notes editor's calls: entity search, and attachments that "upload"
+ * instantly; the menus demo's add-version and create-playlist; and the
+ * transcription menu's user settings (the default language).
+ */
 export const apiHandler = {
   searchEntities: async ({
     query,
@@ -52,6 +56,7 @@ export const apiHandler = {
     code: name,
     versions: [],
   }),
+  getUserSettings: async (_: {userEmail: string}) => ({transcription_language: 'en'}),
 };
 
 export function useGetPlaylistsForProject(projectId: string | null) {

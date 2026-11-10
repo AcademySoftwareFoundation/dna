@@ -115,6 +115,29 @@ declare module '@dna-app/components/VersionCard' {
   }): ReactNode;
 }
 
+declare module '@dna-app/components/TranscriptionMenu' {
+  import type {ReactNode} from 'react';
+
+  /** The sidebar's Transcription button and its meeting-bot menu. */
+  export function TranscriptionMenu(props: {
+    playlistId: string | null;
+    collapsed?: boolean;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/AssistantNote' {
+  import type {ReactNode} from 'react';
+
+  /** The AI Assistant tab's card: the suggested note, Regenerate, Copy and Insert. */
+  export function AssistantNote(props: {
+    suggestion?: string | null;
+    isLoading?: boolean;
+    error?: Error | null;
+    onRegenerate?: (additionalInstructions?: string) => void;
+    onInsertNote?: (content: string) => void;
+  }): ReactNode;
+}
+
 declare module '@dna-app/styles/theme' {
   import type {ThemeProps} from '@radix-ui/themes';
 
@@ -122,8 +145,10 @@ declare module '@dna-app/styles/theme' {
 
   export const ACCENTS: Record<
     AccentName,
-    {label: string; radix: NonNullable<ThemeProps['accentColor']>}
+    {label: string; radix: NonNullable<ThemeProps['accentColor']>; colors: {main: string}}
   >;
+
+  export const ACCENT_NAMES: AccentName[];
 
   /** The parts of the app's theme the docs demos read directly. */
   export interface Theme {
@@ -146,4 +171,16 @@ declare module '@dna-app/nomenclature/nomenclature' {
    * demoed components. Only passed through, so its shape isn't spelled out.
    */
   export const DEFAULT_RESOLVED_NOMENCLATURE: Readonly<Record<string, unknown>>;
+}
+
+declare module '@dna-app/hotkeys/hotkeysConfig' {
+  export interface HotkeyAction {
+    id: string;
+    label: string;
+    description: string;
+    defaultKeys: string;
+  }
+
+  /** The app's shortcuts with their default keys, in the given terminology. */
+  export function buildHotkeyActions(terms: unknown): HotkeyAction[];
 }
