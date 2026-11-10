@@ -41,6 +41,7 @@
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "sass": "^1.102.0",
     "styled-components": "^6.6.0",
     "turndown": "^7.2.2"

@@ -13,8 +13,8 @@ import type {LoadContext, Plugin} from '@docusaurus/types';
  *   when imported from the app's components folder, so demos need no backend,
  *   auth provider, terminology provider or React Query (the first three would
  *   also pull in Vite-only `import.meta.env`). TranscriptionMenu alone also
- *   gets fake transcription hooks and sign-in; other components (NoteEditor)
- *   keep the real hooks module.
+ *   gets fake transcription hooks and sign-in, and AssistantNote fake hotkey
+ *   labels; other components (NoteEditor) keep the real hooks module.
  * - SVGs under the app's source load as URLs, as they do in Vite, rather
  *   than as React components (Docusaurus' SVGR default for TSX imports).
  * - Shared libraries always resolve from dna-docs/node_modules: the app's
@@ -47,6 +47,9 @@ export default function dnaAppEmbed(context: LoadContext): Plugin {
     [path.join(appComponents, 'TranscriptionMenu.tsx')]: {
       '../hooks': path.join(mocks, 'transcription.tsx'),
       '../contexts/AuthContext': path.join(mocks, 'authContext.ts'),
+    },
+    [path.join(appComponents, 'AssistantNote.tsx')]: {
+      '../hotkeys': path.join(mocks, 'hotkeys.ts'),
     },
   };
   const requests = [
@@ -96,6 +99,7 @@ export default function dnaAppEmbed(context: LoadContext): Plugin {
             '@tiptap/pm': path.join(docsModules, '@tiptap/pm'),
             turndown: path.join(docsModules, 'turndown'),
             'lucide-react': path.join(docsModules, 'lucide-react'),
+            'react-markdown': path.join(docsModules, 'react-markdown'),
           },
         },
         plugins: [

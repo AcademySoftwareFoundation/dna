@@ -125,6 +125,19 @@ declare module '@dna-app/components/TranscriptionMenu' {
   }): ReactNode;
 }
 
+declare module '@dna-app/components/AssistantNote' {
+  import type {ReactNode} from 'react';
+
+  /** The AI Assistant tab's card: the suggested note, Regenerate, Copy and Insert. */
+  export function AssistantNote(props: {
+    suggestion?: string | null;
+    isLoading?: boolean;
+    error?: Error | null;
+    onRegenerate?: (additionalInstructions?: string) => void;
+    onInsertNote?: (content: string) => void;
+  }): ReactNode;
+}
+
 declare module '@dna-app/styles/theme' {
   import type {ThemeProps} from '@radix-ui/themes';
 
