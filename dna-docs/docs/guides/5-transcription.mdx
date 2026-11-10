@@ -4,6 +4,8 @@ slug: /5-transcription
 title: Transcription
 ---
 
+import LiveTranscriptionDemo from '@site/src/components/LiveTranscriptionDemo';
+
 Transcription lets you record not just the important parts of what was said in a review, but actually the whole thing in a referenceable, distributable, and retraceable way. Need more context on a note? This is the way. 
 
 ## Joining a Call
@@ -12,11 +14,6 @@ Open the Transcription menu in the sidebar, paste a Google Meet, Microsoft Teams
 
 For Zoom, paste the invite link (`zoom.us/j/…`) or the numeric meeting ID. If the link includes `?pwd=…` (Zoom's **Copy Invite Link**), its passcode is used automatically; otherwise enter the meeting passcode in the passcode field. Personal links (`zoom.us/my/…`), host start links and Zoom Events links can't be joined.
 
-<Figure
-  src="img/5-transcription/join-call.png"
-  width="75%"
-  alt="DNA transcription"
-  caption="Image shows how to join a call."
-/>
+<LiveTranscriptionDemo caption="Follow the steps to join a call, pause and resume transcription, then stop it." />
 
 Once connected, you can pause transcription at any time, during a break for example. The bot stays in the meeting, but nothing is saved until you resume. When the session wraps, click Stop Transcription to remove the bot from the call.

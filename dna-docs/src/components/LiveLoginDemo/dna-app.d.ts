@@ -115,6 +115,16 @@ declare module '@dna-app/components/VersionCard' {
   }): ReactNode;
 }
 
+declare module '@dna-app/components/TranscriptionMenu' {
+  import type {ReactNode} from 'react';
+
+  /** The sidebar's Transcription button and its meeting-bot menu. */
+  export function TranscriptionMenu(props: {
+    playlistId: string | null;
+    collapsed?: boolean;
+  }): ReactNode;
+}
+
 declare module '@dna-app/styles/theme' {
   import type {ThemeProps} from '@radix-ui/themes';
 
