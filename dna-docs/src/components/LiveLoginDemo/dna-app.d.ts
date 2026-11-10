@@ -145,8 +145,10 @@ declare module '@dna-app/styles/theme' {
 
   export const ACCENTS: Record<
     AccentName,
-    {label: string; radix: NonNullable<ThemeProps['accentColor']>}
+    {label: string; radix: NonNullable<ThemeProps['accentColor']>; colors: {main: string}}
   >;
+
+  export const ACCENT_NAMES: AccentName[];
 
   /** The parts of the app's theme the docs demos read directly. */
   export interface Theme {
@@ -169,4 +171,16 @@ declare module '@dna-app/nomenclature/nomenclature' {
    * demoed components. Only passed through, so its shape isn't spelled out.
    */
   export const DEFAULT_RESOLVED_NOMENCLATURE: Readonly<Record<string, unknown>>;
+}
+
+declare module '@dna-app/hotkeys/hotkeysConfig' {
+  export interface HotkeyAction {
+    id: string;
+    label: string;
+    description: string;
+    defaultKeys: string;
+  }
+
+  /** The app's shortcuts with their default keys, in the given terminology. */
+  export function buildHotkeyActions(terms: unknown): HotkeyAction[];
 }
