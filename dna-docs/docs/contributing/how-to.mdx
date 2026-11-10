@@ -3,24 +3,25 @@ sidebar_position: 2
 slug: /how-to
 ---
 
-# How-to for Frontend Docs
+# How-to for User Guides
 
-Hand-written guides for the frontend, authored as regular Docusaurus MDX.
+Hand-written guides for the DNA app, authored as regular Docusaurus MDX.
 
 These pages live in `docs/` and are served under `/docs`. They are completely
-separate from the [Backend API reference](/api), which is generated from an
-OpenAPI specification and served under `/api`.
+separate from the [Deployment](/deployment) docs, which live in `deployment/`
+and are served under `/deployment`, and from the [Backend API reference](/api),
+which is generated from an OpenAPI specification and served under `/api`.
 
 ## How the two sections differ
 
-| | Frontend docs | Backend API docs |
-| --- | --- | --- |
-| Route | `/docs` | `/api` |
-| Source | `docs/**/*.mdx`, written by hand | `openapi/backend.yaml`, generated |
-| Sidebar | `sidebars.ts` | `sidebarsApi.ts` + generated slice |
-| Doc component | Docusaurus default | `@theme/ApiItem` |
+| | User guides | Deployment docs | Backend API docs |
+| --- | --- | --- | --- |
+| Route | `/docs` | `/deployment` | `/api` |
+| Source | `docs/**/*.mdx`, written by hand | `deployment/**/*.mdx`, written by hand | `openapi/backend.yaml`, generated |
+| Sidebar | `sidebars.ts` | `sidebarsDeployment.ts` | `sidebarsApi.ts` + generated slice |
+| Doc component | Docusaurus default | Docusaurus default | `@theme/ApiItem` |
 
-Because they are two independent `plugin-content-docs` instances, MDX features
+Because they are independent `plugin-content-docs` instances, MDX features
 here are unaffected by the OpenAPI theme, and regenerating the API reference
 never touches these files.
 

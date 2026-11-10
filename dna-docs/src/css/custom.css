@@ -129,6 +129,15 @@ h3 {
   font-weight: 500;
 }
 
+/* Highlight a dropdown's label (Developer Docs) on its own page (`.active`)
+   or while one of its sections is open, like the other navbar links.
+   Docusaurus only does the latter in the mobile menu, not the desktop
+   dropdown. */
+.navbar__item.dropdown > .navbar__link.active,
+.navbar__item.dropdown:has(.dropdown__link--active) > .navbar__link {
+  color: var(--ifm-navbar-link-active-color);
+}
+
 /* ---------- Sidebar ---------- */
 
 .theme-doc-sidebar-container {

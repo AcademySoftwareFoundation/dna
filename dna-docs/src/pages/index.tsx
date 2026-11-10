@@ -25,12 +25,12 @@ function HomepageHeader() {
         <p className={styles.subtitle}>{siteConfig.tagline}</p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs">
-            Frontend Docs
+            User Guides
           </Link>
           <Link
             className="button button--outline button--secondary button--lg"
-            to="/api">
-            Backend API
+            to="/developers">
+            Developer Docs
           </Link>
         </div>
       </div>
@@ -43,7 +43,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={siteConfig.title}
-      description="Frontend guides and backend API reference for DNA, an Academy Software Foundation project.">
+      description="User guides, deployment docs and backend API reference for DNA, an Academy Software Foundation project.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

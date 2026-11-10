@@ -99,7 +99,7 @@ const config: Config = {
     [
       'classic',
       {
-        // Frontend docs: the default docs instance, plain MDX at /docs.
+        // User guides: the default docs instance, plain MDX at /docs.
         // Deliberately left on the stock doc item component - only the API
         // instance below opts into @theme/ApiItem.
         docs: {
@@ -129,6 +129,17 @@ const config: Config = {
         routeBasePath: 'api',
         sidebarPath: './sidebarsApi.ts',
         docItemComponent: '@theme/ApiItem',
+      },
+    ],
+    // Deployment docs: a third content-docs instance at /deployment, plain
+    // MDX like the user guides.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'deployment',
+        path: 'deployment',
+        routeBasePath: 'deployment',
+        sidebarPath: './sidebarsDeployment.ts',
       },
     ],
     [
@@ -167,9 +178,9 @@ const config: Config = {
     [
       '@easyops-cn/docusaurus-search-local',
       {
-        // Both docs instances: frontend guides and the backend API.
-        docsRouteBasePath: ['docs', 'api'],
-        docsDir: ['docs', 'api'],
+        // All docs instances: user guides, deployment and the backend API.
+        docsRouteBasePath: ['docs', 'deployment', 'api'],
+        docsDir: ['docs', 'deployment', 'api'],
         indexBlog: false,
         hashed: true,
         explicitSearchResultPath: true,
@@ -200,19 +211,39 @@ const config: Config = {
       items: [
         {to: '/about', label: 'About', position: 'right'},
         // Lands on the Introduction rather than the generated Guides
-        // category index; stays highlighted anywhere in the frontend docs.
+        // category index; stays highlighted anywhere in the user guides.
         {
           type: 'doc',
           docId: 'guides/introduction',
           position: 'right',
-          label: 'Frontend',
+          label: 'User Guides',
         },
+        // For people hosting or building on DNA. The label opens the
+        // /developers landing page; hovering shows the two sections.
+        // activeBasePath on the items lets the dropdown stay highlighted
+        // anywhere in either section (docSidebar items have no `to` for it to
+        // match on).
         {
-          type: 'docSidebar',
-          docsPluginId: 'api',
-          sidebarId: 'openApiSidebar',
+          type: 'dropdown',
+          label: 'Developer Docs',
+          to: '/developers',
           position: 'right',
-          label: 'Backend API',
+          items: [
+            {
+              type: 'docSidebar',
+              docsPluginId: 'deployment',
+              sidebarId: 'deploymentSidebar',
+              label: 'Deployment',
+              activeBasePath: 'deployment',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'api',
+              sidebarId: 'openApiSidebar',
+              label: 'Backend API',
+              activeBasePath: 'api',
+            },
+          ],
         },
         {
           href: 'https://github.com/AcademySoftwareFoundation/dna',
@@ -230,11 +261,28 @@ const config: Config = {
       style: 'light',
       links: [
         {
-          title: 'Docs',
+          title: 'User Guides',
           items: [
             {
-              label: 'Frontend',
+              label: 'Introduction',
               to: '/docs',
+            },
+            {
+              label: 'Contributing',
+              to: '/docs/category/contributing',
+            },
+          ],
+        },
+        {
+          title: 'Developer Docs',
+          items: [
+            {
+              label: 'Overview',
+              to: '/developers',
+            },
+            {
+              label: 'Deployment',
+              to: '/deployment',
             },
             {
               label: 'Backend API',
