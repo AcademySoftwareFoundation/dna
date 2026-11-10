@@ -5,6 +5,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from dna.auth.identity import CurrentUser
     from dna.models.entity import EntityBase, Playlist, Project, User, Version
     from dna.models.schema import SchemaField
 
@@ -18,6 +19,18 @@ class UserNotFoundError(Exception):
 class ProdtrackProviderBase:
     def __init__(self):
         pass
+
+    def for_user(self, user: CurrentUser) -> ProdtrackProviderBase:
+        """Return a provider whose calls act on behalf of ``user``.
+
+        DNA calls this once per request with the identity from the caller's
+        access token. Providers map that identity to their own user concept;
+        the default implementation ignores it and returns ``self``.
+
+        Raises:
+            UserNotFoundError: If the provider has no matching user.
+        """
+        return self
 
     @staticmethod
     def build_version_context(version: Version) -> str:
@@ -264,7 +277,6 @@ class ProdtrackProviderBase:
         to_users: list[str],
         cc_users: list[str],
         links: list["EntityBase"],
-        author_email: str | None = None,
         version_status: str | None = None,
     ) -> str:
         """Publish a note to the production tracking system.
@@ -276,8 +288,6 @@ class ProdtrackProviderBase:
             to_users: List of opaque user IDs to address
             cc_users: List of opaque user IDs to CC
             links: List of additional entities to link
-            author_email: Optional email of the author. If provided, the note
-                should be created on behalf of this user.
             version_status: Optional status code to set on the version.
 
         Returns:
@@ -293,7 +303,6 @@ class ProdtrackProviderBase:
         to_users: list[str],
         cc_users: list[str],
         links: list["EntityBase"],
-        author_email: str | None = None,
     ) -> str:
         """Publish a note linked to a playlist rather than a version.
 
@@ -304,8 +313,6 @@ class ProdtrackProviderBase:
             to_users: List of opaque user IDs to address
             cc_users: List of opaque user IDs to CC
             links: List of additional entities to link
-            author_email: Optional email of the author. If provided, the note
-                should be created on behalf of this user.
 
         Returns:
             The ID of the created note

@@ -11,8 +11,9 @@ from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
 )
+from tests.auth_helpers import AuthenticatedTestClient
 
-client = TestClient(app)
+client = AuthenticatedTestClient(app)
 
 
 class TestPlaylistMetadataModels:

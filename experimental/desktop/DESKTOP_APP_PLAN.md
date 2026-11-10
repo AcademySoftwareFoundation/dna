@@ -16,7 +16,7 @@ package them.
 | Desktop shell | **Tauri 2.** Lightweight shell; Rust side handles sidecar lifecycle and keychain. |
 | Transcription | **Vexa cloud only.** Local/on-device transcription is out of scope for v1 (see [v2](#v2-candidates)). |
 | Code signing | **Unsigned initially.** Apple Developer ID / Windows Authenticode later; users will see Gatekeeper / SmartScreen warnings until then. |
-| Auth | **`AUTH_PROVIDER=none`.** Identity is the email entered at login, gated by a ShotGrid `HumanUser` lookup (`backend/src/dna/prodtrack_providers/shotgrid.py:560`). No Google OAuth on desktop. |
+| Auth | **`AUTH_PROVIDER=shotgrid`.** Users sign in with their ShotGrid username and password; the backend issues a DNA JWT and runs ShotGrid calls as that user. |
 | Local storage | **SQLite** provider alongside the existing MongoDB provider. |
 | UI | **Reuse the React app** (`frontend/packages/app`). The PySide6 prototypes in `experimental/cameron/frontend_v2,v3` are not continued; a second UI would diverge from the browser build. |
 | UI origin in desktop | **Tauri serves the UI from its bundled `frontendDist`** (`tauri://localhost`); the engine is reached over HTTP on a local port. See [UI origin](#ui-origin-why-tauri-serves-the-ui) for why, rather than loading the UI from the engine. |
@@ -69,7 +69,7 @@ collection access elsewhere), so a second storage provider is one file plus test
 | ~30 scattered `os.getenv` calls, no `main()` | `backend/src/main.py` and every provider; runs via `uvicorn src.main:app` | PyInstaller needs an entrypoint; a Settings screen needs one config object |
 | Attachments written to `/tmp` | `backend/src/main.py:433` | Needs a per-user app data directory |
 | CORS defaults to `localhost:5173/3000` | `backend/src/dna/cors_settings.py:36` | Tauri's origin is `tauri://localhost` (macOS/Linux) / `http://tauri.localhost` (Windows); both must be allowed |
-| Several more `VITE_*` values baked at build time | `frontend/packages/app/src/vite-env.d.ts` | `VITE_AUTH_PROVIDER`, `VITE_FEATURE_*`, extension IDs/keys, `VITE_WHISPERLIVE_URL` all need the same runtime treatment as the API URL |
+| Several more `VITE_*` values baked at build time | `frontend/packages/app/src/vite-env.d.ts` | `VITE_FEATURE_*`, extension IDs/keys, `VITE_WHISPERLIVE_URL` all need the same runtime treatment as the API URL |
 | Mock prodtrack builds URLs from `API_BASE_URL` | `backend/src/dna/prodtrack_providers/mock_provider.py:65` | Defaults to `localhost:8000`; must be the sidecar's actual URL |
 | `@app.on_event` startup/shutdown | `backend/src/main.py:354,366` | Deprecated in FastAPI; lifespan is cleaner for sidecar start/stop |
 
@@ -184,9 +184,9 @@ once the engine reports ready.
 - **Settings screen.** Provider selection (prodtrack, LLM, Vexa URL), API keys,
   engine Local / Remote URL toggle, data directory, "restart engine". Backed by
   `/engine/info`.
-- **Auth.** `AUTH_PROVIDER=none`; login screen is the existing email form; the
-  email must resolve to a ShotGrid `HumanUser`. The Google OAuth code path is
-  left in place for browser deployments but is not reachable on desktop.
+- **Auth.** `AUTH_PROVIDER=shotgrid`; the login screen is the existing
+  username and password form, and the email must resolve to a ShotGrid
+  `HumanUser`.
 - **Transcription.** `TRANSCRIPTION_PROVIDER=vexa` with `VEXA_API_URL` pointing
   at `https://api.cloud.vexa.ai` by default, overridable to a studio-hosted
   Vexa. The bot-dispatch flow in `transcription_providers/vexa.py` is unchanged.
@@ -281,8 +281,8 @@ Deliberately out of scope for v1:
   "segments pushed in by a client"; generalise that to a `client` provider.
   Speaker attribution is the open problem — the Chrome extension gets names by
   scraping Meet's DOM, which does not exist here.
-- **Google OAuth on desktop** via system browser + loopback redirect, if a
-  studio needs SSO rather than the email-matches-ShotGrid check.
+- **SSO on desktop** (e.g. Okta) via system browser + loopback redirect, as a
+  new auth provider, if a studio needs SSO rather than ShotGrid passwords.
 - **Signed builds** once an Apple Developer / Windows cert is available.
 - **Direct RV / OpenRV integration** from the shell, which is simpler from a
   desktop process than from a browser tab.
@@ -332,8 +332,8 @@ Facts a fresh session would otherwise have to rediscover. Work is on branch
   `PRODTRACK_PROVIDER=mock STORAGE_PROVIDER=mongodb MONGODB_URL=...` — after
   Phase 2, `STORAGE_PROVIDER=sqlite` removes the Mongo dependency entirely and
   is the fastest loop for engine work.
-- `PRODTRACK_PROVIDER=mock` + `AUTH_PROVIDER=none` is the no-credentials path;
-  the mock DB ships with users whose emails the login form accepts.
+- `PRODTRACK_PROVIDER=mock` + `AUTH_PROVIDER=mock` is the no-credentials path;
+  any username and password signs in.
 
 ### Session plan and budget
 

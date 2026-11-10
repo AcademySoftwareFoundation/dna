@@ -13,7 +13,11 @@ import {DemoStateProvider} from './appMocks/demoState';
 import {Guide} from './Guide';
 import styles from './styles.module.css';
 
-const SAMPLE_EMAIL = 'you@example.com';
+/** Sample values the sign-in fields fill in when clicked, keyed by input id. */
+const SAMPLE_VALUES: Record<string, string> = {
+  'signin-username': 'you@example.com',
+  'signin-password': 'any-password',
+};
 
 /** How long the checkmark shows before the demo resets underneath it. */
 const SUCCESS_MS = 1600;
@@ -24,7 +28,7 @@ const FADE_MS = 400;
 type Phase = 'demo' | 'success' | 'fading';
 
 // The app's real login screen, with sample projects and playlists and a
-// sign-in that always succeeds (see ./appMocks). Browser-only: loaded by
+// sign-in that accepts any password (see ./appMocks). Browser-only: loaded by
 // ./index.tsx inside <BrowserOnly>.
 export default function LoginDemo() {
   const {colorMode} = useColorMode();
@@ -51,7 +55,7 @@ export default function LoginDemo() {
     localStorage.removeItem(STORAGE_KEYS.PROJECT);
   }, [run]);
 
-  // The app autofocuses its email field once its loading step clears. On a
+  // The app autofocuses its username field once its loading step clears. On a
   // docs page that would steal focus and scroll to the demo, on load and on
   // every automatic reset (most of a phone screen), so undo focus that
   // arrives before the reader next touches the page.
@@ -84,7 +88,7 @@ export default function LoginDemo() {
     return stop;
   }, [run]);
 
-  // Clicking the empty email field fills in a sample address. The field is
+  // Clicking an empty sign-in field fills in a sample value. The field is
   // React-controlled, so set it the way typing would and let onChange run.
   const appRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -92,18 +96,18 @@ export default function LoginDemo() {
     if (!app) return;
     const onClick = (event: MouseEvent) => {
       const input = event.target;
-      if (!(input instanceof HTMLInputElement) || input.type !== 'email' || input.value) {
-        return;
-      }
+      if (!(input instanceof HTMLInputElement) || input.value) return;
+      const sample = SAMPLE_VALUES[input.id];
+      if (!sample) return;
       const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      setValue?.call(input, SAMPLE_EMAIL);
+      setValue?.call(input, sample);
       input.dispatchEvent(new Event('input', {bubbles: true}));
     };
     app.addEventListener('click', onClick);
     return () => app.removeEventListener('click', onClick);
   }, []);
 
-  // Keep readers' password managers and browser autofill out of the field:
+  // Keep readers' password managers and browser autofill out of the fields:
   // it's read-only (which everything skips) and opted out by name for the
   // managers that document one. The click-to-fill above still works, as it
   // sets the value programmatically. Every reset remounts the form, so
@@ -112,15 +116,17 @@ export default function LoginDemo() {
     const app = appRef.current;
     if (!app) return;
     const optOut = () => {
-      const input = app.querySelector<HTMLInputElement>('input[type="email"]');
-      if (!input || input.readOnly) return;
-      input.readOnly = true;
-      input.autocomplete = 'off';
-      input.setAttribute('data-1p-ignore', ''); // 1Password
-      input.setAttribute('data-lpignore', 'true'); // LastPass
-      input.setAttribute('data-bwignore', ''); // Bitwarden
-      input.setAttribute('data-form-type', 'other'); // Dashlane
-      input.form?.setAttribute('autocomplete', 'off');
+      for (const id of Object.keys(SAMPLE_VALUES)) {
+        const input = app.querySelector<HTMLInputElement>(`#${id}`);
+        if (!input || input.readOnly) continue;
+        input.readOnly = true;
+        input.autocomplete = 'off';
+        input.setAttribute('data-1p-ignore', ''); // 1Password
+        input.setAttribute('data-lpignore', 'true'); // LastPass
+        input.setAttribute('data-bwignore', ''); // Bitwarden
+        input.setAttribute('data-form-type', 'other'); // Dashlane
+        input.form?.setAttribute('autocomplete', 'off');
+      }
     };
     const observer = new MutationObserver(optOut);
     observer.observe(app, {subtree: true, childList: true});

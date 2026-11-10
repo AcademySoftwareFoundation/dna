@@ -8,11 +8,13 @@ from fastapi.testclient import TestClient
 from main import (
     app,
     get_llm_provider_cached,
-    get_prodtrack_provider_cached,
+    get_prodtrack_for_user,
     get_storage_provider_cached,
 )
 
-client = TestClient(app)
+from tests.auth_helpers import AuthenticatedTestClient
+
+client = AuthenticatedTestClient(app)
 
 
 def test_root():
@@ -52,7 +54,7 @@ class TestCreateNoteEndpoint:
             project={"type": "Project", "id": 85},
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -81,7 +83,7 @@ class TestCreateNoteEndpoint:
             project={"type": "Project", "id": 85},
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -107,7 +109,7 @@ class TestCreateNoteEndpoint:
 
     def test_create_note_missing_project_returns_422(self, mock_provider):
         """Test that missing required project field returns 422."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -139,7 +141,7 @@ class TestFindEndpoint:
             Project(id="2", name="Project Two"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -165,7 +167,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Shot(id="100", name="shot_010")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -194,7 +196,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Project(id="1", name="Test")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -214,7 +216,7 @@ class TestFindEndpoint:
 
     def test_find_unsupported_entity_type_returns_400(self, mock_provider):
         """Test that find returns 400 for unsupported entity types."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -235,7 +237,7 @@ class TestFindEndpoint:
         """Test that find returns empty list when no entities match."""
         mock_provider.find.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -257,7 +259,7 @@ class TestFindEndpoint:
         """Test that find returns 400 when provider raises ValueError."""
         mock_provider.find.side_effect = ValueError("Unknown field 'bad_field'")
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -277,7 +279,7 @@ class TestFindEndpoint:
 
     def test_find_missing_entity_type_returns_422(self, mock_provider):
         """Test that find returns 422 when entity_type is missing."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -296,7 +298,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Version(id="1", name="v001", status="apr")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -323,7 +325,7 @@ class TestFindEndpoint:
 
         mock_provider.find.return_value = [Project(id="1", name="Test")]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -358,7 +360,7 @@ class TestSchemaAndUpdateEntityEndpoints:
                 editable=True,
             )
         ]
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.get("/schema/Shot", params={"project_id": "124"})
             assert response.status_code == 200
@@ -382,7 +384,7 @@ class TestSchemaAndUpdateEntityEndpoints:
                 source="dna",
             )
         ]
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.get("/schema/shot", params={"include_dna_fields": "true"})
             assert response.status_code == 200
@@ -394,7 +396,7 @@ class TestSchemaAndUpdateEntityEndpoints:
             app.dependency_overrides.clear()
 
     def test_get_schema_unknown_type_returns_400(self, mock_provider):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.get("/schema/not_a_type")
             assert response.status_code == 400
@@ -408,7 +410,7 @@ class TestSchemaAndUpdateEntityEndpoints:
         mock_provider.get_entity.return_value = Shot(
             id="1", name="sh010", additional_fields={"sg_cut_in": 1001}
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.get(
                 "/shot/1", params={"additional_fields": "sg_cut_in, sg_cut_out"}
@@ -427,7 +429,7 @@ class TestSchemaAndUpdateEntityEndpoints:
         mock_provider.update_entity.return_value = Shot(
             id="1", name="sh010", additional_fields={"sg_cut_in": 1005}
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.patch(
                 "/entities/Shot/1",
@@ -446,7 +448,7 @@ class TestSchemaAndUpdateEntityEndpoints:
 
     def test_update_entity_value_error_returns_400(self, mock_provider):
         mock_provider.update_entity.side_effect = ValueError("Unknown field 'nope'")
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.patch("/entities/shot/1", json={"fields": {"nope": 1}})
             assert response.status_code == 400
@@ -456,7 +458,7 @@ class TestSchemaAndUpdateEntityEndpoints:
 
     def test_update_entity_not_implemented_returns_501(self, mock_provider):
         mock_provider.update_entity.side_effect = NotImplementedError("read-only")
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.patch("/entities/shot/1", json={"fields": {}})
             assert response.status_code == 501
@@ -464,7 +466,7 @@ class TestSchemaAndUpdateEntityEndpoints:
             app.dependency_overrides.clear()
 
     def test_update_entity_unknown_type_returns_400(self, mock_provider):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.patch("/entities/nope/1", json={})
             assert response.status_code == 400
@@ -478,7 +480,7 @@ class TestSchemaAndUpdateEntityEndpoints:
         mock_provider.find.return_value = [
             Shot(id="1", name="sh010", additional_fields={"sg_cut_in": 1})
         ]
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.post(
                 "/find",
@@ -504,7 +506,7 @@ class TestSchemaAndUpdateEntityEndpoints:
             project={"type": "Project", "id": "1"},
             additional_fields={"sg_note_type": "dailies"},
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.post(
                 "/note",
@@ -547,7 +549,7 @@ class TestSearchEndpoint:
             },
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -573,7 +575,7 @@ class TestSearchEndpoint:
         """Test that search passes correct arguments to provider."""
         mock_provider.search.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             client.post(
@@ -599,7 +601,7 @@ class TestSearchEndpoint:
         """Test that search normalizes entity types to lowercase."""
         mock_provider.search.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             client.post(
@@ -627,7 +629,7 @@ class TestSearchEndpoint:
             }
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -651,7 +653,7 @@ class TestSearchEndpoint:
         """Test that search uses default limit of 10."""
         mock_provider.search.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             client.post(
@@ -671,7 +673,7 @@ class TestSearchEndpoint:
         """Test that search returns empty results when no entities match."""
         mock_provider.search.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -689,7 +691,7 @@ class TestSearchEndpoint:
 
     def test_search_unsupported_entity_type_returns_400(self, mock_provider):
         """Test that search returns 400 for unsupported entity types."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -708,7 +710,7 @@ class TestSearchEndpoint:
 
     def test_search_partial_unsupported_entity_types_returns_400(self, mock_provider):
         """Test that search returns 400 if any entity type is unsupported."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -728,7 +730,7 @@ class TestSearchEndpoint:
         """Test that search returns 400 when provider raises ValueError."""
         mock_provider.search.side_effect = ValueError("Search error")
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -746,7 +748,7 @@ class TestSearchEndpoint:
 
     def test_search_missing_query_returns_422(self, mock_provider):
         """Test that search returns 422 when query is missing."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -761,7 +763,7 @@ class TestSearchEndpoint:
 
     def test_search_missing_entity_types_returns_422(self, mock_provider):
         """Test that search returns 422 when entity_types is missing."""
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -782,7 +784,7 @@ class TestSearchEndpoint:
             {"type": "Asset", "id": "3", "name": "johnny_rig", "description": "Rig"},
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -870,7 +872,7 @@ class TestGetProjectsForUserEndpoint:
             Project(id="2", name="Project Two"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/projects/user/testuser")
@@ -892,7 +894,7 @@ class TestGetProjectsForUserEndpoint:
             Project(id="1", name="Test Project")
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             client.get("/projects/user/jsmith@example.com")
@@ -906,7 +908,7 @@ class TestGetProjectsForUserEndpoint:
         """Test that get_projects_for_user returns empty list when user has no projects."""
         mock_provider.get_projects_for_user.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/projects/user/newuser")
@@ -922,7 +924,7 @@ class TestGetProjectsForUserEndpoint:
             "User not found: unknownuser"
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/projects/user/unknownuser")
@@ -950,7 +952,7 @@ class TestGetPlaylistsForProjectEndpoint:
             Playlist(id="2", code="Final Review"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/projects/42/playlists")
@@ -974,7 +976,7 @@ class TestGetPlaylistsForProjectEndpoint:
             Playlist(id="1", code="Test Playlist")
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             client.get("/projects/123/playlists")
@@ -986,7 +988,7 @@ class TestGetPlaylistsForProjectEndpoint:
         """Test that get_playlists_for_project returns empty list when no playlists."""
         mock_provider.get_playlists_for_project.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/projects/999/playlists")
@@ -1002,7 +1004,7 @@ class TestGetPlaylistsForProjectEndpoint:
             "Project not found"
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/projects/999/playlists")
@@ -1030,7 +1032,7 @@ class TestGetVersionsForPlaylistEndpoint:
             Version(id="2", name="shot_020_v002", status="apr"),
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/playlists/42/versions")
@@ -1054,7 +1056,7 @@ class TestGetVersionsForPlaylistEndpoint:
             Version(id="1", name="v001")
         ]
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             client.get("/playlists/123/versions")
@@ -1066,7 +1068,7 @@ class TestGetVersionsForPlaylistEndpoint:
         """Test that get_versions_for_playlist returns empty list when no versions."""
         mock_provider.get_versions_for_playlist.return_value = []
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/playlists/999/versions")
@@ -1082,7 +1084,7 @@ class TestGetVersionsForPlaylistEndpoint:
             "Playlist not found"
         )
 
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.get("/playlists/999/versions")
@@ -1174,7 +1176,7 @@ class TestGenerateNoteEndpoint:
         app.dependency_overrides[get_storage_provider_cached] = (
             lambda: mock_storage_provider
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = (
+        app.dependency_overrides[get_prodtrack_for_user] = (
             lambda: mock_prodtrack_provider
         )
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
@@ -1213,7 +1215,7 @@ class TestGenerateNoteEndpoint:
         app.dependency_overrides[get_storage_provider_cached] = (
             lambda: mock_storage_provider
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = (
+        app.dependency_overrides[get_prodtrack_for_user] = (
             lambda: mock_prodtrack_provider
         )
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
@@ -1279,7 +1281,7 @@ class TestGenerateNoteEndpoint:
         app.dependency_overrides[get_storage_provider_cached] = (
             lambda: mock_storage_provider
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = (
+        app.dependency_overrides[get_prodtrack_for_user] = (
             lambda: mock_prodtrack_provider
         )
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
@@ -1311,7 +1313,7 @@ class TestGenerateNoteEndpoint:
         app.dependency_overrides[get_storage_provider_cached] = (
             lambda: mock_storage_provider
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = (
+        app.dependency_overrides[get_prodtrack_for_user] = (
             lambda: mock_prodtrack_provider
         )
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm_provider
@@ -1364,7 +1366,7 @@ def test_version_route_rejects_non_numeric_shotgrid_id():
         connect=False,
     )
     provider.sg = mock.MagicMock()
-    app.dependency_overrides[get_prodtrack_provider_cached] = lambda: provider
+    app.dependency_overrides[get_prodtrack_for_user] = lambda: provider
     try:
         response = client.get("/version/abc")
         assert response.status_code == 404
@@ -1421,7 +1423,7 @@ class TestAddVersionToPlaylistEndpoint:
         return mock.MagicMock()
 
     def _override(self, mock_provider):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
     def test_add_existing_version(self, mock_provider):
         from dna.models.entity import Version
@@ -1479,7 +1481,7 @@ class TestCreatePlaylistEndpoint:
         mock_provider.create_playlist.return_value = Playlist(
             id="401", code="Dailies Monday"
         )
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
 
         try:
             response = client.post(
@@ -1492,7 +1494,7 @@ class TestCreatePlaylistEndpoint:
             app.dependency_overrides.clear()
 
     def test_blank_name_returns_400(self, mock_provider):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.post("/projects/1/playlists", json={"name": "  "})
             assert response.status_code == 400
@@ -1502,7 +1504,7 @@ class TestCreatePlaylistEndpoint:
 
     def test_provider_value_error_returns_404(self, mock_provider):
         mock_provider.create_playlist.side_effect = ValueError("Project 999 not found")
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_provider
         try:
             response = client.post("/projects/999/playlists", json={"name": "pl"})
             assert response.status_code == 404

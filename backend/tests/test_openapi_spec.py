@@ -25,6 +25,8 @@ UNAUTHENTICATED_PATHS = {
     ("get", "/"),
     ("get", "/health"),
     ("get", "/version-statuses"),
+    # Exchanges a username and password for the bearer token.
+    ("post", "/auth/login"),
     ("get", "/api/mock-thumbnails/{version_id}"),
     # Extension handshake probe; returns only a feature-flag boolean or 404.
     ("get", "/transcription/extension/health"),

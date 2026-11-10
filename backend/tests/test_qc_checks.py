@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from main import (
     app,
     get_llm_provider_cached,
-    get_prodtrack_provider_cached,
+    get_prodtrack_for_user,
     get_storage_provider_cached,
 )
 
@@ -154,7 +154,7 @@ class TestQCCheckEndpoints:
     ):
         mock_storage.get_draft_note.return_value = None
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_prodtrack
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm
         try:
             r = auth_client.post(
@@ -174,7 +174,7 @@ class TestQCCheckEndpoints:
         mock_storage.get_qc_checks.return_value = [_sample_check()]
         mock_storage.get_segments_for_version.return_value = []
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_prodtrack
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm
         try:
             r = auth_client.post(
@@ -199,7 +199,7 @@ class TestQCCheckEndpoints:
         mock_storage.get_qc_checks.return_value = [_sample_check()]
         mock_storage.get_segments_for_version.return_value = []
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_prodtrack
         app.dependency_overrides[get_llm_provider_cached] = lambda: mock_llm
         try:
             r = auth_client.post(

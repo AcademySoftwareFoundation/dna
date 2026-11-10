@@ -68,13 +68,11 @@ def test_connect_creates_shotgun_instance():
             script_name="test_script",
             api_key="test_key",
             connect=True,
-            sudo_user=None,
         )
         mock_shotgun.assert_called_once_with(
             "https://test.shotgunstudio.com",
             "test_script",
             "test_key",
-            sudo_as_login=None,
         )
         assert provider.sg == mock_shotgun.return_value
 
@@ -1509,6 +1507,43 @@ class TestShotgridProviderGetUserByEmail:
 
         with pytest.raises(ValueError, match="User not found: unknown@example.com"):
             shotgrid_provider.get_user_by_email("unknown@example.com")
+
+    def test_get_user_by_id_returns_user(self, shotgrid_provider):
+        """Test that get_user_by_id queries by numeric id and converts the result."""
+        shotgrid_provider.sg.find_one.return_value = {
+            "id": 42,
+            "name": "John Doe",
+            "email": "jdoe@example.com",
+            "login": "jdoe",
+        }
+
+        result = shotgrid_provider.get_user_by_id("42")
+
+        shotgrid_provider.sg.find_one.assert_called_once_with(
+            "HumanUser",
+            filters=[["id", "is", 42]],
+            fields=["id", "name", "email", "login"],
+        )
+        assert result.email == "jdoe@example.com"
+        assert result.login == "jdoe"
+
+    def test_get_user_by_id_raises_error_when_not_connected(self):
+        """Test that get_user_by_id raises error when not connected."""
+        provider = ShotgridProvider(
+            url="https://test.shotgunstudio.com",
+            script_name="test_script",
+            api_key="test_key",
+            connect=False,
+        )
+        with pytest.raises(ValueError, match="Not connected to ShotGrid"):
+            provider.get_user_by_id("42")
+
+    def test_get_user_by_id_raises_error_when_user_not_found(self, shotgrid_provider):
+        """Test that get_user_by_id raises error when user not found."""
+        shotgrid_provider.sg.find_one.return_value = None
+
+        with pytest.raises(ValueError, match="User not found: 7"):
+            shotgrid_provider.get_user_by_id("7")
 
 
 # ============================================================================

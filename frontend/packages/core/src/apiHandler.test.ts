@@ -15,11 +15,13 @@ describe('ApiHandler', () => {
     delete: ReturnType<typeof vi.fn>;
     interceptors: {
       request: { use: ReturnType<typeof vi.fn> };
+      response: { use: ReturnType<typeof vi.fn> };
     };
   };
   let requestInterceptor: (
     config: Record<string, unknown>
   ) => Record<string, unknown>;
+  let responseErrorInterceptor: (error: unknown) => Promise<never>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -34,6 +36,11 @@ describe('ApiHandler', () => {
         request: {
           use: vi.fn((interceptor) => {
             requestInterceptor = interceptor;
+          }),
+        },
+        response: {
+          use: vi.fn((_onFulfilled, onRejected) => {
+            responseErrorInterceptor = onRejected;
           }),
         },
       },
@@ -113,20 +120,17 @@ describe('ApiHandler', () => {
 
       expect(result.headers).toEqual({
         Authorization: 'Bearer my-jwt-token',
-        'X-User-Id': '123',
       });
     });
 
-    it('should add X-User-Id header when user is set', () => {
+    it('should not add headers when the user has no token', () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });
       api.setUser({ id: 'user-456' });
 
       const config = { headers: {} as Record<string, string> };
       const result = requestInterceptor(config);
 
-      expect(result.headers).toEqual({
-        'X-User-Id': 'user-456',
-      });
+      expect(result.headers).toEqual({});
     });
 
     it('should not add headers when no user is set', () => {
@@ -136,6 +140,88 @@ describe('ApiHandler', () => {
       const result = requestInterceptor(config);
 
       expect(result.headers).toEqual({});
+    });
+  });
+
+  describe('response interceptor', () => {
+    it('calls the unauthorized handler on a 401 and rethrows', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const handler = vi.fn();
+      api.onUnauthorized(handler);
+      const error = { response: { status: 401 }, config: { url: '/projects' } };
+
+      await expect(responseErrorInterceptor(error)).rejects.toBe(error);
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores 401s from the login endpoint', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const handler = vi.fn();
+      api.onUnauthorized(handler);
+      const error = {
+        response: { status: 401 },
+        config: { url: '/auth/login' },
+      };
+
+      await expect(responseErrorInterceptor(error)).rejects.toBe(error);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('ignores other errors', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const handler = vi.fn();
+      api.onUnauthorized(handler);
+      const error = { response: { status: 500 }, config: { url: '/x' } };
+
+      await expect(responseErrorInterceptor(error)).rejects.toBe(error);
+      await expect(
+        responseErrorInterceptor(new Error('network'))
+      ).rejects.toThrow('network');
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('stops calling a cleared handler', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const handler = vi.fn();
+      api.onUnauthorized(handler);
+      api.onUnauthorized(null);
+
+      await expect(
+        responseErrorInterceptor({ response: { status: 401 }, config: {} })
+      ).rejects.toBeDefined();
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('auth', () => {
+    it('login posts form-encoded credentials', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const response = {
+        access_token: 'jwt',
+        token_type: 'bearer',
+        expires_at: '2030-01-01T00:00:00Z',
+        user: { sub: 'jdoe', email: 'jdoe@example.com', name: null },
+      };
+      mockAxiosInstance.post.mockResolvedValue({ data: response });
+
+      const result = await api.login('jdoe', 'p@ss&word');
+
+      const [url, body, config] = mockAxiosInstance.post.mock.calls[0];
+      expect(url).toBe('/auth/login');
+      expect(body.toString()).toBe('username=jdoe&password=p%40ss%26word');
+      expect(config).toEqual({
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      expect(result).toEqual(response);
+    });
+
+    it('getMe fetches the current user', async () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      const me = { sub: 'jdoe', email: 'jdoe@example.com' };
+      mockAxiosInstance.get.mockResolvedValue({ data: me });
+
+      expect(await api.getMe()).toEqual(me);
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/auth/me', undefined);
     });
   });
 

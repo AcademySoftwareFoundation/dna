@@ -6,11 +6,12 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
+from main import app, get_prodtrack_for_user, get_storage_provider_cached
 
 from dna.models.playlist_metadata import PlaylistMetadata
 from dna.models.published_transcript import PublishedTranscript
 from dna.models.stored_segment import StoredSegment
+from tests.auth_helpers import AuthenticatedTestClient
 
 ENABLE_FLAG = {"DNA_ENABLE_TRANSCRIPT_PUBLISH": "true"}
 
@@ -67,7 +68,7 @@ class TestPublishTranscriptEndpoint:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return AuthenticatedTestClient(app)
 
     @pytest.fixture
     def mock_storage(self):
@@ -87,7 +88,7 @@ class TestPublishTranscriptEndpoint:
     @pytest.fixture
     def override_deps(self, mock_storage, mock_prodtrack):
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_prodtrack
         yield
         app.dependency_overrides.clear()
 
@@ -435,7 +436,7 @@ class TestGetPublishedTranscriptsEndpoint:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return AuthenticatedTestClient(app)
 
     @pytest.fixture
     def mock_storage(self):

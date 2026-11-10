@@ -13,6 +13,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     HTTPException,
     Query,
     Request,
@@ -25,6 +26,9 @@ from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dna.auth.email import emails_match
+from dna.auth.errors import AuthenticationError
+from dna.auth.identity import CurrentUser
+from dna.auth.tokens import create_access_token, decode_access_token, get_jwt_settings
 from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
@@ -47,6 +51,7 @@ from dna.models import (
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
+    LoginResponse,
     Note,
     NoteQCCheck,
     NoteQCCheckCreate,
@@ -90,6 +95,7 @@ from dna.note_prompt_config import get_default_note_prompt
 from dna.openapi_schema import error_responses, install_openapi_extras
 from dna.prodtrack_providers.prodtrack_provider_base import (
     ProdtrackProviderBase,
+    UserNotFoundError,
     get_prodtrack_provider,
 )
 from dna.qc.qc_runner import run_qc_checks_for_draft
@@ -123,10 +129,13 @@ or feed a transcript in from your own tool.
   **Publishing** endpoints push that data into the tracking provider.
 
 ### Authentication
-Send `Authorization: Bearer <token>` on every request except **Health**. The
-configured `AUTH_PROVIDER` validates the token (Google OAuth in production)
-and extracts the caller's email; most calls only return data when that email
-belongs to a user in the tracking provider. Errors are `{"detail": "..."}`.
+Sign in with `POST /auth/login` (username and password, checked by the
+configured `AUTH_PROVIDER`) to receive a DNA access token, then send
+`Authorization: Bearer <token>` on every request except **Health** and the
+login itself. The caller's identity is read from the token, and production
+tracking calls run as that user, so most calls only return data when the
+token's email belongs to a user in the tracking provider. Errors are
+`{"detail": "..."}`.
 
 ### Real-time
 Events stream out over the `/ws` WebSocket and the browser extension streams
@@ -148,6 +157,13 @@ tags_metadata = [
     {
         "name": "Health",
         "description": "Liveness probes. No authentication.",
+    },
+    {
+        "name": "Authentication",
+        "description": (
+            "Exchange a username and password for a DNA access token, and "
+            "read back the identity it carries."
+        ),
     },
     {
         "name": "Entities",
@@ -326,7 +342,7 @@ def get_llm_provider_cached() -> LLMProviderBase:
     return get_llm_provider()
 
 
-ProdtrackProviderDep = Annotated[
+ScriptProdtrackDep = Annotated[
     ProdtrackProviderBase, Depends(get_prodtrack_provider_cached)
 ]
 
@@ -360,34 +376,21 @@ security = HTTPBearer(auto_error=False)
 
 
 @lru_cache
-def get_auth_provider_cached() -> Optional[AuthProviderBase]:
+def get_auth_provider_cached() -> AuthProviderBase:
     """Get or create the auth provider singleton."""
     return get_auth_provider()
 
 
-AuthProviderDep = Annotated[
-    Optional[AuthProviderBase], Depends(get_auth_provider_cached)
-]
+AuthProviderDep = Annotated[AuthProviderBase, Depends(get_auth_provider_cached)]
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    auth_provider: AuthProviderDep = None,
-) -> str:
-    """Validate the auth token and return the user's email.
+) -> CurrentUser:
+    """Verify the DNA access token and return the identity it carries.
 
-    Returns the user's email from the validated token.
-    Raises HTTPException 401 if token is missing or invalid.
-
-    When AUTH_PROVIDER=none, authentication is skipped and a placeholder
-    email is returned (for development/testing only).
+    Raises HTTPException 401 if the token is missing, invalid, or expired.
     """
-    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
-    if auth_provider_type == "none":
-        if credentials and credentials.credentials:
-            return auth_provider.get_user_email(credentials.credentials)
-        return "anonymous@localhost"
-
     if credentials is None:
         raise HTTPException(
             status_code=401,
@@ -396,17 +399,8 @@ async def get_current_user(
         )
 
     try:
-        claims = auth_provider.validate_token(credentials.credentials)
-        # Safely access the email claim to avoid KeyError and return 401 on missing email
-        email = claims.get("email") if isinstance(claims, dict) else None
-        if not email:
-            raise HTTPException(
-                status_code=401,
-                detail="Missing email claim in authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return email
-    except ValueError as e:
+        return decode_access_token(credentials.credentials)
+    except AuthenticationError as e:
         raise HTTPException(
             status_code=401,
             detail=str(e),
@@ -414,7 +408,23 @@ async def get_current_user(
         )
 
 
-CurrentUserDep = Annotated[str, Depends(get_current_user)]
+CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+def get_prodtrack_for_user(
+    provider: ScriptProdtrackDep, current_user: CurrentUserDep
+) -> ProdtrackProviderBase:
+    """Production tracking provider scoped to the authenticated caller.
+
+    Raises HTTPException 403 if the caller has no user in the tracker.
+    """
+    try:
+        return provider.for_user(current_user)
+    except UserNotFoundError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+ProdtrackProviderDep = Annotated[ProdtrackProviderBase, Depends(get_prodtrack_for_user)]
 
 
 # -----------------------------------------------------------------------------
@@ -425,6 +435,8 @@ CurrentUserDep = Annotated[str, Depends(get_current_user)]
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
+    get_jwt_settings()
+    get_auth_provider_cached()
     service = get_transcription_service()
     await service.init_providers()
     storage = service.storage_provider
@@ -468,6 +480,54 @@ async def root():
 async def health():
     """Health check endpoint for monitoring and load balancers."""
     return {"status": "healthy"}
+
+
+# -----------------------------------------------------------------------------
+# Authentication endpoints
+# -----------------------------------------------------------------------------
+
+
+@app.post(
+    "/auth/login",
+    tags=["Authentication"],
+    summary="Sign in",
+    response_model=LoginResponse,
+    responses=error_responses(401),
+)
+def login(
+    auth_provider: AuthProviderDep,
+    username: str = Form(...),
+    password: str = Form(...),
+) -> LoginResponse:
+    """Check a username and password with the configured `AUTH_PROVIDER` and
+    return a DNA access token.
+
+    The body is form-encoded (`username`, `password`), as in the OAuth2
+    password flow. Send the returned `access_token` as
+    `Authorization: Bearer <token>`; it is accepted until `expires_at`
+    (`JWT_EXPIRE_MINUTES`). There is no refresh: sign in again after expiry.
+    """
+    try:
+        user = auth_provider.authenticate(username, password)
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=401,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token, expires_at = create_access_token(user)
+    return LoginResponse(access_token=token, expires_at=expires_at, user=user)
+
+
+@app.get(
+    "/auth/me",
+    tags=["Authentication"],
+    summary="Current user",
+    response_model=CurrentUser,
+)
+async def get_me(current_user: CurrentUserDep) -> CurrentUser:
+    """Return the identity carried by the caller's access token."""
+    return current_user
 
 
 @app.post(
@@ -1094,7 +1154,7 @@ async def search_entities(
     responses=error_responses(400),
 )
 async def get_version_statuses(
-    provider: ProdtrackProviderDep,
+    provider: ScriptProdtrackDep,
     project_id: Optional[str] = None,
 ) -> list[StatusOption]:
     """Get valid status options for versions."""
@@ -1485,7 +1545,6 @@ async def publish_notes(
                     to_users=[],
                     cc_users=[],
                     links=extra_links,
-                    author_email=note.user_email,
                 )
             else:
                 _add_context_links(links, note, playlist_id, prodtrack)
@@ -1496,7 +1555,6 @@ async def publish_notes(
                     to_users=[],  # TODO: Parse to/cc
                     cc_users=[],
                     links=links,
-                    author_email=note.user_email,
                     version_status=status_to_apply,
                 )
 
@@ -1673,7 +1731,7 @@ async def publish_transcript(
                 entity_type=entity_type,
                 entity_id=entity_id,
                 name=name,
-                author_email=current_user,
+                author_email=current_user.email,
                 body_hash=payload.body_hash,
                 segments_count=payload.segments_count,
             )
@@ -2076,7 +2134,7 @@ async def get_user_settings(
     current_user: CurrentUserDep,
 ) -> UserSettingsResponse:
     """Get user settings."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     stored = await provider.get_user_settings(user_email)
     if stored is None:
@@ -2099,7 +2157,7 @@ async def upsert_user_settings(
     current_user: CurrentUserDep,
 ) -> UserSettingsResponse:
     """Create or update user settings."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     updated = await provider.upsert_user_settings(user_email, data)
     return _user_settings_to_response(updated)
@@ -2119,7 +2177,7 @@ async def delete_user_settings(
     current_user: CurrentUserDep,
 ) -> bool:
     """Delete user settings."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
@@ -2140,7 +2198,7 @@ async def list_qc_checks(
     current_user: CurrentUserDep,
 ) -> list[NoteQCCheck]:
     """Return the QC checks a user has defined for their draft notes."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.get_qc_checks(user_email)
 
@@ -2160,7 +2218,7 @@ async def create_qc_check(
     current_user: CurrentUserDep,
 ) -> NoteQCCheck:
     """Create a QC check that runs against the user's draft notes at publish time."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.create_qc_check(user_email, data)
 
@@ -2180,7 +2238,7 @@ async def update_qc_check(
     current_user: CurrentUserDep,
 ) -> NoteQCCheck:
     """Update an existing QC check. Returns 404 if the check does not exist."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     updated = await storage_provider.update_qc_check(user_email, check_id, data)
     if updated is None:
@@ -2202,7 +2260,7 @@ async def delete_qc_check(
     current_user: CurrentUserDep,
 ) -> None:
     """Delete a QC check. Returns 404 if the check does not exist."""
-    if not emails_match(user_email, current_user):
+    if not emails_match(user_email, current_user.email):
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await storage_provider.delete_qc_check(user_email, check_id)
     if not deleted:
@@ -2471,27 +2529,16 @@ def _extension_key_valid(key: Optional[str]) -> bool:
 
 
 def _authenticate_ws_token(token: Optional[str]) -> Optional[str]:
-    """Validate a token for a WebSocket connection and return the user email.
+    """Verify a DNA access token for a WebSocket connection and return the user email.
 
     Mirrors ``get_current_user`` but for WebSockets, which cannot use the
     HTTPBearer/Depends flow. Returns ``None`` when authentication fails.
     """
-    auth_provider = get_auth_provider_cached()
-    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
-
-    if auth_provider_type == "none":
-        if token and auth_provider is not None:
-            return auth_provider.get_user_email(token)
-        return "anonymous@localhost"
-
-    if not token or auth_provider is None:
+    if not token:
         return None
-
     try:
-        claims = auth_provider.validate_token(token)
-        email = claims.get("email") if isinstance(claims, dict) else None
-        return email or None
-    except ValueError:
+        return decode_access_token(token).email
+    except AuthenticationError:
         return None
 
 

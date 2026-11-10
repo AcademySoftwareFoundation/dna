@@ -1,5 +1,10 @@
 # Local development override. Copy to docker-compose.local.yml and fill in secrets.
-# Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
+# Auth: AUTH_PROVIDER=mock accepts any username/password and issues a DNA token
+#   (dev only). AUTH_PROVIDER=shotgrid checks the username/password against ShotGrid.
+#   The ShotGrid auth provider uses SHOTGRID_URL/SHOTGRID_SCRIPT_NAME/SHOTGRID_API_KEY
+#   unless AUTH_SHOTGRID_URL/AUTH_SHOTGRID_SCRIPT_NAME/AUTH_SHOTGRID_API_KEY are set.
+# Tokens: JWT_SECRET_KEY signs DNA access tokens (./bootstrap.sh generates one);
+#   JWT_EXPIRE_MINUTES sets how long a sign-in lasts (default 720 = 12 hours).
 # Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
 # To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
 services:
@@ -13,7 +18,9 @@ services:
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key
-      - AUTH_PROVIDER=none
+      - AUTH_PROVIDER=mock
+      - JWT_SECRET_KEY=change-me-local-dev-only
+      - JWT_EXPIRE_MINUTES=720
       # Transcript publishing (V1, disabled by default). Set to "true" to
       # expose POST /playlists/{id}/publish-transcript. See DEPLOYMENT.md
       # for the ShotGrid site-setup checklist the custom entity depends on.

@@ -48,6 +48,7 @@ TAG_GROUPS: list[dict[str, Any]] = [
             "User Settings",
             "Attachments",
             "LLM",
+            "Authentication",
             "Health",
         ],
     },

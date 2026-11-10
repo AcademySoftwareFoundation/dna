@@ -10,6 +10,7 @@ export * from './mentionLookup';
 export * from './utils';
 export { ApiHandler, createApiHandler } from './apiHandler';
 export type { ApiHandlerConfig } from './apiHandler';
+export * from './auth/session';
 export * from './eventClient';
 export * from './aiSuggestionManager';
 export * from './extension';

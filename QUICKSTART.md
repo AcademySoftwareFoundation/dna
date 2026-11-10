@@ -71,6 +71,8 @@ cd ../frontend
 cp packages/app/.env.example packages/app/.env
 ```
 
+In `backend/docker-compose.local.yml`, replace `JWT_SECRET_KEY=change-me-local-dev-only` with a random string, for example the output of `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. The bootstrap script does this for you. The example file uses `AUTH_PROVIDER=mock`, so any username and password signs you in.
+
 ### 3. Configure the LLM Provider
 
 Edit `backend/docker-compose.local.yml` and set your LLM credentials. The bootstrap script writes these values for you when you provide a key interactively.
@@ -258,7 +260,7 @@ cd frontend
 npm run dev
 ```
 
-The React app will be available at `http://localhost:5173`.
+The React app will be available at `http://localhost:5173`. With `AUTH_PROVIDER=mock`, sign in with any password; when `PRODTRACK_PROVIDER=shotgrid`, use a ShotGrid user's email as the username so DNA can act as that user.
 
 ### 9. Verify Everything is Running
 
@@ -281,6 +283,10 @@ The React app will be available at `http://localhost:5173`.
 | `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
 | `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
 | `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
+| `AUTH_PROVIDER` | Yes | - | How sign-in passwords are checked: `mock` (any password, local dev) or `shotgrid` (ShotGrid username and password) |
+| `JWT_SECRET_KEY` | Yes | - | Secret that signs DNA access tokens; the API refuses to start without it |
+| `JWT_EXPIRE_MINUTES` | No | `720` | How long a sign-in lasts |
+| `AUTH_SHOTGRID_URL`, `AUTH_SHOTGRID_SCRIPT_NAME`, `AUTH_SHOTGRID_API_KEY` | No | `SHOTGRID_*` values | ShotGrid site used to check passwords when `AUTH_PROVIDER=shotgrid` |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |

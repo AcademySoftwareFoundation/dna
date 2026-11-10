@@ -25,15 +25,17 @@ function findButton(root: Element, label: string): Element | null {
 /**
  * Works out the next thing to do from what the login screen is showing.
  * Tied to the app's markup and wording (frontend ProjectSelector): the
- * email input, the Radix Select triggers and their placeholders, and the
- * Continue buttons.
+ * username and password inputs, the Radix Select triggers and their
+ * placeholders, and the Sign in and Continue buttons.
  */
 function findStep(root: Element, press: string): GuideStep | null {
-  const email = root.querySelector<HTMLInputElement>('input[type="email"]');
-  if (email) {
-    if (!email.value) return {target: email, title: `${press} the email field`};
-    const submit = email.form?.querySelector('button[type="submit"]');
-    return submit ? {target: submit, title: `${press} Continue`} : null;
+  const username = root.querySelector<HTMLInputElement>('#signin-username');
+  const password = root.querySelector<HTMLInputElement>('#signin-password');
+  if (username && password) {
+    if (!username.value) return {target: username, title: `${press} the username field`};
+    if (!password.value) return {target: password, title: `${press} the password field`};
+    const submit = username.form?.querySelector('button[type="submit"]');
+    return submit ? {target: submit, title: `${press} Sign in`} : null;
   }
 
   const select = root.querySelector('[role="combobox"]');

@@ -67,8 +67,12 @@ import {
   DeleteQCCheckParams,
   RunQCChecksParams,
 } from './interfaces';
+import { AuthUser, LoginResponse } from './auth/session';
+
+const LOGIN_PATH = '/auth/login';
 
 export interface User {
+  /** The JWT `sub` claim. */
   id: string;
   name?: string;
   email?: string;
@@ -80,6 +84,8 @@ export interface ApiHandlerConfig {
   timeout?: number;
 }
 
+type UnauthorizedHandler = () => void;
+
 function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
   return {
     ...raw,
@@ -90,6 +96,7 @@ function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
 class ApiHandler {
   private axiosInstance: AxiosInstance;
   private currentUser: User | null = null;
+  private unauthorizedHandler: UnauthorizedHandler | null = null;
 
   constructor(config: ApiHandlerConfig) {
     this.axiosInstance = axios.create({
@@ -104,11 +111,38 @@ class ApiHandler {
       if (this.currentUser?.token) {
         requestConfig.headers.Authorization = `Bearer ${this.currentUser.token}`;
       }
-      if (this.currentUser?.id) {
-        requestConfig.headers['X-User-Id'] = this.currentUser.id;
-      }
       return requestConfig;
     });
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (
+          error?.response?.status === 401 &&
+          error.config?.url !== LOGIN_PATH
+        ) {
+          this.unauthorizedHandler?.();
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  /** Registers a callback for 401 responses from any request except login. */
+  onUnauthorized(handler: UnauthorizedHandler | null): void {
+    this.unauthorizedHandler = handler;
+  }
+
+  async login(username: string, password: string): Promise<LoginResponse> {
+    return this.post<LoginResponse>(
+      LOGIN_PATH,
+      new URLSearchParams({ username, password }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+  }
+
+  async getMe(): Promise<AuthUser> {
+    return this.get<AuthUser>('/auth/me');
   }
 
   setUser(user: User | null): void {

@@ -25,7 +25,7 @@ npm run dev
 
 This will start the Vite dev server for the app.
 
-For local development, use the noop auth provider so you can sign in with any email: copy `packages/app/.env.example` to `packages/app/.env` and keep `VITE_AUTH_PROVIDER=none`. The backend should also use `AUTH_PROVIDER=none` (see backend README).
+Sign-in is handled by the backend: the app posts a username and password to `/auth/login`, keeps the returned JWT in `localStorage` (`dna-auth-token`), and signs out when it expires or the backend returns `401`. The frontend has no auth settings. For local development, run the backend with `AUTH_PROVIDER=mock` so any username and password works (see the backend README).
 
 ### Build
 

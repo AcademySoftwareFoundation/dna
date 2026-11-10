@@ -12,7 +12,6 @@ pymongo==4.10.1
 websockets==12.0
 openai==2.36.0
 anthropic>=0.49,<1.0
-google-auth==2.0.0
-requests==2.32.3
+PyJWT==2.10.1
 python-multipart==0.0.9
 PyYAML==6.0.1

@@ -96,8 +96,8 @@ in the chain as long as the data upstream exists.
 8. **Publish.** `POST /playlists/{playlist_id}/publish-notes` with the
    `(user_email, version_id)` pairs to publish. For each pair DNA takes the
    newest draft and:
-   - creates a provider Note **authored as the draft owner** (ShotGrid:
-     the script user acts via `sudo_as_login`), linked to the version and its
+   - creates a provider Note **authored as the caller** (ShotGrid: the
+     script user acts as them via `sudo_as_login`), linked to the version and its
      shot/asset and task, plus any `links` on the draft;
    - sets the version's status to the draft's `version_status`, if any and if
      the version is in `status_version_ids` (omit that field to apply all);
@@ -117,8 +117,8 @@ in the chain as long as the data upstream exists.
 - **Pagination.** List endpoints return everything in scope. The scopes are
   small by design (a project's playlists, a playlist's versions).
 - **Webhooks.** To react to a publish, poll the draft's `published` /
-  `published_at`, or watch the ShotGrid event log for Notes created by the
-  DNA script user. Real-time delivery exists only for transcription events,
+  `published_at`, or watch the ShotGrid event log for Notes created through
+  the DNA script. Real-time delivery exists only for transcription events,
   over the [`/ws` socket](/api/realtime).
 - **Identity on writes.** Most endpoints take `user_email` as data, not as
   the caller; see [Authentication](/api/authentication#who-is-the-caller).
@@ -127,7 +127,7 @@ in the chain as long as the data upstream exists.
 
 | Variable | Effect on the API |
 |---|---|
-| `AUTH_PROVIDER` | `google` validates tokens; `none` accepts anything (development). See [Authentication](/api/authentication). |
+| `AUTH_PROVIDER` | How `POST /auth/login` checks passwords: `shotgrid` against ShotGrid, `mock` accepts anything (development). See [Authentication](/api/authentication). |
 | `PRODTRACK_PROVIDER` | `shotgrid` (default) or `mock`. The mock is **read-only**: publish and status writes raise. |
 | `DNA_ENABLE_TRANSCRIPT_PUBLISH` | Enables `publish-transcript`; otherwise it returns 404. |
 | `DNA_ENABLE_EXTENSION_TRANSCRIPTION` | Enables the extension ingest socket and its `/health` probe. |

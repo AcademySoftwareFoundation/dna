@@ -6,9 +6,14 @@ title: Logging In
 
 import LiveLoginDemo from '@site/src/components/LiveLoginDemo';
 
-## Email Authentication: Flow Production Tracking
+## Signing In with Flow Production Tracking
 
-The current way to authenticate with DNA is to login with an email associated with your configured Flow Production Tracking site. 
-Once an email is entered, a dropdown list of projects and playlists shows up to choose from.
+Sign in with your Flow Production Tracking username and password. DNA checks
+them against your studio's site, then shows a dropdown list of projects and
+playlists to choose from. Everything you do in DNA, such as publishing notes,
+is done as you in Flow Production Tracking.
+
+You stay signed in for 12 hours by default; after that DNA asks you to sign
+in again. In local development the backend accepts any password.
 
 <LiveLoginDemo caption="The DNA login screen. Follow the steps to sign in and open a playlist from sample data." />

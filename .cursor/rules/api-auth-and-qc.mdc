@@ -1,21 +1,25 @@
 ---
-description: Auth provider pairing and user-scoped vs playlist-scoped API authorization.
+description: DNA JWT auth, auth providers, and user-scoped vs playlist-scoped API authorization.
 globs: backend/src/**/*.py,frontend/packages/**/*
 alwaysApply: false
 ---
 
 # API auth and Note QC
 
-## Match frontend and backend auth in every environment
+## DNA issues its own JWTs
 
-Local dev uses noop auth; GCP production uses Google OAuth. Both sides must agree or you will see 401/403 on protected routes.
+`POST /auth/login` (form `username`/`password`) checks credentials with the auth provider and returns a DNA-signed JWT (`dna.auth.tokens`). Protected routes depend on `CurrentUserDep`, which decodes the token into `CurrentUser` (`sub`, `email`, `name`). The frontend has no auth settings; it stores the token in `localStorage` and signs out on expiry or `401`.
 
-| Environment | Backend `AUTH_PROVIDER` | Frontend `VITE_AUTH_PROVIDER` |
-|---------------|-------------------------|-------------------------------|
-| Local (default) | `none` | `none` |
-| GCP / production | `google` | `google` (baked at Docker build; see `frontend/Dockerfile`) |
+| Environment | Backend `AUTH_PROVIDER` |
+|---------------|-------------------------|
+| Local (default) | `mock` (any password) |
+| GCP / production | `shotgrid` (ShotGrid username/password) |
 
-Also set `GOOGLE_CLIENT_ID` (backend) and `VITE_GOOGLE_CLIENT_ID` (frontend build) to the **same** OAuth client. The GCP deploy workflow passes the secret into the frontend image build.
+`JWT_SECRET_KEY` is required; `JWT_EXPIRE_MINUTES` defaults to 720. Auth providers (`dna/auth_providers`) are separate from prodtrack providers: never import a prodtrack provider's state into auth beyond composing a connection.
+
+## Prodtrack calls run as the caller
+
+Endpoints that touch production tracking depend on `ProdtrackProviderDep`, which returns `provider.for_user(current_user)`; ShotGrid resolves the email to a login and uses `sudo_as_login`. An unknown email is a `403`. Use `ScriptProdtrackDep` only for unauthenticated, user-independent reads such as `/version-statuses`. Do not pass author emails into publish methods; the scoped provider is the author.
 
 ## Two authorization patterns
 
@@ -34,6 +38,7 @@ Frontend: `useNoteQCChecks` correctly passes `d.user_email` from each `DraftNote
 
 1. **Settings tab** (`GET /users/…/qc-checks`): path email ≠ token email (check case; use `emails_match` on the backend).
 2. **Publish dialog** (`run-qc-checks`): caller was wrongly required to own the draft — fixed by playlist-scoped auth above.
-3. **401** (not 403): missing Bearer token, wrong `AUTH_PROVIDER`, or invalid Google token / client ID mismatch.
+3. **401** (not 403): missing, expired, or invalid DNA token (for example signed with a different `JWT_SECRET_KEY`).
+4. **403 `User not found in ShotGrid`**: the token's email has no ShotGrid `HumanUser`.
 
 When adding endpoints, copy the pattern from `publish_notes` (auth only) or user settings (auth + `emails_match`), never invent a third rule without documenting it here.

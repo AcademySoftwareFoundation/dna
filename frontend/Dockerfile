@@ -16,18 +16,14 @@ RUN npm install --include=dev || (sleep 30 && npm install --include=dev) || (sle
 COPY packages/core/ ./packages/core/
 COPY packages/app/ ./packages/app/
 
-# Build arguments for API URLs and authentication (baked into the static build)
+# Build arguments for API URLs (baked into the static build)
 ARG VITE_API_BASE_URL
 ARG VITE_WS_URL
-ARG VITE_AUTH_PROVIDER=google
-ARG VITE_GOOGLE_CLIENT_ID
 ARG VITE_NOMENCLATURE
 
 # Set environment variables for build
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_WS_URL=$VITE_WS_URL
-ENV VITE_AUTH_PROVIDER=$VITE_AUTH_PROVIDER
-ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 ENV VITE_NOMENCLATURE=$VITE_NOMENCLATURE
 
 # Build the application (vite handles transpilation, skip tsc type checking)

@@ -666,7 +666,6 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         to_users: list[str],
         cc_users: list[str],
         links: list[EntityBase],
-        author_email: Optional[str] = None,
         version_status: Optional[str] = None,
     ) -> str:
         raise NotImplementedError(

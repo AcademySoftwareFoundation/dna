@@ -65,7 +65,6 @@ cd frontend
 docker build \
   --build-arg VITE_API_BASE_URL=https://dna-backend-<PROJECT_NUMBER>.us-central1.run.app \
   --build-arg VITE_WS_URL=wss://dna-backend-<PROJECT_NUMBER>.us-central1.run.app/ws \
-  --build-arg VITE_GOOGLE_CLIENT_ID=<your-google-client-id>.apps.googleusercontent.com \
   -t us-central1-docker.pkg.dev/<PROJECT_ID>/dna/dna-frontend:latest .
 
 # Push to Artifact Registry
@@ -155,11 +154,10 @@ on:
 2. **Authenticate to GCP** - Uses Workload Identity Federation
 3. **Set up Cloud SDK** - Configures `gcloud` CLI
 4. **Configure Docker** - Authenticates to Artifact Registry
-5. **Get Google Client ID** - Retrieves Google OAuth Client ID from Secret Manager for build
-6. **Build and push image** - Multi-stage build:
+5. **Build and push image** - Multi-stage build:
    - Stage 1: Node.js builds the Vite application
    - Stage 2: nginx serves the static files
-7. **Deploy to Cloud Run** - Deploys the static frontend
+6. **Deploy to Cloud Run** - Deploys the static frontend
 
 **Cloud Run Configuration:**
 | Setting | Value |
@@ -216,7 +214,7 @@ All secrets are stored in GCP Secret Manager and injected at runtime:
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `VEXA_API_URL` | Vexa transcription service URL |
 | `VEXA_API_KEY` | Vexa API key |
-| `GOOGLE_CLIENT_ID` | Google OAuth Client ID for authentication |
+| `JWT_SECRET_KEY` | Signs DNA access tokens. Generate with `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Rotating it signs everyone out. |
 
 ### Adding/Updating Secrets
 
@@ -252,56 +250,59 @@ migration; notes keep publishing.
 
 ## Authentication Setup
 
-DNA uses Google OAuth for authentication. Users sign in with their Google accounts, and the backend validates Google tokens.
+Users sign in to DNA with a username and password. The backend checks them
+with the configured auth provider and issues its own signed access token
+(JWT), which the frontend keeps in `localStorage` and sends as a Bearer token.
+Production uses `AUTH_PROVIDER=shotgrid`, so users sign in with their ShotGrid
+login and password. See [dna-docs/api/authentication.mdx](dna-docs/api/authentication.mdx)
+for the full flow.
 
-### Google Cloud Console Setup
+### Production Setup
 
-1. **Create OAuth Client ID:**
-   - Go to [Google Cloud Console > APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials)
-   - Click "Create Credentials" > "OAuth 2.0 Client ID"
-   - Select "Web application" type
-   - Add authorized JavaScript origins:
-     - Production: `https://dna-frontend-<PROJECT_NUMBER>.us-central1.run.app`
-     - Local development: `http://localhost:5173`
-   - Save the Client ID
-
-2. **Store the Client ID in Secret Manager:**
+1. **Create the signing secret:**
    ```bash
-   echo -n "YOUR_CLIENT_ID.apps.googleusercontent.com" | \
-     gcloud secrets create GOOGLE_CLIENT_ID --data-file=-
+   python3 -c "import secrets; print(secrets.token_urlsafe(48))" | \
+     gcloud secrets create JWT_SECRET_KEY --data-file=-
    ```
 
-3. **Configure OAuth Consent Screen:**
-   - Go to "OAuth consent screen" in Cloud Console
-   - For internal use: Select "Internal" user type
-   - For external use: Select "External" and add test users or publish the app
+2. **Allow the ShotGrid script to sudo:** every request runs as the signed-in
+   user through `sudo_as_login`; see
+   [backend/docs/SHOTGRID_SETUP.md](backend/docs/SHOTGRID_SETUP.md), step 5.
+
+3. **Optional:** set `JWT_EXPIRE_MINUTES` (default `720`) to change how long a
+   sign-in lasts, and `AUTH_SHOTGRID_URL` / `AUTH_SHOTGRID_SCRIPT_NAME` /
+   `AUTH_SHOTGRID_API_KEY` to check passwords against a different ShotGrid
+   site than the one used for production tracking.
+
+ShotGrid sites that sign in through Autodesk Identity / SSO have no ShotGrid
+passwords and cannot use `AUTH_PROVIDER=shotgrid`.
 
 ### Security Features
 
 | Feature | Setting |
 |---------|---------|
-| Authentication | Google OAuth (ID tokens or access tokens) |
+| Authentication | DNA-issued JWT after a ShotGrid username/password check |
 | CORS | Allow-all in production (re-enable origin restriction when ready) |
 | API Documentation | Disabled in production (`DISABLE_DOCS=true`) |
 | Security Headers | X-Content-Type-Options, X-Frame-Options, HSTS |
 
 ### Local Development
 
-For local development, use the **noop** auth provider so you can sign in with any email and the backend does not validate tokens. Set this in your `docker-compose.local.yml` (the example file already does):
+For local development, use the **mock** auth provider: it accepts any
+username and password and signs you in as that username. `./bootstrap.sh`
+sets this up, including a random `JWT_SECRET_KEY`. To set it by hand in
+`docker-compose.local.yml`:
 
 ```yaml
-# docker-compose.local.yml – noop provider for local dev
+# docker-compose.local.yml – mock auth for local dev
 environment:
-  - AUTH_PROVIDER=none
+  - AUTH_PROVIDER=mock
+  - JWT_SECRET_KEY=<random string>
 ```
 
-Set the frontend to match: `VITE_AUTH_PROVIDER=none` in the app `.env` (see `packages/app/.env.example`).
-
-To test with Google auth locally:
-1. Set `AUTH_PROVIDER=google` in docker-compose.local.yml
-2. Add `GOOGLE_CLIENT_ID=your-client-id`
-3. Set `VITE_AUTH_PROVIDER=google` and `VITE_GOOGLE_CLIENT_ID` in the frontend
-4. Ensure `http://localhost:5173` is in your OAuth client's authorized origins
+With `PRODTRACK_PROVIDER=shotgrid`, sign in with a ShotGrid user's email so
+production tracking calls can run as that user. To test real passwords
+locally, set `AUTH_PROVIDER=shotgrid`. The frontend needs no auth settings.
 
 ---
 
@@ -327,7 +328,9 @@ The following secrets must be configured in GitHub repository settings:
 | `STORAGE_PROVIDER` | mongodb |
 | `PRODTRACK_PROVIDER` | shotgrid |
 | `LLM_PROVIDER` | openai |
-| `AUTH_PROVIDER` | `none` (noop) for local dev; `google` for production |
+| `AUTH_PROVIDER` | `mock` for local dev; `shotgrid` for production |
+| `JWT_SECRET_KEY` | Required. Signs DNA access tokens (Secret Manager in production) |
+| `JWT_EXPIRE_MINUTES` | Optional. Sign-in lifetime in minutes (default `720`) |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins |
 
 ### Frontend (Build-time)
@@ -336,8 +339,6 @@ The following secrets must be configured in GitHub repository settings:
 |----------|-------------|
 | `VITE_API_BASE_URL` | Backend API URL |
 | `VITE_WS_URL` | WebSocket URL |
-| `VITE_AUTH_PROVIDER` | `none` for local (noop/email sign-in); `google` for Google OAuth |
-| `VITE_GOOGLE_CLIENT_ID` | Google OAuth Client ID (required when `VITE_AUTH_PROVIDER=google`) |
 
 ---
 
@@ -347,7 +348,7 @@ The following secrets must be configured in GitHub repository settings:
 
 The backend API is protected by:
 
-1. **Google OAuth** - All protected endpoints require a valid Google Bearer token
+1. **DNA access tokens** - All protected endpoints require a valid, unexpired DNA Bearer token
 2. **CORS** - Only allows requests from whitelisted origins (browser-enforced)
 3. **Security Headers** - X-Frame-Options, X-Content-Type-Options, HSTS, etc.
 
@@ -357,7 +358,7 @@ The backend API is protected by:
 Frontend (browser) ──────────────────────────────────────▶ Backend
                     Headers:
                     - Origin: https://dna-frontend-xxx.run.app
-                    - Authorization: Bearer <google-oauth-token>
+                    - Authorization: Bearer <dna-access-token>
 ```
 
 ---
@@ -387,7 +388,8 @@ gcloud run services logs read dna-frontend --region us-central1
 | Image not found | Verify Artifact Registry repository exists and image was pushed |
 | Cold start slow | Expected with scale-to-zero; first request takes ~5-10s |
 | CORS errors | Production currently allows all origins (`CORS_ALLOWED_ORIGINS=*`). To restrict to the frontend: `gcloud run services update dna-backend --region us-central1 --update-env-vars="CORS_ALLOWED_ORIGINS=https://YOUR-FRONTEND-URL"` (no trailing slash). |
-| 401 Unauthorized | Verify Google OAuth is configured correctly and token is valid |
+| 401 Unauthorized | The token is missing, expired, or was signed with a different `JWT_SECRET_KEY`; sign in again |
+| 403 `User not found in ShotGrid` | The signed-in email has no matching ShotGrid `HumanUser` email |
 
 ### Force Redeployment
 

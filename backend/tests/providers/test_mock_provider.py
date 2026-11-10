@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+from dna.auth.identity import CurrentUser
 from dna.models.entity import Note, Project, User, Version
 from dna.prodtrack_providers.mock_data.seed_db import _download_thumbnail
 from dna.prodtrack_providers.mock_provider import (
@@ -269,6 +270,11 @@ def test_search_shot_with_project_id(mock_provider):
     assert len(results) == 1
     assert results[0]["type"] == "Shot"
     assert results[0]["id"] == "100"
+
+
+def test_for_user_returns_same_provider(mock_provider):
+    user = CurrentUser(sub="anyone", email="anyone@example.com")
+    assert mock_provider.for_user(user) is mock_provider
 
 
 def test_get_user_by_email_not_found_returns_synthetic_user(mock_provider):

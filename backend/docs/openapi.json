@@ -115,6 +115,24 @@
         "title": "Asset",
         "type": "object"
       },
+      "Body_login_auth_login_post": {
+        "properties": {
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_login_auth_login_post",
+        "type": "object"
+      },
       "Body_upload_attachment_api_attachments_post": {
         "properties": {
           "file": {
@@ -368,6 +386,39 @@
           "name"
         ],
         "title": "CreatePlaylistRequest",
+        "type": "object"
+      },
+      "CurrentUser": {
+        "description": "The authenticated caller, as decoded from a DNA access token.\n\nAuth providers produce this and production tracking providers consume it,\nso it must not carry fields specific to either.",
+        "properties": {
+          "email": {
+            "description": "The user's email; DNA's key for per-user data",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display name",
+            "title": "Name"
+          },
+          "sub": {
+            "description": "Stable subject identifier from the auth provider",
+            "title": "Sub",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sub",
+          "email"
+        ],
+        "title": "CurrentUser",
         "type": "object"
       },
       "DispatchBotRequest": {
@@ -1062,6 +1113,50 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LoginResponse": {
+        "description": "A freshly issued DNA access token and the identity it carries.",
+        "examples": [
+          {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "expires_at": "2026-01-01T20:00:00Z",
+            "token_type": "bearer",
+            "user": {
+              "email": "jdoe@example.com",
+              "name": "Jane Doe",
+              "sub": "jdoe"
+            }
+          }
+        ],
+        "properties": {
+          "access_token": {
+            "description": "Signed JWT to send as a Bearer token",
+            "title": "Access Token",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "When the token stops being accepted",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "token_type": {
+            "const": "bearer",
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/CurrentUser"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_at",
+          "user"
+        ],
+        "title": "LoginResponse",
         "type": "object"
       },
       "Note": {
@@ -3668,7 +3763,7 @@
       "name": "DNA Project",
       "url": "https://github.com/AcademySoftwareFoundation/dna"
     },
-    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n\n### Authentication\nSend `Authorization: Bearer <token>` on every request except **Health**. The\nconfigured `AUTH_PROVIDER` validates the token (Google OAuth in production)\nand extracts the caller's email; most calls only return data when that email\nbelongs to a user in the tracking provider. Errors are `{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
+    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n\n### Authentication\nSign in with `POST /auth/login` (username and password, checked by the\nconfigured `AUTH_PROVIDER`) to receive a DNA access token, then send\n`Authorization: Bearer <token>` on every request except **Health** and the\nlogin itself. The caller's identity is read from the token, and production\ntracking calls run as that user, so most calls only return data when the\ntoken's email belongs to a user in the tracking provider. Errors are\n`{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
     "title": "DNA Backend",
     "version": "0.1.0"
   },
@@ -4022,6 +4117,95 @@
         "summary": "Get an asset by ID",
         "tags": [
           "Assets"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "description": "Check a username and password with the configured `AUTH_PROVIDER` and\nreturn a DNA access token.\n\nThe body is form-encoded (`username`, `password`), as in the OAuth2\npassword flow. Send the returned `access_token` as\n`Authorization: Bearer <token>`; it is accepted until `expires_at`\n(`JWT_EXPIRE_MINUTES`). There is no refresh: sign in again after expiry.",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sign in",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "description": "Return the identity carried by the caller's access token.",
+        "operationId": "get_me_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Current user",
+        "tags": [
+          "Authentication"
         ]
       }
     },
@@ -7672,6 +7856,10 @@
       "name": "Health"
     },
     {
+      "description": "Exchange a username and password for a DNA access token, and read back the identity it carries.",
+      "name": "Authentication"
+    },
+    {
       "description": "Generic find and search across entity types in the production tracking provider.",
       "name": "Entities"
     },
@@ -7771,6 +7959,7 @@
         "User Settings",
         "Attachments",
         "LLM",
+        "Authentication",
         "Health"
       ]
     }

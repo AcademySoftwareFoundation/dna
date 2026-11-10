@@ -5,9 +5,10 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
+from main import app, get_prodtrack_for_user, get_storage_provider_cached
 
 from dna.models.draft_note import SCRATCH_VERSION_ID, DraftNote, DraftNoteLink
+from tests.auth_helpers import AuthenticatedTestClient
 
 
 def _targets(*pairs: tuple[str, str | int]) -> list[dict[str, str]]:
@@ -19,7 +20,7 @@ class TestPublishNotesEndpoint:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return AuthenticatedTestClient(app)
 
     @pytest.fixture
     def mock_storage(self):
@@ -34,7 +35,7 @@ class TestPublishNotesEndpoint:
     @pytest.fixture
     def override_deps(self, mock_storage, mock_prodtrack):
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_prodtrack
         yield
         app.dependency_overrides.clear()
 
@@ -73,7 +74,7 @@ class TestPublishNotesEndpoint:
         args = mock_prodtrack.publish_note.call_args[1]
         assert args["version_id"] == "101"
         assert args["content"] == "Test note"
-        assert args["author_email"] == "user@example.com"
+        assert "author_email" not in args
 
         mock_storage.upsert_draft_note.assert_called_once()
         call_args = mock_storage.upsert_draft_note.call_args
@@ -170,7 +171,7 @@ class TestPublishNotesEndpoint:
         args = mock_prodtrack.publish_playlist_note.call_args[1]
         assert args["playlist_id"] == "100"
         assert args["content"] == "Playlist-wide observation"
-        assert args["author_email"] == "user@example.com"
+        assert "author_email" not in args
         # The scratch pseudo-version link is dropped; real links pass through
         assert [(l.type, l.id) for l in args["links"]] == [("Shot", "42")]
 
@@ -257,7 +258,7 @@ class TestPublishNotesEndpoint:
         assert data["total"] == 1
         mock_prodtrack.publish_note.assert_called_once()
         args = mock_prodtrack.publish_note.call_args[1]
-        assert args["author_email"] == "b@example.com"
+        assert "author_email" not in args
         assert args["version_id"] == "302"
 
     def test_publish_notes_republishes_edited(
@@ -556,7 +557,7 @@ class TestUpdateVersionStatusEndpoint:
 
     @pytest.fixture
     def client(self):
-        return TestClient(app)
+        return AuthenticatedTestClient(app)
 
     @pytest.fixture
     def mock_prodtrack(self):
@@ -568,7 +569,7 @@ class TestUpdateVersionStatusEndpoint:
 
     @pytest.fixture
     def override_deps(self, mock_prodtrack, mock_storage):
-        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_prodtrack
+        app.dependency_overrides[get_prodtrack_for_user] = lambda: mock_prodtrack
         app.dependency_overrides[get_storage_provider_cached] = lambda: mock_storage
         yield
         app.dependency_overrides.clear()

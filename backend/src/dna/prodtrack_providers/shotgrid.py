@@ -1,13 +1,15 @@
 """ShotGrid production tracking provider implementation."""
 
-import contextlib
+import copy
 import logging
 import os
 from datetime import date, datetime, timezone
+from functools import lru_cache
 from typing import Any, Literal, Optional, cast
 
 from shotgun_api3 import Shotgun
 
+from dna.auth.identity import CurrentUser
 from dna.models.entity import (
     ENTITY_MODELS,
     EntityBase,
@@ -28,6 +30,9 @@ logger = logging.getLogger(__name__)
 # Note field that points a published note at its version's transcript row.
 # Site setup: backend/docs/SHOTGRID_SETUP.md, step 3.
 NOTE_TRANSCRIPT_FIELD = "sg_linked_transcript"
+
+# Upper bound on users whose login and sudo connection are cached per process.
+USER_CACHE_SIZE = 1024
 
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
@@ -136,7 +141,6 @@ class ShotgridProvider(ProdtrackProviderBase):
         url: Optional[str] = None,
         script_name: Optional[str] = None,
         api_key: Optional[str] = None,
-        sudo_user: Optional[str] = None,
         connect: bool = True,
     ):
         """Initialize the ShotGrid connection.
@@ -145,7 +149,6 @@ class ShotgridProvider(ProdtrackProviderBase):
             url: ShotGrid server URL. Defaults to SHOTGRID_URL env var.
             script_name: API script name. Defaults to SHOTGRID_SCRIPT_NAME env var.
             api_key: API key for authentication. Defaults to SHOTGRID_API_KEY env var.
-            sudo_user: Optional user login to perform actions as.
             connect: Whether to connect immediately.
         """
         super().__init__()
@@ -153,7 +156,6 @@ class ShotgridProvider(ProdtrackProviderBase):
         self.url = url or os.getenv("SHOTGRID_URL")
         self.script_name = script_name or os.getenv("SHOTGRID_SCRIPT_NAME")
         self.api_key = api_key or os.getenv("SHOTGRID_API_KEY")
-        self.sudo_user = sudo_user or os.getenv("SHOTGRID_SUDO_USER")
 
         if not all([self.url, self.script_name, self.api_key]):
             raise ValueError(
@@ -162,60 +164,48 @@ class ShotgridProvider(ProdtrackProviderBase):
             )
 
         self.sg = None
-        self._sudo_connection = None
+        self._login_for_email = lru_cache(maxsize=USER_CACHE_SIZE)(self._lookup_login)
+        self._connection_for_login = lru_cache(maxsize=USER_CACHE_SIZE)(
+            self._connect_as
+        )
         if connect:
             self.connect()
 
-    def connect(self, sudo_user: Optional[str] = None):
-        """Connect to ShotGrid.
+    def connect(self):
+        """Connect to ShotGrid as the script user."""
+        self.sg = Shotgun(self.url, self.script_name, self.api_key)
 
-        Args:
-            sudo_user: Optional user login to perform actions as.
-                If provided, overrides the instance's sudo_user.
+    def for_user(self, user: CurrentUser) -> "ShotgridProvider":
+        """Return a provider whose calls run as ``user`` via ``sudo_as_login``.
+
+        The user's email is resolved to a HumanUser login with the script
+        connection. Logins and per-login connections are cached for the life
+        of the process.
+
+        Raises:
+            UserNotFoundError: If no HumanUser has the user's email.
         """
-        # Close existing connection if any (though Shotgun API doesn't really require explicit close)
-        self.sg = Shotgun(
-            self.url,
-            self.script_name,
-            self.api_key,
-            sudo_as_login=sudo_user or self.sudo_user,
-        )
+        login = self._login_for_email(user.email.strip().lower())
+        scoped = copy.copy(self)
+        scoped.sg = self._connection_for_login(login)
+        return scoped
 
-    def set_sudo_user(self, sudo_user: str):
-        """Set the sudo user and re-initialize the connection.
-
-        Args:
-            sudo_user: The user login to perform actions as.
-        """
-        self.sudo_user = sudo_user
-        self.connect()
-
-    @contextlib.contextmanager
-    def sudo(self, user_login: str):
-        """Context manager to perform actions as a specific user.
-
-        This creates a temporary connection for the duration of the context.
-
-        Args:
-            user_login: The user login to perform actions as.
-        """
-        original_connection = self._sudo_connection
+    def _lookup_login(self, email: str) -> str:
         try:
-            # Create a temporary connection for this user
-            self._sudo_connection = Shotgun(
-                self.url,
-                self.script_name,
-                self.api_key,
-                sudo_as_login=user_login,
-            )
-            yield
-        finally:
-            self._sudo_connection = original_connection
+            sg_user = self.get_user_by_email(email)
+        except ValueError as e:
+            raise UserNotFoundError(f"User not found in ShotGrid: {email}") from e
+        if not sg_user.login:
+            raise UserNotFoundError(f"ShotGrid user has no login: {email}")
+        return sg_user.login
+
+    def _connect_as(self, login: str) -> Shotgun:
+        return Shotgun(self.url, self.script_name, self.api_key, sudo_as_login=login)
 
     @property
     def _sg(self):
-        """Get the active ShotGrid connection (sudo or main)."""
-        return self._sudo_connection or self.sg
+        """Get the active ShotGrid connection."""
+        return self.sg
 
     def _convert_sg_entity_to_dna_entity(
         self,
@@ -750,6 +740,35 @@ class ShotgridProvider(ProdtrackProviderBase):
             sg_user, entity_mapping, "user", resolve_links=False
         )
 
+    def get_user_by_id(self, user_id: str) -> User:
+        """Get a HumanUser by ID.
+
+        Args:
+            user_id: The ShotGrid HumanUser ID
+
+        Returns:
+            User entity with name, email, and login
+
+        Raises:
+            ValueError: If user is not found
+        """
+        if not self._sg:
+            raise ValueError("Not connected to ShotGrid")
+
+        sg_user = self._sg.find_one(
+            "HumanUser",
+            filters=[["id", "is", int(user_id)]],
+            fields=["id", "name", "email", "login"],
+        )
+
+        if not sg_user:
+            raise ValueError(f"User not found: {user_id}")
+
+        entity_mapping = FIELD_MAPPING["user"]
+        return self._convert_sg_entity_to_dna_entity(
+            sg_user, entity_mapping, "user", resolve_links=False
+        )
+
     def get_projects_for_user(self, user_email: str) -> list[Project]:
         """Get projects accessible by a user.
 
@@ -1201,7 +1220,6 @@ class ShotgridProvider(ProdtrackProviderBase):
         to_users: list[str],
         cc_users: list[str],
         links: list[EntityBase],
-        author_email: Optional[str] = None,
         version_status: Optional[str] = None,
     ) -> str:
         """Publish a note to ShotGrid.
@@ -1213,7 +1231,6 @@ class ShotgridProvider(ProdtrackProviderBase):
             to_users: List of user IDs to address.
             cc_users: List of user IDs to CC.
             links: List of additional entities to link.
-            author_email: Optional email of the author.
             version_status: Optional status code to set on the version.
 
         Returns:
@@ -1282,28 +1299,8 @@ class ShotgridProvider(ProdtrackProviderBase):
             "addressings_cc": cc_links,
         }
 
-        # 4. Handle Author / Sudo
-        author_login = None
-        if author_email:
-            try:
-                author_user = self.get_user_by_email(author_email)
-                if author_user and author_user.login:
-                    author_login = author_user.login
-            except ValueError as e:
-                # Wrap the ValueError in a specific UserNotFoundError
-                raise UserNotFoundError(
-                    f"Author not found in ShotGrid: {author_email}"
-                ) from e
+        result = self._sg.create("Note", note_data)
 
-        if author_login:
-            with self.sudo(author_login):
-                result = self._sg.create("Note", note_data)
-        else:
-            result = self._sg.create("Note", note_data)
-
-        # Written after the create, outside the author's sudo, so it runs with
-        # the script user's permissions: authors' permission groups needn't be
-        # allowed to edit the transcript field.
         self._link_note_to_transcript(str(result["id"]), version_id)
 
         if version_status:
@@ -1321,7 +1318,6 @@ class ShotgridProvider(ProdtrackProviderBase):
         to_users: list[str],
         cc_users: list[str],
         links: list[EntityBase],
-        author_email: Optional[str] = None,
     ) -> str:
         """Publish a note linked to a playlist (no version) in ShotGrid.
 
@@ -1332,7 +1328,6 @@ class ShotgridProvider(ProdtrackProviderBase):
             to_users: List of user IDs to address.
             cc_users: List of user IDs to CC.
             links: List of additional entities to link.
-            author_email: Optional email of the author.
 
         Returns:
             The ID of the created (or existing) note.
@@ -1391,23 +1386,7 @@ class ShotgridProvider(ProdtrackProviderBase):
             "addressings_cc": cc_links,
         }
 
-        # 4. Handle Author / Sudo
-        author_login = None
-        if author_email:
-            try:
-                author_user = self.get_user_by_email(author_email)
-                if author_user and author_user.login:
-                    author_login = author_user.login
-            except ValueError as e:
-                raise UserNotFoundError(
-                    f"Author not found in ShotGrid: {author_email}"
-                ) from e
-
-        if author_login:
-            with self.sudo(author_login):
-                result = self._sg.create("Note", note_data)
-        else:
-            result = self._sg.create("Note", note_data)
+        result = self._sg.create("Note", note_data)
 
         return str(result["id"])
 

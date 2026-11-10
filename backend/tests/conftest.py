@@ -2,8 +2,12 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-# Force AUTH_PROVIDER to none for tests (override Docker env so endpoints accept unauthenticated requests)
-os.environ["AUTH_PROVIDER"] = "none"
+# Override the Docker env so tests sign in with the mock auth provider and
+# mint tokens with a known secret.
+os.environ["AUTH_PROVIDER"] = "mock"
+os.environ["JWT_SECRET_KEY"] = "dna-test-secret-key-at-least-32-bytes"
+os.environ.pop("JWT_EXPIRE_MINUTES", None)
+os.environ.pop("JWT_ALGORITHM", None)
 # Set CORS origins for tests
 os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 
@@ -40,50 +44,20 @@ except ImportError:
     mock_bson.ObjectId = lambda: "mock_object_id"
     sys.modules["bson"] = mock_bson
 
-# Mock google-auth library if not present
-try:
-    import google.auth
-except ImportError:
-    mock_google = MagicMock()
-    mock_google.auth = MagicMock()
-    mock_google.auth.transport = MagicMock()
-    mock_google.auth.transport.requests = MagicMock()
-    mock_google.oauth2 = MagicMock()
-    mock_google.oauth2.id_token = MagicMock()
-    sys.modules["google"] = mock_google
-    sys.modules["google.auth"] = mock_google.auth
-    sys.modules["google.auth.transport"] = mock_google.auth.transport
-    sys.modules["google.auth.transport.requests"] = mock_google.auth.transport.requests
-    sys.modules["google.oauth2"] = mock_google.oauth2
-    sys.modules["google.oauth2.id_token"] = mock_google.oauth2.id_token
-
-
 import pytest
-from fastapi.testclient import TestClient
+
+from tests.auth_helpers import AuthenticatedTestClient, auth_header
 
 
 @pytest.fixture
 def auth_headers():
-    """Provides authentication headers for test requests.
-
-    With AUTH_PROVIDER=none, the NoopAuthProvider accepts any token.
-    """
-    return {"Authorization": "Bearer test@example.com"}
+    """Authorization header with a valid access token for test@example.com."""
+    return auth_header()
 
 
 @pytest.fixture
 def auth_client():
-    """Provides an authenticated TestClient for the FastAPI app.
-
-    This client includes authentication headers on all requests.
-    """
+    """TestClient that sends a valid access token for test@example.com."""
     from main import app
-
-    class AuthenticatedTestClient(TestClient):
-        def request(self, *args, **kwargs):
-            headers = kwargs.get("headers") or {}
-            headers["Authorization"] = "Bearer test@example.com"
-            kwargs["headers"] = headers
-            return super().request(*args, **kwargs)
 
     return AuthenticatedTestClient(app)

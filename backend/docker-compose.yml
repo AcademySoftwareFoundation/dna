@@ -35,6 +35,10 @@ services:
       - SHOTGRID_API_KEY=your-shotgrid-api-key
       - SHOTGRID_SCRIPT_NAME=your-shotgrid-script-name
       - PRODTRACK_PROVIDER=shotgrid
+      # Auth: mock | shotgrid. JWT_SECRET_KEY signs DNA access tokens.
+      - AUTH_PROVIDER=shotgrid
+      - JWT_SECRET_KEY=change-me
+      - JWT_EXPIRE_MINUTES=720
       - MONGODB_URL=mongodb://mongo:27017
       - STORAGE_PROVIDER=mongodb
       # LLM provider: set LLM_PROVIDER to openai | anthropic | gemini.

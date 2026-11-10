@@ -16,12 +16,16 @@ from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 from main import app
 
+from dna.auth.identity import CurrentUser
 from dna.events import get_event_publisher, reset_event_publisher
 from dna.models.playlist_metadata import PlaylistMetadata
 from dna.transcription_service import (
     get_transcription_service,
     reset_transcription_service,
 )
+from tests.auth_helpers import make_token
+
+EXT_TOKEN = make_token(CurrentUser(sub="user", email="user@test.com"))
 
 ENABLE = {"DNA_ENABLE_EXTENSION_TRANSCRIPTION": "true"}
 
@@ -107,7 +111,7 @@ class TestExtensionIngestWebSocket:
         with _extension_enabled():
             with client.websocket_connect("/ws") as ws_broadcast:
                 with client.websocket_connect(
-                    "/transcription/extension/ingest?token=user@test.com"
+                    f"/transcription/extension/ingest?token={EXT_TOKEN}"
                 ) as ingest:
                     hello = ingest.receive_json()
                     assert hello["type"] == "connected"
@@ -140,7 +144,9 @@ class TestExtensionIngestWebSocket:
         client = TestClient(app)
 
         with _extension_enabled():
-            with client.websocket_connect("/transcription/extension/ingest") as ingest:
+            with client.websocket_connect(
+                f"/transcription/extension/ingest?token={EXT_TOKEN}"
+            ) as ingest:
                 ingest.receive_json()  # connected
                 ingest.send_json({"type": "ping", "ts": "t1"})
                 pong = ingest.receive_json()
@@ -152,7 +158,9 @@ class TestExtensionIngestWebSocket:
         client = TestClient(app)
 
         with _extension_enabled():
-            with client.websocket_connect("/transcription/extension/ingest") as ingest:
+            with client.websocket_connect(
+                f"/transcription/extension/ingest?token={EXT_TOKEN}"
+            ) as ingest:
                 ingest.receive_json()  # connected
 
                 ingest.send_json({"type": "nope"})
@@ -171,7 +179,7 @@ class TestExtensionIngestWebSocket:
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
             with pytest.raises(WebSocketDisconnect):
                 with client.websocket_connect(
-                    "/transcription/extension/ingest?token=user@test.com"
+                    f"/transcription/extension/ingest?token={EXT_TOKEN}"
                 ) as ingest:
                     ingest.receive_json()
 
@@ -182,7 +190,7 @@ class TestExtensionIngestWebSocket:
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
             with pytest.raises(WebSocketDisconnect):
                 with client.websocket_connect(
-                    "/transcription/extension/ingest?token=user@test.com&key=nope"
+                    f"/transcription/extension/ingest?token={EXT_TOKEN}&key=nope"
                 ) as ingest:
                     ingest.receive_json()
 
@@ -192,7 +200,7 @@ class TestExtensionIngestWebSocket:
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
             with client.websocket_connect(
-                "/transcription/extension/ingest?token=user@test.com&key=secret"
+                f"/transcription/extension/ingest?token={EXT_TOKEN}&key=secret"
             ) as ingest:
                 hello = ingest.receive_json()
                 assert hello["type"] == "connected"
@@ -208,7 +216,9 @@ class TestExtensionIngestWebSocket:
         client = TestClient(app)
 
         with _extension_enabled():
-            with client.websocket_connect("/transcription/extension/ingest") as ingest:
+            with client.websocket_connect(
+                f"/transcription/extension/ingest?token={EXT_TOKEN}"
+            ) as ingest:
                 ingest.receive_json()  # connected
                 ingest.send_json({"type": "transcript", "playlist_id": 42})
                 err = ingest.receive_json()
@@ -236,50 +246,11 @@ class TestExtensionHelpers:
             assert main._extension_key_valid("nope") is False
             assert main._extension_key_valid(None) is False
 
-    def test_auth_none_without_token_is_anonymous(self):
-        with mock.patch.dict(os.environ, {"AUTH_PROVIDER": "none"}):
-            assert main._authenticate_ws_token(None) == "anonymous@localhost"
+    def test_auth_valid_token_returns_email(self):
+        assert main._authenticate_ws_token(EXT_TOKEN) == "user@test.com"
 
-    def test_auth_none_with_token_uses_provider_email(self):
-        provider = mock.Mock()
-        provider.get_user_email.return_value = "who@test.com"
-        with (
-            mock.patch.dict(os.environ, {"AUTH_PROVIDER": "none"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
-        ):
-            assert main._authenticate_ws_token("tok") == "who@test.com"
+    def test_auth_missing_token(self):
+        assert main._authenticate_ws_token(None) is None
 
-    def test_auth_google_valid_token(self):
-        provider = mock.Mock()
-        provider.validate_token.return_value = {"email": "g@test.com"}
-        with (
-            mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
-        ):
-            assert main._authenticate_ws_token("tok") == "g@test.com"
-
-    def test_auth_google_missing_token(self):
-        provider = mock.Mock()
-        with (
-            mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
-        ):
-            assert main._authenticate_ws_token(None) is None
-
-    def test_auth_google_invalid_token(self):
-        provider = mock.Mock()
-        provider.validate_token.side_effect = ValueError("bad token")
-        with (
-            mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
-        ):
-            assert main._authenticate_ws_token("tok") is None
-
-    def test_auth_google_missing_email_claim(self):
-        provider = mock.Mock()
-        provider.validate_token.return_value = {"sub": "123"}
-        with (
-            mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
-        ):
-            assert main._authenticate_ws_token("tok") is None
+    def test_auth_invalid_token(self):
+        assert main._authenticate_ws_token("user@test.com") is None

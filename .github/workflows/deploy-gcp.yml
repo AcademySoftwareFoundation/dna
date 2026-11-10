@@ -88,8 +88,8 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --concurrency 80 \
-            --set-secrets="MONGODB_URL=MONGODB_URL:latest,SHOTGRID_URL=SHOTGRID_URL:latest,SHOTGRID_API_KEY=SHOTGRID_API_KEY:latest,SHOTGRID_SCRIPT_NAME=SHOTGRID_SCRIPT_NAME:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,VEXA_API_URL=VEXA_API_URL:latest,VEXA_API_KEY=VEXA_API_KEY:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest" \
-            --set-env-vars="^@^PYTHONUNBUFFERED=1@STORAGE_PROVIDER=mongodb@PRODTRACK_PROVIDER=shotgrid@LLM_PROVIDER=openai@AUTH_PROVIDER=google@DISABLE_DOCS=true@CORS_ALLOWED_ORIGINS=*"
+            --set-secrets="MONGODB_URL=MONGODB_URL:latest,SHOTGRID_URL=SHOTGRID_URL:latest,SHOTGRID_API_KEY=SHOTGRID_API_KEY:latest,SHOTGRID_SCRIPT_NAME=SHOTGRID_SCRIPT_NAME:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,VEXA_API_URL=VEXA_API_URL:latest,VEXA_API_KEY=VEXA_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest" \
+            --set-env-vars="^@^PYTHONUNBUFFERED=1@STORAGE_PROVIDER=mongodb@PRODTRACK_PROVIDER=shotgrid@LLM_PROVIDER=openai@AUTH_PROVIDER=shotgrid@DISABLE_DOCS=true@CORS_ALLOWED_ORIGINS=*"
 
       - name: Get Backend URL
         id: backend-url
@@ -131,25 +131,16 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      - name: Get Google Client ID from Secret Manager
-        id: google-client-id
-        run: |
-          GOOGLE_CLIENT_ID=$(gcloud secrets versions access latest --secret=GOOGLE_CLIENT_ID)
-          echo "::add-mask::$GOOGLE_CLIENT_ID"
-          echo "value=$GOOGLE_CLIENT_ID" >> $GITHUB_OUTPUT
-
       - name: Build and push Docker image
         working-directory: frontend
         env:
           REF_NAME: ${{ needs.validate-tag.outputs.tag }}
           BACKEND_URL: ${{ needs.deploy-backend.outputs.backend-url }}
-          GOOGLE_CLIENT_ID: ${{ steps.google-client-id.outputs.value }}
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FRONTEND_SERVICE }}:${REF_NAME}"
           docker build \
             --build-arg "VITE_API_BASE_URL=${BACKEND_URL}" \
             --build-arg "VITE_WS_URL=${BACKEND_URL/https:/wss:}/ws" \
-            --build-arg "VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
             -t "$IMAGE" .
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"

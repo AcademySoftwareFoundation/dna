@@ -14,8 +14,9 @@ from dna.models.draft_note import (
     DraftNoteLink,
     DraftNoteUpdate,
 )
+from tests.auth_helpers import AuthenticatedTestClient
 
-client = TestClient(app)
+client = AuthenticatedTestClient(app)
 
 
 class TestDraftNoteModels:

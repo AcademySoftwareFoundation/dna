@@ -32,12 +32,15 @@ that is the numeric entity ID as a string (`"6990"`).
 
 ## A first request
 
-With a backend running locally (`make start-local` in `backend/`) and a token
-(see [Authentication](/api/authentication)):
+With a backend running locally (`make start-local` in `backend/`), sign in to
+get a token (see [Authentication](/api/authentication)). The local `mock` auth
+provider accepts any password:
 
 ```bash
 export DNA=http://localhost:8000
-export TOKEN=...   # bearer token
+export TOKEN=$(curl -s -X POST "$DNA/auth/login" \
+  -d username=sam.reviewer@studio.example -d password=any \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
 
 # Who am I, and what can I see?
 curl -s "$DNA/projects/user/sam.reviewer@studio.example" -H "Authorization: Bearer $TOKEN"

@@ -47,17 +47,26 @@ Transcription providers are the services that provide the transcription function
 
 ### Authentication
 
-Authentication is handled by pluggable auth providers, configured via the `AUTH_PROVIDER` environment variable:
+DNA issues its own access tokens. `POST /auth/login` takes a username and password, an auth provider verifies them, and the backend returns a signed JWT that the frontend sends as `Authorization: Bearer <token>`. Every protected request reads the caller's identity (`sub`, `email`, `name`) from that token; nothing about sessions is stored server-side.
 
-| Value   | Provider        | Use case                                      |
-|--------|------------------|-----------------------------------------------|
-| `none` | Noop (default)   | Local development and testing; no validation  |
-| `google` | Google OAuth   | Production; validates Google ID/access tokens  |
+The auth provider is chosen with `AUTH_PROVIDER`, independently of `PRODTRACK_PROVIDER`:
 
-- **Local development:** Use the noop provider so you can sign in with any email and the backend accepts the token without validation. Set `AUTH_PROVIDER=none` in your override (the example local compose file does this).
-- **Production:** Set `AUTH_PROVIDER=google` and configure `GOOGLE_CLIENT_ID` (and optionally Google verification) as required.
+| Value      | Provider | Use case                                                                 |
+|------------|----------|--------------------------------------------------------------------------|
+| `mock`     | Mock     | Local development and tests. Any password is accepted; the username becomes the identity (`jdoe` signs in as `jdoe@localhost`, an email signs in as that email). |
+| `shotgrid` | ShotGrid | Checks the username and password against ShotGrid (`authenticate_human_user`). |
 
-The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
+The ShotGrid auth provider uses its own connection, configured with `AUTH_SHOTGRID_URL`, `AUTH_SHOTGRID_SCRIPT_NAME` and `AUTH_SHOTGRID_API_KEY`; each falls back to the matching `SHOTGRID_*` variable, so a single site needs no extra settings. Sites that sign in through Autodesk Identity / SSO cannot use password authentication and need a different auth provider.
+
+Token settings:
+
+| Variable             | Default | Purpose                                              |
+|----------------------|---------|------------------------------------------------------|
+| `JWT_SECRET_KEY`     | none (required) | Signs and verifies tokens. The backend refuses to start without it. |
+| `JWT_EXPIRE_MINUTES` | `720`   | How long a sign-in lasts. There is no refresh; users sign in again after expiry. |
+| `JWT_ALGORITHM`      | `HS256` | Signing algorithm.                                   |
+
+**Acting as the user in production tracking.** Production tracking calls run as the signed-in user. The ShotGrid prodtrack provider resolves the token's email to a `HumanUser` login (cached per process) and connects with `sudo_as_login`, so reads respect the user's ShotGrid permissions and published notes are authored by the user who clicked publish. A token whose email has no ShotGrid user gets `403`. With `PRODTRACK_PROVIDER=mock` the identity is not checked.
 
 ## Setup
 
@@ -80,7 +89,7 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
 
 2. Edit `docker-compose.local.yml` and set at least:
    - **ShotGrid:** To use ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave unset) and set `SHOTGRID_URL`, `SHOTGRID_API_KEY`, and `SHOTGRID_SCRIPT_NAME`. To run without ShotGrid, set `PRODTRACK_PROVIDER=mock`; see [Mock production tracking](#mock-production-tracking).
-   - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
+   - **Auth (local dev):** Keep `AUTH_PROVIDER=mock` so you can sign in with any username and password, and set `JWT_SECRET_KEY` to a random string (`./bootstrap.sh` generates one). Set `AUTH_PROVIDER=shotgrid` to sign in with real ShotGrid credentials. With `PRODTRACK_PROVIDER=shotgrid`, sign in as a ShotGrid user's email so tracker calls can run as that user.
    - **LLM:** Choose an LLM provider and matching credentials. Examples:
 
      ```yaml

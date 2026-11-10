@@ -164,6 +164,29 @@ generate_extension_key() {
     python3 -c "import secrets; print(secrets.token_hex(6))"
 }
 
+# Give the backend a random JWT signing secret and a supported AUTH_PROVIDER.
+# Safe to re-run: an existing non-placeholder secret is kept, and only the
+# retired "none"/"google" providers are rewritten to "mock".
+ensure_auth_config() {
+    local file="$BACKEND_DIR/docker-compose.local.yml"
+    [[ -f "$file" ]] || return 0
+
+    local secret
+    secret="$(read_compose_value "JWT_SECRET_KEY" "$file")"
+    if [[ -z "$secret" || "$secret" == "change-me-local-dev-only" ]]; then
+        ensure_env_var "JWT_SECRET_KEY" \
+            "$(python3 -c "import secrets; print(secrets.token_urlsafe(48))")" "$file"
+        ok "Generated JWT_SECRET_KEY in backend/docker-compose.local.yml"
+    fi
+
+    local provider
+    provider="$(read_compose_value "AUTH_PROVIDER" "$file")"
+    if [[ -z "$provider" || "$provider" == "none" || "$provider" == "google" ]]; then
+        ensure_env_var "AUTH_PROVIDER" "mock" "$file"
+        ok "AUTH_PROVIDER=mock in backend/docker-compose.local.yml"
+    fi
+}
+
 # Read the extension key currently configured for this instance: the value
 # generated this run if any, otherwise whatever is in the backend compose file
 # (so `--start` and re-runs still report the right key).
@@ -1285,6 +1308,7 @@ main() {
         echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
         check_prerequisites
+        ensure_auth_config
         echo ""
         TRANSCRIPTION_ROUTE="$(detect_transcription_route)"
         start_full_stack "$TRANSCRIPTION_ROUTE"
@@ -1292,6 +1316,7 @@ main() {
         wait_for_dna "$TRANSCRIPTION_ROUTE"
         print_summary "DNA is running!" "$TRANSCRIPTION_ROUTE"
     elif env_is_initialized; then
+        ensure_auth_config
         change_settings
     else
         echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -1302,6 +1327,7 @@ main() {
         echo ""
         choose_transcription_route
         copy_config_files
+        ensure_auth_config
         echo ""
         configure_llm
         apply_transcription_route

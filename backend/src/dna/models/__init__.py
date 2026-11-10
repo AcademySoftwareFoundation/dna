@@ -3,6 +3,7 @@
 Pydantic models for DNA entities.
 """
 
+from dna.models.auth import LoginResponse
 from dna.models.draft_note import (
     SCRATCH_VERSION_ID,
     DraftNote,
@@ -109,6 +110,7 @@ __all__ = [
     "ENTITY_MODELS",
     "EntityLink",
     "ErrorResponse",
+    "LoginResponse",
     "CreateNoteRequest",
     "CreatePlaylistRequest",
     "FilterCondition",

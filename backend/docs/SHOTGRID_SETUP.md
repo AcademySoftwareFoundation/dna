@@ -75,8 +75,8 @@ On the **Note** entity, create:
   not in its own database, so ShotGrid is the only source of truth for the link.
 - Republishing a note sets the field again, so a note published before its
   transcript picks up the link the next time it's republished.
-- DNA writes the link as the **script user**, after the note is created as its
-  author, so authors' permission groups don't need edit rights on this field.
+- DNA writes the link as the signed-in user who publishes the note, so their
+  permission group needs edit rights on this field.
 - If the field doesn't exist, DNA logs a warning and publishes the note without
   the link; nothing fails.
 - The review CSV export (**Publish → Export CSV**) shows the same transcript
@@ -106,8 +106,10 @@ Only new transcripts go to the new slot.
 
 ## 5. Script user permissions
 
-DNA talks to ShotGrid as the API script in `SHOTGRID_SCRIPT_NAME`. Its
-permission role needs:
+DNA talks to ShotGrid as the API script in `SHOTGRID_SCRIPT_NAME`, but every
+request on behalf of a signed-in user runs as that user (ShotGrid
+`sudo_as_login`), so both the script's permission role and the users'
+permission groups need:
 
 | Entity | Access | Why |
 |--------|--------|-----|
@@ -115,11 +117,16 @@ permission role needs:
 | Note | Read, create, update | Publish notes and set `sg_linked_transcript` |
 | Version | Read, update | Read versions and apply status changes |
 | Playlist, Project, Shot, Asset | Read | Links and project lookups |
-| HumanUser | Read | Match note authors by email |
+| HumanUser | Read | Match the signed-in user's email to their login |
 | Attachment | Create | Upload images attached to notes |
 
-DNA creates each note **as its author** (ShotGrid `sudo_as_login`), so the
-script must also be allowed to act on behalf of other users.
+The script must also be allowed to act on behalf of other users (sudo).
+Notes are authored by the user who publishes them. Users can only see and
+change what their own permission group allows.
+
+When `AUTH_PROVIDER=shotgrid`, the same script (or the one in
+`AUTH_SHOTGRID_SCRIPT_NAME`) checks sign-in passwords with
+`authenticate_human_user` and reads the user's email and name.
 
 ## 6. Check it works
 
