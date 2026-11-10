@@ -1,0 +1,30 @@
+---
+sidebar_position: 8
+title: Building for Production
+---
+
+## Static build
+
+```bash
+npm run build
+```
+
+This builds both packages: `@dna/core` with `tsc` into `packages/core/dist`, and the app with `tsc -b && vite build` into `packages/app/dist`. The app compiles `@dna/core` from its source (a Vite alias and a TypeScript path), so it doesn't wait on the core build. `packages/app/dist` is plain static files that any web server can host. Because `VITE_` variables are baked in at build time, set them (in `.env` or the environment) before building.
+
+## Docker image
+
+`frontend/Dockerfile` builds the app in a Node 20 stage and serves `dist/` with nginx on port 8080. Settings are passed as build arguments:
+
+```bash
+docker build \
+  --build-arg VITE_API_BASE_URL=https://dna-api.example.com \
+  --build-arg VITE_WS_URL=wss://dna-api.example.com/ws \
+  --build-arg VITE_AUTH_PROVIDER=google \
+  --build-arg VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com \
+  -t dna-frontend \
+  frontend
+```
+
+The Dockerfile accepts `VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_AUTH_PROVIDER` (default `google`), `VITE_GOOGLE_CLIENT_ID` and `VITE_NOMENCLATURE`. Other variables from [Configuration](./configuration) need adding to the Dockerfile as build arguments before they can be set this way.
+
+For running DNA as a whole, see [Deployment](/deployment).

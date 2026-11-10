@@ -19,6 +19,12 @@ const sections: Section[] = [
       'Deploy DNA and configure it for your studio: architecture, Docker images, CI/CD, secrets and authentication.',
   },
   {
+    title: 'Frontend',
+    to: '/frontend',
+    description:
+      'How the web app is put together: packages, data flow, configuration, testing and builds.',
+  },
+  {
     title: 'Backend API',
     to: '/api',
     description:

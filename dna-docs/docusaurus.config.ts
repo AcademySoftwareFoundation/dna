@@ -145,6 +145,16 @@ const config: Config = {
         sidebarPath: './sidebarsDeployment.ts',
       },
     ],
+    // Frontend developer docs: how the web app is built, at /frontend.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'frontend',
+        path: 'frontend',
+        routeBasePath: 'frontend',
+        sidebarPath: './sidebarsFrontend.ts',
+      },
+    ],
     [
       'docusaurus-plugin-openapi-docs',
       {
@@ -181,9 +191,9 @@ const config: Config = {
     [
       '@easyops-cn/docusaurus-search-local',
       {
-        // All docs instances: user guides, deployment and the backend API.
-        docsRouteBasePath: ['docs', 'deployment', 'api'],
-        docsDir: ['docs', 'deployment', 'api'],
+        // All docs instances: user guides, deployment, frontend and the backend API.
+        docsRouteBasePath: ['docs', 'deployment', 'frontend', 'api'],
+        docsDir: ['docs', 'deployment', 'frontend', 'api'],
         indexBlog: false,
         hashed: true,
         explicitSearchResultPath: true,
@@ -241,6 +251,13 @@ const config: Config = {
             },
             {
               type: 'docSidebar',
+              docsPluginId: 'frontend',
+              sidebarId: 'frontendSidebar',
+              label: 'Frontend',
+              activeBasePath: 'frontend',
+            },
+            {
+              type: 'docSidebar',
               docsPluginId: 'api',
               sidebarId: 'openApiSidebar',
               label: 'Backend API',
@@ -286,6 +303,10 @@ const config: Config = {
             {
               label: 'Deployment',
               to: '/deployment',
+            },
+            {
+              label: 'Frontend',
+              to: '/frontend',
             },
             {
               label: 'Backend API',

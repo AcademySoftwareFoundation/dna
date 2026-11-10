@@ -1,0 +1,47 @@
+---
+sidebar_position: 3
+title: Project Structure
+---
+
+```text
+frontend/
+├── Dockerfile            # Production image: Vite build served by nginx
+├── nginx.conf
+├── package.json          # Workspace root and shared scripts
+└── packages/
+    ├── core/             # @dna/core: no React
+    │   └── src/
+    │       ├── apiHandler.ts           # ApiHandler: every backend call
+    │       ├── interfaces.ts           # Request params and response types
+    │       ├── types.ts
+    │       ├── eventClient.ts          # WebSocket events
+    │       ├── aiSuggestionManager.ts  # Debounced AI note generation
+    │       ├── extension/              # Browser-extension messaging
+    │       ├── reviewExport/           # CSV and review export data
+    │       └── index.ts                # Public exports
+    └── app/              # @dna/app: the React application
+        ├── .env.example
+        ├── vite.config.ts
+        └── src/
+            ├── main.tsx        # Entry point and top-level providers
+            ├── ThemedApp.tsx   # Theme, auth, hotkeys, toasts, events
+            ├── App.tsx         # Project, playlist and version selection
+            ├── api/            # The app's ApiHandler instance and query hooks
+            ├── components/     # UI components
+            ├── contexts/       # React contexts (auth, events, feature flags, theme…)
+            ├── hooks/          # Data and behaviour hooks (draft notes, transcription…)
+            ├── hotkeys/        # Keyboard shortcuts
+            ├── nomenclature/   # Customizable UI terminology
+            ├── qc/             # Note QC helpers
+            ├── export/         # PDF and review export
+            ├── transcription/  # Meeting-platform URL parsing
+            ├── styles/         # Theme tokens and global styles
+            └── test/           # Test setup and render helpers
+```
+
+## Where to look first
+
+- **A screen or control**: `components/`. Most are one file per component, with a `*.test.tsx` beside it when tested. `Layout.tsx`, `Sidebar.tsx` and `ContentArea.tsx` are the main shell.
+- **Data for a feature**: `hooks/`. For example `useDraftNote` loads and autosaves the note for a version, `useTranscription` drives the meeting bot, and `useAISuggestion` handles AI notes.
+- **A backend call**: `packages/core/src/apiHandler.ts`, with its types in `interfaces.ts`.
+- **Something app-wide** (signed-in user, feature toggles, theme): `contexts/`.

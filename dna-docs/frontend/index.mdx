@@ -1,0 +1,43 @@
+---
+sidebar_position: 1
+slug: /
+title: Frontend
+---
+
+The DNA frontend is the web app coordinators use during dailies: picking a playlist, taking notes per version, running transcription, reviewing AI suggestions and publishing to production tracking. These pages are for developers working on it or building on top of it. For how to use the app, see the [User Guides](/docs).
+
+:::note
+This section is a first pass. It covers how the app is put together and where to start; the code in [`frontend/`](https://github.com/AcademySoftwareFoundation/dna/tree/main/frontend) is the final word.
+:::
+
+## The stack
+
+| Area | What DNA uses |
+| --- | --- |
+| Language | TypeScript |
+| UI | React 19 |
+| Build and dev server | Vite |
+| Components | Radix Themes, plus styled-components for DNA's own styling |
+| Server state | TanStack Query (React Query) |
+| HTTP | axios, wrapped in `ApiHandler` from `@dna/core` |
+| Real-time updates | A WebSocket event client from `@dna/core` |
+| Note editor | Tiptap |
+| Icons | lucide-react |
+| Tests | Vitest and Testing Library |
+
+## Two packages
+
+The frontend is an npm workspaces monorepo with two packages:
+
+- **`@dna/core`** (`packages/core`): plain TypeScript with no React. It holds the API client, the WebSocket event client, shared types and business logic such as AI-suggestion debouncing and review export. Anything that talks to the backend can use it on its own.
+- **`@dna/app`** (`packages/app`): the React application. It imports `@dna/core` and adds the UI, React Query hooks, contexts and styling.
+
+## Where to go next
+
+- [Getting Started](./getting-started): run the app locally against a backend.
+- [Project Structure](./project-structure): what lives where.
+- [Architecture](./architecture): how data, events, auth and theming flow through the app.
+- [Configuration](./configuration): the `VITE_` environment variables.
+- [Customizing Terminology](./customizing-terminology): rename the terms shown in the UI.
+- [Testing and Code Quality](./testing): tests, formatting and type checks.
+- [Building for Production](./building): the Docker image and static build.

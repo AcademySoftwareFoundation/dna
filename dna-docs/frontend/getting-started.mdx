@@ -1,0 +1,57 @@
+---
+sidebar_position: 2
+title: Getting Started
+---
+
+## Prerequisites
+
+- Node.js 20 (the version the Docker build uses).
+- A running DNA backend. See the [backend README](https://github.com/AcademySoftwareFoundation/dna/tree/main/backend) to start one locally; by default the frontend expects it at `http://localhost:8000`.
+
+## Install
+
+All commands run from the `frontend/` directory, which installs both packages:
+
+```bash
+cd frontend
+npm install
+```
+
+## Configure
+
+Copy the example environment file and keep the no-op auth provider, so you can sign in with any email:
+
+```bash
+cp packages/app/.env.example packages/app/.env
+```
+
+```bash title="packages/app/.env"
+VITE_API_BASE_URL=http://localhost:8000
+VITE_WS_URL=ws://localhost:8000/ws
+VITE_AUTH_PROVIDER=none
+```
+
+The backend must use `AUTH_PROVIDER=none` as well. Every other setting is optional; see [Configuration](./configuration).
+
+## Run
+
+```bash
+npm run dev
+```
+
+This starts the Vite dev server for `@dna/app`. Open the URL it prints (usually `http://localhost:5173`), enter any email, then pick a project and playlist.
+
+In development, Vite reads `@dna/core` straight from its source (`packages/core/src`), so changes to either package hot-reload without a separate build step.
+
+## Useful scripts
+
+Run from `frontend/`; each runs across both packages unless noted.
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the app's dev server. |
+| `npm run build` | Build both packages (`build:core` and `build:app` build one). |
+| `npm run test` | Run Vitest in watch mode (`test:run` runs once). |
+| `npm run typecheck` | Type-check both packages. |
+| `npm run lint` | Lint both packages. |
+| `npm run format` | Format with Prettier (`format:check` only checks). |

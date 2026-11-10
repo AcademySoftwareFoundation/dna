@@ -4,8 +4,8 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
 /**
  * Sidebar for the user guides (the default docs instance, served at /docs).
- * Deployment and backend API docs live in separate instances - see
- * sidebarsDeployment.ts and sidebarsApi.ts.
+ * Deployment, frontend and backend API docs live in separate instances -
+ * see sidebarsDeployment.ts, sidebarsFrontend.ts and sidebarsApi.ts.
  */
 const sidebars: SidebarsConfig = {
   // Generated from the docs/ folder structure.

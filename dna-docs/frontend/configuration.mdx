@@ -1,0 +1,44 @@
+---
+sidebar_position: 5
+title: Configuration
+---
+
+The app is configured with `VITE_` environment variables, read from `packages/app/.env` in development. Vite bakes them into the build, so changing one means rebuilding (or passing a new `--build-arg` to the Docker build). [`packages/app/.env.example`](https://github.com/AcademySoftwareFoundation/dna/blob/main/frontend/packages/app/.env.example) lists them all with comments.
+
+## Core settings
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_API_BASE_URL` | The backend's base URL, e.g. `http://localhost:8000`. |
+| `VITE_WS_URL` | The backend's WebSocket URL for real-time events, e.g. `ws://localhost:8000/ws`. |
+| `VITE_AUTH_PROVIDER` | `none` (any email signs in) or `google`. |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID, when `VITE_AUTH_PROVIDER=google`. |
+
+## Feature locks
+
+Leave these unset to let each user choose in Settings. Set one to `true` or `false` to lock it for everyone; the toggle in Settings is then grayed out with a tooltip.
+
+| Variable | Feature |
+| --- | --- |
+| `VITE_FEATURE_IN_REVIEW` | In Review controls. |
+| `VITE_FEATURE_TRANSCRIPTION` | Transcription (turns on In Review). |
+| `VITE_FEATURE_AI` | AI notes and Note QC (turns on Transcription). |
+| `VITE_FEATURE_EXTENSION_TRANSCRIPTION` | The browser-extension transcription UI. |
+
+## Browser extension
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID` | Chrome extension ID for production-tracking tab sync. |
+| `VITE_PRODTRACK_TAB_SYNC_INSTALL_URL` | Link shown when the extension isn't installed. |
+| `VITE_TRANSCRIPTION_EXTENSION_ID` | Set to use the browser extension for transcription instead of the meeting bot. |
+| `VITE_TRANSCRIPTION_EXTENSION_INSTALL_URL` | Link shown when that extension isn't installed. |
+| `VITE_WHISPERLIVE_URL` | WhisperLive WebSocket the extension streams audio to. |
+| `VITE_TRANSCRIPTION_EXTENSION_KEY` | Shared secret matching the backend's `DNA_EXTENSION_KEY`. |
+
+## Display
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_NOMENCLATURE` | Rename UI terms. See [Customizing Terminology](./customizing-terminology). |
+| `VITE_REVIEW_CSV_COLUMNS` | Choose and order the columns of the review CSV export. |
