@@ -120,8 +120,11 @@ h3 {
   inset: 0;
   z-index: -1;
   background-color: var(--dna-navbar-glass);
+  /* Unprefixed only: the build's CSS minifier (Lightning CSS) adds any
+     vendor prefix the target browsers need, and keeps just the last of a
+     prefixed/unprefixed pair - with -webkit- last, Chrome and Firefox got
+     no blur. */
   backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
 }
 
 .navbar__link {
