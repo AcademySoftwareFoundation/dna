@@ -1,0 +1,25 @@
+---
+sidebar_position: 1
+slug: /
+title: Contributing
+---
+
+DNA is an open-source project of the [Academy Software Foundation](https://www.aswf.io/). The full contribution process is in [`CONTRIBUTING.md`](https://github.com/AcademySoftwareFoundation/dna/blob/main/CONTRIBUTING.md). This page covers the parts that catch people out on a first pull request.
+
+## Before your first pull request
+
+You need to sign a Contributor License Agreement. Every pull request is checked by [EasyCLA](https://easycla.lfx.linuxfoundation.org). If you haven't signed, the check fails and gives you a link to sign, either as an individual or through your company.
+
+Each commit also needs a `Signed-off-by` line, which is how you accept the [Developer Certificate of Origin](https://developercertificate.org/). `git commit -s` adds the line for you.
+
+You can't push to `main` directly. Push a branch and open a pull request.
+
+## Where things live
+
+| Folder | What it is | Docs |
+| --- | --- | --- |
+| `frontend/` | The web app | [Frontend](/frontend) |
+| `backend/` | The FastAPI backend | [Backend API](/api) |
+| `dna-docs/` | This documentation site | [Running the Docs Site](./docs-site), [Writing User Guides](./writing-guides) |
+
+To run DNA on your machine, follow the [quick start](/developers).

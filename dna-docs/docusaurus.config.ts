@@ -155,6 +155,17 @@ const config: Config = {
         sidebarPath: './sidebarsFrontend.ts',
       },
     ],
+    // Contributing docs: the contribution process and how this site works,
+    // at /contributing.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'contributing',
+        path: 'contributing',
+        routeBasePath: 'contributing',
+        sidebarPath: './sidebarsContributing.ts',
+      },
+    ],
     [
       'docusaurus-plugin-openapi-docs',
       {
@@ -191,9 +202,10 @@ const config: Config = {
     [
       '@easyops-cn/docusaurus-search-local',
       {
-        // All docs instances: user guides, deployment, frontend and the backend API.
-        docsRouteBasePath: ['docs', 'deployment', 'frontend', 'api'],
-        docsDir: ['docs', 'deployment', 'frontend', 'api'],
+        // All docs instances: user guides, frontend, the backend API,
+        // deployment and contributing.
+        docsRouteBasePath: ['docs', 'frontend', 'api', 'deployment', 'contributing'],
+        docsDir: ['docs', 'frontend', 'api', 'deployment', 'contributing'],
         indexBlog: false,
         hashed: true,
         explicitSearchResultPath: true,
@@ -244,13 +256,6 @@ const config: Config = {
           items: [
             {
               type: 'docSidebar',
-              docsPluginId: 'deployment',
-              sidebarId: 'deploymentSidebar',
-              label: 'Deployment',
-              activeBasePath: 'deployment',
-            },
-            {
-              type: 'docSidebar',
               docsPluginId: 'frontend',
               sidebarId: 'frontendSidebar',
               label: 'Frontend',
@@ -262,6 +267,20 @@ const config: Config = {
               sidebarId: 'openApiSidebar',
               label: 'Backend API',
               activeBasePath: 'api',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'deployment',
+              sidebarId: 'deploymentSidebar',
+              label: 'Deployment',
+              activeBasePath: 'deployment',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'contributing',
+              sidebarId: 'contributingSidebar',
+              label: 'Contributing',
+              activeBasePath: 'contributing',
             },
           ],
         },
@@ -288,8 +307,8 @@ const config: Config = {
               to: '/docs',
             },
             {
-              label: 'Contributing',
-              to: '/docs/category/contributing',
+              label: 'Logging In',
+              to: '/docs/2-login',
             },
           ],
         },
@@ -301,16 +320,20 @@ const config: Config = {
               to: '/developers',
             },
             {
-              label: 'Deployment',
-              to: '/deployment',
-            },
-            {
               label: 'Frontend',
               to: '/frontend',
             },
             {
               label: 'Backend API',
               to: '/api',
+            },
+            {
+              label: 'Deployment',
+              to: '/deployment',
+            },
+            {
+              label: 'Contributing',
+              to: '/contributing',
             },
           ],
         },

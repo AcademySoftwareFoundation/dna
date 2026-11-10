@@ -5,7 +5,7 @@ title: Testing and Code Quality
 
 ## Tests
 
-Both packages use [Vitest](https://vitest.dev/); the app adds [Testing Library](https://testing-library.com/docs/react-testing-library/intro/) and runs in jsdom. Tests sit beside the code they cover as `*.test.ts` or `*.test.tsx`.
+Both packages use [Vitest](https://vitest.dev/). The app's tests also use [Testing Library](https://testing-library.com/docs/react-testing-library/intro/) and run in jsdom. A test file sits next to the code it covers and is named `*.test.ts` or `*.test.tsx`.
 
 ```bash
 npm run test          # watch mode, both packages
@@ -16,7 +16,7 @@ npm run test --workspace=@dna/app   # one package
 
 ### Rendering components
 
-Most components need the app's providers (React Query, theme, auth, events, feature flags, terminology). Use the helper in `src/test/render.tsx` instead of Testing Library's `render`; it wraps the component in all of them, with a React Query client that doesn't retry:
+Most components only work inside the app's providers: React Query, theme, auth, events, feature flags and terminology. Import `render` from `src/test/render.tsx` instead of from Testing Library. It wraps the component in all of those providers and uses a React Query client that doesn't retry failed requests.
 
 ```tsx
 import { render, screen } from '../test/render';
@@ -27,7 +27,7 @@ it('shows the version name', () => {
 });
 ```
 
-Tests run with `VITE_NOMENCLATURE` cleared, so they always see DNA's default terms.
+The test config clears `VITE_NOMENCLATURE`, so tests always see DNA's default terms even if your `.env` renames them.
 
 ## Formatting and type checks
 
@@ -39,4 +39,4 @@ npm run typecheck     # tsc across both packages
 
 ## In CI
 
-Pushes and pull requests that change frontend source files (`.ts`, `.tsx`, `.json`, `.css`, `.md` under `frontend/`) run the **Frontend Code Formatting and Type Checking** workflow: `npm ci`, then `npm run format:check` and `npm run typecheck`. Run both locally before pushing.
+A push or pull request that changes a `.ts`, `.tsx`, `.json`, `.css` or `.md` file under `frontend/` runs the "Frontend Code Formatting and Type Checking" workflow. It runs `npm ci`, `npm run format:check` and `npm run typecheck`, so run the last two yourself before pushing. The workflow doesn't run the tests.

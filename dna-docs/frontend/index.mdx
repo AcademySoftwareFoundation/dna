@@ -4,10 +4,10 @@ slug: /
 title: Frontend
 ---
 
-The DNA frontend is the web app coordinators use during dailies: picking a playlist, taking notes per version, running transcription, reviewing AI suggestions and publishing to production tracking. These pages are for developers working on it or building on top of it. For how to use the app, see the [User Guides](/docs).
+The DNA frontend is the web app coordinators use in dailies to pick a playlist, take notes on each version, run transcription, review AI suggestions and publish to production tracking. These pages are for developers working on that app. If you want to know how to use it, read the [User Guides](/docs) instead.
 
 :::note
-This section is a first pass. It covers how the app is put together and where to start; the code in [`frontend/`](https://github.com/AcademySoftwareFoundation/dna/tree/main/frontend) is the final word.
+These pages are a first pass and don't cover everything. Where they disagree with the code in [`frontend/`](https://github.com/AcademySoftwareFoundation/dna/tree/main/frontend), trust the code.
 :::
 
 ## The stack
@@ -17,7 +17,7 @@ This section is a first pass. It covers how the app is put together and where to
 | Language | TypeScript |
 | UI | React 19 |
 | Build and dev server | Vite |
-| Components | Radix Themes, plus styled-components for DNA's own styling |
+| Components | Radix Themes, with styled-components for DNA's own styling |
 | Server state | TanStack Query (React Query) |
 | HTTP | axios, wrapped in `ApiHandler` from `@dna/core` |
 | Real-time updates | A WebSocket event client from `@dna/core` |
@@ -27,17 +27,10 @@ This section is a first pass. It covers how the app is put together and where to
 
 ## Two packages
 
-The frontend is an npm workspaces monorepo with two packages:
+The frontend is an npm workspace with two packages.
 
-- **`@dna/core`** (`packages/core`): plain TypeScript with no React. It holds the API client, the WebSocket event client, shared types and business logic such as AI-suggestion debouncing and review export. Anything that talks to the backend can use it on its own.
-- **`@dna/app`** (`packages/app`): the React application. It imports `@dna/core` and adds the UI, React Query hooks, contexts and styling.
+`@dna/core` (in `packages/core`) is plain TypeScript with no React. It has the API client, the WebSocket event client, the shared types, and logic that doesn't need a UI, such as debouncing AI suggestions and building review exports. A script or another tool can use it by itself to talk to the backend.
 
-## Where to go next
+`@dna/app` (in `packages/app`) is the React application. It imports `@dna/core` and adds the components, React Query hooks, contexts and styling.
 
-- [Getting Started](./getting-started): run the app locally against a backend.
-- [Project Structure](./project-structure): what lives where.
-- [Architecture](./architecture): how data, events, auth and theming flow through the app.
-- [Configuration](./configuration): the `VITE_` environment variables.
-- [Customizing Terminology](./customizing-terminology): rename the terms shown in the UI.
-- [Testing and Code Quality](./testing): tests, formatting and type checks.
-- [Building for Production](./building): the Docker image and static build.
+If you're new to the code, read [Getting Started](./getting-started) and then [Architecture](./architecture).

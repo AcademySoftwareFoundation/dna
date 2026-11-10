@@ -10,11 +10,31 @@
   margin-bottom: 2rem;
 }
 
-/* Two cards side by side; stacked on phones. */
+.heading {
+  margin-top: 2.5rem;
+  font-size: 1.5rem;
+}
+
+/* The quick start's steps, with room around their code blocks. */
+.steps li {
+  margin-bottom: 0.75rem;
+}
+
+.steps li > div {
+  margin-top: 0.5rem;
+}
+
+/* Two cards a row; stacked on phones. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Base card look (border, surface, hover) comes from .card in custom.css. */
