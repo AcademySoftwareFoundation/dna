@@ -38,6 +38,7 @@ RETAKE = "00000000-0000-0000-0000-00000000000d"
 EPISODE = "00000000-0000-0000-0000-000000000010"
 OTHER_SHOT = "00000000-0000-0000-0000-000000000011"
 OTHER_TYPE = "00000000-0000-0000-0000-000000000012"
+SHOT_TYPE = "00000000-0000-0000-0000-000000000013"
 
 SAM = {
     "id": PERSON,
@@ -190,6 +191,29 @@ class FakeSession:
             f"data/preview-files/{PREVIEW}": PREVIEW_ROW,
             f"data/comments/{COMMENT}": COMMENT_ROW,
             f"data/playlists/{PLAYLIST}": PLAYLIST_ROW,
+            # Generic model routes, read with list filters.
+            "data/preview-files": [PREVIEW_ROW],
+            "data/tasks": [
+                {
+                    key: value
+                    for key, value in FULL_TASK.items()
+                    if key not in {"project", "task_type", "task_status", "entity"}
+                    and key not in {"entity_type", "sequence"}
+                }
+            ],
+            "data/entities": [
+                {
+                    "id": SHOT,
+                    "name": "SH010",
+                    "description": "Walk",
+                    "entity_type_id": SHOT_TYPE,
+                    "parent_id": SEQUENCE,
+                    "project_id": PROJECT,
+                },
+                {"id": SEQUENCE, "name": "SQ01", "project_id": PROJECT},
+            ],
+            "data/entity-types": [{"id": SHOT_TYPE, "name": "Shot"}],
+            "data/comments": [COMMENT_ROW],
         }
         self.writes = []
 
@@ -212,9 +236,12 @@ class FakeSession:
         query = parse_qs(parts.query)
         if "page" in query and query["page"] != ["1"]:
             body = []
-        for field in ("email", "short_name", "id"):
+        for field in ("email", "short_name", "id", "object_id"):
             if field in query:
-                body = [row for row in body if row[field] == query[field][0]]
+                value = query[field][0]
+                # Zou reads a JSON list as an IN filter.
+                values = json.loads(value) if value.startswith("[") else [value]
+                body = [row for row in body if row.get(field) in values]
         return FakeResponse(200, body)
 
     def post(self, url, **kwargs):
@@ -657,11 +684,37 @@ class TestUsersAndPlaylists:
         assert versions[0].notes[0].author.email == "sam@studio.example"
 
     def test_versions_only_get_their_own_notes(self, provider, session):
-        session.routes[f"data/tasks/{TASK}/comments"] = [
+        session.routes["data/comments"] = [
             {**COMMENT_ROW, "preview_file_id": OTHER_PREVIEW},
             {**COMMENT_ROW, "preview_file_id": None},
         ]
         assert provider.get_versions_for_playlist(PLAYLIST)[0].notes == []
+
+    def test_playlist_versions_match_the_version_route(self, provider):
+        """The batched reads build the same version as the per-row routes."""
+        (version,) = provider.get_versions_for_playlist(PLAYLIST)
+        assert version == provider.get_entity("version", PREVIEW)
+
+    def test_playlist_notes_are_newest_first(self, provider, session):
+        session.routes["data/comments"] = [
+            {**COMMENT_ROW, "id": "old", "created_at": "2026-01-01T00:00:00"},
+            {**COMMENT_ROW, "id": "new", "created_at": "2026-02-01T00:00:00"},
+        ]
+        (version,) = provider.get_versions_for_playlist(PLAYLIST)
+        assert [note.id for note in version.notes] == ["new", "old"]
+
+    def test_playlist_ids_are_read_in_batches(self, provider, session):
+        ids = [f"00000000-0000-0000-0000-{n:012d}" for n in range(120)]
+        session.routes[f"data/playlists/{PLAYLIST}"] = {
+            **PLAYLIST_ROW,
+            "shots": [{"entity_id": SHOT, "preview_file_id": i} for i in ids],
+        }
+        with mock.patch.object(session, "get", wraps=session.get) as get:
+            provider.get_versions_for_playlist(PLAYLIST)
+        reads = [
+            c.args[0] for c in get.call_args_list if "/preview-files?" in c.args[0]
+        ]
+        assert len(reads) == 3  # 50 + 50 + 20 ids
 
     def test_versions_for_missing_playlist(self, provider):
         assert provider.get_versions_for_playlist(MISSING) == []

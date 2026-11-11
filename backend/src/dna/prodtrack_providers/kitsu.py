@@ -15,11 +15,13 @@ How the DNA model maps onto Kitsu:
 """
 
 import itertools
+import json
 import logging
 import os
 import tempfile
 import time
 import uuid
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -105,6 +107,9 @@ READ_ONLY_DNA_FIELDS = {"id", "additional_fields"}
 # Reading every task and preview of a project takes seconds: search reuses
 # them for a while instead of redoing it on each keystroke.
 SEARCH_CACHE_SECONDS = 300
+# Ids per filtered read: 50 keep the URL under the 4 KB request line limit of
+# common servers.
+ID_BATCH_SIZE = 50
 
 
 class KitsuProvider(ProdtrackProviderBase):
@@ -291,34 +296,118 @@ class KitsuProvider(ProdtrackProviderBase):
         )
 
     def _build_playlist_versions(self, playlist: dict[str, Any]) -> list[Version]:
+        """
+        Read the rows of a playlist in batches: one request per row took a
+        minute for a playlist of a few hundred versions.
+        """
+        items = [
+            item for item in playlist.get("shots") or [] if item.get("preview_file_id")
+        ]
+        preview_ids = list(dict.fromkeys(item["preview_file_id"] for item in items))
+        previews = {
+            row["id"]: row
+            for row in self._fetch_by_ids("preview-files", "id", preview_ids)
+        }
+        task_ids = list(dict.fromkeys(row["task_id"] for row in previews.values()))
+        tasks = self._get_tasks_by_ids(task_ids)
+        comments: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        # Newest first, as the task comment route returns them.
+        for comment in sorted(
+            self._fetch_by_ids("comments", "object_id", task_ids),
+            key=lambda comment: comment.get("created_at") or "",
+            reverse=True,
+        ):
+            comments[comment["object_id"]].append(comment)
         persons = self._get_persons()
-        tasks: dict[str, Task] = {}
-        comments: dict[str, list[dict[str, Any]]] = {}
+
         versions = []
-        for item in playlist.get("shots") or []:
-            preview_id = item.get("preview_file_id")
-            if not preview_id:
-                continue
-            try:
-                preview = self._get_row("version", preview_id)
-            except ValueError:
+        for item in items:
+            preview_id = item["preview_file_id"]
+            preview = previews.get(preview_id)
+            if preview is None:
                 # Kitsu keeps playlist items whose preview was since deleted.
                 logger.warning("Skipping missing preview file %s", preview_id)
                 continue
-            task_id = preview["task_id"]
-            if task_id not in tasks:
-                tasks[task_id] = _build_task(self._get_row("task", task_id))
-                comments[task_id] = gazu.task.all_comments_for_task(
-                    task_id, client=self.client
-                )
-            version = self._build_version(preview, tasks[task_id], persons)
+            task = tasks[preview["task_id"]]
+            version = self._build_version(preview, task, persons)
             version.notes = [
-                self._build_note(comment, tasks[task_id], persons)
-                for comment in comments[task_id]
+                self._build_note(comment, task, persons)
+                for comment in comments[task.id]
                 if comment.get("preview_file_id") == preview_id
             ]
             versions.append(version)
         return versions
+
+    def _fetch_by_ids(
+        self, model: str, field: str, ids: list[str]
+    ) -> list[dict[str, Any]]:
+        """
+        Return the rows of a model whose field is one of the ids, a batch of
+        ids per request.
+        """
+        rows: list[dict[str, Any]] = []
+        for start in range(0, len(ids), ID_BATCH_SIZE):
+            batch = json.dumps(ids[start : start + ID_BATCH_SIZE])
+            rows += gazu.client.fetch_all(model, {field: batch}, client=self.client)
+        return rows
+
+    def _get_tasks_by_ids(self, task_ids: list[str]) -> dict[str, Task]:
+        """
+        Build tasks from batched reads, with the linked rows that
+        gazu.task.get_task embeds.
+        """
+        rows = self._fetch_by_ids("tasks", "id", task_ids)
+        entities = {
+            row["id"]: row
+            for row in self._fetch_by_ids(
+                "entities", "id", list(dict.fromkeys(r["entity_id"] for r in rows))
+            )
+        }
+        parents = {
+            row["id"]: row
+            for row in self._fetch_by_ids(
+                "entities",
+                "id",
+                list(
+                    dict.fromkeys(
+                        e["parent_id"] for e in entities.values() if e.get("parent_id")
+                    )
+                ),
+            )
+        }
+        entity_types = {
+            row["id"]: row
+            for row in gazu.client.fetch_all("entity-types", client=self.client)
+        }
+        task_types = {
+            row["id"]: row for row in gazu.task.all_task_types(client=self.client)
+        }
+        statuses = self._get_status_codes()
+        projects = {
+            project_id: gazu.project.get_project(project_id, client=self.client)
+            for project_id in dict.fromkeys(r["project_id"] for r in rows)
+        }
+        tasks = {}
+        for row in rows:
+            entity = entities.get(row["entity_id"]) or {}
+            entity_type = entity_types.get(entity.get("entity_type_id")) or {}
+            sequence = (
+                parents.get(entity.get("parent_id"))
+                if entity_type.get("name") == "Shot"
+                else None
+            )
+            tasks[row["id"]] = _build_task(
+                {
+                    **row,
+                    "project": projects.get(row["project_id"]),
+                    "entity": entity,
+                    "entity_type": entity_type,
+                    "sequence": sequence,
+                    "task_type": task_types.get(row["task_type_id"]),
+                    "task_status": {"short_name": statuses.get(row["task_status_id"])},
+                }
+            )
+        return tasks
 
     def _iter_entities(
         self,
