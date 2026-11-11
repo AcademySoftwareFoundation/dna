@@ -5852,7 +5852,7 @@
     },
     "/projects/{project_id}/playlists": {
       "get": {
-        "description": "Retrieve all playlists for the specified project.",
+        "description": "Retrieve all playlists for the specified project, most recently updated first.",
         "operationId": "get_playlists_for_project_projects__project_id__playlists_get",
         "parameters": [
           {

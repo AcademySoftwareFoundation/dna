@@ -996,6 +996,22 @@ class TestGetPlaylistsForProjectEndpoint:
         finally:
             app.dependency_overrides.clear()
 
+    def test_get_playlists_for_project_most_recent_first(self, mock_provider):
+        """Playlists come most recently updated first, undated ones last."""
+        from dna.models.entity import Playlist
+
+        mock_provider.get_playlists_for_project.return_value = [
+            Playlist(id="old", updated_at="2026-01-01T00:00:00+00:00"),
+            Playlist(id="undated"),
+            Playlist(id="new", updated_at="2026-06-01T00:00:00+00:00"),
+        ]
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.get("/projects/42/playlists")
+            assert [p["id"] for p in response.json()] == ["new", "old", "undated"]
+        finally:
+            app.dependency_overrides.clear()
+
     def test_get_playlists_for_project_returns_404_on_error(self, mock_provider):
         """Test that get_playlists_for_project returns 404 on provider error."""
         mock_provider.get_playlists_for_project.side_effect = ValueError(

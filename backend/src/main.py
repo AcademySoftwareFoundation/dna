@@ -1214,18 +1214,20 @@ async def get_projects_for_user(
     "/projects/{project_id}/playlists",
     tags=["Playlists"],
     summary="Get playlists for a project",
-    description="Retrieve all playlists for the specified project.",
+    description="Retrieve all playlists for the specified project, most recently updated first.",
     response_model=list[Playlist],
     responses=error_responses(404),
 )
 async def get_playlists_for_project(
     project_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> list[Playlist]:
-    """Get playlists for a project."""
+    """Get playlists for a project, most recently updated first."""
     try:
-        return provider.get_playlists_for_project(project_id)
+        playlists = provider.get_playlists_for_project(project_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    # Each provider gives its dates in one format, so their strings sort.
+    return sorted(playlists, key=lambda p: str(p.updated_at or ""), reverse=True)
 
 
 @app.post(
