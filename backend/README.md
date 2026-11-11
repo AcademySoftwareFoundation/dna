@@ -124,7 +124,7 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
 
 ### Kitsu production tracking
 
-Set `PRODTRACK_PROVIDER=kitsu`, `KITSU_URL` (for example `https://kitsu.studio.example`), and `KITSU_API_TOKEN`, the API token of a Kitsu bot with the **Studio Manager** role. The role lets the bot read every production and post comments on behalf of their authors, so DNA users must exist in Kitsu with the same email.
+Set `PRODTRACK_PROVIDER=kitsu`, `KITSU_URL` (for example `https://kitsu.studio.example`), and `KITSU_API_TOKEN`, the API token of a Kitsu bot with the **Studio Manager** role. The role lets the bot read every production and post comments on behalf of their authors, so DNA users must exist in Kitsu with the same email. Set `API_BASE_URL` to the public URL of the backend (default `http://localhost:8000`): the browser loads the Kitsu thumbnails through it.
 
 | DNA | Kitsu |
 | --- | --- |

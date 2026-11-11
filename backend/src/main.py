@@ -21,7 +21,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dna.auth.email import emails_match
@@ -607,6 +607,32 @@ async def get_mock_thumbnail(version_id: str):
             media_type = THUMBNAIL_MEDIA_TYPES.get(ext, "image/jpeg")
             return FileResponse(path, media_type=media_type)
     raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+
+@app.get(
+    "/api/kitsu-thumbnails/{version_id}",
+    tags=["Versions"],
+    summary="Serve a Kitsu thumbnail",
+    description="Returns the thumbnail of a version from Kitsu, fetched with the bot token (when using the Kitsu prodtrack provider).",
+    response_class=Response,
+    responses=error_responses(404),
+)
+def get_kitsu_thumbnail(version_id: str, provider: ProdtrackProviderDep) -> Response:
+    """Proxy a Kitsu thumbnail.
+
+    Public like the mock thumbnails: an <img> cannot send the Bearer token.
+    """
+    from dna.prodtrack_providers.kitsu import KitsuProvider
+
+    if not isinstance(provider, KitsuProvider):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    try:
+        data = provider.get_thumbnail(version_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return Response(
+        data, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 # -----------------------------------------------------------------------------

@@ -131,6 +131,9 @@ class KitsuProvider(ProdtrackProviderBase):
         self.client = gazu.client.KitsuClient(
             f"{self.url}/api", access_token=api_token, use_refresh_token=False
         )
+        self.api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip(
+            "/"
+        )
 
     def _get_row(self, entity_type: str, entity_id: str) -> dict[str, Any]:
         kitsu_id = _to_kitsu_id(entity_id)
@@ -240,11 +243,10 @@ class KitsuProvider(ProdtrackProviderBase):
                 if preview.get("is_movie")
                 else None
             ),
-            # The API needs a JWT, which an <img> only sends as the Kitsu session
-            # cookie. shortcut: only loads for users logged in to Kitsu on the
-            # same site as DNA, proxy it through the backend to lift this.
+            # Kitsu needs the bot token, which an <img> cannot send: the backend
+            # proxies the image through get_thumbnail.
             thumbnail=(
-                f"{api_root}/pictures/thumbnails/preview-files/{version_id}.png"
+                f"{self.api_base_url}/api/kitsu-thumbnails/{version_id}"
                 if preview.get("status") == "ready"
                 else None
             ),
@@ -661,6 +663,21 @@ class KitsuProvider(ProdtrackProviderBase):
                     if found == limit:
                         break
         return results
+
+    def get_thumbnail(self, version_id: str) -> bytes:
+        """
+        Return the PNG thumbnail of a version, fetched with the bot token.
+        """
+        kitsu_id = _to_kitsu_id(version_id)
+        # The 1200px wide variant: the 150x100 "thumbnails" one is blurry in DNA.
+        url = f"{self.url}/api/pictures/previews/preview-files/{kitsu_id}.png"
+        try:
+            # Full URL: a relative one resolves against gazu's default client.
+            return gazu.client.get_file_data_from_url(
+                url, full=True, client=self.client
+            )
+        except RouteNotFoundException as exc:
+            raise ValueError(f"Thumbnail not found: {version_id}") from exc
 
     def get_user_by_email(self, user_email: str) -> User:
         person = gazu.person.get_person_by_email(user_email, client=self.client)

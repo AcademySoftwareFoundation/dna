@@ -118,7 +118,8 @@ class FakeResponse:
     def __init__(self, status_code, body):
         self.status_code = status_code
         self.body = body
-        self.text = json.dumps(body)
+        self.content = body if isinstance(body, bytes) else None
+        self.text = "" if isinstance(body, bytes) else json.dumps(body)
         self.headers = {}
 
     def json(self):
@@ -263,9 +264,7 @@ class TestGetEntity:
         assert version.entity.name == "SQ01_SH010"
         assert version.task.pipeline_step["name"] == "Compositing"
         assert version.project["id"] == PROJECT
-        assert version.thumbnail.endswith(
-            f"/api/pictures/thumbnails/preview-files/{PREVIEW}.png"
-        )
+        assert version.thumbnail.endswith(f"/api/kitsu-thumbnails/{PREVIEW}")
         assert version.movie_path.endswith(
             f"/api/movies/originals/preview-files/{PREVIEW}.mp4"
         )
@@ -297,6 +296,14 @@ class TestGetEntity:
         if model is type(None):
             assert version.name == "Compositing_v003"
             assert version.prodtrack_detail_url is None
+
+    def test_get_thumbnail(self, provider, session):
+        session.routes[f"pictures/previews/preview-files/{PREVIEW}.png"] = b"PNG"
+        assert provider.get_thumbnail(PREVIEW) == b"PNG"
+
+    def test_get_thumbnail_missing(self, provider):
+        with pytest.raises(ValueError):
+            provider.get_thumbnail(PREVIEW)
 
     def test_version_not_ready_has_no_thumbnail(self, provider, session):
         session.routes[f"data/preview-files/{PREVIEW}"] = {

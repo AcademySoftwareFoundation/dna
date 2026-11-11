@@ -1353,6 +1353,39 @@ class TestMockThumbnailsEndpoint:
         assert response.status_code == 404
 
 
+class TestKitsuThumbnail:
+    """Tests for GET /api/kitsu-thumbnails/{version_id}."""
+
+    def teardown_method(self):
+        app.dependency_overrides.pop(get_prodtrack_provider_cached, None)
+
+    def _use(self, provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: provider
+
+    def test_200(self):
+        from dna.prodtrack_providers.kitsu import KitsuProvider
+
+        provider = mock.MagicMock(spec=KitsuProvider)
+        provider.get_thumbnail.return_value = b"PNG"
+        self._use(provider)
+        response = client.get("/api/kitsu-thumbnails/abc")
+        assert response.status_code == 200
+        assert response.content == b"PNG"
+        assert response.headers["content-type"] == "image/png"
+
+    def test_404_when_missing(self):
+        from dna.prodtrack_providers.kitsu import KitsuProvider
+
+        provider = mock.MagicMock(spec=KitsuProvider)
+        provider.get_thumbnail.side_effect = ValueError("nope")
+        self._use(provider)
+        assert client.get("/api/kitsu-thumbnails/abc").status_code == 404
+
+    def test_404_with_another_provider(self):
+        self._use(mock.MagicMock())
+        assert client.get("/api/kitsu-thumbnails/abc").status_code == 404
+
+
 def test_version_route_rejects_non_numeric_shotgrid_id():
     """ShotGrid cannot translate a non-numeric entity ID, so the route returns 4xx."""
     from dna.prodtrack_providers.shotgrid import ShotgridProvider

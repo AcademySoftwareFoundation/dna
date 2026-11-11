@@ -3873,6 +3873,53 @@
         ]
       }
     },
+    "/api/kitsu-thumbnails/{version_id}": {
+      "get": {
+        "description": "Returns the thumbnail of a version from Kitsu, fetched with the bot token (when using the Kitsu prodtrack provider).",
+        "operationId": "get_kitsu_thumbnail_api_kitsu_thumbnails__version_id__get",
+        "parameters": [
+          {
+            "description": "Version ID as issued by the production tracking provider. Opaque string; DNA passes it through without interpreting it. Draft-note routes also accept `-1`, the playlist-level scratch note.",
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Serve a Kitsu thumbnail",
+        "tags": [
+          "Versions"
+        ]
+      }
+    },
     "/api/mock-thumbnails/{version_id}": {
       "get": {
         "description": "Returns a thumbnail image for a version from the mock dataset (when using mock prodtrack provider).",
