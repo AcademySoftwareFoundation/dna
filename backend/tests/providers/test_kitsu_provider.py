@@ -11,6 +11,7 @@ from unittest import mock
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from gazu.exception import RouteNotFoundException
 
 from dna.models.entity import Asset, Note, Playlist, Shot, Task, Version
 from dna.prodtrack_providers.kitsu import KitsuProvider
@@ -34,6 +35,9 @@ TYPE = "00000000-0000-0000-0000-00000000000b"
 SEQUENCE = "00000000-0000-0000-0000-00000000000e"
 WFA = "00000000-0000-0000-0000-00000000000c"
 RETAKE = "00000000-0000-0000-0000-00000000000d"
+EPISODE = "00000000-0000-0000-0000-000000000010"
+OTHER_SHOT = "00000000-0000-0000-0000-000000000011"
+OTHER_TYPE = "00000000-0000-0000-0000-000000000012"
 
 SAM = {
     "id": PERSON,
@@ -553,6 +557,66 @@ class TestFindAndSearch:
         ]
         assert len(provider.search("", ["shot"], PROJECT, limit=1)) == 1
         assert provider.search("dail", ["playlist"], PROJECT)[0]["name"] == "Dailies"
+
+    def test_search_reuses_the_index_until_it_expires(self, provider, session):
+        provider.search("sh010", ["version"], PROJECT)
+        session.routes.pop(f"data/projects/{PROJECT}/preview-files")
+        assert provider.search("comp", ["version"], PROJECT)  # From the cache.
+        with mock.patch("dna.prodtrack_providers.kitsu.SEARCH_CACHE_SECONDS", -1):
+            with pytest.raises(RouteNotFoundException):
+                provider.search("comp", ["version"], PROJECT)
+
+    def playlist_for(self, session, **fields):
+        session.routes[f"data/playlists/{PLAYLIST}"] = {**PLAYLIST_ROW, **fields}
+
+    def test_search_versions_for_a_shot_playlist(self, provider, session):
+        self.playlist_for(
+            session, for_entity="shot", episode_id=EPISODE, task_type_id=TYPE
+        )
+        session.routes[f"data/episodes/{EPISODE}/sequences"] = [
+            {"id": SEQUENCE, "name": "SQ01"}
+        ]
+        session.routes[f"data/episodes/{EPISODE}/shots"] = [
+            PROJECT_SHOT_ROW,
+            {**PROJECT_SHOT_ROW, "id": OTHER_SHOT, "name": "SH020"},
+        ]
+        session.routes[f"data/playlists/entities/{SHOT}/preview-files"] = {
+            TYPE: [
+                {"id": OTHER_PREVIEW, "revision": 2},
+                {"id": PREVIEW, "revision": 3},
+            ],
+            OTHER_TYPE: [{"id": MISSING, "revision": 9}],
+        }
+        session.routes[f"data/playlists/entities/{OTHER_SHOT}/preview-files"] = {}
+        results = provider.search("sh0", ["version"], PROJECT, playlist_id=PLAYLIST)
+        assert results == [
+            {
+                "type": "Version",
+                "id": PREVIEW,
+                "name": "SQ01_SH010_Compositing_v003",
+                "description": None,
+                "project": {"type": "Project", "id": PROJECT},
+            }
+        ]
+        assert provider.search("nope", ["version"], playlist_id=PLAYLIST) == []
+
+    def test_search_versions_for_an_asset_playlist(self, provider, session):
+        self.playlist_for(session, for_entity="asset", episode_id=EPISODE)
+        session.routes[f"data/projects/{PROJECT}/assets"] = [
+            {**ASSET_ROW, "source_id": EPISODE},
+            {**ASSET_ROW, "id": OTHER_SHOT, "name": "Hero2", "source_id": MISSING},
+        ]
+        session.routes[f"data/playlists/entities/{ASSET}/preview-files"] = {
+            TYPE: [{"id": OTHER_PREVIEW, "revision": 2}],
+            OTHER_TYPE: [{"id": PREVIEW, "revision": 4}],
+        }
+        results = provider.search("hero", ["version"], playlist_id=PLAYLIST)
+        assert [(r["id"], r["name"]) for r in results] == [(PREVIEW, "Hero_v004")]
+
+    def test_search_versions_for_another_kind_of_playlist(self, provider, session):
+        self.playlist_for(session, for_entity="edit")
+        results = provider.search("sh010", ["version"], PROJECT, playlist_id=PLAYLIST)
+        assert [r["name"] for r in results] == ["SQ01_SH010_Compositing_v003"]
 
     def test_search_unknown_type(self, provider):
         with pytest.raises(ValueError):

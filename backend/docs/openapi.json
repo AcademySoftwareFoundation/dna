@@ -2361,6 +2361,18 @@
             "title": "Limit",
             "type": "integer"
           },
+          "playlist_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Playlist the versions are searched for: providers may narrow versions to the ones it can take",
+            "title": "Playlist Id"
+          },
           "project_id": {
             "anyOf": [
               {

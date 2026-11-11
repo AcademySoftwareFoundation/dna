@@ -360,6 +360,7 @@ class ApiHandler {
       entity_types: params.entityTypes,
       project_id: params.projectId,
       limit: params.limit ?? 10,
+      playlist_id: params.playlistId,
     });
     return response.results;
   }

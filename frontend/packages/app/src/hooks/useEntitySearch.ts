@@ -11,6 +11,8 @@ interface UseEntitySearchOptions {
   entityTypes: SearchableEntityType[];
   projectId?: string;
   limit?: number;
+  /** Narrows versions to the ones this playlist can take. */
+  playlistId?: string;
   debounceMs?: number;
   /** When false, never hits the network (e.g. local mention index is authoritative). */
   networkEnabled?: boolean;
@@ -30,6 +32,7 @@ export function useEntitySearch({
   entityTypes,
   projectId,
   limit = 10,
+  playlistId,
   debounceMs = 300,
   networkEnabled = true,
 }: UseEntitySearchOptions): UseEntitySearchReturn {
@@ -50,13 +53,21 @@ export function useEntitySearch({
     isLoading,
     error,
   } = useQuery<SearchResult[], Error>({
-    queryKey: ['entitySearch', debouncedQuery, entityTypes, projectId, limit],
+    queryKey: [
+      'entitySearch',
+      debouncedQuery,
+      entityTypes,
+      projectId,
+      limit,
+      playlistId,
+    ],
     queryFn: () =>
       apiHandler.searchEntities({
         query: normalizeEntitySearchQuery(debouncedQuery),
         entityTypes,
         projectId,
         limit,
+        playlistId,
       }),
     enabled:
       networkEnabled && normalizeEntitySearchQuery(debouncedQuery).length > 0,

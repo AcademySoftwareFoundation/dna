@@ -583,6 +583,7 @@ class TestSearchEndpoint:
                     "entity_types": ["user", "shot", "asset"],
                     "project_id": "123",
                     "limit": 5,
+                    "playlist_id": "7",
                 },
             )
 
@@ -591,6 +592,7 @@ class TestSearchEndpoint:
                 entity_types=["user", "shot", "asset"],
                 project_id="123",
                 limit=5,
+                playlist_id="7",
             )
         finally:
             app.dependency_overrides.clear()
@@ -643,6 +645,7 @@ class TestSearchEndpoint:
                 entity_types=["user"],
                 project_id=None,
                 limit=10,
+                playlist_id=None,
             )
         finally:
             app.dependency_overrides.clear()

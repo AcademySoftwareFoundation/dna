@@ -1105,6 +1105,7 @@ async def search_entities(
             entity_types=[et.lower() for et in request.entity_types],
             project_id=request.project_id,
             limit=request.limit,
+            playlist_id=request.playlist_id,
         )
         return {"results": results}
     except ValueError as e:

@@ -163,6 +163,10 @@ class SearchRequest(BaseModel):
     limit: int = Field(
         default=10, description="Max results per entity type (default: 10)"
     )
+    playlist_id: Optional[str] = Field(
+        default=None,
+        description="Playlist the versions are searched for: providers may narrow versions to the ones it can take",
+    )
 
 
 class AddVersionToPlaylistRequest(BaseModel):

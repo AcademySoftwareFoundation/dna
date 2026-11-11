@@ -18,8 +18,10 @@ import itertools
 import logging
 import os
 import tempfile
+import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any, cast
 
@@ -100,6 +102,9 @@ DNA_FIELD_TYPES = {
     "versions": "multi_entity",
 }
 READ_ONLY_DNA_FIELDS = {"id", "additional_fields"}
+# Reading every task and preview of a project takes seconds: search reuses
+# them for a while instead of redoing it on each keystroke.
+SEARCH_CACHE_SECONDS = 300
 
 
 class KitsuProvider(ProdtrackProviderBase):
@@ -134,6 +139,7 @@ class KitsuProvider(ProdtrackProviderBase):
         self.api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip(
             "/"
         )
+        self._search_cache: dict[tuple, tuple[float, Any]] = {}
 
     def _get_row(self, entity_type: str, entity_id: str) -> dict[str, Any]:
         kitsu_id = _to_kitsu_id(entity_id)
@@ -642,9 +648,11 @@ class KitsuProvider(ProdtrackProviderBase):
         entity_types: list[str],
         project_id: str | None = None,
         limit: int = 10,
+        playlist_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Search entities by name, and users by email too.
+        Search entities by name, and users by email too. With a playlist,
+        versions are the ones the playlist can take.
         """
         needle = (query or "").strip().lower()
         results: list[dict[str, Any]] = []
@@ -653,16 +661,163 @@ class KitsuProvider(ProdtrackProviderBase):
                 raise ValueError(f"Unsupported entity type: {entity_type}")
             if entity_type == "note":
                 continue  # Notes have no name to search on.
+            if entity_type == "version" and playlist_id:
+                versions = self._search_playlist_versions(needle, playlist_id, limit)
+                if versions is not None:
+                    results.extend(versions)
+                    continue
             found = 0
-            for entity in self._iter_entities(entity_type, project_id):
-                name = _get_search_name(entity)
-                haystack = f"{name} {getattr(entity, 'email', '') or ''}".lower()
+            for haystack, result in self._get_search_index(entity_type, project_id):
                 if needle in haystack:
-                    results.append(_build_search_result(entity, name))
+                    results.append(result)
                     found += 1
                     if found == limit:
                         break
         return results
+
+    def _cached(self, key: tuple, compute: Callable[[], Any]) -> Any:
+        """
+        Return compute(), reused for SEARCH_CACHE_SECONDS.
+        """
+        cached = self._search_cache.get(key)
+        if cached and time.monotonic() - cached[0] < SEARCH_CACHE_SECONDS:
+            return cached[1]
+        value = compute()
+        self._search_cache[key] = (time.monotonic(), value)
+        return value
+
+    def _get_search_index(
+        self, entity_type: str, project_id: str | None
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """
+        Return the (searched text, result) pairs of an entity type.
+        """
+
+        def build() -> list[tuple[str, dict[str, Any]]]:
+            index = []
+            for entity in self._iter_entities(entity_type, project_id):
+                name = _get_search_name(entity)
+                haystack = f"{name} {getattr(entity, 'email', '') or ''}".lower()
+                index.append((haystack, _build_search_result(entity, name)))
+            return index
+
+        return self._cached(("index", entity_type, project_id), build)
+
+    def _search_playlist_versions(
+        self, needle: str, playlist_id: str, limit: int
+    ) -> list[dict[str, Any]] | None:
+        """
+        Return one version per element the playlist can take whose name
+        matches: its latest preview for the task type of the playlist. A
+        Kitsu playlist holds elements of one kind, from one episode. None for
+        the kinds of elements this does not cover.
+        """
+        playlist = self._cached(
+            ("playlist", playlist_id), lambda: self._get_row("playlist", playlist_id)
+        )
+        elements = self._cached(
+            ("playlist-elements", playlist_id),
+            lambda: self._get_playlist_elements(playlist),
+        )
+        if elements is None:
+            return None
+        task_types = self._cached(
+            ("task-types",),
+            lambda: {
+                row["id"]: row["name"]
+                for row in gazu.task.all_task_types(client=self.client)
+            },
+        )
+        matches = [(name, id_) for name, id_ in elements if needle in name.lower()]
+        results: list[dict[str, Any]] = []
+        with ThreadPoolExecutor(max_workers=max(limit, 1)) as pool:
+            # Elements without a preview are skipped: read them a page at a time.
+            for start in range(0, len(matches), max(limit, 1)):
+                page = matches[start : start + max(limit, 1)]
+                previews = pool.map(
+                    self._get_element_previews, [id_ for _, id_ in page]
+                )
+                for (name, _), by_task_type in zip(page, previews):
+                    preview = _get_latest_preview(
+                        by_task_type, playlist.get("task_type_id")
+                    )
+                    if preview is None:
+                        continue
+                    task_type = task_types.get(preview["task_type_id"])
+                    revision = preview.get("revision") or 1
+                    results.append(
+                        {
+                            "type": "Version",
+                            "id": preview["id"],
+                            "name": "_".join(filter(None, [name, task_type]))
+                            + f"_v{revision:03d}",
+                            "description": None,
+                            "project": {
+                                "type": "Project",
+                                "id": playlist["project_id"],
+                            },
+                        }
+                    )
+                    if len(results) == limit:
+                        return results
+        return results
+
+    def _get_playlist_elements(
+        self, playlist: dict[str, Any]
+    ) -> list[tuple[str, str]] | None:
+        """
+        Return the (name, id) pairs of the elements a playlist can take, or
+        None for a kind of element other than shots, assets and sequences.
+        """
+        project_id = playlist["project_id"]
+        episode_id = playlist.get("episode_id")
+        kind = playlist.get("for_entity") or "shot"
+        if kind == "shot":
+            if not episode_id:
+                rows = self._get_project_shot_rows(project_id)
+            else:
+                sequences = gazu.shot.all_sequences_for_episode(
+                    episode_id, client=self.client
+                )
+                names = {row["id"]: row["name"] for row in sequences}
+                rows = [
+                    {**row, "sequence_name": names.get(row.get("parent_id"))}
+                    for row in gazu.shot.all_shots_for_episode(
+                        episode_id, client=self.client
+                    )
+                ]
+            return [
+                (_build_shot_name(row.get("sequence_name"), row["name"]), row["id"])
+                for row in rows
+            ]
+        if kind == "asset":
+            # Assets of the episode, and the ones shared by all episodes.
+            return [
+                (row["name"], row["id"])
+                for row in gazu.asset.all_assets_for_project(
+                    project_id, client=self.client
+                )
+                if not episode_id or row.get("source_id") in (episode_id, None)
+            ]
+        if kind == "sequence":
+            rows = (
+                gazu.shot.all_sequences_for_episode(episode_id, client=self.client)
+                if episode_id
+                else gazu.shot.all_sequences_for_project(project_id, client=self.client)
+            )
+            return [(row["name"], row["id"]) for row in rows]
+        return None
+
+    def _get_element_previews(self, entity_id: str) -> dict[str, list[dict]]:
+        """
+        Return the previews of an element, by task type id.
+        """
+        return self._cached(
+            ("element-previews", entity_id),
+            lambda: gazu.client.fetch_all(
+                f"playlists/entities/{entity_id}/preview-files", client=self.client
+            ),
+        )
 
     def get_thumbnail(self, version_id: str) -> bytes:
         """
@@ -1205,6 +1360,26 @@ def _get_project_filter(filters: list[dict[str, Any]]) -> str | None:
         ):
             return _to_comparable(condition.get("value"))
     return None
+
+
+def _get_latest_preview(
+    by_task_type: dict[str, list[dict[str, Any]]], task_type_id: str | None
+) -> dict[str, Any] | None:
+    """
+    Return the latest preview of a task type, or of any without one, with
+    its task type id.
+    """
+    candidates = [
+        {**preview, "task_type_id": type_id}
+        for type_id, previews in (by_task_type or {}).items()
+        if not task_type_id or type_id == task_type_id
+        for preview in previews
+    ]
+    return max(
+        candidates,
+        key=lambda p: (p.get("revision") or 0, p.get("created_at") or ""),
+        default=None,
+    )
 
 
 def _get_search_name(entity: EntityBase) -> str | None:

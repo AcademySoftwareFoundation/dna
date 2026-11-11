@@ -488,6 +488,8 @@ export interface SearchEntitiesParams {
   entityTypes: SearchableEntityType[];
   projectId?: string;
   limit?: number;
+  /** Narrows versions to the ones this playlist can take. */
+  playlistId?: string;
 }
 
 export interface AddVersionToPlaylistParams {

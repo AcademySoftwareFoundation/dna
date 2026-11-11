@@ -166,6 +166,7 @@ export function AddVersionInput({
   const { query, setQuery, results, isLoading } = useEntitySearch({
     entityTypes: ['version'],
     projectId,
+    playlistId,
     limit: 10,
   });
 
