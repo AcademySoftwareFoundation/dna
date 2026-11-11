@@ -14,7 +14,7 @@ import pytest
 from gazu.exception import RouteNotFoundException
 
 from dna.models.entity import Asset, Note, Playlist, Shot, Task, Version
-from dna.prodtrack_providers.kitsu import KitsuProvider
+from dna.prodtrack_providers.kitsu import KitsuProvider, _set_comment_versions
 from dna.prodtrack_providers.prodtrack_provider_base import (
     UserNotFoundError,
     get_prodtrack_provider,
@@ -236,7 +236,7 @@ class FakeSession:
         query = parse_qs(parts.query)
         if "page" in query and query["page"] != ["1"]:
             body = []
-        for field in ("email", "short_name", "id", "object_id"):
+        for field in ("email", "short_name", "id", "object_id", "task_id"):
             if field in query:
                 value = query[field][0]
                 # Zou reads a JSON list as an IN filter.
@@ -684,9 +684,20 @@ class TestUsersAndPlaylists:
         assert versions[0].notes[0].author.email == "sam@studio.example"
 
     def test_versions_only_get_their_own_notes(self, provider, session):
+        # A second revision of the task, published the next day.
+        session.routes["data/preview-files"] = [
+            PREVIEW_ROW,
+            {**PREVIEW_ROW, "id": OTHER_PREVIEW, "created_at": "2026-10-15T09:00:00"},
+        ]
         session.routes["data/comments"] = [
-            {**COMMENT_ROW, "preview_file_id": OTHER_PREVIEW},
-            {**COMMENT_ROW, "preview_file_id": None},
+            # Posted from DNA on the second revision.
+            {**COMMENT_ROW, "id": "a", "created_at": "2026-10-14T17:00:00"}
+            | {"preview_file_id": OTHER_PREVIEW},
+            # Publishes the second revision, then a note on it.
+            {**COMMENT_ROW, "id": "b", "created_at": "2026-10-15T08:59:59"}
+            | {"preview_file_id": None},
+            {**COMMENT_ROW, "id": "c", "created_at": "2026-10-15T10:00:00"}
+            | {"preview_file_id": None},
         ]
         assert provider.get_versions_for_playlist(PLAYLIST)[0].notes == []
 
@@ -703,6 +714,22 @@ class TestUsersAndPlaylists:
         (version,) = provider.get_versions_for_playlist(PLAYLIST)
         assert [note.id for note in version.notes] == ["new", "old"]
 
+    def test_playlist_notes_follow_the_revision_they_were_posted_on(
+        self, provider, session
+    ):
+        def comment(id_, at, **fields):
+            row = {**COMMENT_ROW, "id": id_, "created_at": at}
+            return {**row, "preview_file_id": None, **fields}
+
+        # The preview was created at 16:40:12, right after its comment.
+        session.routes["data/comments"] = [
+            comment("before", "2026-10-14T16:00:00"),
+            comment("publish", "2026-10-14T16:40:11"),
+            comment("after", "2026-10-14T17:00:00"),
+        ]
+        (version,) = provider.get_versions_for_playlist(PLAYLIST)
+        assert [note.id for note in version.notes] == ["after", "publish"]
+
     def test_playlist_ids_are_read_in_batches(self, provider, session):
         ids = [f"00000000-0000-0000-0000-{n:012d}" for n in range(120)]
         session.routes[f"data/playlists/{PLAYLIST}"] = {
@@ -712,7 +739,7 @@ class TestUsersAndPlaylists:
         with mock.patch.object(session, "get", wraps=session.get) as get:
             provider.get_versions_for_playlist(PLAYLIST)
         reads = [
-            c.args[0] for c in get.call_args_list if "/preview-files?" in c.args[0]
+            c.args[0] for c in get.call_args_list if "/preview-files?id=" in c.args[0]
         ]
         assert len(reads) == 3  # 50 + 50 + 20 ids
 
@@ -1009,3 +1036,55 @@ class TestNotes:
             body="New",
             meeting_date=date(2026, 1, 3),
         )
+
+
+def test_set_comment_versions():
+    """A revision runs from the comment that publishes it to the next one."""
+
+    def comment(id_, at, task=TASK, **fields):
+        return {"id": id_, "object_id": task, "created_at": at, **fields}
+
+    comments = [
+        comment("v2-note", "2026-01-05", previews=[]),
+        comment("v1", "2026-01-02", previews=[PREVIEW]),
+        comment("dna", "2026-01-06", preview_file_id=PREVIEW),
+        comment("first", "2026-01-01"),
+        comment("v2", "2026-01-04", previews=[{"id": OTHER_PREVIEW}]),
+        comment("v1-note", "2026-01-03"),
+        comment("other-task", "2026-01-07", task=MISSING),
+    ]
+    assert {c["id"]: c["preview_file_id"] for c in _set_comment_versions(comments)} == {
+        "first": None,
+        "v1": PREVIEW,
+        "v1-note": PREVIEW,
+        "v2": OTHER_PREVIEW,
+        "v2-note": OTHER_PREVIEW,
+        "dna": PREVIEW,  # Posted from DNA on v1, after v2 was published.
+        "other-task": None,
+    }
+    # Same order as given.
+    assert [c["id"] for c in _set_comment_versions(comments)] == [
+        c["id"] for c in comments
+    ]
+
+
+def test_set_comment_versions_from_preview_dates():
+    """Without their previews, a comment publishes the next preview created."""
+    comments = [
+        {"id": "first", "object_id": TASK, "created_at": "2026-01-01T10:00:00"},
+        {"id": "v1", "object_id": TASK, "created_at": "2026-01-02T10:00:00"},
+        {"id": "v1-note", "object_id": TASK, "created_at": "2026-01-02T11:00:00"},
+        {"id": "v2", "object_id": TASK, "created_at": "2026-01-03T10:00:00"},
+    ]
+    previews = [
+        {"id": OTHER_PREVIEW, "task_id": TASK, "created_at": "2026-01-03T10:00:01"},
+        {"id": PREVIEW, "task_id": TASK, "created_at": "2026-01-02T10:00:00"},
+        {"id": MISSING, "task_id": OTHER_TYPE, "created_at": "2026-01-01T00:00:00"},
+    ]
+    resolved = _set_comment_versions(comments, previews)
+    assert {c["id"]: c["preview_file_id"] for c in resolved} == {
+        "first": None,
+        "v1": PREVIEW,  # Same second as its preview.
+        "v1-note": PREVIEW,
+        "v2": OTHER_PREVIEW,
+    }

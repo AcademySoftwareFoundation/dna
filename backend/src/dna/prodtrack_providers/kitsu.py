@@ -7,9 +7,10 @@ How the DNA model maps onto Kitsu:
 
 - Version: a preview file (one revision on a task). Its status is the status of
   its task, because Kitsu tracks status on the task, not on the revision.
-- Note: a comment on the version's task. ``preview_file_id`` ties it to the
-  revision and the subject, which Kitsu comments do not have, is kept in
-  ``data``.
+- Note: a comment on the version's task. It belongs to the revision published
+  by the last comment with a preview before it, unless its ``preview_file_id``
+  names one, as DNA does. The subject, which Kitsu comments do not have, is
+  kept in ``data``.
 - Transcript: a comment on the version's task, with the text as an attachment.
 - User: a person. Additional fields: the entity's ``data`` metadata.
 """
@@ -313,7 +314,11 @@ class KitsuProvider(ProdtrackProviderBase):
         comments: dict[str, list[dict[str, Any]]] = defaultdict(list)
         # Newest first, as the task comment route returns them.
         for comment in sorted(
-            self._fetch_by_ids("comments", "object_id", task_ids),
+            _set_comment_versions(
+                self._fetch_by_ids("comments", "object_id", task_ids),
+                # Every revision of the tasks, not only the playlist ones.
+                self._fetch_by_ids("preview-files", "task_id", task_ids),
+            ),
             key=lambda comment: comment.get("created_at") or "",
             reverse=True,
         ):
@@ -339,7 +344,7 @@ class KitsuProvider(ProdtrackProviderBase):
         return versions
 
     def _fetch_by_ids(
-        self, model: str, field: str, ids: list[str]
+        self, model: str, field: str, ids: list[str], **params: str
     ) -> list[dict[str, Any]]:
         """
         Return the rows of a model whose field is one of the ids, a batch of
@@ -348,7 +353,9 @@ class KitsuProvider(ProdtrackProviderBase):
         rows: list[dict[str, Any]] = []
         for start in range(0, len(ids), ID_BATCH_SIZE):
             batch = json.dumps(ids[start : start + ID_BATCH_SIZE])
-            rows += gazu.client.fetch_all(model, {field: batch}, client=self.client)
+            rows += gazu.client.fetch_all(
+                model, {field: batch, **params}, client=self.client
+            )
         return rows
 
     def _get_tasks_by_ids(self, task_ids: list[str]) -> dict[str, Task]:
@@ -463,8 +470,8 @@ class KitsuProvider(ProdtrackProviderBase):
         elif entity_type == "note":
             tasks = self._get_project_tasks(project_id)
             persons = self._get_persons()
-            for row in gazu.task.all_comments_for_project(
-                project_id, client=self.client
+            for row in _set_comment_versions(
+                gazu.task.all_comments_for_project(project_id, client=self.client)
             ):
                 if row["object_id"] in tasks:
                     yield self._build_note(
@@ -510,6 +517,17 @@ class KitsuProvider(ProdtrackProviderBase):
             return playlist
         if entity_type == "note":
             task = _build_task(self._get_row("task", row["object_id"]))
+            # Its version depends on the comments posted before it on the task.
+            versions = {
+                comment["id"]: comment["preview_file_id"]
+                for comment in _set_comment_versions(
+                    gazu.task.all_comments_for_task(task.id, client=self.client)
+                )
+            }
+            row = {
+                **row,
+                "preview_file_id": versions.get(row["id"], row.get("preview_file_id")),
+            }
             return self._build_note(row, task, self._get_persons(), additional_fields)
 
         task = _build_task(self._get_row("task", row["task_id"]))
@@ -518,8 +536,8 @@ class KitsuProvider(ProdtrackProviderBase):
         if resolve_links:
             version.notes = [
                 self._build_note(comment, task, persons)
-                for comment in gazu.task.all_comments_for_task(
-                    task.id, client=self.client
+                for comment in _set_comment_versions(
+                    gazu.task.all_comments_for_task(task.id, client=self.client)
                 )
                 if comment.get("preview_file_id") == version.id
             ]
@@ -1449,6 +1467,55 @@ def _get_project_filter(filters: list[dict[str, Any]]) -> str | None:
         ):
             return _to_comparable(condition.get("value"))
     return None
+
+
+def _set_comment_versions(
+    comments: list[dict[str, Any]], previews: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """
+    Return the comments, in the same order, with the version each belongs to
+    as preview_file_id. A comment that publishes a preview opens its
+    revision: the following comments on the task belong to it, up to the one
+    that publishes the next preview. A note posted from DNA names its version.
+
+    A comment lists the previews it publishes, except from the generic comment
+    route, where listing them costs a query per comment. The previews then
+    tell: Kitsu creates the comment first, so the one publishing a preview is
+    the last posted on the task before the preview was created.
+    shortcut: a comment posted in the same second as an upload can be taken
+    for the publishing one, read the comment links once Zou serves them in
+    batches.
+    """
+
+    def created(row: dict[str, Any]) -> str:
+        return row.get("created_at") or ""
+
+    ordered = sorted(comments, key=created)
+    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for comment in ordered:
+        by_task[comment["object_id"]].append(comment)
+    published: dict[str, str] = {}  # Comment id to the preview it publishes.
+    for preview in sorted(previews or [], key=created):
+        earlier = [
+            c for c in by_task[preview["task_id"]] if created(c) <= created(preview)
+        ]
+        if earlier:
+            published[earlier[-1]["id"]] = preview["id"]
+
+    versions: dict[str, str | None] = {}
+    current: dict[str, str] = {}  # Task id to the preview of its last revision.
+    for comment in ordered:
+        if comment.get("previews"):
+            last = comment["previews"][-1]
+            current[comment["object_id"]] = (
+                last["id"] if isinstance(last, dict) else last
+            )
+        elif comment["id"] in published:
+            current[comment["object_id"]] = published[comment["id"]]
+        versions[comment["id"]] = comment.get("preview_file_id") or current.get(
+            comment["object_id"]
+        )
+    return [{**c, "preview_file_id": versions[c["id"]]} for c in comments]
 
 
 def _get_latest_preview(
