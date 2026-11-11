@@ -7,11 +7,13 @@ import {
 } from './desktopAuth';
 
 const payload: DesktopAuthPayload = {
-  version: 1,
+  version: 2,
   token: 'artist@studio.com',
   user: { id: 'artist@studio.com', email: 'artist@studio.com', name: 'artist' },
   authProvider: 'none',
   apiBaseUrl: 'http://localhost:8000',
+  project: { id: '1', name: 'Demo Show' },
+  playlist: { id: '45', name: 'Monday Dailies' },
 };
 
 describe('isDesktopSignInPath', () => {

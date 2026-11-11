@@ -1949,15 +1949,18 @@ async def get_playlist_metadata(
         "When in_review or in_review_pinned is set, broadcasts "
         "playlist.in_review_changed to connected clients. While the in-review "
         "version is pinned, moving in_review to a different version is rejected "
-        "with 409 unless the same request sets in_review_pinned to false."
+        "with 409 unless the same request sets in_review_pinned to false. "
+        "A non-null in_review must be a version on the playlist; null clears "
+        "in_review without a membership check."
     ),
     response_model=PlaylistMetadata,
-    responses=error_responses(409),
+    responses=error_responses(400, 404, 409),
 )
 async def upsert_playlist_metadata(
     playlist_id: str,
     data: PlaylistMetadataUpdate,
     provider: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
     _: CurrentUserDep,
 ) -> PlaylistMetadata:
     """Create or update playlist metadata.
@@ -1977,6 +1980,16 @@ async def upsert_playlist_metadata(
             raise HTTPException(
                 status_code=409,
                 detail="The in-review version is pinned; unpin it to change it",
+            )
+        try:
+            versions = prodtrack.get_versions_for_playlist(playlist_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        version_ids = {str(version.id) for version in versions}
+        if data.in_review not in version_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Version {data.in_review} is not on playlist {playlist_id}"),
             )
     metadata = await provider.upsert_playlist_metadata(playlist_id, data)
     if data.in_review is not None or data.in_review_pinned is not None:
