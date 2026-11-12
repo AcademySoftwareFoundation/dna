@@ -46,7 +46,7 @@ function withEmeraldStrings(
 }
 
 const config: Config = {
-  title: 'DNA Docs',
+  title: 'Dailies Notes Assistant',
   tagline: 'A tool that combines live transcription and LLM integration to help VFX teams capture review feedback.',
   favicon: 'img/favicon.svg',
   // Safari (incl. iOS) doesn't take SVG favicons; it picks these PNGs, cut

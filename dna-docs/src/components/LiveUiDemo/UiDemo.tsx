@@ -132,10 +132,16 @@ export default function UiDemo({interactive = true}: {interactive?: boolean}) {
     }
   }, [phase, selected, collapsed, scale]);
 
-  // Re-place the guide once the sidebar's width transition has run.
+  // Re-place the guide on every frame of the sidebar's width transition
+  // (200ms), so its ring and bubble travel with the toggle button rather
+  // than waiting where it used to be.
   useEffect(() => {
-    const timer = setTimeout(() => setStep((s) => (s ? {...s} : s)), 220);
-    return () => clearTimeout(timer);
+    const start = performance.now();
+    let frame = requestAnimationFrame(function follow(now) {
+      setStep((s) => (s ? {...s} : s));
+      if (now - start < 260) frame = requestAnimationFrame(follow);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [collapsed]);
 
   // Keep the selected card in view within the list, as the app does for

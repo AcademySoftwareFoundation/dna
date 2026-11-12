@@ -6,8 +6,8 @@ import {DEMO_PLAYLISTS} from './playlists';
 // React Query hooks and API handler, without a backend.
 
 const PROJECTS = [
-  {type: 'Project' as const, id: '101', name: 'Griffin'},
-  {type: 'Project' as const, id: '102', name: 'Hidden Satellite'},
+  {type: 'Project' as const, id: '101', name: 'Hyperspace'},
+  {type: 'Project' as const, id: '102', name: 'Demo Dune'},
 ];
 
 const PLAYLISTS: Record<string, {id: string; code: string}[]> = {
