@@ -4,4 +4,106 @@ slug: /7-rv-integration
 title: RV Integration
 ---
 
-## PLACEHOLDER
+import LiveRvSyncDemo from '@site/src/components/LiveRvSyncDemo';
+
+The RV integration keeps DNA on the version that is playing in RV. A DNA package for RV tells DNA which version is on screen, so the version [in review](./4-in-review.mdx) changes as you step through the playlist, and notes and transcript segments land on the right version without anyone setting it by hand. It works with both RV and OpenRV.
+
+<LiveRvSyncDemo caption="Each time the source changes in RV, the package sends DNA one request and DNA moves the version in review to match." />
+
+## What You Need
+
+- RV or OpenRV built with Qt 6 and PySide6. The package has been tested with RV 2026.0.1 and OpenRV 4.0.2.
+- The address of your studio's DNA web app, for example `https://dna.example.com`.
+- **Enable In Review** switched on in DNA's [settings](./10-settings.mdx). It is already on if you use transcription.
+
+## Installing the Package
+
+The package lives in the [rv-dna repository](https://github.com/jspada200/rv-dna). On macOS, download or clone the repository and run this from inside it:
+
+```sh
+make install
+```
+
+This builds `dna-<version>.rvpkg` and installs it into `~/Library/Application Support/RV`. If RV is not at `/Applications/RV.app`, point the install at it:
+
+```sh
+make install RV_APP="/Applications/RV 2.app"
+```
+
+On Linux or Windows, run `make package` to build the `.rvpkg` file into `dist/`, then add it in RV with **Add Packages...** on the Packages tab described below.
+
+### Loading It in RV
+
+The package is optional, so RV installs it switched off. Open **RV > Preferences > Packages**, tick **Load** next to **DNA**, then restart RV.
+
+<Figure
+  src="img/7-rv-integration/rv-packages.png"
+  alt="RV's Preferences window on the Packages tab, with Installed and Load both ticked for the DNA package."
+  caption="The DNA package in RV's Packages preferences, with Load ticked."
+/>
+
+After the restart, RV has a **DNA** menu in its menu bar.
+
+:::tip[For pipeline teams]
+To switch the package on for everyone who shares an RV support area, run `rvpkg -optin` on the installed `dna-<version>.rvpkg` instead of asking each person to tick Load.
+:::
+
+## Signing In
+
+1. Choose **DNA > Sign In...**. The first time, RV asks for your DNA URL.
+2. DNA's sign-in page opens in a window inside RV. Sign in the same way you do in the browser.
+3. Choose your project, then the playlist you are reviewing.
+4. The window closes, and the DNA menu shows **Signed in as** with your email and the playlist.
+
+RV remembers the sign-in, project and playlist when you quit, so you only do this once per playlist. To move to another playlist, choose **DNA > Switch show/playlist...**.
+
+## Syncing the Version In Review
+
+Once RV is signed in, load the playlist's media and review as usual. Whenever the source on screen changes, RV sets that version in review in DNA.
+
+In DNA, switch on **Follow In Review** at the top of the sidebar, and DNA jumps to each version as RV reaches it. Everyone else with the playlist open sees the in-review marker move too, and can follow along the same way.
+
+A few rules decide whether a change in RV reaches DNA:
+
+- **The version has to be on the playlist.** RV only sets versions from the playlist you chose when signing in. Anything else you load in RV is left alone.
+- **A pinned version stays put.** If someone has [pinned](./4-in-review.mdx#pinning) the version in review, moving on in RV does not change it until it is unpinned.
+- **RV has to know which version a source is.** It reads the version ID from media served by Flow Production Tracking, or from a `version_id` field on the source. Sources it cannot identify are skipped.
+
+Studios that track version IDs differently can change where RV looks by editing `version_id_paths.json` in the package.
+
+## The DNA Menu
+
+| Menu item | What it does |
+| --- | --- |
+| **Signed in as ...** / **Not signed in** | Shows who is signed in and which playlist RV is driving. |
+| **Sign In...** / **Sign Out** | Opens DNA's sign-in window, or forgets the saved sign-in. |
+| **Switch show/playlist...** | Reopens the project and playlist picker without signing out. |
+| **Set DNA URL...** | Changes the DNA web app address. Changing it signs you out. |
+| **Debug mode** | Shows each request to DNA, and DNA's answer, as a message over RV's viewer. |
+
+## Troubleshooting
+
+**There is no DNA menu.** Check that **Load** is ticked for DNA in **RV > Preferences > Packages**, then restart RV.
+
+**The sign-in window shows an error.** Check the address with **DNA > Set DNA URL...**. It should be the same address you open DNA at in your browser.
+
+**DNA does not follow RV.** Work through these in order:
+
+1. In DNA, check that **Follow In Review** is on.
+2. In RV, check that the playlist named in the DNA menu is the one you have open in DNA.
+3. Check whether the version in review is pinned.
+4. Turn on **DNA > Debug mode** and change source in RV. RV shows the request it sent and what DNA answered, or says that it found no version ID for the source.
+
+**Syncing stops after about an hour.** With Google sign-in, the sign-in expires after about an hour and RV does not renew it. Choose **DNA > Sign In...** again.
+
+:::note
+Signing in with Google from inside RV has not been tested yet, and Google may refuse to sign in from an embedded window.
+:::
+
+:::caution[Shared workstations]
+RV stores the sign-in in its preferences as plain text. On a shared machine, choose **DNA > Sign Out** when you finish.
+:::
+
+## Other Review Players
+
+The RV package has no special access to DNA. It sets the version in review with one HTTP request, and any player that can send that request can do the same. See [Create or update playlist metadata](/api/reference/upsert-playlist-metadata-playlists-playlist-id-metadata-put) in the API reference for the request, and [Real-time](/api/realtime) for the event stream DNA uses to tell every open session about the change.
