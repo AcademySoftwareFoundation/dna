@@ -13,10 +13,10 @@ const Members: Member[] = [
   {name: 'Tommy Burnette', org: 'Industrial Light & Magic', photo: 'tommy-burnette.jpg'},
   {name: 'Cottalango Leon', org: 'Sony Pictures Imageworks', photo: 'cottalango-leon.jpg'},
   {name: 'James Spadafora', org: 'Industrial Light & Magic', photo: 'james-spadafora.jpg'},
-  {name: 'Dmitry Grankin', org: 'Vexa A.I.', photo: 'dmitry-grankin.jpg'},
-  {name: 'Tommy Snyder', org: 'Autodesk', photo: 'tommy-snyder.jpg'},
-  {name: 'Olga Avramenko', org: 'Sony Pictures Imageworks', photo: 'olga-avramenko.jpg'},
   {name: 'Cameron Target', org: 'Disney (Moana)', photo: 'cameron-target.jpg'},
+  {name: 'Olga Avramenko', org: 'Sony Pictures Imageworks', photo: 'olga-avramenko.jpg'},
+  {name: 'Tommy Snyder', org: 'Autodesk', photo: 'tommy-snyder.jpg'},
+  {name: 'Dmitry Grankin', org: 'Vexa A.I.', photo: 'dmitry-grankin.jpg'},
   {name: 'Sam Richards', org: 'Disney Imagineer', photo: 'sam-richards.jpg'},
 ];
 
