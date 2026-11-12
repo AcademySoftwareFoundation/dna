@@ -156,6 +156,17 @@ const config: Config = {
         sidebarPath: './sidebarsDeployment.ts',
       },
     ],
+    // Integrations docs: connecting review players and other tools to DNA,
+    // at /integrations.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'integrations',
+        path: 'integrations',
+        routeBasePath: 'integrations',
+        sidebarPath: './sidebarsIntegrations.ts',
+      },
+    ],
     // Frontend developer docs: how the web app is built, at /frontend.
     [
       '@docusaurus/plugin-content-docs',
@@ -214,9 +225,9 @@ const config: Config = {
       '@easyops-cn/docusaurus-search-local',
       {
         // All docs instances: user guides, frontend, the backend API,
-        // deployment and contributing.
-        docsRouteBasePath: ['docs', 'frontend', 'api', 'deployment', 'contributing'],
-        docsDir: ['docs', 'frontend', 'api', 'deployment', 'contributing'],
+        // integrations, deployment and contributing.
+        docsRouteBasePath: ['docs', 'frontend', 'api', 'integrations', 'deployment', 'contributing'],
+        docsDir: ['docs', 'frontend', 'api', 'integrations', 'deployment', 'contributing'],
         indexBlog: false,
         hashed: true,
         explicitSearchResultPath: true,
@@ -278,6 +289,13 @@ const config: Config = {
               sidebarId: 'openApiSidebar',
               label: 'Backend API',
               activeBasePath: 'api',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'integrations',
+              sidebarId: 'integrationsSidebar',
+              label: 'Integrations',
+              activeBasePath: 'integrations',
             },
             {
               type: 'docSidebar',
@@ -369,6 +387,10 @@ const config: Config = {
             {
               label: 'Backend API',
               to: '/api',
+            },
+            {
+              label: 'Integrations',
+              to: '/integrations',
             },
             {
               label: 'Deployment',

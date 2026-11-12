@@ -28,6 +28,12 @@ const sections: Section[] = [
       'HTTP reference for the DNA backend, for building your own tools and integrations on top of DNA.',
   },
   {
+    title: 'Integrations',
+    to: '/integrations',
+    description:
+      'How review players such as RV connect to DNA, and how to set them up for your studio.',
+  },
+  {
     title: 'Deployment',
     to: '/deployment',
     description: 'How to deploy DNA and configure it for your studio. Still an outline.',

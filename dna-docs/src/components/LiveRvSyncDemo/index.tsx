@@ -19,7 +19,8 @@ const DESIGN_HEIGHT = 620;
  * RV driving DNA's in-review version, as a looping picture: the homepage's
  * player-sync mock with the player named RV, framed like the other guides'
  * demos and sized so the whole RV window shows. Nothing responds to input,
- * so it carries no Demo badge. Used in docs/guides/7-rv-integration.mdx.
+ * so it carries no Demo badge. Used in docs/guides/7-rv-integration.mdx and
+ * integrations/rv.mdx.
  */
 export default function LiveRvSyncDemo({caption}: {caption?: ReactNode}): ReactNode {
   return (
