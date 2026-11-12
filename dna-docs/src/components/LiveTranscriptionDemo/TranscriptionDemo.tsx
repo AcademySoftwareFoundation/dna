@@ -25,7 +25,7 @@ import {
 } from '../LiveLoginDemo/appMocks/transcription';
 import {TranscriptFeed} from '../LiveInReviewDemo/TranscriptFeed';
 import {ARTIST} from '../LiveUiDemo/data';
-import {Guide, type GuideStep} from '../LiveUiDemo/Guide';
+import {Guide, type GuideStep, type Side} from '../LiveUiDemo/Guide';
 import * as I from '../LiveUiDemo/icons';
 import {themeVars} from '../LiveUiDemo/themeVars';
 // The success checkmark, shared with the other demos.
@@ -264,6 +264,10 @@ function Session({
     const input = targets.urlInput;
     setUrlFilled(!!input?.value);
     if (!input) return;
+    // The link is pasted for you, so keep phones' on-screen keyboard down:
+    // it would resize the page and throw the demo's layout around. The
+    // field still focuses, and a hardware keyboard still works.
+    input.inputMode = 'none';
     const fill = (event: Event) => {
       if (input.value) return;
       event.preventDefault();
@@ -279,10 +283,10 @@ function Session({
   }, [targets.urlInput]);
 
   // The popover settles into place over a few frames after it opens or
-  // changes; re-place the bubble a couple of times.
+  // changes, later still on a slow phone; re-place the bubble a few times.
   const [settle, setSettle] = useState(0);
   useEffect(() => {
-    const timers = [60, 220].map((ms) => setTimeout(() => setSettle((n) => n + 1), ms));
+    const timers = [60, 220, 500].map((ms) => setTimeout(() => setSettle((n) => n + 1), ms));
     return () => timers.forEach(clearTimeout);
   }, [targets, status]);
 
@@ -292,11 +296,11 @@ function Session({
     // Nothing to do while the bot joins or leaves.
     if (settle < 0 || isDispatching || isStopping || status === 'joining') return null;
     // Something in the open menu. Beside it where there's room; on narrow
-    // columns, above the whole menu instead, since a bubble over its
-    // contents would sit under it (the menu renders in a portal, on top).
-    const inMenu = (target: Element, title: string): GuideStep =>
-      t.popover && window.matchMedia('(max-width: 720px)').matches
-        ? {target: t.popover, title, sides: ['above', 'below'], noRing: true}
+    // columns, right above or below the control itself (`narrow` says
+    // which, so the bubble covers the part of the menu that matters least).
+    const inMenu = (target: Element, title: string, narrow: Side[]): GuideStep =>
+      window.matchMedia('(max-width: 720px)').matches
+        ? {target, title, sides: narrow}
         : {target, title, sides: ['right', 'above', 'below']};
 
     if (live) {
@@ -314,7 +318,7 @@ function Session({
           sides: ['right', 'above'],
         };
       }
-      if (t.menuOpen && t.stop) return inMenu(t.stop, `${press} Stop Transcription`);
+      if (t.menuOpen && t.stop) return inMenu(t.stop, `${press} Stop Transcription`, ['below', 'above']);
       return t.trigger
         ? {
             target: t.trigger,
@@ -334,8 +338,8 @@ function Session({
           }
         : null;
     }
-    if (t.urlInput && !urlFilled) return inMenu(t.urlInput, `${press} to paste a Zoom invite link`);
-    return t.start ? inMenu(t.start, `${press} Start Transcription`) : null;
+    if (t.urlInput && !urlFilled) return inMenu(t.urlInput, `${press} to paste a Zoom invite link`, ['above', 'below']);
+    return t.start ? inMenu(t.start, `${press} Start Transcription`, ['below', 'above']) : null;
   }, [targets, settle, status, live, paused, pausedOnce, isDispatching, isStopping, urlFilled]);
   useEffect(() => onStep(step), [step, onStep]);
 
