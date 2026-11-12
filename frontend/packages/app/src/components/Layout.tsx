@@ -3,10 +3,16 @@ import styled from 'styled-components';
 import type { Playlist, Version } from '@dna/core';
 import { Sidebar } from './Sidebar';
 import { AppHeader } from './AppHeader';
+import type { RecentSessionEntry } from '../recentSessions';
 
 interface LayoutProps {
   children: ReactNode;
   playlistTabs?: ReactNode;
+  sessionName?: string | null;
+  currentSessionId?: string | null;
+  onChangeSession?: () => void;
+  onSelectRecentSession?: (entry: RecentSessionEntry) => void;
+  sessionMode?: boolean;
   onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
   sessionId?: string | null;
@@ -53,6 +59,11 @@ const Main = styled.main`
 export function Layout({
   children,
   playlistTabs,
+  sessionName,
+  currentSessionId,
+  onChangeSession,
+  onSelectRecentSession,
+  sessionMode = false,
   onPlaylistChange,
   playlistId,
   sessionId,
@@ -81,6 +92,10 @@ export function Layout({
     <LayoutWrapper>
       <AppHeader
         playlistTabs={playlistTabs}
+        sessionName={sessionName}
+        currentSessionId={currentSessionId}
+        onChangeSession={onChangeSession}
+        onSelectRecentSession={onSelectRecentSession}
         playlistId={playlistId}
         projectId={projectId}
         userEmail={userEmail}
@@ -94,6 +109,7 @@ export function Layout({
           onPlaylistChange={onPlaylistChange}
           playlistId={playlistId}
           sessionId={sessionId}
+          sessionMode={sessionMode}
           projectId={projectId}
           selectedVersionId={selectedVersionId}
           onVersionSelect={onVersionSelect}

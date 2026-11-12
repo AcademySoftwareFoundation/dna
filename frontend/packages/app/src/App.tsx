@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Playlist,
@@ -14,7 +14,7 @@ import {
   ProjectSelector,
 } from './components';
 import { SessionTabs } from './components/SessionTabs';
-import { useAuth, useFeatureFlags } from './contexts';
+import { useAuth, useFeatureFlags, useToast } from './contexts';
 import { apiHandler, useGetVersionsForPlaylist } from './api';
 import {
   useAddPlaylistToSession,
@@ -23,6 +23,11 @@ import {
 } from './hooks/useSessions';
 import { useSessionInReviewEvents } from './hooks/useSessionInReview';
 import { usePrefetchPlaylistVersions } from './hooks/usePrefetchPlaylistVersions';
+import {
+  rememberRecentSession,
+  type RecentSessionEntry,
+} from './recentSessions';
+import { useNomenclature } from './nomenclature';
 
 async function apiEnsure(projectId: string, playlistId: string) {
   return apiHandler.ensureSessionForPlaylist({ projectId, playlistId });
@@ -32,6 +37,8 @@ function App() {
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
   const { sessionsEnabled } = useFeatureFlags();
+  const { showToast } = useToast();
+  const t = useNomenclature();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -107,6 +114,19 @@ function App() {
     await refetch();
   };
 
+  const rememberSession = useCallback(
+    (session: Session, project: Project) => {
+      if (!sessionsEnabled) return;
+      rememberRecentSession({
+        id: session.id,
+        name: session.name?.trim() || session.id,
+        projectId: project.id,
+        projectName: project.name,
+      });
+    },
+    [sessionsEnabled]
+  );
+
   const handleSelectionComplete = (
     project: Project,
     playlist: Playlist,
@@ -118,6 +138,7 @@ function App() {
     setUserEmail(email);
     setSelectedSession(session ?? null);
     if (session) {
+      rememberSession(session, project);
       addPlaylistToSession.mutate({
         sessionId: session.id,
         playlistId: playlist.id,
@@ -144,6 +165,73 @@ function App() {
     setSelectedVersion(null);
   };
 
+  const handleChangeSession = () => {
+    setSelectedProject(null);
+    setSelectedPlaylist(null);
+    setSelectedSession(null);
+    setSelectedVersion(null);
+  };
+
+  const handleSelectRecentSession = useCallback(
+    async (entry: RecentSessionEntry) => {
+      if (entry.id === selectedSession?.id) return;
+      try {
+        const session = await apiHandler.getSession({ sessionId: entry.id });
+        const playlists = await apiHandler.getPlaylistsForProject({
+          projectId: entry.projectId,
+        });
+        const linked = session.playlist_ids ?? [];
+        const playlist =
+          linked
+            .map((id) => playlists.find((item) => item.id.toString() === id))
+            .find((item): item is Playlist => item != null) ?? null;
+        if (!playlist) {
+          showToast({
+            type: 'error',
+            title: `No ${t.playlist.lower} linked`,
+            description: `Open this ${t.session.lower} from the selector and choose a ${t.playlist.lower}.`,
+          });
+          handleChangeSession();
+          return;
+        }
+        const project: Project =
+          selectedProject?.id === entry.projectId
+            ? selectedProject
+            : {
+                id: entry.projectId,
+                type: 'Project',
+                name: entry.projectName,
+              };
+        setSelectedProject(project);
+        setSelectedPlaylist(playlist);
+        setSelectedSession(session);
+        setSelectedVersion(null);
+        rememberSession(session, project);
+        queryClient.setQueryData(['session', session.id], session);
+        queryClient.setQueryData(['sessionPlaylists', session.id], {
+          session_id: session.id,
+          playlist_ids: session.playlist_ids ?? [],
+        });
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: `Could not open ${t.session.lower}`,
+          description:
+            error instanceof Error ? error.message : 'Please try again.',
+        });
+      }
+    },
+    [
+      selectedSession?.id,
+      selectedProject,
+      showToast,
+      t.playlist.lower,
+      t.session.lower,
+      rememberSession,
+      queryClient,
+    ]
+  );
+
   const handleVersionSelect = (version: Version) => {
     setSelectedVersion(version);
   };
@@ -152,12 +240,14 @@ function App() {
     return <ProjectSelector onSelectionComplete={handleSelectionComplete} />;
   }
 
-  const showSessionTabs = sessionsEnabled && !!selectedSession;
+  const sessionMode = sessionsEnabled && !!selectedSession;
+  const sessionDisplayName =
+    selectedSession?.name?.trim() || selectedSession?.id || null;
 
   return (
     <Layout
       playlistTabs={
-        showSessionTabs ? (
+        sessionMode ? (
           <SessionTabs
             sessionId={selectedSession!.id}
             projectId={selectedProject.id}
@@ -166,6 +256,13 @@ function App() {
           />
         ) : null
       }
+      sessionName={sessionMode ? sessionDisplayName : null}
+      currentSessionId={sessionMode ? selectedSession!.id : null}
+      onChangeSession={sessionMode ? handleChangeSession : undefined}
+      onSelectRecentSession={
+        sessionMode ? handleSelectRecentSession : undefined
+      }
+      sessionMode={sessionMode}
       onPlaylistChange={handlePlaylistChange}
       playlistId={selectedPlaylist.id}
       sessionId={sessionId}

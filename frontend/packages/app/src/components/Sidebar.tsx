@@ -41,6 +41,8 @@ interface SidebarProps {
   onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
   sessionId?: string | null;
+  /** Multi-session UI is active — hide playlist-level change actions. */
+  sessionMode?: boolean;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
@@ -253,6 +255,7 @@ export function Sidebar({
   onPlaylistChange,
   playlistId,
   sessionId = null,
+  sessionMode = false,
   projectId,
   selectedVersionId,
   onVersionSelect,
@@ -373,11 +376,18 @@ export function Sidebar({
   };
 
   const playlistMenuItems = [
+    ...(!sessionMode
+      ? [
+          {
+            label: `Change ${t.playlist.singular}`,
+            onSelect: () => setToolbarInput('change-playlist'),
+          },
+        ]
+      : []),
     {
-      label: `Change ${t.playlist.singular}`,
-      onSelect: () => setToolbarInput('change-playlist'),
+      label: `Add ${t.version.singular}`,
+      onSelect: () => setToolbarInput('add-version'),
     },
-    { label: `Add ${t.version.singular}`, onSelect: () => setToolbarInput('add-version') },
     { label: 'Add Scratch Pad', onSelect: handleAddScratch },
   ];
 
