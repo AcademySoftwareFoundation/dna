@@ -4,6 +4,7 @@ import {Avatar, Badge, Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS} from '@dna-app/styles/theme';
 import {themeVars} from './themeVars';
 import {ARTIST, DATE_SUBMITTED, NOTE_TO, VERSIONS} from './data';
@@ -49,7 +50,8 @@ const INITIALS = ARTIST.split(' ')
 // nothing responds to input (the homepage showcase).
 export default function UiDemo({interactive = true}: {interactive?: boolean}) {
   const {colorMode} = useColorMode();
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const thumbBase = useBaseUrl('img/demo/');
   const logo = useBaseUrl(
     colorMode === 'light' ? 'img/logo-full-light.svg' : 'img/logo-full-dark.svg',
@@ -196,7 +198,7 @@ export default function UiDemo({interactive = true}: {interactive?: boolean}) {
       <div className={styles.stage} style={stageStyle}>
         <Theme
           appearance={colorMode}
-          accentColor={ACCENTS.blue.radix}
+          accentColor={ACCENTS[accent].radix}
           hasBackground={false}>
           <div className={styles.app}>
             {/* ---------- Sidebar ---------- */}

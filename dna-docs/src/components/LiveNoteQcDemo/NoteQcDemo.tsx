@@ -4,6 +4,7 @@ import {Pencil, Plus, Trash2} from 'lucide-react';
 import {Button, Switch, TextArea, TextField, Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS} from '@dna-app/styles/theme';
 import {Guide, type GuideStep} from '../LiveUiDemo/Guide';
 import {themeVars} from '../LiveUiDemo/themeVars';
@@ -77,7 +78,8 @@ function useTyping(active: boolean, text: string, set: (v: string) => void, done
  */
 export default function NoteQcDemo() {
   const {colorMode} = useColorMode();
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
 
   const [checks, setChecks] = useState<Check[]>([EXISTING]);
   const [phase, setPhase] = useState<Phase>('add');
@@ -149,7 +151,7 @@ export default function NoteQcDemo() {
 
   return (
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
-      <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+      <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
         <div className={styles.panel}>
           <section className={styles.section}>
             <h3 className={styles.title}>Note QC</h3>

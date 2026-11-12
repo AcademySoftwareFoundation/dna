@@ -14,6 +14,7 @@ import '@radix-ui/themes/styles.css';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {TranscriptionMenu} from '@dna-app/components/TranscriptionMenu';
 import {VersionCard} from '@dna-app/components/VersionCard';
@@ -107,8 +108,9 @@ const sameTargets = (a: Targets, b: Targets) =>
 // Transcript panel. Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
 export default function TranscriptionDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   // The menu reads the user's settings through React Query; the fake API
   // answers, but the client must exist.
   const [queryClient] = useState(() => new QueryClient());
@@ -149,7 +151,7 @@ export default function TranscriptionDemo() {
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
-          <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+          <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
             <TranscriptionDemoProvider key={run}>
               <Session
                 rootRef={rootRef}

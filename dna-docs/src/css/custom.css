@@ -522,3 +522,50 @@ mark[data-markjs] {
     font-size: 16px !important;
   }
 }
+
+/*
+ * Accent easter egg. The Accent Color swatches in the settings guide's demo
+ * set <html data-accent> (src/accent.ts); blue, the default, leaves it off.
+ * Each accent names the app's own colours for it (ACCENTS in
+ * frontend/packages/app/src/styles/theme.ts); everything the site tints is
+ * then derived from those, replacing the indigo values above. Kept at the
+ * end of the file so it wins over them at equal specificity.
+ */
+[data-accent='purple'] {
+  --dna-accent: #8b5cf6;
+  --dna-accent-hover: #7c3aed;
+  --dna-accent-lift: #c084fc;
+}
+
+[data-accent='green'] {
+  --dna-accent: #29a383;
+  --dna-accent-hover: #26997b;
+  --dna-accent-lift: #27b08b;
+}
+
+[data-accent='pink'] {
+  --dna-accent: #e93d82;
+  --dna-accent-hover: #df3478;
+  --dna-accent-lift: #ee518a;
+}
+
+[data-accent] {
+  --ifm-color-primary: var(--dna-accent);
+  --ifm-color-primary-dark: color-mix(in srgb, var(--ifm-color-primary) 90%, black);
+  --ifm-color-primary-darker: color-mix(in srgb, var(--ifm-color-primary) 85%, black);
+  --ifm-color-primary-darkest: color-mix(in srgb, var(--ifm-color-primary) 70%, black);
+  --ifm-color-primary-light: color-mix(in srgb, var(--ifm-color-primary) 90%, white);
+  --ifm-color-primary-lighter: color-mix(in srgb, var(--ifm-color-primary) 85%, white);
+  --ifm-color-primary-lightest: color-mix(in srgb, var(--ifm-color-primary) 70%, white);
+  --dna-accent-bright: var(--dna-accent);
+  --dna-accent-soft: color-mix(in srgb, var(--dna-accent) 10%, transparent);
+  --docusaurus-highlighted-code-line-bg: color-mix(in srgb, var(--dna-accent) 10%, transparent);
+}
+
+/* Dark mode: lifted for links on the near-black background, as indigo is. */
+[data-theme='dark'][data-accent] {
+  --ifm-color-primary: color-mix(in srgb, var(--dna-accent) 68%, white);
+  --dna-accent-bright: var(--dna-accent-lift);
+  --dna-accent-soft: color-mix(in srgb, var(--dna-accent) 16%, transparent);
+  --docusaurus-highlighted-code-line-bg: color-mix(in srgb, var(--dna-accent) 18%, transparent);
+}

@@ -52,15 +52,26 @@ const config: Config = {
   // Safari (incl. iOS) doesn't take SVG favicons; it picks these PNGs, cut
   // from the SVG, while Chrome and Firefox keep the vector. Unlike `favicon`,
   // headTags aren't base-URL aware.
-  headTags: [32, 256].map((size) => ({
-    tagName: 'link',
-    attributes: {
-      rel: 'icon',
-      type: 'image/png',
-      sizes: `${size}x${size}`,
-      href: `${baseUrl}img/favicon-${size}.png`,
+  headTags: [
+    ...[32, 256].map((size) => ({
+      tagName: 'link',
+      attributes: {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: `${size}x${size}`,
+        href: `${baseUrl}img/favicon-${size}.png`,
+      },
+    })),
+    // The accent easter egg (src/accent.ts): restore a reader's chosen accent
+    // before first paint, so the page doesn't flash indigo on reload.
+    {
+      tagName: 'script',
+      attributes: {},
+      innerHTML:
+        "try{var a=localStorage.getItem('dna-docs-accent');" +
+        "if(a)document.documentElement.dataset.accent=a}catch(e){}",
     },
-  })),
+  ],
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {

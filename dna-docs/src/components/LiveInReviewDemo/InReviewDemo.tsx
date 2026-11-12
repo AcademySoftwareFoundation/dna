@@ -5,6 +5,7 @@ import {Avatar, Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {VersionCard} from '@dna-app/components/VersionCard';
 import {demoVersion} from '../LiveLoginDemo/appMocks/entities';
@@ -71,8 +72,9 @@ function splitName(name: string): {shot: string; code: string} {
 // Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
 export default function InReviewDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const siteBase = useBaseUrl('/');
 
   const [selected, setSelected] = useState(0);
@@ -214,7 +216,7 @@ export default function InReviewDemo() {
     <div ref={rootRef} className={styles.root} style={{height: DESIGN_HEIGHT * scale}}>
       <div className={styles.stage} style={stageStyle}>
         <ThemeProvider theme={theme}>
-          <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+          <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
             <div className={styles.app}>
               {/* ---------- Sidebar: just the version list ---------- */}
               <aside className={styles.sidebar}>

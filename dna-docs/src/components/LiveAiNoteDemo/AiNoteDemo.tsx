@@ -4,6 +4,7 @@ import {ThemeProvider} from 'styled-components';
 import {Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {AssistantNote} from '@dna-app/components/AssistantNote';
 import {TRANSCRIPTS} from '../LiveInReviewDemo/transcripts';
@@ -69,8 +70,9 @@ function fill(input: HTMLInputElement, value: string) {
 // Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
 export default function AiNoteDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
 
   const [tab, setTab] = useState<Tab>('transcript');
   const [note, setNote] = useState<string | null>(null);
@@ -240,7 +242,7 @@ export default function AiNoteDemo() {
   return (
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
       <ThemeProvider theme={theme}>
-        <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+        <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
           <div className={clsx(styles.app, tab === 'assistant' && styles.appAssistant)}>
             {/* The app's tab strip above the panel. */}
             <div className={uiStyles.tabs} role="tablist">

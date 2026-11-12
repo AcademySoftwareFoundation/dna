@@ -5,6 +5,7 @@ import {Button, Checkbox, Select, Switch, TextArea, Theme} from '@radix-ui/theme
 import '@radix-ui/themes/styles.css';
 import {usePluginData} from '@docusaurus/useGlobalData';
 import {useColorMode} from '@docusaurus/theme-common';
+import {setAccent, useAccent} from '@site/src/accent';
 import {ACCENTS, ACCENT_NAMES} from '@dna-app/styles/theme';
 import {buildHotkeyActions} from '@dna-app/hotkeys/hotkeysConfig';
 import {DEFAULT_RESOLVED_NOMENCLATURE} from '@dna-app/nomenclature/nomenclature';
@@ -60,12 +61,13 @@ function formatKeys(keys: string): string {
  */
 export default function SettingsDemo() {
   const {colorMode} = useColorMode();
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const [tab, setTab] = useState<Tab>('general');
 
   return (
     <div className={styles.root} style={vars as CSSProperties}>
-      <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+      <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
         <div className={styles.dialog}>
           <h2 className={styles.title}>Settings</h2>
           <p className={styles.description}>
@@ -88,8 +90,10 @@ export default function SettingsDemo() {
 
           {/* Keyed so each tab opens scrolled to its top. */}
           <div key={tab} className={styles.content} role="tabpanel">
-            <div inert className={styles.sections}>
-              {tab === 'general' && <GeneralTab lightMode={colorMode === 'light'} />}
+            {/* General's Appearance controls are live (see GeneralTab), so
+                that tab marks its own for-show parts inert. */}
+            <div inert={tab !== 'general'} className={styles.sections}>
+              {tab === 'general' && <GeneralTab />}
               {tab === 'keybindings' && <KeybindingsTab />}
               {tab === 'transcription' && <TranscriptionTab />}
               {tab === 'ai' && <AiTab />}
@@ -177,27 +181,45 @@ function InfoIcon() {
 
 // ---------- Tabs ----------
 
-function GeneralTab({lightMode}: {lightMode: boolean}) {
+/**
+ * Appearance is the one live part of the dialog, and an easter egg: Light
+ * Mode is the docs' own light/dark toggle, and Accent Color recolours the
+ * whole docs site (src/accent.ts), as the app's settings do the app. The
+ * rest of the tab is for show, like the other tabs.
+ */
+function GeneralTab() {
+  const {colorMode, setColorMode} = useColorMode();
+  const accent = useAccent();
   return (
     <>
       <Section title="Appearance">
         <Row name="Light Mode" desc="Switch between dark and light theme">
-          <Switch checked={lightMode} />
+          <Switch
+            aria-label="Light Mode"
+            checked={colorMode === 'light'}
+            onCheckedChange={(checked) => setColorMode(checked ? 'light' : 'dark')}
+          />
         </Row>
         <Row name="Accent Color" desc="Recolors highlights and the background glow">
           <div className={styles.swatches}>
             {ACCENT_NAMES.map((name) => (
-              <span
+              <button
                 key={name}
-                className={clsx(styles.swatch, name === 'blue' && styles.swatchSelected)}
+                type="button"
+                className={clsx(styles.swatch, name === accent && styles.swatchSelected)}
                 style={{'--swatch': ACCENTS[name].colors.main} as CSSProperties}
-                title={ACCENTS[name].label}>
-                {name === 'blue' && <Check size={16} strokeWidth={3} />}
-              </span>
+                title={ACCENTS[name].label}
+                aria-label={`${ACCENTS[name].label} accent`}
+                aria-pressed={name === accent}
+                onClick={() => setAccent(name)}>
+                {name === accent && <Check size={16} strokeWidth={3} />}
+              </button>
             ))}
           </div>
         </Row>
       </Section>
+
+      <div inert className={styles.sections}>
 
       <Section title="In Review">
         <Row
@@ -250,6 +272,7 @@ function GeneralTab({lightMode}: {lightMode: boolean}) {
           </Button>
         </div>
       </Section>
+      </div>
     </>
   );
 }
