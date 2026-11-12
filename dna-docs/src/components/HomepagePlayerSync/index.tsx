@@ -29,7 +29,7 @@ const Players: Player[] = [
   {
     // RV ships with Flow Production Tracking, so it goes by Flow PTR's icon.
     name: 'RV',
-    href: 'https://www.autodesk.com/products/flow-production-tracking/overview',
+    href: 'https://www.autodesk.com/products/flow-production-tracking/rv',
     logo: 'img/players/flow-ptr.png',
   },
   {
@@ -46,7 +46,7 @@ const Players: Player[] = [
   {
     // cineSync Play's app icon, trimmed of the macOS icon padding.
     name: 'cineSync',
-    href: 'https://www.cinesync.io/',
+    href: 'https://www.cinesync.online/',
     logo: 'img/players/cinesync.png',
     planned: true,
   },
