@@ -1,17 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  RECENT_PLAYLISTS_KEY,
   RECENT_SESSIONS_KEY,
+  readRecentPlaylists,
   readRecentSessions,
+  rememberRecentPlaylist,
   rememberRecentSession,
 } from './recentSessions';
 
 describe('recentSessions', () => {
   afterEach(() => {
     localStorage.removeItem(RECENT_SESSIONS_KEY);
+    localStorage.removeItem(RECENT_PLAYLISTS_KEY);
   });
 
   it('returns an empty list when nothing is stored', () => {
     expect(readRecentSessions()).toEqual([]);
+    expect(readRecentPlaylists()).toEqual([]);
   });
 
   it('remembers a session at the front and dedupes by id', () => {
@@ -60,5 +65,22 @@ describe('recentSessions', () => {
       's3',
       's2',
     ]);
+  });
+
+  it('stores playlists separately from sessions', () => {
+    rememberRecentSession({
+      id: 's1',
+      name: 'Session',
+      projectId: '1',
+    });
+    rememberRecentPlaylist({
+      id: 'p1',
+      name: 'Playlist',
+      projectId: '1',
+    });
+
+    expect(readRecentSessions()).toHaveLength(1);
+    expect(readRecentPlaylists()).toHaveLength(1);
+    expect(readRecentPlaylists()[0].id).toBe('p1');
   });
 });

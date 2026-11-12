@@ -5,12 +5,16 @@ export interface RecentSessionEntry {
   projectName?: string;
 }
 
+/** Alias for playlist-mode recent entries (same shape). */
+export type RecentPlaylistEntry = RecentSessionEntry;
+
 export const RECENT_SESSIONS_KEY = 'dna-recent-sessions';
+export const RECENT_PLAYLISTS_KEY = 'dna-recent-playlists';
 export const RECENT_SESSIONS_MAX = 5;
 
-export function readRecentSessions(): RecentSessionEntry[] {
+function readRecentEntries(storageKey: string): RecentSessionEntry[] {
   try {
-    const raw = localStorage.getItem(RECENT_SESSIONS_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -35,16 +39,39 @@ export function readRecentSessions(): RecentSessionEntry[] {
   }
 }
 
-export function rememberRecentSession(entry: RecentSessionEntry): RecentSessionEntry[] {
+function rememberRecentEntry(
+  storageKey: string,
+  entry: RecentSessionEntry
+): RecentSessionEntry[] {
   const name = entry.name.trim() || entry.id;
   const next = [
     { ...entry, name },
-    ...readRecentSessions().filter((item) => item.id !== entry.id),
+    ...readRecentEntries(storageKey).filter((item) => item.id !== entry.id),
   ].slice(0, RECENT_SESSIONS_MAX);
   try {
-    localStorage.setItem(RECENT_SESSIONS_KEY, JSON.stringify(next));
+    localStorage.setItem(storageKey, JSON.stringify(next));
   } catch {
     // Ignore quota / private-mode failures.
   }
   return next;
+}
+
+export function readRecentSessions(): RecentSessionEntry[] {
+  return readRecentEntries(RECENT_SESSIONS_KEY);
+}
+
+export function rememberRecentSession(
+  entry: RecentSessionEntry
+): RecentSessionEntry[] {
+  return rememberRecentEntry(RECENT_SESSIONS_KEY, entry);
+}
+
+export function readRecentPlaylists(): RecentPlaylistEntry[] {
+  return readRecentEntries(RECENT_PLAYLISTS_KEY);
+}
+
+export function rememberRecentPlaylist(
+  entry: RecentPlaylistEntry
+): RecentPlaylistEntry[] {
+  return rememberRecentEntry(RECENT_PLAYLISTS_KEY, entry);
 }

@@ -10,10 +10,9 @@ import {
 } from 'lucide-react';
 import { Switch, Tooltip } from '@radix-ui/themes';
 import { SCRATCH_VERSION_ID, sessionInReviewForPlaylist } from '@dna/core';
-import type { Version, Playlist } from '@dna/core';
+import type { Version } from '@dna/core';
 import { SplitButton } from './SplitButton';
 import { AddVersionInput } from './AddVersionInput';
-import { ChangePlaylistInput } from './ChangePlaylistInput';
 import { ExpandableSearch, type ExpandableSearchHandle } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
@@ -38,11 +37,8 @@ import {
 interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
   sessionId?: string | null;
-  /** Multi-session UI is active — hide playlist-level change actions. */
-  sessionMode?: boolean;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
@@ -252,19 +248,17 @@ const StateText = styled.span`
 export function Sidebar({
   collapsed,
   onCollapsedChange,
-  onPlaylistChange,
   playlistId,
   sessionId = null,
-  sessionMode = false,
   projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const [toolbarInput, setToolbarInput] = useState<
-    'none' | 'add-version' | 'change-playlist'
-  >('none');
+  const [toolbarInput, setToolbarInput] = useState<'none' | 'add-version'>(
+    'none'
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -313,11 +307,8 @@ export function Sidebar({
   // Each is non-null only while its toolbar input should be showing.
   const addVersionPlaylistId =
     toolbarInput === 'add-version' ? playlistId : null;
-  const changePlaylistProjectId =
-    toolbarInput === 'change-playlist' ? projectId : null;
   // An open toolbar input owns the whole row, including the search slot.
-  const toolbarInputOpen =
-    addVersionPlaylistId !== null || changePlaylistProjectId !== null;
+  const toolbarInputOpen = addVersionPlaylistId !== null;
 
   const queryClient = useQueryClient();
   const upsertPlaylistMetadata = useUpsertPlaylistMetadata(playlistId);
@@ -376,14 +367,6 @@ export function Sidebar({
   };
 
   const playlistMenuItems = [
-    ...(!sessionMode
-      ? [
-          {
-            label: `Change ${t.playlist.singular}`,
-            onSelect: () => setToolbarInput('change-playlist'),
-          },
-        ]
-      : []),
     {
       label: `Add ${t.version.singular}`,
       onSelect: () => setToolbarInput('add-version'),
@@ -538,16 +521,6 @@ export function Sidebar({
                 playlistId={addVersionPlaylistId}
                 projectId={projectId ?? undefined}
                 existingVersionIds={(versions ?? []).map((v) => v.id)}
-                onClose={() => setToolbarInput('none')}
-              />
-            ) : changePlaylistProjectId ? (
-              <ChangePlaylistInput
-                projectId={changePlaylistProjectId}
-                currentPlaylistId={playlistId ?? undefined}
-                onSelect={(playlist) => {
-                  setToolbarInput('none');
-                  onPlaylistChange?.(playlist);
-                }}
                 onClose={() => setToolbarInput('none')}
               />
             ) : (

@@ -1,19 +1,19 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import styled from 'styled-components';
-import type { Playlist, Version } from '@dna/core';
+import type { Version } from '@dna/core';
 import { Sidebar } from './Sidebar';
-import { AppHeader } from './AppHeader';
+import { AppHeader, type HeaderContextMode } from './AppHeader';
 import type { RecentSessionEntry } from '../recentSessions';
 
 interface LayoutProps {
   children: ReactNode;
   playlistTabs?: ReactNode;
-  sessionName?: string | null;
-  currentSessionId?: string | null;
-  onChangeSession?: () => void;
-  onSelectRecentSession?: (entry: RecentSessionEntry) => void;
-  sessionMode?: boolean;
-  onPlaylistChange?: (playlist: Playlist) => void;
+  contextName?: string | null;
+  contextMode?: HeaderContextMode | null;
+  currentContextId?: string | null;
+  changeContextLabel?: string | null;
+  onChangeContext?: () => void;
+  onSelectRecentContext?: (entry: RecentSessionEntry) => void;
   playlistId: string | null;
   sessionId?: string | null;
   projectId: string | null;
@@ -59,12 +59,12 @@ const Main = styled.main`
 export function Layout({
   children,
   playlistTabs,
-  sessionName,
-  currentSessionId,
-  onChangeSession,
-  onSelectRecentSession,
-  sessionMode = false,
-  onPlaylistChange,
+  contextName,
+  contextMode,
+  currentContextId,
+  changeContextLabel,
+  onChangeContext,
+  onSelectRecentContext,
   playlistId,
   sessionId,
   projectId,
@@ -92,10 +92,12 @@ export function Layout({
     <LayoutWrapper>
       <AppHeader
         playlistTabs={playlistTabs}
-        sessionName={sessionName}
-        currentSessionId={currentSessionId}
-        onChangeSession={onChangeSession}
-        onSelectRecentSession={onSelectRecentSession}
+        contextName={contextName}
+        contextMode={contextMode}
+        currentContextId={currentContextId}
+        changeContextLabel={changeContextLabel}
+        onChangeContext={onChangeContext}
+        onSelectRecentContext={onSelectRecentContext}
         playlistId={playlistId}
         projectId={projectId}
         userEmail={userEmail}
@@ -106,10 +108,8 @@ export function Layout({
         <Sidebar
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
-          onPlaylistChange={onPlaylistChange}
           playlistId={playlistId}
           sessionId={sessionId}
-          sessionMode={sessionMode}
           projectId={projectId}
           selectedVersionId={selectedVersionId}
           onVersionSelect={onVersionSelect}

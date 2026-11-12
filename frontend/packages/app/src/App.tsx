@@ -24,6 +24,7 @@ import {
 import { useSessionInReviewEvents } from './hooks/useSessionInReview';
 import { usePrefetchPlaylistVersions } from './hooks/usePrefetchPlaylistVersions';
 import {
+  rememberRecentPlaylist,
   rememberRecentSession,
   type RecentSessionEntry,
 } from './recentSessions';
@@ -127,6 +128,25 @@ function App() {
     [sessionsEnabled]
   );
 
+  const playlistDisplayName = useCallback(
+    (playlist: Playlist) =>
+      playlist.code?.trim() || `${t.playlist.singular} ${playlist.id}`,
+    [t.playlist.singular]
+  );
+
+  const rememberPlaylist = useCallback(
+    (playlist: Playlist, project: Project) => {
+      if (sessionsEnabled) return;
+      rememberRecentPlaylist({
+        id: playlist.id,
+        name: playlistDisplayName(playlist),
+        projectId: project.id,
+        projectName: project.name,
+      });
+    },
+    [sessionsEnabled, playlistDisplayName]
+  );
+
   const handleSelectionComplete = (
     project: Project,
     playlist: Playlist,
@@ -143,6 +163,8 @@ function App() {
         sessionId: session.id,
         playlistId: playlist.id,
       });
+    } else {
+      rememberPlaylist(playlist, project);
     }
   };
 
@@ -165,7 +187,7 @@ function App() {
     setSelectedVersion(null);
   };
 
-  const handleChangeSession = () => {
+  const handleChangeContext = () => {
     setSelectedProject(null);
     setSelectedPlaylist(null);
     setSelectedSession(null);
@@ -191,7 +213,7 @@ function App() {
             title: `No ${t.playlist.lower} linked`,
             description: `Open this ${t.session.lower} from the selector and choose a ${t.playlist.lower}.`,
           });
-          handleChangeSession();
+          handleChangeContext();
           return;
         }
         const project: Project =
@@ -232,6 +254,56 @@ function App() {
     ]
   );
 
+  const handleSelectRecentPlaylist = useCallback(
+    async (entry: RecentSessionEntry) => {
+      if (entry.id === selectedPlaylist?.id) return;
+      try {
+        const playlists = await apiHandler.getPlaylistsForProject({
+          projectId: entry.projectId,
+        });
+        const playlist =
+          playlists.find((item) => item.id.toString() === entry.id) ?? null;
+        if (!playlist) {
+          showToast({
+            type: 'error',
+            title: `${t.playlist.singular} not found`,
+            description: `Open the selector and choose a ${t.playlist.lower}.`,
+          });
+          handleChangeContext();
+          return;
+        }
+        const project: Project =
+          selectedProject?.id === entry.projectId
+            ? selectedProject
+            : {
+                id: entry.projectId,
+                type: 'Project',
+                name: entry.projectName,
+              };
+        setSelectedProject(project);
+        setSelectedPlaylist(playlist);
+        setSelectedSession(null);
+        setSelectedVersion(null);
+        rememberPlaylist(playlist, project);
+      } catch (error) {
+        showToast({
+          type: 'error',
+          title: `Could not open ${t.playlist.lower}`,
+          description:
+            error instanceof Error ? error.message : 'Please try again.',
+        });
+      }
+    },
+    [
+      selectedPlaylist?.id,
+      selectedProject,
+      showToast,
+      t.playlist.singular,
+      t.playlist.lower,
+      rememberPlaylist,
+    ]
+  );
+
   const handleVersionSelect = (version: Version) => {
     setSelectedVersion(version);
   };
@@ -241,8 +313,23 @@ function App() {
   }
 
   const sessionMode = sessionsEnabled && !!selectedSession;
-  const sessionDisplayName =
-    selectedSession?.name?.trim() || selectedSession?.id || null;
+  const playlistMode = !sessionsEnabled;
+  const contextMode = sessionMode ? 'session' : playlistMode ? 'playlist' : null;
+  const contextName = sessionMode
+    ? selectedSession?.name?.trim() || selectedSession?.id || null
+    : playlistMode
+      ? playlistDisplayName(selectedPlaylist)
+      : null;
+  const currentContextId = sessionMode
+    ? selectedSession!.id
+    : playlistMode
+      ? selectedPlaylist.id
+      : null;
+  const changeContextLabel = sessionMode
+    ? `Change ${t.session.lower}`
+    : playlistMode
+      ? `Change ${t.playlist.lower}`
+      : null;
 
   return (
     <Layout
@@ -256,14 +343,20 @@ function App() {
           />
         ) : null
       }
-      sessionName={sessionMode ? sessionDisplayName : null}
-      currentSessionId={sessionMode ? selectedSession!.id : null}
-      onChangeSession={sessionMode ? handleChangeSession : undefined}
-      onSelectRecentSession={
-        sessionMode ? handleSelectRecentSession : undefined
+      contextName={contextName}
+      contextMode={contextMode}
+      currentContextId={currentContextId}
+      changeContextLabel={changeContextLabel}
+      onChangeContext={
+        sessionMode || playlistMode ? handleChangeContext : undefined
       }
-      sessionMode={sessionMode}
-      onPlaylistChange={handlePlaylistChange}
+      onSelectRecentContext={
+        sessionMode
+          ? handleSelectRecentSession
+          : playlistMode
+            ? handleSelectRecentPlaylist
+            : undefined
+      }
       playlistId={selectedPlaylist.id}
       sessionId={sessionId}
       projectId={selectedProject.id}
