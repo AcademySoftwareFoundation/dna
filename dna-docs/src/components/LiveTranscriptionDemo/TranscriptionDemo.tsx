@@ -14,6 +14,7 @@ import '@radix-ui/themes/styles.css';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {TranscriptionMenu} from '@dna-app/components/TranscriptionMenu';
 import {VersionCard} from '@dna-app/components/VersionCard';
@@ -25,7 +26,7 @@ import {
 } from '../LiveLoginDemo/appMocks/transcription';
 import {TranscriptFeed} from '../LiveInReviewDemo/TranscriptFeed';
 import {ARTIST} from '../LiveUiDemo/data';
-import {Guide, type GuideStep} from '../LiveUiDemo/Guide';
+import {Guide, type GuideStep, type Side} from '../LiveUiDemo/Guide';
 import * as I from '../LiveUiDemo/icons';
 import {themeVars} from '../LiveUiDemo/themeVars';
 // The success checkmark, shared with the other demos.
@@ -107,8 +108,9 @@ const sameTargets = (a: Targets, b: Targets) =>
 // Transcript panel. Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
 export default function TranscriptionDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   // The menu reads the user's settings through React Query; the fake API
   // answers, but the client must exist.
   const [queryClient] = useState(() => new QueryClient());
@@ -149,7 +151,7 @@ export default function TranscriptionDemo() {
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
-          <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+          <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
             <TranscriptionDemoProvider key={run}>
               <Session
                 rootRef={rootRef}
@@ -264,6 +266,10 @@ function Session({
     const input = targets.urlInput;
     setUrlFilled(!!input?.value);
     if (!input) return;
+    // The link is pasted for you, so keep phones' on-screen keyboard down:
+    // it would resize the page and throw the demo's layout around. The
+    // field still focuses, and a hardware keyboard still works.
+    input.inputMode = 'none';
     const fill = (event: Event) => {
       if (input.value) return;
       event.preventDefault();
@@ -279,10 +285,10 @@ function Session({
   }, [targets.urlInput]);
 
   // The popover settles into place over a few frames after it opens or
-  // changes; re-place the bubble a couple of times.
+  // changes, later still on a slow phone; re-place the bubble a few times.
   const [settle, setSettle] = useState(0);
   useEffect(() => {
-    const timers = [60, 220].map((ms) => setTimeout(() => setSettle((n) => n + 1), ms));
+    const timers = [60, 220, 500].map((ms) => setTimeout(() => setSettle((n) => n + 1), ms));
     return () => timers.forEach(clearTimeout);
   }, [targets, status]);
 
@@ -292,11 +298,11 @@ function Session({
     // Nothing to do while the bot joins or leaves.
     if (settle < 0 || isDispatching || isStopping || status === 'joining') return null;
     // Something in the open menu. Beside it where there's room; on narrow
-    // columns, above the whole menu instead, since a bubble over its
-    // contents would sit under it (the menu renders in a portal, on top).
-    const inMenu = (target: Element, title: string): GuideStep =>
-      t.popover && window.matchMedia('(max-width: 720px)').matches
-        ? {target: t.popover, title, sides: ['above', 'below'], noRing: true}
+    // columns, right above or below the control itself (`narrow` says
+    // which, so the bubble covers the part of the menu that matters least).
+    const inMenu = (target: Element, title: string, narrow: Side[]): GuideStep =>
+      window.matchMedia('(max-width: 720px)').matches
+        ? {target, title, sides: narrow}
         : {target, title, sides: ['right', 'above', 'below']};
 
     if (live) {
@@ -314,7 +320,7 @@ function Session({
           sides: ['right', 'above'],
         };
       }
-      if (t.menuOpen && t.stop) return inMenu(t.stop, `${press} Stop Transcription`);
+      if (t.menuOpen && t.stop) return inMenu(t.stop, `${press} Stop Transcription`, ['below', 'above']);
       return t.trigger
         ? {
             target: t.trigger,
@@ -334,8 +340,8 @@ function Session({
           }
         : null;
     }
-    if (t.urlInput && !urlFilled) return inMenu(t.urlInput, `${press} to paste a Zoom invite link`);
-    return t.start ? inMenu(t.start, `${press} Start Transcription`) : null;
+    if (t.urlInput && !urlFilled) return inMenu(t.urlInput, `${press} to paste a Zoom invite link`, ['above', 'below']);
+    return t.start ? inMenu(t.start, `${press} Start Transcription`, ['below', 'above']) : null;
   }, [targets, settle, status, live, paused, pausedOnce, isDispatching, isStopping, urlFilled]);
   useEffect(() => onStep(step), [step, onStep]);
 

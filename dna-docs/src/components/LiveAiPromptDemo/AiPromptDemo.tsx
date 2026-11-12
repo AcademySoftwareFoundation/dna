@@ -4,6 +4,7 @@ import {TextArea, Theme, Tooltip} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import {usePluginData} from '@docusaurus/useGlobalData';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS} from '@dna-app/styles/theme';
 import type {DefaultNotePromptData} from '../../../plugins/default-note-prompt';
 import {themeVars} from '../LiveUiDemo/themeVars';
@@ -18,12 +19,13 @@ import styles from './styles.module.css';
  */
 export default function AiPromptDemo() {
   const {colorMode} = useColorMode();
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const {body} = usePluginData('default-note-prompt') as DefaultNotePromptData;
 
   return (
     <div className={styles.root} style={vars as CSSProperties}>
-      <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+      <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
         <section className={styles.section}>
           <h3 className={styles.title}>
             Note Generation

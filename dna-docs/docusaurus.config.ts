@@ -46,21 +46,32 @@ function withEmeraldStrings(
 }
 
 const config: Config = {
-  title: 'DNA Docs',
+  title: 'Dailies Notes Assistant',
   tagline: 'A tool that combines live transcription and LLM integration to help VFX teams capture review feedback.',
   favicon: 'img/favicon.svg',
   // Safari (incl. iOS) doesn't take SVG favicons; it picks these PNGs, cut
   // from the SVG, while Chrome and Firefox keep the vector. Unlike `favicon`,
   // headTags aren't base-URL aware.
-  headTags: [32, 256].map((size) => ({
-    tagName: 'link',
-    attributes: {
-      rel: 'icon',
-      type: 'image/png',
-      sizes: `${size}x${size}`,
-      href: `${baseUrl}img/favicon-${size}.png`,
+  headTags: [
+    ...[32, 256].map((size) => ({
+      tagName: 'link',
+      attributes: {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: `${size}x${size}`,
+        href: `${baseUrl}img/favicon-${size}.png`,
+      },
+    })),
+    // The accent easter egg (src/accent.ts): restore a reader's chosen accent
+    // before first paint, so the page doesn't flash indigo on reload.
+    {
+      tagName: 'script',
+      attributes: {},
+      innerHTML:
+        "try{var a=localStorage.getItem('dna-docs-accent');" +
+        "if(a)document.documentElement.dataset.accent=a}catch(e){}",
     },
-  })),
+  ],
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -145,6 +156,17 @@ const config: Config = {
         sidebarPath: './sidebarsDeployment.ts',
       },
     ],
+    // Integrations docs: connecting review players and other tools to DNA,
+    // at /integrations.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'integrations',
+        path: 'integrations',
+        routeBasePath: 'integrations',
+        sidebarPath: './sidebarsIntegrations.ts',
+      },
+    ],
     // Frontend developer docs: how the web app is built, at /frontend.
     [
       '@docusaurus/plugin-content-docs',
@@ -203,9 +225,9 @@ const config: Config = {
       '@easyops-cn/docusaurus-search-local',
       {
         // All docs instances: user guides, frontend, the backend API,
-        // deployment and contributing.
-        docsRouteBasePath: ['docs', 'frontend', 'api', 'deployment', 'contributing'],
-        docsDir: ['docs', 'frontend', 'api', 'deployment', 'contributing'],
+        // integrations, deployment and contributing.
+        docsRouteBasePath: ['docs', 'frontend', 'api', 'integrations', 'deployment', 'contributing'],
+        docsDir: ['docs', 'frontend', 'api', 'integrations', 'deployment', 'contributing'],
         indexBlog: false,
         hashed: true,
         explicitSearchResultPath: true,
@@ -267,6 +289,13 @@ const config: Config = {
               sidebarId: 'openApiSidebar',
               label: 'Backend API',
               activeBasePath: 'api',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'integrations',
+              sidebarId: 'integrationsSidebar',
+              label: 'Integrations',
+              activeBasePath: 'integrations',
             },
             {
               type: 'docSidebar',
@@ -358,6 +387,10 @@ const config: Config = {
             {
               label: 'Backend API',
               to: '/api',
+            },
+            {
+              label: 'Integrations',
+              to: '/integrations',
             },
             {
               label: 'Deployment',

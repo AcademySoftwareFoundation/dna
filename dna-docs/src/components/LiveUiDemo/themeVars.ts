@@ -1,10 +1,11 @@
 import type {CSSProperties} from 'react';
-import {getTheme} from '@dna-app/styles/theme';
+import {getTheme, type AccentName} from '@dna-app/styles/theme';
 
 // The app's styled-components theme, handed to the CSS module as custom
-// properties so the mock takes the real app's colours in both modes.
-export function themeVars(mode: 'dark' | 'light'): CSSProperties {
-  const {colors} = getTheme(mode, 'blue');
+// properties so the mock takes the real app's colours in both modes, in the
+// docs' current accent (see src/accent.ts).
+export function themeVars(mode: 'dark' | 'light', accent: AccentName = 'blue'): CSSProperties {
+  const {colors} = getTheme(mode, accent);
   return {
     '--c-bg-base': colors.bg.base,
     '--c-bg-surface': colors.bg.surface,

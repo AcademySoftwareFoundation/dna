@@ -57,8 +57,12 @@ const THUMBNAILED_SHOTS = new Set([
   'TST_020_0020',
 ]);
 
-/** Path under static/ of a version's thumbnail, if its shot has one. */
+/** Versions outside the TST shots with a frame of their own, by name. */
+const THUMBNAILED_VERSIONS = new Set(['spaceship_rigged_001']);
+
+/** Path under static/ of a version's thumbnail, if it or its shot has one. */
 export function thumbnailFor(versionName: string): string | undefined {
+  if (THUMBNAILED_VERSIONS.has(versionName)) return `img/demo/${versionName}.png`;
   const shot = versionName.match(/^TST_\d{3}_\d{4}/)?.[0];
   return shot && THUMBNAILED_SHOTS.has(shot) ? `img/demo/${shot}.png` : undefined;
 }

@@ -5,6 +5,7 @@ import {Avatar, Switch, Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {VersionCard} from '@dna-app/components/VersionCard';
 import {demoVersion} from '../LiveLoginDemo/appMocks/entities';
@@ -84,8 +85,9 @@ export default function PlayerSyncPicture({
   playerName = 'Review Player',
 }: PlayerSyncPictureProps) {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const siteBase = useBaseUrl('/');
   const logo = useBaseUrl(
     colorMode === 'light' ? 'img/logo-full-light.svg' : 'img/logo-full-dark.svg',
@@ -168,7 +170,7 @@ export default function PlayerSyncPicture({
     <div ref={rootRef} className={styles.picture} inert>
       <div className={styles.canvas} style={stageStyle}>
         <ThemeProvider theme={theme}>
-          <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+          <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
             {/* ---------- DNA ---------- */}
             <div className={uiStyles.app}>
               <aside className={uiStyles.sidebar}>

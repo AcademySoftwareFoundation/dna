@@ -4,6 +4,7 @@ import {Avatar, Badge, Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS} from '@dna-app/styles/theme';
 import {themeVars} from '../LiveUiDemo/themeVars';
 import {ARTIST, NOTE_TO, VERSIONS} from '../LiveUiDemo/data';
@@ -35,7 +36,8 @@ const INITIALS = ARTIST.split(' ')
 // Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
 export default function TranscriptionPicture() {
   const {colorMode} = useColorMode();
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const thumbBase = useBaseUrl('img/demo/');
   const version = VERSIONS[0];
 
@@ -54,7 +56,7 @@ export default function TranscriptionPicture() {
 
   return (
     <div ref={rootRef} className={styles.picture} style={vars} inert>
-      <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+      <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
         <div className={styles.app}>
           {/* ---------- Sidebar: the right edge of the version list ---------- */}
           <aside className={clsx(uiStyles.sidebar, styles.sidebarSlice)}>

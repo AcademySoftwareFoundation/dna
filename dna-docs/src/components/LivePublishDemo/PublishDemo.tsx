@@ -5,6 +5,7 @@ import {Avatar, Badge, Button, Checkbox, Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS} from '@dna-app/styles/theme';
 import {thumbnailFor} from '../LiveLoginDemo/appMocks/playlists';
 import {TRANSCRIPTS} from '../LiveInReviewDemo/transcripts';
@@ -65,7 +66,8 @@ type Overlay = 'none' | 'success' | 'fading';
  */
 export default function PublishDemo() {
   const {colorMode} = useColorMode();
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const siteBase = useBaseUrl('/');
 
   const [status, setStatus] = useState('Viewed');
@@ -149,7 +151,7 @@ export default function PublishDemo() {
 
   return (
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
-      <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+      <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
         <div className={styles.dialog}>
           {/* ---------- Header ---------- */}
           <div className={styles.header}>
@@ -254,7 +256,7 @@ export default function PublishDemo() {
                 </div>
 
                 <div className={clsx(styles.note, !noteChecked && styles.excluded)}>
-                  <div className={uiStyles.chips}>
+                  <div className={clsx(uiStyles.chips, styles.chips)}>
                     <span className={uiStyles.chip}>
                       To:
                       <Badge color="blue" size="2">
@@ -262,7 +264,7 @@ export default function PublishDemo() {
                         {NOTE_TO}
                       </Badge>
                     </span>
-                    <span className={uiStyles.chip}>
+                    <span className={clsx(uiStyles.chip, styles.linksChip)}>
                       Links:
                       <Badge color="orange" size="2">
                         <I.Layers size={12} />

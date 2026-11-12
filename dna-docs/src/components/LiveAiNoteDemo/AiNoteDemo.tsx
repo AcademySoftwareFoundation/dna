@@ -4,6 +4,7 @@ import {ThemeProvider} from 'styled-components';
 import {Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {AssistantNote} from '@dna-app/components/AssistantNote';
 import {TRANSCRIPTS} from '../LiveInReviewDemo/transcripts';
@@ -69,8 +70,9 @@ function fill(input: HTMLInputElement, value: string) {
 // Browser-only: loaded by ./index.tsx inside <BrowserOnly>.
 export default function AiNoteDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
 
   const [tab, setTab] = useState<Tab>('transcript');
   const [note, setNote] = useState<string | null>(null);
@@ -145,6 +147,7 @@ export default function AiNoteDemo() {
   const [toggle, setToggle] = useState<HTMLButtonElement | null>(null);
   const [field, setField] = useState<HTMLInputElement | null>(null);
   const [insertButton, setInsertButton] = useState<HTMLButtonElement | null>(null);
+  const [regenButton, setRegenButton] = useState<HTMLButtonElement | null>(null);
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -152,6 +155,7 @@ export default function AiNoteDemo() {
       const regen = [...root.querySelectorAll('button')].find(
         (b) => b.textContent?.trim() === 'Regenerate',
       );
+      setRegenButton(regen ?? null);
       setToggle((regen?.nextElementSibling as HTMLButtonElement | null) ?? null);
       setField(
         root.querySelector<HTMLInputElement>(`input[placeholder="${INSTRUCTIONS_PLACEHOLDER}"]`),
@@ -172,6 +176,10 @@ export default function AiNoteDemo() {
   useEffect(() => {
     setTyped(false);
     if (!field || cowbell) return;
+    // The request is typed for you, so on touch screens keep the on-screen
+    // keyboard down: it would resize the page under the demo. Regenerate is
+    // then tapped rather than Enter pressed (see the guide below).
+    if (window.matchMedia('(pointer: coarse)').matches) field.inputMode = 'none';
     let i = 0;
     let timer = setTimeout(function type() {
       i += 1;
@@ -186,7 +194,11 @@ export default function AiNoteDemo() {
   const assistantTabRef = useRef<HTMLButtonElement>(null);
   const [step, setStep] = useState<GuideStep | null>(null);
   useEffect(() => {
-    const press = window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click';
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    const press = touch ? 'Tap' : 'Click';
+    // On narrow columns the card's header bubbles go above it, over the tab
+    // strip, rather than below, over the note they're asking you to change.
+    const narrow = window.matchMedia('(max-width: 720px)').matches;
     const tabButton = assistantTabRef.current;
     if (tab === 'transcript' && note === null && !generating && tabButton) {
       // Below, not beside: to the right it would cover the Transcript tab.
@@ -200,27 +212,38 @@ export default function AiNoteDemo() {
       setStep({
         target: insertButton,
         title: `${press} Insert to add it to your notes`,
-        sides: ['right', 'below'],
+        sides: ['right', 'below', 'above'],
       });
     } else if (tab === 'assistant' && note === NOTE && field && typed) {
-      setStep({target: field, title: 'Press Enter to regenerate', sides: ['below', 'above']});
+      // No Enter key on a touch screen without the keyboard up: Regenerate
+      // sends the same instructions.
+      setStep(
+        touch && regenButton
+          ? {
+              target: regenButton,
+              title: 'Tap Regenerate',
+              sides: narrow ? ['above', 'below'] : ['below', 'above'],
+              align: 'end',
+            }
+          : {target: field, title: 'Press Enter to regenerate', sides: ['below', 'above']},
+      );
     } else if (tab === 'assistant' && note === NOTE && !field && toggle) {
       setStep({
         target: toggle,
         title: `${press} to add instructions for the AI`,
-        sides: ['below', 'left'],
+        sides: narrow ? ['above', 'below'] : ['below', 'left'],
         align: 'end',
       });
     } else {
       setStep(null);
     }
-  }, [tab, note, generating, field, typed, toggle, cowbell, inserted, insertButton]);
+  }, [tab, note, generating, field, typed, toggle, regenButton, cowbell, inserted, insertButton]);
 
   return (
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
       <ThemeProvider theme={theme}>
-        <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
-          <div className={styles.app}>
+        <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
+          <div className={clsx(styles.app, tab === 'assistant' && styles.appAssistant)}>
             {/* The app's tab strip above the panel. */}
             <div className={uiStyles.tabs} role="tablist">
               <button
