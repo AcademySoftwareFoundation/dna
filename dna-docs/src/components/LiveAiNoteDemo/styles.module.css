@@ -56,6 +56,23 @@
   border-radius: 3px;
 }
 
+/* Narrow columns: the note wraps to far more lines than the fixed height
+   holds, which hid Copy and Insert below a scroll. The AI card takes the
+   height it needs there, with room under it for the Insert bubble; the
+   transcript keeps the fixed height and scrolls as before. */
+@media (max-width: 720px) {
+  .appAssistant {
+    height: auto;
+    min-height: 380px;
+    padding-bottom: 64px;
+  }
+
+  .appAssistant .body {
+    flex: none;
+    overflow-y: visible;
+  }
+}
+
 /* The demo's height before it loads. */
 .placeholder {
   height: 382px;
