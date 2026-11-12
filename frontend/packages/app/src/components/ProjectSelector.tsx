@@ -303,7 +303,7 @@ function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
   const selected = sessions.find((session) => session.id === value);
   const normalizedQuery = query.trim().toLowerCase();
   const visibleSessions = sessions.filter((session) =>
-    session.name.toLowerCase().includes(normalizedQuery)
+    (session.name ?? '').toLowerCase().includes(normalizedQuery)
   );
 
   const closeMenu = () => {
@@ -400,7 +400,7 @@ function SessionSelect({ sessions, value, onValueChange }: SessionSelectProps) {
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => chooseSession(session.id)}
               >
-                {session.name}
+                {session.name || session.id}
               </SessionOption>
             ))
           )}
@@ -958,7 +958,9 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
 
             {sessionsEnabled && selectedSession && (
               <SelectionDisplay>
-                <SelectionText>{selectedSession.name}</SelectionText>
+                <SelectionText>
+                  {selectedSession.name || selectedSession.id}
+                </SelectionText>
                 <ChangeButton onClick={handleChangeSession}>Change</ChangeButton>
               </SelectionDisplay>
             )}

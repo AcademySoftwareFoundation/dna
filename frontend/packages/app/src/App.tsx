@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Playlist,
-  PlaylistMetadata,
   Project,
   Session,
   Version,
   preferredPlaylistVersion,
+  sessionInReviewForPlaylist,
 } from '@dna/core';
 import {
   Layout,
@@ -14,21 +14,24 @@ import {
   ProjectSelector,
 } from './components';
 import { SessionTabs } from './components/SessionTabs';
-import { useAuth } from './contexts';
-import { useGetVersionsForPlaylist } from './api';
-import {
-  useInReviewChangedEvents,
-  usePlaylistMetadata,
-} from './hooks/usePlaylistMetadata';
+import { useAuth, useFeatureFlags } from './contexts';
+import { apiHandler, useGetVersionsForPlaylist } from './api';
 import {
   useAddPlaylistToSession,
+  useSession,
   useSessionPlaylists,
 } from './hooks/useSessions';
+import { useSessionInReviewEvents } from './hooks/useSessionInReview';
 import { usePrefetchPlaylistVersions } from './hooks/usePrefetchPlaylistVersions';
+
+async function apiEnsure(projectId: string, playlistId: string) {
+  return apiHandler.ensureSessionForPlaylist({ projectId, playlistId });
+}
 
 function App() {
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
+  const { sessionsEnabled } = useFeatureFlags();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(
     null
@@ -41,22 +44,45 @@ function App() {
     selectedPlaylist?.id ?? null
   );
 
-  const { data: playlistMetadata } = usePlaylistMetadata(
-    selectedPlaylist?.id ?? null
-  );
-  const { data: sessionPlaylists } = useSessionPlaylists(
-    selectedSession?.id ?? null
-  );
-  const sessionPlaylistIds = sessionPlaylists?.playlist_ids ?? [];
+  const addPlaylistToSession = useAddPlaylistToSession();
+
+  // Playlist-first mode: ensure an implicit DNA session for the selected playlist.
+  useEffect(() => {
+    if (sessionsEnabled || !selectedProject || !selectedPlaylist) return;
+    if (
+      selectedSession &&
+      selectedSession.playlist_ids?.length === 1 &&
+      selectedSession.playlist_ids[0] === selectedPlaylist.id &&
+      !selectedSession.external_id
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void apiEnsure(selectedProject.id, selectedPlaylist.id).then((session) => {
+      if (!cancelled) setSelectedSession(session);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-ensure on selection change
+  }, [sessionsEnabled, selectedProject?.id, selectedPlaylist?.id]);
+
+  const sessionId = selectedSession?.id ?? null;
+  const { data: liveSession } = useSession(sessionId);
+  const activeSession = liveSession ?? selectedSession;
+
+  const { data: sessionPlaylists } = useSessionPlaylists(sessionId);
+  const sessionPlaylistIds =
+    sessionPlaylists?.playlist_ids ?? activeSession?.playlist_ids ?? [];
   const playlistIds = selectedPlaylist
     ? [...new Set([selectedPlaylist.id, ...sessionPlaylistIds])]
     : sessionPlaylistIds;
   usePrefetchPlaylistVersions(playlistIds);
-  const addPlaylistToSession = useAddPlaylistToSession();
-  useInReviewChangedEvents(
-    selectedSession && sessionPlaylistIds.length > 0
-      ? sessionPlaylistIds
-      : (selectedPlaylist?.id ?? null)
+  useSessionInReviewEvents(sessionId);
+
+  const inReviewForPlaylist = sessionInReviewForPlaylist(
+    activeSession,
+    selectedPlaylist?.id
   );
 
   useEffect(() => {
@@ -64,20 +90,16 @@ function App() {
 
     if (!selectedVersion) {
       setSelectedVersion(
-        preferredPlaylistVersion(versions, playlistMetadata?.in_review)
+        preferredPlaylistVersion(versions, inReviewForPlaylist.versionId)
       );
       return;
     }
 
-    // Keep the selected version in sync with refetched playlist data so
-    // upstream changes (e.g. a status updated in the tracking system) are
-    // reflected after a reload. React Query's structural sharing preserves
-    // object identity for unchanged versions, so this only fires on change.
     const updatedVersion = versions.find((v) => v.id === selectedVersion.id);
     if (updatedVersion && updatedVersion !== selectedVersion) {
       setSelectedVersion(updatedVersion);
     }
-  }, [versions, selectedVersion, playlistMetadata]);
+  }, [versions, selectedVersion, inReviewForPlaylist.versionId]);
 
   const handleRefresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['allDraftNotes'] });
@@ -106,13 +128,10 @@ function App() {
   const handlePlaylistChange = (playlist: Playlist) => {
     const cachedVersions =
       queryClient.getQueryData<Version[]>(['versions', playlist.id]) ?? [];
-    const metadata = queryClient.getQueryData<PlaylistMetadata | null>([
-      'playlistMetadata',
-      playlist.id,
-    ]);
+    const review = sessionInReviewForPlaylist(activeSession, playlist.id);
     setSelectedPlaylist(playlist);
     setSelectedVersion(
-      preferredPlaylistVersion(cachedVersions, metadata?.in_review)
+      preferredPlaylistVersion(cachedVersions, review.versionId)
     );
   };
 
@@ -133,12 +152,14 @@ function App() {
     return <ProjectSelector onSelectionComplete={handleSelectionComplete} />;
   }
 
+  const showSessionTabs = sessionsEnabled && !!selectedSession;
+
   return (
     <Layout
       playlistTabs={
-        selectedSession ? (
+        showSessionTabs ? (
           <SessionTabs
-            sessionId={selectedSession.id}
+            sessionId={selectedSession!.id}
             projectId={selectedProject.id}
             activePlaylist={selectedPlaylist}
             onPlaylistChange={handlePlaylistChange}
@@ -147,7 +168,7 @@ function App() {
       }
       onPlaylistChange={handlePlaylistChange}
       playlistId={selectedPlaylist.id}
-      sessionPlaylistIds={selectedSession ? sessionPlaylistIds : null}
+      sessionId={sessionId}
       projectId={selectedProject.id}
       selectedVersionId={selectedVersion?.id}
       onVersionSelect={handleVersionSelect}
@@ -158,7 +179,7 @@ function App() {
         version={selectedVersion}
         versions={versions}
         playlistId={selectedPlaylist.id}
-        sessionPlaylistIds={selectedSession ? sessionPlaylistIds : null}
+        sessionId={sessionId}
         userEmail={userEmail}
         onVersionSelect={handleVersionSelect}
         onRefresh={handleRefresh}

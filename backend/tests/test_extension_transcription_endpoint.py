@@ -17,11 +17,27 @@ from fastapi.testclient import TestClient
 from main import app
 
 from dna.events import get_event_publisher, reset_event_publisher
-from dna.models.playlist_metadata import PlaylistMetadata
+from dna.models.session import Session
 from dna.transcription_service import (
     get_transcription_service,
     reset_transcription_service,
 )
+
+SESSION_ID = "507f1f77bcf86cd799439011"
+
+
+def _session(**overrides) -> Session:
+    data = {
+        "_id": SESSION_ID,
+        "project_id": "124",
+        "playlist_ids": ["42"],
+        "in_review_playlist_id": "42",
+        "in_review_version_id": "7",
+        "transcription_paused": False,
+    }
+    data.update(overrides)
+    return Session(**data)
+
 
 ENABLE = {"DNA_ENABLE_EXTENSION_TRANSCRIPTION": "true"}
 
@@ -82,11 +98,12 @@ class TestExtensionIngestWebSocket:
         reset_event_publisher()
         reset_transcription_service()
 
-    def _prepare_service(self, metadata):
+    def _prepare_service(self, dna_session):
         svc = get_transcription_service()
         svc.event_publisher = get_event_publisher()
         storage = mock.AsyncMock()
-        storage.get_playlist_metadata.return_value = metadata
+        storage.get_session.return_value = dna_session
+        storage.get_sessions_containing_playlist.return_value = [dna_session]
         storage.upsert_segment = mock.AsyncMock()
         svc.storage_provider = storage
         return svc, storage
@@ -100,8 +117,7 @@ class TestExtensionIngestWebSocket:
                     ws.receive_json()
 
     def test_connect_sends_handshake_and_acks_and_broadcasts(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        _, storage = self._prepare_service(metadata)
+        _, storage = self._prepare_service(_session())
         client = TestClient(app)
 
         with _extension_enabled():
@@ -116,7 +132,7 @@ class TestExtensionIngestWebSocket:
                     ingest.send_json(
                         {
                             "type": "transcript",
-                            "playlist_id": 42,
+                            "session_id": SESSION_ID,
                             "speaker": "Alice",
                             "confirmed": [_seg()],
                             "pending": [],
@@ -131,12 +147,12 @@ class TestExtensionIngestWebSocket:
                     assert broadcast["type"] == "transcript"
                     assert broadcast["playlist_id"] == "42"
                     assert broadcast["version_id"] == "7"
+                    assert broadcast["session_id"] == SESSION_ID
 
         storage.upsert_segment.assert_awaited_once()
 
     def test_ping_pong(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        self._prepare_service(metadata)
+        self._prepare_service(_session())
         client = TestClient(app)
 
         with _extension_enabled():
@@ -147,8 +163,7 @@ class TestExtensionIngestWebSocket:
                 assert pong == {"type": "pong", "ts": "t1"}
 
     def test_unknown_type_and_invalid_messages(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        self._prepare_service(metadata)
+        self._prepare_service(_session())
         client = TestClient(app)
 
         with _extension_enabled():
@@ -165,8 +180,7 @@ class TestExtensionIngestWebSocket:
                 assert ingest.receive_json()["error"] == "invalid_json"
 
     def test_missing_key_closes_when_key_required(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        self._prepare_service(metadata)
+        self._prepare_service(_session())
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
             with pytest.raises(WebSocketDisconnect):
@@ -176,8 +190,7 @@ class TestExtensionIngestWebSocket:
                     ingest.receive_json()
 
     def test_wrong_key_closes_when_key_required(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        self._prepare_service(metadata)
+        self._prepare_service(_session())
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
             with pytest.raises(WebSocketDisconnect):
@@ -187,8 +200,7 @@ class TestExtensionIngestWebSocket:
                     ingest.receive_json()
 
     def test_correct_key_connects_when_key_required(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        self._prepare_service(metadata)
+        self._prepare_service(_session())
         client = TestClient(app)
         with _extension_enabled(DNA_EXTENSION_KEY="secret"):
             with client.websocket_connect(
@@ -198,10 +210,8 @@ class TestExtensionIngestWebSocket:
                 assert hello["type"] == "connected"
 
     def test_ingest_error_is_reported(self):
-        metadata = PlaylistMetadata(_id="m", playlist_id="42", in_review="7")
-        svc, storage = self._prepare_service(metadata)
+        svc, storage = self._prepare_service(_session())
         storage.upsert_segment.side_effect = None
-        # Force the service call to raise.
         svc.ingest_extension_transcript = mock.AsyncMock(
             side_effect=RuntimeError("boom")
         )
@@ -210,7 +220,7 @@ class TestExtensionIngestWebSocket:
         with _extension_enabled():
             with client.websocket_connect("/transcription/extension/ingest") as ingest:
                 ingest.receive_json()  # connected
-                ingest.send_json({"type": "transcript", "playlist_id": 42})
+                ingest.send_json({"type": "transcript", "session_id": SESSION_ID})
                 err = ingest.receive_json()
                 assert err["type"] == "error"
                 assert "boom" in err["error"]

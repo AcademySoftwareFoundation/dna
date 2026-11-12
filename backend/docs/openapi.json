@@ -397,14 +397,12 @@
             "bot_name": "DNA Notes",
             "language": "en",
             "meeting_id": "abc-defg-hij",
-            "platform": "google_meet",
-            "playlist_id": "45"
+            "platform": "google_meet"
           },
           {
             "meeting_id": "81234567890",
             "meeting_url": "https://zoom.us/j/81234567890?pwd=abc123",
-            "platform": "zoom",
-            "playlist_id": "45"
+            "platform": "zoom"
           }
         ],
         "properties": {
@@ -465,15 +463,21 @@
             "$ref": "#/components/schemas/Platform"
           },
           "playlist_id": {
-            "description": "Playlist ID to associate with this meeting",
-            "title": "Playlist Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional playlist hint for the bot session response. When omitted, the DNA session's in-review or first linked playlist is used.",
+            "title": "Playlist Id"
           }
         },
         "required": [
           "platform",
-          "meeting_id",
-          "playlist_id"
+          "meeting_id"
         ],
         "title": "DispatchBotRequest",
         "type": "object"
@@ -813,6 +817,33 @@
           }
         },
         "title": "DraftNoteUpdate",
+        "type": "object"
+      },
+      "EnsureSessionForPlaylistRequest": {
+        "description": "Find or create an implicit DNA session for a single playlist.",
+        "examples": [
+          {
+            "playlist_id": "45",
+            "project_id": "124"
+          }
+        ],
+        "properties": {
+          "playlist_id": {
+            "description": "Playlist ID to ensure a session for",
+            "title": "Playlist Id",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project ID",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "playlist_id"
+        ],
+        "title": "EnsureSessionForPlaylistRequest",
         "type": "object"
       },
       "EntityBase": {
@@ -1667,21 +1698,12 @@
         "type": "object"
       },
       "PlaylistMetadata": {
-        "description": "Full playlist metadata model with all fields.",
+        "description": "Playlist-local metadata.",
         "examples": [
           {
             "_id": "67f0c31be4b0a1b2c3d4e601",
             "has_scratch": false,
-            "in_review": "6990",
-            "in_review_pinned": false,
-            "meeting_id": "abc-defg-hij",
-            "platform": "google_meet",
-            "playlist_id": "45",
-            "session_ids": [
-              "sess-1"
-            ],
-            "transcription_paused": false,
-            "vexa_meeting_id": 1842
+            "playlist_id": "45"
           }
         ],
         "properties": {
@@ -1694,84 +1716,9 @@
             "title": "Has Scratch",
             "type": "boolean"
           },
-          "in_review": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "In Review"
-          },
-          "in_review_pinned": {
-            "default": false,
-            "title": "In Review Pinned",
-            "type": "boolean"
-          },
-          "meeting_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Meeting Id"
-          },
-          "platform": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Platform"
-          },
           "playlist_id": {
             "title": "Playlist Id",
             "type": "string"
-          },
-          "session_ids": {
-            "description": "Session IDs this playlist is linked to",
-            "items": {
-              "type": "string"
-            },
-            "title": "Session Ids",
-            "type": "array"
-          },
-          "transcription_paused": {
-            "default": false,
-            "title": "Transcription Paused",
-            "type": "boolean"
-          },
-          "transcription_resumed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Timestamp when transcription was last resumed. Segments with start time before this are discarded.",
-            "title": "Transcription Resumed At"
-          },
-          "vexa_meeting_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vexa Meeting Id"
           }
         },
         "required": [
@@ -1782,27 +1729,13 @@
         "type": "object"
       },
       "PlaylistMetadataUpdate": {
-        "description": "Model for updating playlist metadata.",
+        "description": "Model for updating playlist-local metadata.",
         "examples": [
           {
-            "in_review": "6990",
-            "meeting_id": "abc-defg-hij",
-            "platform": "google_meet"
+            "has_scratch": true
           }
         ],
         "properties": {
-          "clear_in_review": {
-            "default": false,
-            "description": "If true, clears in_review and in_review_pinned. Rejected with 409 while the in-review version is pinned unless the same request sets in_review_pinned to false.",
-            "title": "Clear In Review",
-            "type": "boolean"
-          },
-          "clear_resumed_at": {
-            "default": false,
-            "description": "If True, clears transcription_resumed_at. Used when starting a new transcription session.",
-            "title": "Clear Resumed At",
-            "type": "boolean"
-          },
           "has_scratch": {
             "anyOf": [
               {
@@ -1814,93 +1747,6 @@
             ],
             "description": "Whether the playlist has a scratch tile — a placeholder for a note on the playlist entity rather than on a version.",
             "title": "Has Scratch"
-          },
-          "in_review": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Version ID currently in review",
-            "title": "In Review"
-          },
-          "in_review_pinned": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Whether the in-review version is pinned. While pinned, moving in_review to a different version returns 409 unless the same request sets this to false.",
-            "title": "In Review Pinned"
-          },
-          "meeting_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Associated meeting ID",
-            "title": "Meeting Id"
-          },
-          "platform": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Meeting platform",
-            "title": "Platform"
-          },
-          "session_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Session IDs this playlist belongs to. Replaces the stored list. Omit to leave the current links unchanged; send an empty list to unlink the playlist from every session.",
-            "title": "Session Ids"
-          },
-          "transcription_paused": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Whether transcription storage is paused",
-            "title": "Transcription Paused"
-          },
-          "vexa_meeting_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Internal Vexa meeting ID",
-            "title": "Vexa Meeting Id"
           }
         },
         "title": "PlaylistMetadataUpdate",
@@ -2534,17 +2380,32 @@
         "type": "object"
       },
       "Session": {
-        "description": "An external review session.",
+        "description": "DNA-owned review session (source of truth for in-review and transcription).",
         "examples": [
           {
-            "created_at": "2026-10-14T15:02:41+00:00",
-            "id": "sess-1",
+            "_id": "67f0c31be4b0a1b2c3d4e701",
+            "external_id": "mock-session-1",
+            "in_review_pinned": false,
+            "in_review_playlist_id": "45",
+            "in_review_version_id": "6990",
+            "meeting_id": "abc-defg-hij",
             "name": "Morning dailies",
+            "platform": "google_meet",
+            "playlist_ids": [
+              "45",
+              "46"
+            ],
             "project_id": "124",
-            "updated_at": "2026-10-14T16:45:10+00:00"
+            "transcription_paused": false,
+            "vexa_meeting_id": 1842
           }
         ],
         "properties": {
+          "_id": {
+            "description": "Internal DNA session ID",
+            "title": "Id",
+            "type": "string"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -2558,20 +2419,115 @@
             "description": "Creation time",
             "title": "Created At"
           },
-          "id": {
-            "description": "Session ID as issued by the session provider",
-            "title": "Id",
-            "type": "string"
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "External provider session ID. Null for implicit playlist sessions.",
+            "title": "External Id"
+          },
+          "in_review_pinned": {
+            "default": false,
+            "description": "Whether the in-review version is pinned",
+            "title": "In Review Pinned",
+            "type": "boolean"
+          },
+          "in_review_playlist_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Playlist that holds the in-review version",
+            "title": "In Review Playlist Id"
+          },
+          "in_review_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version ID currently in review",
+            "title": "In Review Version Id"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Associated meeting ID",
+            "title": "Meeting Id"
           },
           "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Display name",
-            "title": "Name",
-            "type": "string"
+            "title": "Name"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meeting platform",
+            "title": "Platform"
+          },
+          "playlist_ids": {
+            "description": "Playlist IDs linked to this session, in link order",
+            "items": {
+              "type": "string"
+            },
+            "title": "Playlist Ids",
+            "type": "array"
           },
           "project_id": {
             "description": "Project this session belongs to",
             "title": "Project Id",
             "type": "string"
+          },
+          "transcription_paused": {
+            "default": false,
+            "description": "Whether transcription storage is paused",
+            "title": "Transcription Paused",
+            "type": "boolean"
+          },
+          "transcription_resumed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Timestamp when transcription was last resumed. Segments with start time before this are discarded.",
+            "title": "Transcription Resumed At"
           },
           "updated_at": {
             "anyOf": [
@@ -2585,46 +2541,138 @@
             ],
             "description": "Last update time",
             "title": "Updated At"
+          },
+          "vexa_meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Internal Vexa meeting ID",
+            "title": "Vexa Meeting Id"
           }
         },
         "required": [
-          "id",
-          "name",
+          "_id",
           "project_id"
         ],
         "title": "Session",
         "type": "object"
       },
-      "SessionPlaylists": {
-        "description": "Playlists DNA has linked to a session.",
+      "SessionInReviewUpdate": {
+        "description": "Set or clear the session in-review state.",
+        "examples": [
+          {
+            "in_review_pinned": false,
+            "in_review_playlist_id": "45",
+            "in_review_version_id": "6990"
+          }
+        ],
+        "properties": {
+          "clear_in_review": {
+            "default": false,
+            "description": "If true, clears in_review_playlist_id and in_review_version_id and unpins.",
+            "title": "Clear In Review",
+            "type": "boolean"
+          },
+          "in_review_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether the in-review version is pinned. While pinned, moving or clearing in-review returns 409 unless the same request sets this to false.",
+            "title": "In Review Pinned"
+          },
+          "in_review_playlist_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Playlist that holds the in-review version",
+            "title": "In Review Playlist Id"
+          },
+          "in_review_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Version ID currently in review",
+            "title": "In Review Version Id"
+          }
+        },
+        "title": "SessionInReviewUpdate",
+        "type": "object"
+      },
+      "SessionPlaylistsUpdate": {
+        "description": "Replace the playlist links on a DNA session.",
         "examples": [
           {
             "playlist_ids": [
               "45",
               "46"
-            ],
-            "session_id": "sess-1"
+            ]
           }
         ],
         "properties": {
           "playlist_ids": {
-            "description": "Playlist IDs linked to this session, in link order",
+            "description": "Full replacement list of playlist IDs for the session",
             "items": {
               "type": "string"
             },
             "title": "Playlist Ids",
             "type": "array"
-          },
-          "session_id": {
-            "description": "Session ID",
-            "title": "Session Id",
-            "type": "string"
           }
         },
         "required": [
-          "session_id"
+          "playlist_ids"
         ],
-        "title": "SessionPlaylists",
+        "title": "SessionPlaylistsUpdate",
+        "type": "object"
+      },
+      "SessionTranscriptionUpdate": {
+        "description": "Update transcription pause state on a session.",
+        "properties": {
+          "clear_meeting": {
+            "default": false,
+            "description": "If true, clears meeting_id, platform, and vexa_meeting_id.",
+            "title": "Clear Meeting",
+            "type": "boolean"
+          },
+          "clear_resumed_at": {
+            "default": false,
+            "description": "If true, clears transcription_resumed_at.",
+            "title": "Clear Resumed At",
+            "type": "boolean"
+          },
+          "transcription_paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether transcription storage is paused",
+            "title": "Transcription Paused"
+          }
+        },
+        "title": "SessionTranscriptionUpdate",
         "type": "object"
       },
       "Shot": {
@@ -4829,7 +4877,7 @@
         ]
       },
       "get": {
-        "description": "Retrieve metadata for a playlist including in-review version and meeting ID.",
+        "description": "Retrieve playlist-local metadata (e.g. has_scratch).",
         "operationId": "get_playlist_metadata_playlists__playlist_id__metadata_get",
         "parameters": [
           {
@@ -4894,7 +4942,7 @@
         ]
       },
       "put": {
-        "description": "Create or update metadata for a playlist (in-review version, meeting ID, and session links). When in_review, in_review_pinned, or clear_in_review is set, broadcasts playlist.in_review_changed to connected clients. While the in-review version is pinned, moving in_review to a different version or clearing it is rejected with 409 unless the same request sets in_review_pinned to false.",
+        "description": "Create or update playlist-local metadata (currently ``has_scratch``). In-review and transcription live on DNA sessions.",
         "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
         "parameters": [
           {
@@ -4938,16 +4986,6 @@
               }
             },
             "description": "Missing or invalid bearer token"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflicts with the current state (e.g. the in-review version is pinned)"
           },
           "422": {
             "content": {
@@ -6139,7 +6177,7 @@
     },
     "/projects/{project_id}/sessions": {
       "get": {
-        "description": "Retrieve sessions for the specified project from the session provider. Returns 404 when sessions are not enabled.",
+        "description": "Return DNA sessions for the project. When an external session provider is configured, catalog entries are synced into DNA first.",
         "operationId": "get_sessions_for_project_projects__project_id__sessions_get",
         "parameters": [
           {
@@ -6178,16 +6216,6 @@
             },
             "description": "Missing or invalid bearer token"
           },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
-          },
           "422": {
             "content": {
               "application/json": {
@@ -6204,13 +6232,13 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get sessions for a project",
+        "summary": "Get DNA sessions for a project",
         "tags": [
           "Sessions"
         ]
       },
       "post": {
-        "description": "Create a session in the session provider. Returns 404 when sessions are not enabled, and 501 when the provider cannot create sessions.",
+        "description": "Create a session. With an external provider, creates in the catalog then ensures a DNA session. Without a provider, creates a named DNA session directly.",
         "operationId": "create_session_projects__project_id__sessions_post",
         "parameters": [
           {
@@ -6235,7 +6263,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -6264,16 +6292,6 @@
               }
             },
             "description": "Missing or invalid bearer token"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found"
           },
           "422": {
             "content": {
@@ -6474,9 +6492,66 @@
         ]
       }
     },
+    "/sessions/ensure-for-playlist": {
+      "post": {
+        "description": "Find or create a DNA session with ``external_id=null`` that contains exactly this playlist. Used when the UI is playlist-first.",
+        "operationId": "ensure_session_for_playlist_sessions_ensure_for_playlist_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnsureSessionForPlaylistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ensure an implicit DNA session for a playlist",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
-        "description": "Retrieve one session from the session provider. Returns 404 when sessions are not enabled or the session does not exist.",
+        "description": "Retrieve one DNA session by internal ID.",
         "operationId": "get_session_sessions__session_id__get",
         "parameters": [
           {
@@ -6537,16 +6612,16 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get a session",
+        "summary": "Get a DNA session",
         "tags": [
           "Sessions"
         ]
       }
     },
-    "/sessions/{session_id}/playlists": {
-      "get": {
-        "description": "Retrieve the playlist IDs DNA has linked to a session. Returns 404 when sessions are not enabled or the session does not exist.",
-        "operationId": "get_session_playlists_sessions__session_id__playlists_get",
+    "/sessions/{session_id}/in-review": {
+      "put": {
+        "description": "Update the session in-review playlist/version/pin. While pinned, moving or clearing in-review returns 409 unless the same request sets in_review_pinned to false. Broadcasts session.in_review_changed.",
+        "operationId": "update_session_in_review_sessions__session_id__in_review_put",
         "parameters": [
           {
             "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
@@ -6559,12 +6634,111 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionInReviewUpdate"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionPlaylists"
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with the current state (e.g. the in-review version is pinned)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set or clear session in-review",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}/playlists": {
+      "put": {
+        "description": "Replace the full playlist_ids list on a DNA session.",
+        "operationId": "update_session_playlists_sessions__session_id__playlists_put",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionPlaylistsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             },
@@ -6606,9 +6780,334 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get playlists linked to a session",
+        "summary": "Replace playlists linked to a session",
         "tags": [
           "Sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}/transcription": {
+      "put": {
+        "description": "Pause/resume transcription or clear meeting fields on a DNA session.",
+        "operationId": "update_session_transcription_sessions__session_id__transcription_put",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionTranscriptionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update session transcription state",
+        "tags": [
+          "Sessions"
+        ]
+      }
+    },
+    "/sessions/{session_id}/transcription/bot": {
+      "delete": {
+        "description": "Stop the bot for this session's meeting and clear meeting fields.",
+        "operationId": "stop_session_bot_sessions__session_id__transcription_bot_delete",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Stop Session Bot Sessions  Session Id  Transcription Bot Delete",
+                  "type": "boolean"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Stop the transcription bot for a DNA session",
+        "tags": [
+          "Transcription"
+        ]
+      },
+      "post": {
+        "description": "Start a transcription bot and bind the meeting to this DNA session. Segments route to the session's in-review playlist/version. Zoom requires `meeting_url`; a passcode is only honoured as the link's `pwd` parameter.",
+        "operationId": "dispatch_session_bot_sessions__session_id__transcription_bot_post",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchBotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotSession"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Dispatch a bot for a DNA session",
+        "tags": [
+          "Transcription"
+        ]
+      }
+    },
+    "/sessions/{session_id}/transcription/bot/status": {
+      "get": {
+        "description": "Get the current status of the transcription bot for this session.",
+        "operationId": "get_session_bot_status_sessions__session_id__transcription_bot_status_get",
+        "parameters": [
+          {
+            "description": "Session ID as issued by the session provider. Opaque string; DNA passes it through without interpreting it.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get bot status for a DNA session",
+        "tags": [
+          "Transcription"
         ]
       }
     },
@@ -6783,230 +7282,6 @@
         "summary": "Get a task by ID",
         "tags": [
           "Tasks"
-        ]
-      }
-    },
-    "/transcription/bot": {
-      "post": {
-        "description": "Start a transcription bot that joins the specified meeting. Zoom requires `meeting_url`; a passcode is only honoured as the link's `pwd` parameter.",
-        "operationId": "dispatch_bot_transcription_bot_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DispatchBotRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BotSession"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Rejected by the production tracking or transcription provider"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Dispatch a bot to a meeting",
-        "tags": [
-          "Transcription"
-        ]
-      }
-    },
-    "/transcription/bot/{platform}/{meeting_id}": {
-      "delete": {
-        "description": "Stop a transcription bot that is currently in a meeting.",
-        "operationId": "stop_bot_transcription_bot__platform___meeting_id__delete",
-        "parameters": [
-          {
-            "description": "Meeting platform the bot joined.",
-            "in": "path",
-            "name": "platform",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Platform"
-            }
-          },
-          {
-            "description": "Native meeting ID for the platform, e.g. the Google Meet code `abc-defg-hij` or the Zoom meeting number.",
-            "in": "path",
-            "name": "meeting_id",
-            "required": true,
-            "schema": {
-              "title": "Meeting Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "title": "Response Stop Bot Transcription Bot  Platform   Meeting Id  Delete",
-                  "type": "boolean"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Rejected by the production tracking or transcription provider"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Stop a transcription bot",
-        "tags": [
-          "Transcription"
-        ]
-      }
-    },
-    "/transcription/bot/{platform}/{meeting_id}/status": {
-      "get": {
-        "description": "Get the current status of a transcription bot.",
-        "operationId": "get_bot_status_transcription_bot__platform___meeting_id__status_get",
-        "parameters": [
-          {
-            "description": "Meeting platform the bot joined.",
-            "in": "path",
-            "name": "platform",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Platform"
-            }
-          },
-          {
-            "description": "Native meeting ID for the platform, e.g. the Google Meet code `abc-defg-hij` or the Zoom meeting number.",
-            "in": "path",
-            "name": "meeting_id",
-            "required": true,
-            "schema": {
-              "title": "Meeting Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BotStatus"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Rejected by the production tracking or transcription provider"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Missing or invalid bearer token"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get bot status",
-        "tags": [
-          "Transcription"
         ]
       }
     },

@@ -1,72 +1,27 @@
 """Playlist Metadata Models.
 
-Pydantic models for playlist metadata stored in the storage provider.
+Playlist-local metadata only. In-review and transcription live on Session.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class PlaylistMetadataUpdate(BaseModel):
-    """Model for updating playlist metadata."""
+    """Model for updating playlist-local metadata."""
 
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "in_review": "6990",
-                    "meeting_id": "abc-defg-hij",
-                    "platform": "google_meet",
-                }
-            ]
-        }
-    )
+    model_config = ConfigDict(json_schema_extra={"examples": [{"has_scratch": True}]})
 
-    in_review: Optional[str] = Field(
-        default=None, description="Version ID currently in review"
-    )
-    in_review_pinned: Optional[bool] = Field(
-        default=None,
-        description="Whether the in-review version is pinned. While pinned, "
-        "moving in_review to a different version returns 409 unless the same "
-        "request sets this to false.",
-    )
-    meeting_id: Optional[str] = Field(default=None, description="Associated meeting ID")
-    platform: Optional[str] = Field(default=None, description="Meeting platform")
-    vexa_meeting_id: Optional[int] = Field(
-        default=None, description="Internal Vexa meeting ID"
-    )
-    transcription_paused: Optional[bool] = Field(
-        default=None, description="Whether transcription storage is paused"
-    )
     has_scratch: Optional[bool] = Field(
         default=None,
         description="Whether the playlist has a scratch tile — a placeholder "
         "for a note on the playlist entity rather than on a version.",
     )
-    session_ids: Optional[list[str]] = Field(
-        default=None,
-        description="Session IDs this playlist belongs to. Replaces the stored "
-        "list. Omit to leave the current links unchanged; send an empty list "
-        "to unlink the playlist from every session.",
-    )
-    clear_in_review: bool = Field(
-        default=False,
-        description="If true, clears in_review and in_review_pinned. Rejected "
-        "with 409 while the in-review version is pinned unless the same "
-        "request sets in_review_pinned to false.",
-    )
-    clear_resumed_at: bool = Field(
-        default=False,
-        description="If True, clears transcription_resumed_at. "
-        "Used when starting a new transcription session.",
-    )
 
 
 class PlaylistMetadata(BaseModel):
-    """Full playlist metadata model with all fields."""
+    """Playlist-local metadata."""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -75,15 +30,7 @@ class PlaylistMetadata(BaseModel):
                 {
                     "_id": "67f0c31be4b0a1b2c3d4e601",
                     "playlist_id": "45",
-                    "in_review": "6990",
-                    "in_review_pinned": False,
-                    "meeting_id": "abc-defg-hij",
-                    "platform": "google_meet",
-                    "vexa_meeting_id": 1842,
-                    "transcription_paused": False,
                     "has_scratch": False,
-                    "session_ids": ["sess-1"],
-                    "transcription_resumed_at": None,
                 }
             ]
         },
@@ -91,19 +38,4 @@ class PlaylistMetadata(BaseModel):
 
     id: str = Field(alias="_id")
     playlist_id: str
-    in_review: Optional[str] = None
-    in_review_pinned: bool = False
-    meeting_id: Optional[str] = None
-    platform: Optional[str] = None
-    vexa_meeting_id: Optional[int] = None
-    transcription_paused: bool = False
     has_scratch: bool = False
-    session_ids: list[str] = Field(
-        default_factory=list,
-        description="Session IDs this playlist is linked to",
-    )
-    transcription_resumed_at: Optional[datetime] = Field(
-        default=None,
-        description="Timestamp when transcription was last resumed. "
-        "Segments with start time before this are discarded.",
-    )

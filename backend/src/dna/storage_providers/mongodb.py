@@ -23,6 +23,7 @@ from dna.models.qc_check import (
     NoteQCCheckCreate,
     NoteQCCheckUpdate,
 )
+from dna.models.session import Session
 from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
 from dna.models.user_settings import UserSettings, UserSettingsUpdate
 from dna.storage_providers.storage_provider_base import StorageProviderBase
@@ -63,9 +64,24 @@ class MongoDBStorageProvider(StorageProviderBase):
             unique=True,
             name="project_glossary_by_project",
         )
-        await self.playlist_metadata_collection.create_index(
-            [("session_ids", 1)],
-            name="playlist_metadata_by_session",
+        await self.sessions_collection.create_index(
+            [("project_id", 1)],
+            name="sessions_by_project",
+        )
+        await self.sessions_collection.create_index(
+            [("external_id", 1)],
+            name="sessions_by_external_id",
+            sparse=True,
+        )
+        await self.sessions_collection.create_index(
+            [("meeting_id", 1)],
+            name="sessions_by_meeting_id",
+            unique=True,
+            partialFilterExpression={"meeting_id": {"$type": "string"}},
+        )
+        await self.sessions_collection.create_index(
+            [("playlist_ids", 1)],
+            name="sessions_by_playlist",
         )
         self._indexes_ensured = True
 
@@ -89,8 +105,17 @@ class MongoDBStorageProvider(StorageProviderBase):
         return self.db.playlist_metadata
 
     @property
+    def sessions_collection(self) -> Any:
+        return self.db.sessions
+
+    @property
     def segments_collection(self) -> Any:
         return self.db.segments
+
+    def _doc_to_session(self, doc: dict[str, Any]) -> Session:
+        doc = dict(doc)
+        doc["_id"] = str(doc["_id"])
+        return Session(**doc)
 
     @property
     def user_settings_collection(self) -> Any:
@@ -246,45 +271,15 @@ class MongoDBStorageProvider(StorageProviderBase):
             return PlaylistMetadata(**doc)
         return None
 
-    async def get_playlist_metadata_by_meeting_id(
-        self, meeting_id: str
-    ) -> Optional[PlaylistMetadata]:
-        query = {"meeting_id": meeting_id}
-        doc = await self.playlist_metadata_collection.find_one(query)
-        if doc:
-            doc["_id"] = str(doc["_id"])
-            return PlaylistMetadata(**doc)
-        return None
-
     async def upsert_playlist_metadata(
         self, playlist_id: str, data: PlaylistMetadataUpdate
     ) -> PlaylistMetadata:
         query = {"playlist_id": playlist_id}
-        update_fields = {
-            k: v
-            for k, v in data.model_dump().items()
-            if v is not None and k not in ("clear_resumed_at", "clear_in_review")
-        }
-        if data.clear_in_review:
-            update_fields["in_review"] = None
-            update_fields["in_review_pinned"] = False
-
-        unset_fields: dict[str, Any] = {}
-
-        if data.clear_resumed_at:
-            unset_fields["transcription_resumed_at"] = ""
-        elif data.transcription_paused is False:
-            existing = await self.playlist_metadata_collection.find_one(query)
-            if existing and existing.get("transcription_paused", False):
-                update_fields["transcription_resumed_at"] = datetime.now(timezone.utc)
-
+        update_fields = {k: v for k, v in data.model_dump().items() if v is not None}
         update: dict[str, Any] = {
             "$set": update_fields,
             "$setOnInsert": {"playlist_id": playlist_id},
         }
-        if unset_fields:
-            update["$unset"] = unset_fields
-
         result = await self.playlist_metadata_collection.find_one_and_update(
             query, update, upsert=True, return_document=ReturnDocument.AFTER
         )
@@ -296,18 +291,104 @@ class MongoDBStorageProvider(StorageProviderBase):
         result = await self.playlist_metadata_collection.delete_one(query)
         return result.deleted_count > 0
 
-    async def get_playlist_metadata_by_session(
-        self, session_id: str
-    ) -> list[PlaylistMetadata]:
-        """Return playlist metadata linked to a session, oldest first."""
-        cursor = self.playlist_metadata_collection.find(
-            {"session_ids": session_id}
-        ).sort("_id", 1)
+    async def create_session(self, data: dict[str, Any]) -> Session:
+        now = datetime.now(timezone.utc)
+        doc = {
+            "external_id": data.get("external_id"),
+            "project_id": data["project_id"],
+            "name": data.get("name"),
+            "playlist_ids": list(data.get("playlist_ids") or []),
+            "in_review_playlist_id": data.get("in_review_playlist_id"),
+            "in_review_version_id": data.get("in_review_version_id"),
+            "in_review_pinned": bool(data.get("in_review_pinned", False)),
+            "meeting_id": data.get("meeting_id"),
+            "platform": data.get("platform"),
+            "vexa_meeting_id": data.get("vexa_meeting_id"),
+            "transcription_paused": bool(data.get("transcription_paused", False)),
+            "transcription_resumed_at": data.get("transcription_resumed_at"),
+            "created_at": data.get("created_at") or now,
+            "updated_at": data.get("updated_at") or now,
+        }
+        result = await self.sessions_collection.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return self._doc_to_session(doc)
+
+    async def get_session(self, session_id: str) -> Optional[Session]:
+        if not ObjectId.is_valid(session_id):
+            return None
+        doc = await self.sessions_collection.find_one({"_id": ObjectId(session_id)})
+        if doc is None:
+            return None
+        return self._doc_to_session(doc)
+
+    async def get_sessions_for_project(self, project_id: str) -> list[Session]:
+        cursor = self.sessions_collection.find({"project_id": project_id}).sort(
+            "_id", 1
+        )
         results = []
         async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
-            results.append(PlaylistMetadata(**doc))
+            results.append(self._doc_to_session(doc))
         return results
+
+    async def get_session_by_external_id(self, external_id: str) -> Optional[Session]:
+        doc = await self.sessions_collection.find_one({"external_id": external_id})
+        if doc is None:
+            return None
+        return self._doc_to_session(doc)
+
+    async def get_session_by_meeting_id(self, meeting_id: str) -> Optional[Session]:
+        doc = await self.sessions_collection.find_one({"meeting_id": meeting_id})
+        if doc is None:
+            return None
+        return self._doc_to_session(doc)
+
+    async def get_implicit_session_for_playlist(
+        self, project_id: str, playlist_id: str
+    ) -> Optional[Session]:
+        doc = await self.sessions_collection.find_one(
+            {
+                "project_id": project_id,
+                "external_id": None,
+                "playlist_ids": [playlist_id],
+            }
+        )
+        if doc is None:
+            return None
+        return self._doc_to_session(doc)
+
+    async def get_sessions_containing_playlist(self, playlist_id: str) -> list[Session]:
+        cursor = self.sessions_collection.find({"playlist_ids": playlist_id}).sort(
+            "_id", 1
+        )
+        results = []
+        async for doc in cursor:
+            results.append(self._doc_to_session(doc))
+        return results
+
+    async def update_session(
+        self,
+        session_id: str,
+        update_fields: dict[str, Any],
+        unset_fields: Optional[dict[str, Any]] = None,
+    ) -> Optional[Session]:
+        if not ObjectId.is_valid(session_id):
+            return None
+        update: dict[str, Any] = {
+            "$set": {
+                **update_fields,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        }
+        if unset_fields:
+            update["$unset"] = unset_fields
+        doc = await self.sessions_collection.find_one_and_update(
+            {"_id": ObjectId(session_id)},
+            update,
+            return_document=ReturnDocument.AFTER,
+        )
+        if doc is None:
+            return None
+        return self._doc_to_session(doc)
 
     async def upsert_segment(
         self,

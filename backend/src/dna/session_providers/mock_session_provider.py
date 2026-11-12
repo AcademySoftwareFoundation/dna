@@ -4,21 +4,21 @@ from datetime import datetime, timezone
 from itertools import count
 from typing import Optional
 
-from dna.models.session import Session
+from dna.models.session import ExternalSession
 from dna.session_providers.session_provider_base import SessionProviderBase
 
 _SAMPLE_NAMES = ("Morning dailies", "Afternoon review")
 
 
 class MockSessionProvider(SessionProviderBase):
-    """Session provider that keeps sessions in memory.
+    """Session provider that keeps external catalog entries in memory.
 
     The first time a project's sessions are listed, two sample sessions are
     created for that project. ``create_session`` appends to the same store.
     """
 
     def __init__(self) -> None:
-        self._sessions: dict[str, Session] = {}
+        self._sessions: dict[str, ExternalSession] = {}
         self._seeded_projects: set[str] = set()
         self._ids = count(1)
 
@@ -32,7 +32,7 @@ class MockSessionProvider(SessionProviderBase):
         now = datetime.now(timezone.utc)
         for name in _SAMPLE_NAMES:
             session_id = self._new_id()
-            self._sessions[session_id] = Session(
+            self._sessions[session_id] = ExternalSession(
                 id=session_id,
                 name=name,
                 project_id=project_id,
@@ -40,7 +40,7 @@ class MockSessionProvider(SessionProviderBase):
                 updated_at=now,
             )
 
-    def get_sessions_for_project(self, project_id: str) -> list[Session]:
+    def get_sessions_for_project(self, project_id: str) -> list[ExternalSession]:
         """Return this project's sessions, seeding samples on first list."""
         self._seed(project_id)
         return [
@@ -49,14 +49,14 @@ class MockSessionProvider(SessionProviderBase):
             if session.project_id == project_id
         ]
 
-    def get_session(self, session_id: str) -> Optional[Session]:
+    def get_session(self, session_id: str) -> Optional[ExternalSession]:
         """Return one session, or None when it does not exist."""
         return self._sessions.get(session_id)
 
-    def create_session(self, project_id: str, name: str) -> Session:
+    def create_session(self, project_id: str, name: str) -> ExternalSession:
         """Append a session for the project."""
         now = datetime.now(timezone.utc)
-        session = Session(
+        session = ExternalSession(
             id=self._new_id(),
             name=name,
             project_id=project_id,

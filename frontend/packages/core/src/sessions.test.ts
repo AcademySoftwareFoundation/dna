@@ -1,111 +1,75 @@
 import {
-  addSessionId,
-  findInReviewHolder,
-  findInReviewHolders,
+  addPlaylistId,
   preferredPlaylistVersion,
-  removeSessionId,
+  removePlaylistId,
+  sessionInReviewForPlaylist,
 } from './sessions';
 
-describe('addSessionId', () => {
-  it('appends a session id to an empty list', () => {
-    expect(addSessionId(undefined, 'sess-1')).toEqual(['sess-1']);
-    expect(addSessionId(null, 'sess-1')).toEqual(['sess-1']);
-    expect(addSessionId([], 'sess-1')).toEqual(['sess-1']);
+describe('addPlaylistId', () => {
+  it('appends a playlist id to an empty list', () => {
+    expect(addPlaylistId(undefined, '45')).toEqual(['45']);
+    expect(addPlaylistId(null, '45')).toEqual(['45']);
+    expect(addPlaylistId([], '45')).toEqual(['45']);
   });
 
   it('keeps an id that is already linked', () => {
-    expect(addSessionId(['sess-1', 'sess-2'], 'sess-1')).toEqual([
-      'sess-1',
-      'sess-2',
-    ]);
+    expect(addPlaylistId(['45', '46'], '45')).toEqual(['45', '46']);
   });
 
   it('does not mutate the original list', () => {
-    const original = ['sess-1'];
-    addSessionId(original, 'sess-2');
-    expect(original).toEqual(['sess-1']);
+    const original = ['45'];
+    addPlaylistId(original, '46');
+    expect(original).toEqual(['45']);
   });
 });
 
-describe('removeSessionId', () => {
-  it('drops the session id and keeps the others', () => {
-    expect(removeSessionId(['sess-1', 'sess-2'], 'sess-1')).toEqual(['sess-2']);
+describe('removePlaylistId', () => {
+  it('drops the playlist id and keeps the others', () => {
+    expect(removePlaylistId(['45', '46'], '45')).toEqual(['46']);
   });
 
   it('returns an empty list when the id is missing', () => {
-    expect(removeSessionId(undefined, 'sess-1')).toEqual([]);
-    expect(removeSessionId(['sess-2'], 'sess-1')).toEqual(['sess-2']);
+    expect(removePlaylistId(undefined, '45')).toEqual([]);
+    expect(removePlaylistId(['46'], '45')).toEqual(['46']);
   });
 
   it('does not mutate the original list', () => {
-    const original = ['sess-1', 'sess-2'];
-    removeSessionId(original, 'sess-1');
-    expect(original).toEqual(['sess-1', 'sess-2']);
+    const original = ['45', '46'];
+    removePlaylistId(original, '45');
+    expect(original).toEqual(['45', '46']);
   });
 });
 
-describe('findInReviewHolder', () => {
-  const playlists = [
-    { playlist_id: '45', in_review: null, in_review_pinned: false },
-    { playlist_id: '46', in_review: '200', in_review_pinned: true },
-    { playlist_id: '47', in_review: '300', in_review_pinned: false },
-  ];
+describe('sessionInReviewForPlaylist', () => {
+  const session = {
+    in_review_playlist_id: '46',
+    in_review_version_id: '200',
+    in_review_pinned: true,
+  };
 
-  it('returns the other playlist that holds in-review', () => {
-    expect(findInReviewHolder(playlists, '45')).toEqual({
-      playlist_id: '46',
-      in_review: '200',
-      in_review_pinned: true,
+  it('returns the session in-review when it targets the playlist', () => {
+    expect(sessionInReviewForPlaylist(session, '46')).toEqual({
+      versionId: '200',
+      pinned: true,
     });
   });
 
-  it('skips the excluded playlist even when it is in review', () => {
-    expect(findInReviewHolder(playlists, '46')).toEqual({
-      playlist_id: '47',
-      in_review: '300',
-      in_review_pinned: false,
+  it('returns null when the session targets a different playlist', () => {
+    expect(sessionInReviewForPlaylist(session, '45')).toEqual({
+      versionId: null,
+      pinned: false,
     });
   });
 
-  it('returns null when nobody else is in review', () => {
-    expect(
-      findInReviewHolder(
-        [{ playlist_id: '45', in_review: '200', in_review_pinned: false }],
-        '45'
-      )
-    ).toBeNull();
-  });
-});
-
-describe('findInReviewHolders', () => {
-  const playlists = [
-    { playlist_id: '45', in_review: null, in_review_pinned: false },
-    { playlist_id: '46', in_review: '200', in_review_pinned: true },
-    { playlist_id: '47', in_review: '300', in_review_pinned: false },
-  ];
-
-  it('returns every other playlist that holds in-review', () => {
-    expect(findInReviewHolders(playlists, '45')).toEqual([
-      {
-        playlist_id: '46',
-        in_review: '200',
-        in_review_pinned: true,
-      },
-      {
-        playlist_id: '47',
-        in_review: '300',
-        in_review_pinned: false,
-      },
-    ]);
-  });
-
-  it('returns an empty list when nobody else is in review', () => {
-    expect(
-      findInReviewHolders(
-        [{ playlist_id: '45', in_review: '200', in_review_pinned: false }],
-        '45'
-      )
-    ).toEqual([]);
+  it('returns null when session or playlist is missing', () => {
+    expect(sessionInReviewForPlaylist(null, '46')).toEqual({
+      versionId: null,
+      pinned: false,
+    });
+    expect(sessionInReviewForPlaylist(session, null)).toEqual({
+      versionId: null,
+      pinned: false,
+    });
   });
 });
 

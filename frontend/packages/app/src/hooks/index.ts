@@ -14,20 +14,20 @@ export type {
 export {
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
-  useSetInReview,
-  useInReviewChangedEvents,
 } from './usePlaylistMetadata';
 
 export {
   useGetSessionsForProject,
   useCreateSession,
+  useSession,
+  useEnsureSessionForPlaylist,
   useSessionPlaylists,
   useAddPlaylistToSession,
   useRemovePlaylistFromSession,
 } from './useSessions';
 
 export {
-  useSessionPlaylistMetadata,
+  useSessionInReviewEvents,
   useSessionSetInReview,
 } from './useSessionInReview';
 

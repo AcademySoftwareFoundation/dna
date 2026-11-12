@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  addSessionId,
-  removeSessionId,
-  type PlaylistMetadata,
+  addPlaylistId,
+  removePlaylistId,
   type Session,
   type SessionPlaylists,
 } from '@dna/core';
@@ -28,6 +27,33 @@ export function useCreateSession(projectId: string | null) {
   });
 }
 
+export function useSession(sessionId: string | null) {
+  return useQuery<Session, Error>({
+    queryKey: ['session', sessionId],
+    queryFn: () => apiHandler.getSession({ sessionId: sessionId! }),
+    enabled: !!sessionId,
+  });
+}
+
+export function useEnsureSessionForPlaylist() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    Session,
+    Error,
+    { projectId: string; playlistId: string }
+  >({
+    mutationFn: ({ projectId, playlistId }) =>
+      apiHandler.ensureSessionForPlaylist({ projectId, playlistId }),
+    onSuccess: (session) => {
+      queryClient.setQueryData(['session', session.id], session);
+      void queryClient.invalidateQueries({
+        queryKey: ['sessions', session.project_id],
+      });
+    },
+  });
+}
+
 export function useSessionPlaylists(sessionId: string | null) {
   return useQuery<SessionPlaylists, Error>({
     queryKey: ['sessionPlaylists', sessionId],
@@ -36,44 +62,40 @@ export function useSessionPlaylists(sessionId: string | null) {
   });
 }
 
+function cacheSession(queryClient: ReturnType<typeof useQueryClient>, session: Session) {
+  queryClient.setQueryData(['session', session.id], session);
+  queryClient.setQueryData<SessionPlaylists>(
+    ['sessionPlaylists', session.id],
+    {
+      session_id: session.id,
+      playlist_ids: session.playlist_ids ?? [],
+    }
+  );
+}
+
 export function useAddPlaylistToSession() {
   const queryClient = useQueryClient();
 
   return useMutation<
-    PlaylistMetadata,
+    Session,
     Error,
     { sessionId: string; playlistId: string }
   >({
     mutationFn: async ({ sessionId, playlistId }) => {
-      const existing = await apiHandler.getPlaylistMetadata({ playlistId });
-      const sessionIds = addSessionId(existing?.session_ids, sessionId);
-      if (existing?.session_ids.includes(sessionId)) {
+      const existing = await apiHandler.getSession({ sessionId });
+      const playlistIds = addPlaylistId(existing.playlist_ids, playlistId);
+      if (existing.playlist_ids?.includes(playlistId)) {
         return existing;
       }
-      return apiHandler.upsertPlaylistMetadata({
-        playlistId,
-        data: { session_ids: sessionIds },
+      return apiHandler.updateSessionPlaylists({
+        sessionId,
+        playlistIds,
       });
     },
-    onSuccess: (saved, { sessionId, playlistId }) => {
-      queryClient.setQueryData(['playlistMetadata', playlistId], saved);
-      queryClient.setQueryData<SessionPlaylists>(
-        ['sessionPlaylists', sessionId],
-        (current) => {
-          const playlistIds = current?.playlist_ids ?? [];
-          if (playlistIds.includes(playlistId)) {
-            return (
-              current ?? { session_id: sessionId, playlist_ids: playlistIds }
-            );
-          }
-          return {
-            session_id: sessionId,
-            playlist_ids: [...playlistIds, playlistId],
-          };
-        }
-      );
+    onSuccess: (session) => {
+      cacheSession(queryClient, session);
       void queryClient.invalidateQueries({
-        queryKey: ['sessionPlaylists', sessionId],
+        queryKey: ['sessions', session.project_id],
       });
     },
   });
@@ -83,37 +105,24 @@ export function useRemovePlaylistFromSession() {
   const queryClient = useQueryClient();
 
   return useMutation<
-    PlaylistMetadata | null,
+    Session,
     Error,
     { sessionId: string; playlistId: string }
   >({
     mutationFn: async ({ sessionId, playlistId }) => {
-      const existing = await apiHandler.getPlaylistMetadata({ playlistId });
-      if (!existing?.session_ids.includes(sessionId)) {
+      const existing = await apiHandler.getSession({ sessionId });
+      if (!existing.playlist_ids?.includes(playlistId)) {
         return existing;
       }
-      return apiHandler.upsertPlaylistMetadata({
-        playlistId,
-        data: {
-          session_ids: removeSessionId(existing.session_ids, sessionId),
-        },
+      return apiHandler.updateSessionPlaylists({
+        sessionId,
+        playlistIds: removePlaylistId(existing.playlist_ids, playlistId),
       });
     },
-    onSuccess: (saved, { sessionId, playlistId }) => {
-      if (saved) {
-        queryClient.setQueryData(['playlistMetadata', playlistId], saved);
-      }
-      queryClient.setQueryData<SessionPlaylists>(
-        ['sessionPlaylists', sessionId],
-        (current) => ({
-          session_id: sessionId,
-          playlist_ids: (current?.playlist_ids ?? []).filter(
-            (id) => id !== playlistId
-          ),
-        })
-      );
+    onSuccess: (session) => {
+      cacheSession(queryClient, session);
       void queryClient.invalidateQueries({
-        queryKey: ['sessionPlaylists', sessionId],
+        queryKey: ['sessions', session.project_id],
       });
     },
   });

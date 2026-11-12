@@ -9,7 +9,7 @@ interface LayoutProps {
   playlistTabs?: ReactNode;
   onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
-  sessionPlaylistIds?: readonly string[] | null;
+  sessionId?: string | null;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
@@ -55,7 +55,7 @@ export function Layout({
   playlistTabs,
   onPlaylistChange,
   playlistId,
-  sessionPlaylistIds,
+  sessionId,
   projectId,
   selectedVersionId,
   onVersionSelect,
@@ -93,7 +93,7 @@ export function Layout({
           onCollapsedChange={setSidebarCollapsed}
           onPlaylistChange={onPlaylistChange}
           playlistId={playlistId}
-          sessionPlaylistIds={sessionPlaylistIds}
+          sessionId={sessionId}
           projectId={projectId}
           selectedVersionId={selectedVersionId}
           onVersionSelect={onVersionSelect}

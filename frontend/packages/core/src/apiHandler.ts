@@ -57,11 +57,15 @@ import {
   AddVersionToPlaylistParams,
   CreatePlaylistParams,
   CreateSessionParams,
+  EnsureSessionForPlaylistParams,
   GetSessionParams,
   GetSessionPlaylistsParams,
   GetSessionsForProjectParams,
   Session,
   SessionPlaylists,
+  UpdateSessionInReviewParams,
+  UpdateSessionPlaylistsParams,
+  UpdateSessionTranscriptionParams,
   NoteQCCheck,
   NoteQCCheckCreate,
   NoteQCCheckUpdate,
@@ -90,6 +94,15 @@ function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
   return {
     ...raw,
     _id: raw._id || raw.id || '',
+  };
+}
+
+/** DNA sessions serialize Mongo `_id`; map to `id` for app code. */
+function normalizeSession(raw: Session & { _id?: string }): Session {
+  return {
+    ...raw,
+    id: raw.id || raw._id || '',
+    playlist_ids: raw.playlist_ids ?? [],
   };
 }
 
@@ -205,30 +218,78 @@ class ApiHandler {
   async getSessionsForProject(
     params: GetSessionsForProjectParams
   ): Promise<Session[]> {
-    return this.get<Session[]>(
+    const rows = await this.get<Array<Session & { _id?: string }>>(
       `/projects/${encodeURIComponent(params.projectId)}/sessions`
     );
+    return rows.map(normalizeSession);
   }
 
   async createSession(params: CreateSessionParams): Promise<Session> {
-    return this.post<Session>(
+    const row = await this.post<Session & { _id?: string }>(
       `/projects/${encodeURIComponent(params.projectId)}/sessions`,
       { name: params.name }
     );
+    return normalizeSession(row);
   }
 
   async getSession(params: GetSessionParams): Promise<Session> {
-    return this.get<Session>(
+    const row = await this.get<Session & { _id?: string }>(
       `/sessions/${encodeURIComponent(params.sessionId)}`
     );
+    return normalizeSession(row);
   }
 
   async getSessionPlaylists(
     params: GetSessionPlaylistsParams
   ): Promise<SessionPlaylists> {
-    return this.get<SessionPlaylists>(
-      `/sessions/${encodeURIComponent(params.sessionId)}/playlists`
+    const session = await this.getSession(params);
+    return {
+      session_id: session.id,
+      playlist_ids: session.playlist_ids ?? [],
+    };
+  }
+
+  async ensureSessionForPlaylist(
+    params: EnsureSessionForPlaylistParams
+  ): Promise<Session> {
+    const row = await this.post<Session & { _id?: string }>(
+      '/sessions/ensure-for-playlist',
+      {
+        project_id: params.projectId,
+        playlist_id: params.playlistId,
+      }
     );
+    return normalizeSession(row);
+  }
+
+  async updateSessionPlaylists(
+    params: UpdateSessionPlaylistsParams
+  ): Promise<Session> {
+    const row = await this.put<Session & { _id?: string }>(
+      `/sessions/${encodeURIComponent(params.sessionId)}/playlists`,
+      { playlist_ids: params.playlistIds }
+    );
+    return normalizeSession(row);
+  }
+
+  async updateSessionInReview(
+    params: UpdateSessionInReviewParams
+  ): Promise<Session> {
+    const row = await this.put<Session & { _id?: string }>(
+      `/sessions/${encodeURIComponent(params.sessionId)}/in-review`,
+      params.data
+    );
+    return normalizeSession(row);
+  }
+
+  async updateSessionTranscription(
+    params: UpdateSessionTranscriptionParams
+  ): Promise<Session> {
+    const row = await this.put<Session & { _id?: string }>(
+      `/sessions/${encodeURIComponent(params.sessionId)}/transcription`,
+      params.data
+    );
+    return normalizeSession(row);
   }
 
   async getVersionsForPlaylist(
@@ -302,18 +363,21 @@ class ApiHandler {
   }
 
   async dispatchBot(params: DispatchBotParams): Promise<BotSession> {
-    return this.post<BotSession>('/transcription/bot', params.request);
+    return this.post<BotSession>(
+      `/sessions/${encodeURIComponent(params.sessionId)}/transcription/bot`,
+      params.request
+    );
   }
 
   async stopBot(params: StopBotParams): Promise<boolean> {
     return this.delete<boolean>(
-      `/transcription/bot/${params.platform}/${encodeURIComponent(params.meetingId)}`
+      `/sessions/${encodeURIComponent(params.sessionId)}/transcription/bot`
     );
   }
 
   async getBotStatus(params: GetBotStatusParams): Promise<BotStatus> {
     return this.get<BotStatus>(
-      `/transcription/bot/${params.platform}/${encodeURIComponent(params.meetingId)}/status`
+      `/sessions/${encodeURIComponent(params.sessionId)}/transcription/bot/status`
     );
   }
 

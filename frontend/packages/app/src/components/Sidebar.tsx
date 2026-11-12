@@ -9,7 +9,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Switch, Tooltip } from '@radix-ui/themes';
-import { SCRATCH_VERSION_ID } from '@dna/core';
+import { SCRATCH_VERSION_ID, sessionInReviewForPlaylist } from '@dna/core';
 import type { Version, Playlist } from '@dna/core';
 import { SplitButton } from './SplitButton';
 import { AddVersionInput } from './AddVersionInput';
@@ -24,7 +24,7 @@ import {
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
   usePlaylistDraftNotes,
-  useSetInReview,
+  useSession,
   useSessionSetInReview,
   useFollowInReview,
 } from '../hooks';
@@ -40,7 +40,7 @@ interface SidebarProps {
   onCollapsedChange: (collapsed: boolean) => void;
   onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
-  sessionPlaylistIds?: readonly string[] | null;
+  sessionId?: string | null;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
@@ -252,7 +252,7 @@ export function Sidebar({
   onCollapsedChange,
   onPlaylistChange,
   playlistId,
-  sessionPlaylistIds = null,
+  sessionId = null,
   projectId,
   selectedVersionId,
   onVersionSelect,
@@ -288,18 +288,15 @@ export function Sidebar({
 
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
   const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
+  const { data: dnaSession } = useSession(sessionId);
 
-  const inReviewVersionId = playlistMetadata?.in_review;
-  const inReviewPinned = !!playlistMetadata?.in_review_pinned;
-  const inSession = !!sessionPlaylistIds && sessionPlaylistIds.length > 0;
-  const singleReview = useSetInReview(inSession ? null : playlistId);
-  const sessionReview = useSessionSetInReview(
-    inSession ? playlistId : null,
-    inSession ? sessionPlaylistIds : null
+  const review = sessionInReviewForPlaylist(dnaSession, playlistId);
+  const inReviewVersionId = review.versionId;
+  const inReviewPinned = review.pinned;
+  const { setInReview, setInReviewPinned } = useSessionSetInReview(
+    sessionId,
+    playlistId
   );
-  const { setInReview, setInReviewPinned } = inSession
-    ? sessionReview
-    : singleReview;
   const noteFocus = useNoteFocus();
   const { follow, setFollow } = useFollowInReview({
     enabled: inReviewEnabled,
@@ -589,7 +586,13 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedFooter>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
+          {transcriptionEnabled && (
+            <TranscriptionMenu
+              sessionId={sessionId}
+              playlistId={playlistId}
+              collapsed
+            />
+          )}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SquareButton variant="neutral" onClick={toggleSettings}>
               <Settings />
@@ -605,7 +608,9 @@ export function Sidebar({
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
+          {transcriptionEnabled && (
+            <TranscriptionMenu sessionId={sessionId} playlistId={playlistId} />
+          )}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />

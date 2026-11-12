@@ -3,7 +3,7 @@ export type EventType =
   | 'bot.status_changed'
   | 'transcription.completed'
   | 'transcription.error'
-  | 'playlist.in_review_changed';
+  | 'session.in_review_changed';
 
 export interface DNAEvent<T = unknown> {
   type: EventType;
@@ -30,16 +30,18 @@ export interface TranscriptEventPayload {
 export interface BotStatusEventPayload {
   platform: string;
   meeting_id: string;
+  session_id?: string;
   playlist_id?: string;
   status: string;
   message?: string;
   recovered?: boolean;
 }
 
-export interface InReviewChangedEventPayload {
-  playlist_id: string;
-  in_review: string | null;
-  in_review_pinned?: boolean;
+export interface SessionInReviewChangedEventPayload {
+  session_id: string;
+  in_review_playlist_id: string | null;
+  in_review_version_id: string | null;
+  in_review_pinned: boolean;
 }
 
 export type EventCallback<T = unknown> = (event: DNAEvent<T>) => void;

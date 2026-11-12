@@ -2,24 +2,26 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import type { Session } from '@dna/core';
 import {
   useAddPlaylistToSession,
   useGetSessionsForProject,
   useRemovePlaylistFromSession,
 } from './useSessions';
 
-const { getSessionsForProject, getPlaylistMetadata, upsertPlaylistMetadata } =
-  vi.hoisted(() => ({
+const { getSessionsForProject, getSession, updateSessionPlaylists } = vi.hoisted(
+  () => ({
     getSessionsForProject: vi.fn(),
-    getPlaylistMetadata: vi.fn(),
-    upsertPlaylistMetadata: vi.fn(),
-  }));
+    getSession: vi.fn(),
+    updateSessionPlaylists: vi.fn(),
+  })
+);
 
 vi.mock('../api', () => ({
   apiHandler: {
     getSessionsForProject,
-    getPlaylistMetadata,
-    upsertPlaylistMetadata,
+    getSession,
+    updateSessionPlaylists,
   },
 }));
 
@@ -31,16 +33,24 @@ function wrapperFor(queryClient: QueryClient) {
   };
 }
 
+function session(partial: Partial<Session> & Pick<Session, 'id'>): Session {
+  return {
+    project_id: '124',
+    playlist_ids: [],
+    ...partial,
+  };
+}
+
 describe('useSessions', () => {
   beforeEach(() => {
     getSessionsForProject.mockReset();
-    getPlaylistMetadata.mockReset();
-    upsertPlaylistMetadata.mockReset();
+    getSession.mockReset();
+    updateSessionPlaylists.mockReset();
   });
 
   it('loads sessions for the project', async () => {
     getSessionsForProject.mockResolvedValue([
-      { id: 'sess-1', name: 'Morning dailies', project_id: '124' },
+      session({ id: 'sess-1', name: 'Morning dailies' }),
     ]);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -55,30 +65,11 @@ describe('useSessions', () => {
     expect(result.current.data?.[0].name).toBe('Morning dailies');
   });
 
-  it('links a playlist by merging session ids', async () => {
-    getPlaylistMetadata.mockResolvedValue({
-      _id: 'a',
-      playlist_id: '45',
-      in_review: null,
-      in_review_pinned: false,
-      meeting_id: null,
-      platform: null,
-      transcription_paused: false,
-      has_scratch: false,
-      session_ids: ['sess-1'],
-    });
-    upsertPlaylistMetadata.mockImplementation(
-      async ({ data }: { data: { session_ids?: string[] } }) => ({
-      _id: 'a',
-      playlist_id: '45',
-      in_review: null,
-      in_review_pinned: false,
-      meeting_id: null,
-      platform: null,
-      transcription_paused: false,
-      has_scratch: false,
-      session_ids: data.session_ids,
-    }));
+  it('links a playlist by updating session playlist_ids', async () => {
+    getSession.mockResolvedValue(session({ id: 'sess-2', playlist_ids: ['44'] }));
+    updateSessionPlaylists.mockResolvedValue(
+      session({ id: 'sess-2', playlist_ids: ['44', '45'] })
+    );
     const queryClient = new QueryClient({
       defaultOptions: { mutations: { retry: false } },
     });
@@ -89,28 +80,24 @@ describe('useSessions', () => {
 
     await result.current.mutateAsync({ sessionId: 'sess-2', playlistId: '45' });
 
-    expect(upsertPlaylistMetadata).toHaveBeenCalledWith({
-      playlistId: '45',
-      data: { session_ids: ['sess-1', 'sess-2'] },
+    expect(getSession).toHaveBeenCalledWith({ sessionId: 'sess-2' });
+    expect(updateSessionPlaylists).toHaveBeenCalledWith({
+      sessionId: 'sess-2',
+      playlistIds: ['44', '45'],
     });
     expect(queryClient.getQueryData(['sessionPlaylists', 'sess-2'])).toEqual({
       session_id: 'sess-2',
-      playlist_ids: ['45'],
+      playlist_ids: ['44', '45'],
     });
+    expect(queryClient.getQueryData(['session', 'sess-2'])).toEqual(
+      session({ id: 'sess-2', playlist_ids: ['44', '45'] })
+    );
   });
 
   it('does not write when the playlist is already in the session', async () => {
-    getPlaylistMetadata.mockResolvedValue({
-      _id: 'a',
-      playlist_id: '45',
-      in_review: null,
-      in_review_pinned: false,
-      meeting_id: null,
-      platform: null,
-      transcription_paused: false,
-      has_scratch: false,
-      session_ids: ['sess-1'],
-    });
+    getSession.mockResolvedValue(
+      session({ id: 'sess-1', playlist_ids: ['45'] })
+    );
     const queryClient = new QueryClient({
       defaultOptions: { mutations: { retry: false } },
     });
@@ -121,33 +108,15 @@ describe('useSessions', () => {
 
     await result.current.mutateAsync({ sessionId: 'sess-1', playlistId: '45' });
 
-    expect(upsertPlaylistMetadata).not.toHaveBeenCalled();
+    expect(updateSessionPlaylists).not.toHaveBeenCalled();
   });
 
-  it('unlinks a playlist by removing the session id', async () => {
-    getPlaylistMetadata.mockResolvedValue({
-      _id: 'a',
-      playlist_id: '45',
-      in_review: null,
-      in_review_pinned: false,
-      meeting_id: null,
-      platform: null,
-      transcription_paused: false,
-      has_scratch: false,
-      session_ids: ['sess-1', 'sess-2'],
-    });
-    upsertPlaylistMetadata.mockImplementation(
-      async ({ data }: { data: { session_ids?: string[] } }) => ({
-        _id: 'a',
-        playlist_id: '45',
-        in_review: null,
-        in_review_pinned: false,
-        meeting_id: null,
-        platform: null,
-        transcription_paused: false,
-        has_scratch: false,
-        session_ids: data.session_ids,
-      })
+  it('unlinks a playlist from the session', async () => {
+    getSession.mockResolvedValue(
+      session({ id: 'sess-1', playlist_ids: ['45', '46'] })
+    );
+    updateSessionPlaylists.mockResolvedValue(
+      session({ id: 'sess-1', playlist_ids: ['46'] })
     );
     const queryClient = new QueryClient({
       defaultOptions: { mutations: { retry: false } },
@@ -163,9 +132,9 @@ describe('useSessions', () => {
 
     await result.current.mutateAsync({ sessionId: 'sess-1', playlistId: '45' });
 
-    expect(upsertPlaylistMetadata).toHaveBeenCalledWith({
-      playlistId: '45',
-      data: { session_ids: ['sess-2'] },
+    expect(updateSessionPlaylists).toHaveBeenCalledWith({
+      sessionId: 'sess-1',
+      playlistIds: ['46'],
     });
     expect(queryClient.getQueryData(['sessionPlaylists', 'sess-1'])).toEqual({
       session_id: 'sess-1',
@@ -174,17 +143,9 @@ describe('useSessions', () => {
   });
 
   it('does not write when the playlist is not in the session', async () => {
-    getPlaylistMetadata.mockResolvedValue({
-      _id: 'a',
-      playlist_id: '45',
-      in_review: null,
-      in_review_pinned: false,
-      meeting_id: null,
-      platform: null,
-      transcription_paused: false,
-      has_scratch: false,
-      session_ids: ['sess-2'],
-    });
+    getSession.mockResolvedValue(
+      session({ id: 'sess-1', playlist_ids: ['46'] })
+    );
     const queryClient = new QueryClient({
       defaultOptions: { mutations: { retry: false } },
     });
@@ -195,6 +156,6 @@ describe('useSessions', () => {
 
     await result.current.mutateAsync({ sessionId: 'sess-1', playlistId: '45' });
 
-    expect(upsertPlaylistMetadata).not.toHaveBeenCalled();
+    expect(updateSessionPlaylists).not.toHaveBeenCalled();
   });
 });

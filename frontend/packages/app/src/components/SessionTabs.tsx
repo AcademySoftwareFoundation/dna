@@ -9,7 +9,7 @@ import { useNomenclature } from '../nomenclature';
 import {
   useAddPlaylistToSession,
   useRemovePlaylistFromSession,
-  useSessionPlaylistMetadata,
+  useSession,
   useSessionPlaylists,
 } from '../hooks';
 import { AddPlaylistToSessionPopover } from './AddPlaylistToSessionPopover';
@@ -112,6 +112,7 @@ export function SessionTabs({
 }: SessionTabsProps) {
   const t = useNomenclature();
   const { data: linked, isPending, isError } = useSessionPlaylists(sessionId);
+  const { data: dnaSession } = useSession(sessionId);
   const { data: playlists = [] } = useGetPlaylistsForProject(projectId);
   const addPlaylist = useAddPlaylistToSession();
   const removePlaylist = useRemovePlaylistFromSession();
@@ -130,17 +131,9 @@ export function SessionTabs({
       : isError
         ? [activePlaylist.id]
         : [];
-  const metadataQueries = useSessionPlaylistMetadata(tabIds);
-  const inReviewIds = new Set(
-    metadataQueries.flatMap((query) =>
-      query.data?.in_review ? [query.data.playlist_id] : []
-    )
-  );
-  const pinnedIds = new Set(
-    metadataQueries.flatMap((query) =>
-      query.data?.in_review_pinned ? [query.data.playlist_id] : []
-    )
-  );
+
+  const inReviewPlaylistId = dnaSession?.in_review_playlist_id ?? null;
+  const inReviewPinned = !!dnaSession?.in_review_pinned;
 
   const byId = new Map(playlists.map((playlist) => [playlist.id, playlist]));
   if (!byId.has(activePlaylist.id)) {
@@ -180,43 +173,35 @@ export function SessionTabs({
     return null;
   }
 
+  const visibleIds = tabIds.filter((id) => !hiddenIds.has(id));
+
   return (
     <StyledTabsRoot
       value={activePlaylist.id}
-      onValueChange={(playlistId) => {
-        const playlist = byId.get(playlistId);
+      onValueChange={(id) => {
+        const playlist = byId.get(id);
         if (playlist) onPlaylistChange(playlist);
       }}
     >
-      <StyledTabsList
-        aria-label={`${t.session.singular} ${t.playlist.lowerPlural}`}
-      >
-        {tabIds
-          .filter((playlistId) => !hiddenIds.has(playlistId))
-          .map((playlistId) => {
-            const playlist = byId.get(playlistId);
-            const label = labelFor(playlist, playlistId, t.playlist.singular);
-            return (
-              <TabGroup key={playlistId}>
-                <StyledTabsTrigger value={playlistId}>
-                  {label}
-                  {inReviewIds.has(playlistId) && (
-                    <InReviewDot aria-label="In review" />
-                  )}
-                  {pinnedIds.has(playlistId) && (
-                    <PinnedIcon aria-label="Pinned" />
-                  )}
-                </StyledTabsTrigger>
-                <RemoveButton
-                  type="button"
-                    aria-label={`Remove ${label} from ${t.session.lower}`}
-                  onClick={() => removePlaylistFromSession(playlistId)}
-                >
-                  <RemoveIcon aria-hidden="true" />
-                </RemoveButton>
-              </TabGroup>
-            );
-          })}
+      <StyledTabsList>
+        {visibleIds.map((id) => (
+          <TabGroup key={id}>
+            <StyledTabsTrigger value={id}>
+              {labelFor(byId.get(id), id, t.playlist.singular)}
+              {inReviewPlaylistId === id && <InReviewDot />}
+              {inReviewPlaylistId === id && inReviewPinned && <PinnedIcon />}
+            </StyledTabsTrigger>
+            {visibleIds.length > 1 && (
+              <RemoveButton
+                type="button"
+                aria-label={`Remove ${labelFor(byId.get(id), id, t.playlist.singular)}`}
+                onClick={() => removePlaylistFromSession(id)}
+              >
+                <RemoveIcon />
+              </RemoveButton>
+            )}
+          </TabGroup>
+        ))}
         <AddPlaylistToSessionPopover
           projectId={projectId}
           linkedPlaylistIds={tabIds}

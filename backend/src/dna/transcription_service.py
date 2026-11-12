@@ -33,7 +33,7 @@ class TranscriptionService:
         self.storage_provider = storage_provider
         self.event_publisher = event_publisher
         self._subscribed_meetings: set[str] = set()
-        self._meeting_to_playlist: dict[str, str] = {}
+        self._meeting_to_session: dict[str, str] = {}
 
     async def init_providers(self) -> None:
         """Initialize providers if not already set."""
@@ -84,23 +84,23 @@ class TranscriptionService:
                     )
                     continue
 
-                metadata = (
-                    await self.storage_provider.get_playlist_metadata_by_meeting_id(
-                        native_meeting_id
-                    )
+                dna_session = await self.storage_provider.get_session_by_meeting_id(
+                    native_meeting_id
                 )
-                if metadata is None:
+                if dna_session is None:
                     logger.warning(
-                        "No playlist metadata found for meeting %s, skipping",
+                        "No DNA session found for meeting %s, skipping",
                         native_meeting_id,
                     )
                     continue
 
                 meeting_key = f"{platform}:{native_meeting_id}"
-                self._meeting_to_playlist[meeting_key] = metadata.playlist_id
+                self._meeting_to_session[meeting_key] = dna_session.id
 
                 internal_meeting_id = (
-                    metadata.vexa_meeting_id or bot.get("meeting_id") or bot.get("id")
+                    dna_session.vexa_meeting_id
+                    or bot.get("meeting_id")
+                    or bot.get("id")
                 )
                 if internal_meeting_id is not None:
                     self.transcription_provider.register_meeting_id_mapping(
@@ -108,9 +108,9 @@ class TranscriptionService:
                     )
 
                 logger.info(
-                    "Resubscribing to meeting %s (playlist_id: %s, vexa_id: %s, status: %s)",
+                    "Resubscribing to meeting %s (session_id: %s, vexa_id: %s, status: %s)",
                     meeting_key,
-                    metadata.playlist_id,
+                    dna_session.id,
                     internal_meeting_id,
                     status,
                 )
@@ -130,7 +130,8 @@ class TranscriptionService:
                             {
                                 "platform": platform,
                                 "meeting_id": native_meeting_id,
-                                "playlist_id": metadata.playlist_id,
+                                "session_id": dna_session.id,
+                                "playlist_id": dna_session.in_review_playlist_id,
                                 "status": status,
                                 "recovered": True,
                             },
@@ -155,11 +156,6 @@ class TranscriptionService:
             return
 
         if event_type == "transcript.updated":
-            # The service persists confirmed segments + broadcasts the flat
-            # `{type:"transcript", ...}` shape directly from
-            # `on_transcription_updated`. No need to also emit
-            # TRANSCRIPTION_UPDATED through the publisher — nothing
-            # subscribes to it and frontends only consume the flat envelope.
             await self.on_transcription_updated(payload)
         elif event_type == "bot.status_changed":
             await self.event_publisher.publish(
@@ -181,24 +177,27 @@ class TranscriptionService:
             logger.warning("Unknown Vexa event type: %s", event_type)
 
     async def subscribe_to_meeting(
-        self, platform: str, meeting_id: str, playlist_id: str
+        self,
+        platform: str,
+        meeting_id: str,
+        session_id: str,
     ) -> None:
-        """Subscribe to Vexa updates for a meeting."""
+        """Subscribe to Vexa updates for a meeting bound to a DNA session."""
         if self.transcription_provider is None:
             logger.error("Transcription provider not initialized")
             return
 
         meeting_key = f"{platform}:{meeting_id}"
+        self._meeting_to_session[meeting_key] = session_id
+
         if meeting_key in self._subscribed_meetings:
             logger.info("Already subscribed to meeting: %s", meeting_key)
             return
 
-        self._meeting_to_playlist[meeting_key] = playlist_id
-
         logger.info(
-            "Subscribing to Vexa updates for meeting: %s (playlist_id: %s)",
+            "Subscribing to Vexa updates for meeting: %s (session_id: %s)",
             meeting_key,
-            playlist_id,
+            session_id,
         )
 
         try:
@@ -213,10 +212,8 @@ class TranscriptionService:
             logger.exception("Failed to subscribe to meeting %s: %s", meeting_key, e)
 
     async def on_transcription_updated(self, payload: dict[str, Any]) -> None:
-        """Passthrough: upsert Vexa's confirmed segments by their stable
-        `segment_id`, then forward the raw `{type:"transcript", confirmed,
-        pending, speaker, playlist_id, version_id, ts}` message to DNA WS
-        clients — the frontend TranscriptManager consumes it directly.
+        """Upsert confirmed segments for the session's in-review pair, then
+        broadcast the flat transcript envelope to DNA WS clients.
         """
         if self.storage_provider is None or self.event_publisher is None:
             logger.error("Providers not initialized")
@@ -230,24 +227,50 @@ class TranscriptionService:
         ts = payload.get("ts")
 
         meeting_key = f"{platform}:{meeting_id}"
-        playlist_id = self._meeting_to_playlist.get(meeting_key)
-        if playlist_id is None:
+        dna_session = await self.storage_provider.get_session_by_meeting_id(meeting_id)
+        if dna_session is None:
             logger.warning(
-                "No playlist_id found for meeting %s, cannot save segments",
+                "No DNA session found for meeting %s, cannot save segments",
                 meeting_key,
             )
             return
 
-        await self._store_and_broadcast(playlist_id, speaker, confirmed, pending, ts)
+        if dna_session.transcription_paused:
+            logger.debug(
+                "Transcription paused for session %s, dropping segments",
+                dna_session.id,
+            )
+            return
+
+        if (
+            not dna_session.in_review_playlist_id
+            or not dna_session.in_review_version_id
+        ):
+            logger.warning(
+                "Session %s has no in_review playlist/version for meeting %s, "
+                "cannot save segments",
+                dna_session.id,
+                meeting_key,
+            )
+            return
+
+        await self._store_and_broadcast(
+            playlist_id=dna_session.in_review_playlist_id,
+            version_id=dna_session.in_review_version_id,
+            resumed_at=dna_session.transcription_resumed_at,
+            speaker=speaker,
+            confirmed=confirmed,
+            pending=pending,
+            ts=ts,
+            session_id=dna_session.id,
+        )
 
     async def ingest_extension_transcript(self, payload: dict[str, Any]) -> int:
         """Ingest a transcript frame produced by the DNA browser extension.
 
-        Unlike Vexa (which routes by ``platform:meeting_id``), the extension
-        already knows which playlist it is transcribing, so the frame carries
-        ``playlist_id`` directly. Confirmed segments are upserted and the same
-        flat ``{type:"transcript", ...}`` envelope is broadcast to DNA WS
-        clients, so the frontend behaves identically to the Vexa path.
+        The extension may send ``session_id`` (preferred) or ``playlist_id``.
+        Confirmed segments are upserted and the same flat ``{type:"transcript",
+        ...}`` envelope is broadcast to DNA WS clients.
 
         Returns the number of confirmed segments stored.
         """
@@ -255,21 +278,59 @@ class TranscriptionService:
             logger.error("Providers not initialized")
             return 0
 
-        playlist_id = payload.get("playlist_id")
-        if playlist_id is None:
-            logger.warning("Extension transcript missing playlist_id, cannot save")
-            return 0
-
         speaker = payload.get("speaker")
         confirmed: list[dict[str, Any]] = payload.get("confirmed", []) or []
         pending: list[dict[str, Any]] = payload.get("pending", []) or []
         ts = payload.get("ts")
 
-        return await self._store_and_broadcast(
+        session_id = payload.get("session_id")
+        if session_id:
+            dna_session = await self.storage_provider.get_session(str(session_id))
+            if dna_session is None:
+                logger.warning(
+                    "Extension transcript session %s not found, cannot save",
+                    session_id,
+                )
+                return 0
+            if dna_session.transcription_paused:
+                logger.debug(
+                    "Transcription paused for session %s, skipping", dna_session.id
+                )
+                return 0
+            if (
+                not dna_session.in_review_playlist_id
+                or not dna_session.in_review_version_id
+            ):
+                logger.warning(
+                    "Session %s has no in_review pair, cannot save segments",
+                    dna_session.id,
+                )
+                return 0
+            return await self._store_and_broadcast(
+                playlist_id=dna_session.in_review_playlist_id,
+                version_id=dna_session.in_review_version_id,
+                resumed_at=dna_session.transcription_resumed_at,
+                speaker=speaker,
+                confirmed=confirmed,
+                pending=pending,
+                ts=ts,
+                session_id=dna_session.id,
+            )
+
+        playlist_id = payload.get("playlist_id")
+        if playlist_id is None:
+            logger.warning(
+                "Extension transcript missing session_id/playlist_id, cannot save"
+            )
+            return 0
+
+        # Legacy extension frames: look up an implicit session for the playlist
+        # or fall back to any session whose in_review playlist matches.
+        return await self._store_extension_by_playlist(
             str(playlist_id), speaker, confirmed, pending, ts
         )
 
-    async def _store_and_broadcast(
+    async def _store_extension_by_playlist(
         self,
         playlist_id: str,
         speaker: Any,
@@ -277,31 +338,55 @@ class TranscriptionService:
         pending: list[dict[str, Any]],
         ts: Any,
     ) -> int:
-        """Upsert confirmed segments for a playlist's in-review version and
-        broadcast the flat transcript envelope. Shared by the Vexa and
-        extension transcription paths. Returns the number of stored segments.
-        """
+        """Resolve in-review from a DNA session that targets this playlist."""
+        if self.storage_provider is None:
+            return 0
+        sessions = await self.storage_provider.get_sessions_containing_playlist(
+            playlist_id
+        )
+        target = next(
+            (
+                s
+                for s in sessions
+                if s.in_review_playlist_id == playlist_id
+                and s.in_review_version_id
+                and not s.transcription_paused
+            ),
+            None,
+        )
+        if target is None:
+            logger.warning(
+                "No DNA session with in_review on playlist %s, cannot save segments",
+                playlist_id,
+            )
+            return 0
+        return await self._store_and_broadcast(
+            playlist_id=target.in_review_playlist_id or playlist_id,
+            version_id=target.in_review_version_id or "",
+            resumed_at=target.transcription_resumed_at,
+            speaker=speaker,
+            confirmed=confirmed,
+            pending=pending,
+            ts=ts,
+            session_id=target.id,
+        )
+
+    async def _store_and_broadcast(
+        self,
+        playlist_id: str,
+        version_id: str,
+        resumed_at: datetime | None,
+        speaker: Any,
+        confirmed: list[dict[str, Any]],
+        pending: list[dict[str, Any]],
+        ts: Any,
+        session_id: str | None = None,
+    ) -> int:
+        """Upsert confirmed segments and broadcast the flat transcript envelope."""
         if self.storage_provider is None or self.event_publisher is None:
             logger.error("Providers not initialized")
             return 0
 
-        metadata = await self.storage_provider.get_playlist_metadata(playlist_id)
-        if metadata is None or metadata.in_review is None:
-            logger.warning(
-                "No in_review version found for playlist %s, cannot save segments",
-                playlist_id,
-            )
-            return 0
-
-        if metadata.transcription_paused:
-            logger.debug(
-                "Transcription paused for playlist %s, skipping segment storage",
-                playlist_id,
-            )
-            return 0
-
-        version_id = metadata.in_review
-        resumed_at = metadata.transcription_resumed_at
         stored = 0
 
         for seg in confirmed:
@@ -350,19 +435,19 @@ class TranscriptionService:
             except Exception:
                 logger.exception("Failed to upsert segment %s", segment_id)
 
-        # Broadcast the raw Vexa shape with DNA envelope fields.
-        # Frontend TranscriptManager.handleMessage() consumes this directly.
-        await self.event_publisher.ws_manager.broadcast(
-            {
-                "type": "transcript",
-                "speaker": speaker,
-                "confirmed": confirmed,
-                "pending": pending,
-                "playlist_id": playlist_id,
-                "version_id": version_id,
-                "ts": ts,
-            }
-        )
+        envelope: dict[str, Any] = {
+            "type": "transcript",
+            "speaker": speaker,
+            "confirmed": confirmed,
+            "pending": pending,
+            "playlist_id": playlist_id,
+            "version_id": version_id,
+            "ts": ts,
+        }
+        if session_id is not None:
+            envelope["session_id"] = session_id
+
+        await self.event_publisher.ws_manager.broadcast(envelope)
         return stored
 
     async def on_transcription_completed(self, payload: dict[str, Any]) -> None:
@@ -381,10 +466,10 @@ class TranscriptionService:
                     "Removed subscription for completed meeting: %s", meeting_key
                 )
 
-            if meeting_key in self._meeting_to_playlist:
-                del self._meeting_to_playlist[meeting_key]
+            if meeting_key in self._meeting_to_session:
+                del self._meeting_to_session[meeting_key]
                 logger.info(
-                    "Removed playlist mapping for completed meeting: %s", meeting_key
+                    "Removed session mapping for completed meeting: %s", meeting_key
                 )
 
             if self.transcription_provider:
@@ -404,7 +489,7 @@ class TranscriptionService:
         if self.transcription_provider:
             await self.transcription_provider.close()
         self._subscribed_meetings.clear()
-        self._meeting_to_playlist.clear()
+        self._meeting_to_session.clear()
         logger.info("Transcription service closed")
 
 

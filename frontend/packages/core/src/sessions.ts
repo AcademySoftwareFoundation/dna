@@ -1,74 +1,51 @@
-import type { PlaylistMetadata } from './interfaces';
-
-/** A playlist in a session that currently holds the in-review version. */
-export interface InReviewHolder {
-  playlist_id: string;
-  in_review: string;
-  in_review_pinned: boolean;
-}
+import type { Session } from './interfaces';
 
 /**
- * Return session ids with `sessionId` included once.
+ * Return playlist ids with `playlistId` included once.
  * The original list is returned unchanged when the id is already present.
  */
-export function addSessionId(
-  sessionIds: readonly string[] | null | undefined,
-  sessionId: string
+export function addPlaylistId(
+  playlistIds: readonly string[] | null | undefined,
+  playlistId: string
 ): string[] {
-  const current = sessionIds ?? [];
-  if (current.includes(sessionId)) {
+  const current = playlistIds ?? [];
+  if (current.includes(playlistId)) {
     return [...current];
   }
-  return [...current, sessionId];
+  return [...current, playlistId];
 }
 
 /**
- * Return session ids with `sessionId` removed.
- * Missing and already-absent ids both yield the remaining list.
+ * Return playlist ids with `playlistId` removed.
  */
-export function removeSessionId(
-  sessionIds: readonly string[] | null | undefined,
-  sessionId: string
+export function removePlaylistId(
+  playlistIds: readonly string[] | null | undefined,
+  playlistId: string
 ): string[] {
-  return (sessionIds ?? []).filter((id) => id !== sessionId);
+  return (playlistIds ?? []).filter((id) => id !== playlistId);
 }
 
 /**
- * Every other playlist in a session that holds an in-review version.
+ * In-review version id for a playlist given the active DNA session.
+ * Null when the session's in-review is on a different playlist.
  */
-export function findInReviewHolders(
-  metadataList: readonly Pick<
-    PlaylistMetadata,
-    'playlist_id' | 'in_review' | 'in_review_pinned'
-  >[],
-  excludePlaylistId: string
-): InReviewHolder[] {
-  const holders: InReviewHolder[] = [];
-  for (const metadata of metadataList) {
-    if (metadata.playlist_id === excludePlaylistId || !metadata.in_review) {
-      continue;
-    }
-    holders.push({
-      playlist_id: metadata.playlist_id,
-      in_review: metadata.in_review,
-      in_review_pinned: metadata.in_review_pinned,
-    });
+export function sessionInReviewForPlaylist(
+  session: Pick<
+    Session,
+    'in_review_playlist_id' | 'in_review_version_id' | 'in_review_pinned'
+  > | null | undefined,
+  playlistId: string | null | undefined
+): { versionId: string | null; pinned: boolean } {
+  if (!session || !playlistId) {
+    return { versionId: null, pinned: false };
   }
-  return holders;
-}
-
-/**
- * Find the other playlist in a session that holds an in-review version.
- * Returns null when no other playlist is in review.
- */
-export function findInReviewHolder(
-  metadataList: readonly Pick<
-    PlaylistMetadata,
-    'playlist_id' | 'in_review' | 'in_review_pinned'
-  >[],
-  excludePlaylistId: string
-): InReviewHolder | null {
-  return findInReviewHolders(metadataList, excludePlaylistId)[0] ?? null;
+  if (session.in_review_playlist_id !== playlistId) {
+    return { versionId: null, pinned: false };
+  }
+  return {
+    versionId: session.in_review_version_id ?? null,
+    pinned: !!session.in_review_pinned,
+  };
 }
 
 /**

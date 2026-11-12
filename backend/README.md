@@ -61,14 +61,17 @@ The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-base
 
 ### Sessions
 
-Session providers supply external review sessions. DNA stores which playlists belong to a session on playlist metadata (`session_ids`); the provider lists, gets, and creates the sessions themselves. Configure it with `SESSION_PROVIDER`:
+DNA owns the `Session` document: playlist links (`playlist_ids`), in-review (`in_review_playlist_id` / `in_review_version_id` / `in_review_pinned`), and transcription (`meeting_id`, `platform`, pause state). Playlist metadata is slim (`has_scratch` only).
+
+Session providers optionally supply an **external catalog** that DNA syncs into Sessions via `external_id`. Configure the catalog with `SESSION_PROVIDER`:
 
 | Value | Provider | Use case |
 |-------|----------|----------|
-| `none` | Disabled (default) | Session routes return 404 |
-| `mock` | In-memory mock | Local development. Seeds two sample sessions the first time a project's sessions are listed, and accepts creates |
+| `none` | No external catalog (default) | DNA sessions still work; `POST /sessions/ensure-for-playlist` creates implicit one-playlist sessions when the UI is playlist-first |
+| `mock` | In-memory mock catalog | Local development. Seeds two sample sessions the first time a project's sessions are listed, and accepts creates |
 
-The frontend enables the session UI separately with `VITE_FEATURE_SESSIONS`. `./bootstrap.sh` sets both: Disabled writes `SESSION_PROVIDER=none` and locks the session UI off, and Mock writes `SESSION_PROVIDER=mock` and locks it on.
+
+The frontend enables the multi-session UI separately with `VITE_FEATURE_SESSIONS`. When that flag is off, the app still ensures an implicit DNA session per playlist so in-review and transcription keep working. `./bootstrap.sh` sets both: Disabled writes `SESSION_PROVIDER=none` and locks the session UI off, and Mock writes `SESSION_PROVIDER=mock` and locks it on.
 
 ## Setup
 

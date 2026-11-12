@@ -72,7 +72,15 @@ from dna.models.requests import (
     UpdateVersionStatusResponse,
 )
 from dna.models.schema import SchemaField, SchemaFieldOption
-from dna.models.session import CreateSessionRequest, Session, SessionPlaylists
+from dna.models.session import (
+    CreateSessionRequest,
+    EnsureSessionForPlaylistRequest,
+    ExternalSession,
+    Session,
+    SessionInReviewUpdate,
+    SessionPlaylistsUpdate,
+    SessionTranscriptionUpdate,
+)
 from dna.models.stored_segment import (
     StoredSegment,
     StoredSegmentCreate,
@@ -130,8 +138,12 @@ __all__ = [
     "SchemaField",
     "SchemaFieldOption",
     "CreateSessionRequest",
+    "EnsureSessionForPlaylistRequest",
+    "ExternalSession",
     "Session",
-    "SessionPlaylists",
+    "SessionInReviewUpdate",
+    "SessionPlaylistsUpdate",
+    "SessionTranscriptionUpdate",
     "SCRATCH_VERSION_ID",
     "DraftNote",
     "DraftNoteBase",

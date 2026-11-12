@@ -1,9 +1,14 @@
-import { useQueryClient, useQueries } from '@tanstack/react-query';
-import { findInReviewHolders, type PlaylistMetadata } from '@dna/core';
+import { useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type {
+  DNAEvent,
+  Session,
+  SessionInReviewChangedEventPayload,
+} from '@dna/core';
 import { apiHandler } from '../api';
 import { useToast } from '../contexts/ToastContext';
 import { useNomenclature } from '../nomenclature';
-import { useInReviewChangedEvents, useSetInReview } from './usePlaylistMetadata';
+import { useEventSubscription } from './useDNAEvents';
 
 function isConflict(error: unknown): boolean {
   return (
@@ -14,84 +19,122 @@ function isConflict(error: unknown): boolean {
   );
 }
 
-export function useSessionPlaylistMetadata(playlistIds: readonly string[]) {
-  return useQueries({
-    queries: playlistIds.map((playlistId) => ({
-      queryKey: ['playlistMetadata', playlistId],
-      queryFn: () => apiHandler.getPlaylistMetadata({ playlistId }),
-      enabled: playlistIds.length > 0,
-    })),
-  });
+export function useSessionInReviewEvents(sessionId: string | null) {
+  const queryClient = useQueryClient();
+
+  const handleEvent = useCallback(
+    (event: DNAEvent<SessionInReviewChangedEventPayload>) => {
+      if (!sessionId || event.payload.session_id !== sessionId) {
+        return;
+      }
+      queryClient.setQueryData<Session | undefined>(
+        ['session', sessionId],
+        (current) =>
+          current
+            ? {
+                ...current,
+                in_review_playlist_id: event.payload.in_review_playlist_id,
+                in_review_version_id: event.payload.in_review_version_id,
+                in_review_pinned: event.payload.in_review_pinned,
+              }
+            : current
+      );
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      void queryClient.invalidateQueries({
+        queryKey: ['sessionPlaylists', sessionId],
+      });
+    },
+    [sessionId, queryClient]
+  );
+
+  useEventSubscription<SessionInReviewChangedEventPayload>(
+    'session.in_review_changed',
+    handleEvent,
+    { enabled: !!sessionId }
+  );
 }
 
 /**
- * Set in-review for the active playlist, clearing it from every other playlist
- * in the session first. A pinned holder returns 409 and is left in place.
+ * Set / pin in-review on a DNA session for the active playlist.
  */
 export function useSessionSetInReview(
-  activePlaylistId: string | null,
-  sessionPlaylistIds: readonly string[] | null
+  sessionId: string | null,
+  activePlaylistId: string | null
 ) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const active = useSetInReview(activePlaylistId);
   const t = useNomenclature();
-  const inSession = !!sessionPlaylistIds && sessionPlaylistIds.length > 0;
 
-  useInReviewChangedEvents(inSession ? sessionPlaylistIds : null);
+  useSessionInReviewEvents(sessionId);
 
-  const loadMetadata = async (playlistId: string) => {
-    const cached = queryClient.getQueryData<PlaylistMetadata | null>([
-      'playlistMetadata',
-      playlistId,
-    ]);
-    if (cached !== undefined) return cached;
-    return queryClient.fetchQuery({
-      queryKey: ['playlistMetadata', playlistId],
-      queryFn: () => apiHandler.getPlaylistMetadata({ playlistId }),
-    });
-  };
+  const mutation = useMutation({
+    mutationFn: (data: {
+      in_review_playlist_id?: string | null;
+      in_review_version_id?: string | null;
+      in_review_pinned?: boolean;
+      clear_in_review?: boolean;
+    }) =>
+      apiHandler.updateSessionInReview({
+        sessionId: sessionId!,
+        data,
+      }),
+    onSuccess: (session) => {
+      queryClient.setQueryData(['session', session.id], session);
+      queryClient.setQueryData(
+        ['sessionPlaylists', session.id],
+        {
+          session_id: session.id,
+          playlist_ids: session.playlist_ids ?? [],
+        }
+      );
+    },
+  });
 
   const setInReview = async (versionId: string, unpin = false) => {
-    if (inSession && activePlaylistId && sessionPlaylistIds) {
-      const metadataList = (
-        await Promise.all(sessionPlaylistIds.map((id) => loadMetadata(id)))
-      ).filter((item): item is PlaylistMetadata => !!item);
-      const holders = findInReviewHolders(metadataList, activePlaylistId);
-      const ordered = [
-        ...holders.filter((holder) => !holder.in_review_pinned),
-        ...holders.filter((holder) => holder.in_review_pinned),
-      ];
-      for (const holder of ordered) {
-        try {
-          const cleared = await apiHandler.upsertPlaylistMetadata({
-            playlistId: holder.playlist_id,
-            data: { clear_in_review: true },
-          });
-          queryClient.setQueryData(
-            ['playlistMetadata', holder.playlist_id],
-            cleared
-          );
-        } catch (error) {
-          if (isConflict(error)) {
-            showToast({
-              type: 'error',
-              title: 'In review is pinned',
-              description: `Unpin it on the other ${t.playlist.lower} before moving in review.`,
-            });
-            return;
-          }
-          throw error;
-        }
+    if (!sessionId || !activePlaylistId) return;
+    try {
+      return await mutation.mutateAsync(
+        unpin
+          ? {
+              in_review_playlist_id: activePlaylistId,
+              in_review_version_id: versionId,
+              in_review_pinned: false,
+            }
+          : {
+              in_review_playlist_id: activePlaylistId,
+              in_review_version_id: versionId,
+            }
+      );
+    } catch (error) {
+      if (isConflict(error)) {
+        showToast({
+          type: 'error',
+          title: 'In review is pinned',
+          description: `Unpin it before moving in review on this ${t.session.lower}.`,
+        });
+        return;
       }
+      throw error;
     }
-    return active.setInReview(versionId, unpin);
+  };
+
+  const setInReviewPinned = async (versionId: string, pinned: boolean) => {
+    if (!sessionId || !activePlaylistId) return;
+    return mutation.mutateAsync(
+      pinned
+        ? {
+            in_review_playlist_id: activePlaylistId,
+            in_review_version_id: versionId,
+            in_review_pinned: true,
+          }
+        : { in_review_pinned: false }
+    );
   };
 
   return {
     setInReview,
-    setInReviewPinned: active.setInReviewPinned,
-    isLoading: active.isLoading,
-    error: active.error,
+    setInReviewPinned,
+    isLoading: mutation.isPending,
+    error: mutation.error,
   };
 }
