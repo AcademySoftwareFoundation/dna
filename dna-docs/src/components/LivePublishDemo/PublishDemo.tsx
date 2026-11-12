@@ -254,7 +254,7 @@ export default function PublishDemo() {
                 </div>
 
                 <div className={clsx(styles.note, !noteChecked && styles.excluded)}>
-                  <div className={uiStyles.chips}>
+                  <div className={clsx(uiStyles.chips, styles.chips)}>
                     <span className={uiStyles.chip}>
                       To:
                       <Badge color="blue" size="2">
@@ -262,7 +262,7 @@ export default function PublishDemo() {
                         {NOTE_TO}
                       </Badge>
                     </span>
-                    <span className={uiStyles.chip}>
+                    <span className={clsx(uiStyles.chip, styles.linksChip)}>
                       Links:
                       <Badge color="orange" size="2">
                         <I.Layers size={12} />

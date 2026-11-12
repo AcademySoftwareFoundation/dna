@@ -421,6 +421,68 @@
   margin-top: 12px;
 }
 
+/*
+ * Narrow columns. A 560px window scrolling inside the page hid the guide's
+ * targets below its fold (the bubble then landed outside the frame), so the
+ * dialog takes its natural height instead and everything is on screen. The
+ * note's text and the transcript, which nothing points at, scroll in short
+ * boxes of their own to keep the dialog about a screen tall.
+ */
+@media (max-width: 720px) {
+  .dialog {
+    height: auto;
+  }
+
+  .body {
+    flex: none;
+    padding: 12px;
+    overflow-y: visible;
+  }
+
+  /* Full width: no room to indent the note under its label. */
+  .note {
+    padding-left: 0;
+  }
+
+  /* To and Links on lines of their own, the second link under the first. */
+  .chips {
+    flex-wrap: wrap;
+  }
+
+  .linksChip {
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    height: auto;
+    min-height: 30px;
+    padding-block: 3px;
+  }
+
+  .editorArea {
+    max-height: 136px;
+    overflow-y: auto;
+  }
+
+  .transcript {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* The pill wraps to the row's left edge here, so open rightward from it. */
+  .popover {
+    right: auto;
+    left: 0;
+    width: min(320px, calc(100vw - 96px));
+  }
+
+  .diff {
+    padding: 16px;
+  }
+
+  .diffColumns {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* The demo's height before it loads. */
 .placeholder {
   height: 562px;
