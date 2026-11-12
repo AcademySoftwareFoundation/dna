@@ -310,6 +310,38 @@ const config: Config = {
               label: 'Logging In',
               to: '/docs/2-login',
             },
+            {
+              label: 'User Interface',
+              to: '/docs/3-ui',
+            },
+            {
+              label: 'In-Review Workflow',
+              to: '/docs/4-in-reivew',
+            },
+            {
+              label: 'Transcription',
+              to: '/docs/5-transcription',
+            },
+            {
+              label: 'AI Integration',
+              to: '/docs/6-ai',
+            },
+            {
+              label: 'RV Integration',
+              to: '/docs/7-rv-integration',
+            },
+            {
+              label: 'Publishing',
+              to: '/docs/8-publishing',
+            },
+            {
+              label: 'Note Quality Control',
+              to: '/docs/9-note-qc',
+            },
+            {
+              label: 'Settings',
+              to: '/docs/10-settings',
+            },
           ],
         },
         {

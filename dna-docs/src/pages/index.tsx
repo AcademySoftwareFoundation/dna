@@ -9,6 +9,7 @@ import HomepageShowcase from '@site/src/components/HomepageShowcase';
 import HomepageDeveloperShowcase from '@site/src/components/HomepageDeveloperShowcase';
 import HomepageIntegrations from '@site/src/components/HomepageIntegrations';
 import HomepageTranscription from '@site/src/components/HomepageTranscription';
+import HomepagePlayerSync from '@site/src/components/HomepagePlayerSync';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
@@ -52,6 +53,7 @@ export default function Home(): ReactNode {
         <HomepageDeveloperShowcase />
         <HomepageIntegrations />
         <HomepageTranscription />
+        <HomepagePlayerSync />
       </main>
     </Layout>
   );

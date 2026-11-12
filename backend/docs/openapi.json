@@ -4748,7 +4748,7 @@
         ]
       },
       "put": {
-        "description": "Create or update metadata for a playlist (in-review version and meeting ID). When in_review or in_review_pinned is set, broadcasts playlist.in_review_changed to connected clients. While the in-review version is pinned, moving in_review to a different version is rejected with 409 unless the same request sets in_review_pinned to false.",
+        "description": "Create or update metadata for a playlist (in-review version and meeting ID). When in_review or in_review_pinned is set, broadcasts playlist.in_review_changed to connected clients. While the in-review version is pinned, moving in_review to a different version is rejected with 409 unless the same request sets in_review_pinned to false. A non-null in_review must be a version on the playlist; null clears in_review without a membership check.",
         "operationId": "upsert_playlist_metadata_playlists__playlist_id__metadata_put",
         "parameters": [
           {
@@ -4783,6 +4783,16 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -4792,6 +4802,16 @@
               }
             },
             "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
           },
           "409": {
             "content": {

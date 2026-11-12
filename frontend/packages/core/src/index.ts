@@ -16,3 +16,4 @@ export * from './extension';
 export * from './reviewExport';
 export * from './entityFields';
 export * from './transcriptionLanguages';
+export * from './desktopAuth';

@@ -103,6 +103,8 @@ declare module '@dna-app/components/VersionCard' {
   export function VersionCard(props: {
     version: {type: 'Version'; id: string; name?: string};
     artistName?: string;
+    /** Shown under the artist, e.g. "Comp". */
+    department?: string;
     thumbnailUrl?: string;
     selected?: boolean;
     inReview?: boolean;

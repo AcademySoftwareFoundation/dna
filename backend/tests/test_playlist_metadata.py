@@ -4,15 +4,33 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_storage_provider_cached
+from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
 from dna.events import reset_event_publisher
+from dna.models.entity import Version
 from dna.models.playlist_metadata import (
     PlaylistMetadata,
     PlaylistMetadataUpdate,
 )
 
 client = TestClient(app)
+
+DEFAULT_PLAYLIST_VERSION_IDS = ("100", "200", "300")
+
+
+def _version(version_id: str) -> Version:
+    return Version(id=str(version_id), type="Version")
+
+
+def _override_providers(storage, version_ids=DEFAULT_PLAYLIST_VERSION_IDS):
+    """Override storage and prodtrack deps for playlist metadata endpoint tests."""
+    prodtrack = mock.MagicMock()
+    prodtrack.get_versions_for_playlist.return_value = [
+        _version(version_id) for version_id in version_ids
+    ]
+    app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+    app.dependency_overrides[get_prodtrack_provider_cached] = lambda: prodtrack
+    return prodtrack
 
 
 class TestPlaylistMetadataModels:
@@ -112,9 +130,7 @@ class TestPlaylistMetadataEndpoints:
             meeting_id="meeting-123",
         )
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.get("/playlists/10/metadata")
@@ -131,9 +147,7 @@ class TestPlaylistMetadataEndpoints:
         """Test GET returns null when no metadata exists."""
         mock_storage_provider.get_playlist_metadata.return_value = None
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.get("/playlists/999/metadata")
@@ -151,9 +165,7 @@ class TestPlaylistMetadataEndpoints:
             meeting_id="meeting-updated",
         )
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.put(
@@ -180,9 +192,7 @@ class TestPlaylistMetadataEndpoints:
             meeting_id=None,
         )
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.put(
@@ -204,9 +214,7 @@ class TestPlaylistMetadataEndpoints:
             meeting_id="meeting-only",
         )
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.put(
@@ -228,9 +236,7 @@ class TestPlaylistMetadataEndpoints:
             transcription_paused=True,
         )
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.put(
@@ -243,13 +249,66 @@ class TestPlaylistMetadataEndpoints:
         finally:
             app.dependency_overrides.clear()
 
+    def test_upsert_rejects_version_not_on_playlist(self, mock_storage_provider):
+        """Non-null in_review must belong to the playlist."""
+        prodtrack = _override_providers(mock_storage_provider, version_ids=("100",))
+
+        try:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"in_review": "999"},
+            )
+            assert response.status_code == 400
+            assert "not on playlist" in response.json()["detail"]
+            mock_storage_provider.upsert_playlist_metadata.assert_not_awaited()
+            prodtrack.get_versions_for_playlist.assert_called_once_with("10")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_upsert_allows_clearing_in_review_with_null(self, mock_storage_provider):
+        """Null in_review clears without a membership check."""
+        mock_storage_provider.upsert_playlist_metadata.return_value = PlaylistMetadata(
+            _id="abc123",
+            playlist_id="10",
+            in_review=None,
+        )
+        prodtrack = _override_providers(mock_storage_provider)
+
+        try:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"in_review": None},
+            )
+            assert response.status_code == 200
+            assert response.json()["in_review"] is None
+            prodtrack.get_versions_for_playlist.assert_not_called()
+            mock_storage_provider.upsert_playlist_metadata.assert_called_once()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_upsert_missing_playlist_returns_404(self, mock_storage_provider):
+        """Unknown playlist from prodtrack becomes 404."""
+        prodtrack = _override_providers(mock_storage_provider)
+        prodtrack.get_versions_for_playlist.side_effect = ValueError(
+            "Playlist 10 not found"
+        )
+
+        try:
+            response = client.put(
+                "/playlists/10/metadata",
+                json={"in_review": "200"},
+            )
+            assert response.status_code == 404
+            assert "Playlist 10 not found" in response.json()["detail"]
+            mock_storage_provider.upsert_playlist_metadata.assert_not_awaited()
+        finally:
+            app.dependency_overrides.clear()
+
     def test_delete_playlist_metadata_returns_true(self, mock_storage_provider):
         """Test DELETE returns true when metadata is deleted."""
         mock_storage_provider.delete_playlist_metadata.return_value = True
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.delete("/playlists/10/metadata")
@@ -263,9 +322,7 @@ class TestPlaylistMetadataEndpoints:
         """Test DELETE returns 404 when metadata not found."""
         mock_storage_provider.delete_playlist_metadata.return_value = False
 
-        app.dependency_overrides[get_storage_provider_cached] = (
-            lambda: mock_storage_provider
-        )
+        _override_providers(mock_storage_provider)
 
         try:
             response = client.delete("/playlists/999/metadata")
@@ -295,7 +352,7 @@ class TestPlaylistMetadataInReviewBroadcast:
             playlist_id="10",
             in_review="200",
         )
-        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        _override_providers(storage)
 
         with client.websocket_connect("/ws") as ws:
             response = client.put(
@@ -323,7 +380,7 @@ class TestPlaylistMetadataInReviewBroadcast:
             in_review="200",
             in_review_pinned=True,
         )
-        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        _override_providers(storage)
 
         with client.websocket_connect("/ws") as ws:
             response = client.put(
@@ -349,7 +406,7 @@ class TestPlaylistMetadataInReviewBroadcast:
             playlist_id="10",
             meeting_id="meeting-only",
         )
-        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        _override_providers(storage)
 
         publisher = mock.AsyncMock()
         with mock.patch("main.get_event_publisher", return_value=publisher):
@@ -382,7 +439,7 @@ class TestPlaylistMetadataPinning:
             in_review="200",
             in_review_pinned=pinned,
         )
-        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        _override_providers(storage)
         return storage
 
     def test_pinned_rejects_different_version(self):
