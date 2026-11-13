@@ -105,6 +105,9 @@ const Playlists = styled.div`
   min-width: 0;
   display: flex;
   align-items: center;
+  /* Last resort on a very narrow window: clip rather than run under the
+     actions. Before that, the tab strip inside scrolls (SessionTabs). */
+  overflow: hidden;
 `;
 
 const Actions = styled.div`

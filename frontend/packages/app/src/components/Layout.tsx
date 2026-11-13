@@ -25,10 +25,19 @@ interface LayoutProps {
 
 const COLLAPSE_BREAKPOINT = 1024;
 
+/**
+ * The narrowest the app lays out. Below this the header's fixed parts (logo,
+ * session name, add-playlist, Publish, avatar) no longer fit beside each
+ * other, so the page scrolls sideways instead of squeezing them together.
+ * Leaves about 100px of playlist tabs with the longest session name.
+ */
+const MIN_APP_WIDTH = '760px';
+
 const LayoutWrapper = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: ${MIN_APP_WIDTH};
   height: 100vh;
   overflow: hidden;
   background: ${({ theme }) => theme.colors.bg.base};

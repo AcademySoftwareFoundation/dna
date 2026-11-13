@@ -21,7 +21,14 @@ interface SessionTabsProps {
   onPlaylistChange: (playlist: Playlist) => void;
 }
 
+/*
+ * The tabs and the add button side by side. When the header runs out of
+ * room, only the tab strip gives: it shrinks and scrolls sideways, and the
+ * add button stays put at its end, so the header's actions never reach it.
+ */
 const StyledTabsRoot = styled(Tabs.Root)`
+  display: flex;
+  align-items: center;
   min-width: 0;
   max-width: 100%;
 `;
@@ -29,8 +36,12 @@ const StyledTabsRoot = styled(Tabs.Root)`
 const StyledTabsList = styled(Tabs.List)`
   display: flex;
   align-items: center;
-  max-width: 100%;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 `;
 
 const TabGroup = styled.div`
@@ -202,12 +213,13 @@ export function SessionTabs({
             )}
           </TabGroup>
         ))}
-        <AddPlaylistToSessionPopover
-          projectId={projectId}
-          linkedPlaylistIds={tabIds}
-          onSelect={selectPlaylist}
-        />
       </StyledTabsList>
+      {/* Outside the scrolling strip, so it is always in view. */}
+      <AddPlaylistToSessionPopover
+        projectId={projectId}
+        linkedPlaylistIds={tabIds}
+        onSelect={selectPlaylist}
+      />
     </StyledTabsRoot>
   );
 }
