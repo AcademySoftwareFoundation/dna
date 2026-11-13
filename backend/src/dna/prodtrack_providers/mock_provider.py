@@ -477,6 +477,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         entity_types: list[str],
         project_id: str | None = None,
         limit: int = 10,
+        playlist_id: str | None = None,
     ) -> list[dict[str, Any]]:
         conn = self._get_conn()
         results: list[dict[str, Any]] = []

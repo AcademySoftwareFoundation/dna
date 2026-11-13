@@ -21,7 +21,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from dna.auth.email import emails_match
@@ -648,6 +648,32 @@ async def get_mock_thumbnail(version_id: str):
     raise HTTPException(status_code=404, detail="Thumbnail not found")
 
 
+@app.get(
+    "/api/kitsu-thumbnails/{version_id}",
+    tags=["Versions"],
+    summary="Serve a Kitsu thumbnail",
+    description="Returns the thumbnail of a version from Kitsu, fetched with the bot token (when using the Kitsu prodtrack provider).",
+    response_class=Response,
+    responses=error_responses(404),
+)
+def get_kitsu_thumbnail(version_id: str, provider: ProdtrackProviderDep) -> Response:
+    """Proxy a Kitsu thumbnail.
+
+    Public like the mock thumbnails: an <img> cannot send the Bearer token.
+    """
+    from dna.prodtrack_providers.kitsu import KitsuProvider
+
+    if not isinstance(provider, KitsuProvider):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    try:
+        data = provider.get_thumbnail(version_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return Response(
+        data, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"}
+    )
+
+
 # -----------------------------------------------------------------------------
 # WebSocket endpoint
 # -----------------------------------------------------------------------------
@@ -1118,6 +1144,7 @@ async def search_entities(
             entity_types=[et.lower() for et in request.entity_types],
             project_id=request.project_id,
             limit=request.limit,
+            playlist_id=request.playlist_id,
         )
         return {"results": results}
     except ValueError as e:
@@ -1227,18 +1254,20 @@ async def get_projects_for_user(
     "/projects/{project_id}/playlists",
     tags=["Playlists"],
     summary="Get playlists for a project",
-    description="Retrieve all playlists for the specified project.",
+    description="Retrieve all playlists for the specified project, most recently updated first.",
     response_model=list[Playlist],
     responses=error_responses(404),
 )
 async def get_playlists_for_project(
     project_id: str, provider: ProdtrackProviderDep, _: CurrentUserDep
 ) -> list[Playlist]:
-    """Get playlists for a project."""
+    """Get playlists for a project, most recently updated first."""
     try:
-        return provider.get_playlists_for_project(project_id)
+        playlists = provider.get_playlists_for_project(project_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    # Each provider gives its dates in one format, so their strings sort.
+    return sorted(playlists, key=lambda p: str(p.updated_at or ""), reverse=True)
 
 
 @app.post(

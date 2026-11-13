@@ -155,6 +155,7 @@ class ProdtrackProviderBase:
         entity_types: list[str],
         project_id: str | None = None,
         limit: int = 10,
+        playlist_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Search for entities across multiple entity types.
 
@@ -165,6 +166,8 @@ class ProdtrackProviderBase:
                 IDs are opaque strings; providers translate them to their
                 native format.
             limit: Maximum results per entity type
+            playlist_id: Optional playlist the versions are searched for.
+                Providers may narrow versions to the ones it can take.
 
         Returns:
             List of lightweight entity representations with type, id, name, and
@@ -424,5 +427,10 @@ def get_prodtrack_provider() -> ProdtrackProviderBase:
         from dna.prodtrack_providers.shotgrid import ShotgridProvider
 
         return ShotgridProvider()
+
+    if provider_type == "kitsu":
+        from dna.prodtrack_providers.kitsu import KitsuProvider
+
+        return KitsuProvider()
 
     raise ValueError(f"Unknown production tracking provider: {provider_type}")

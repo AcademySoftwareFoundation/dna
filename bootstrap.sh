@@ -794,6 +794,9 @@ configure_prodtrack() {
     echo "  2) ShotGrid"
     echo "     Requires a ShotGrid URL, script name, and API key"
     echo ""
+    echo "  3) Kitsu"
+    echo "     Requires a Kitsu URL and the API token of a Studio Manager bot"
+    echo ""
     read -r -p "  Choice [1]: " pt_choice
     pt_choice="${pt_choice:-1}"
     echo ""
@@ -811,6 +814,18 @@ configure_prodtrack() {
                 ok "ShotGrid configured in backend/docker-compose.local.yml"
             else
                 warn "Skipped — set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY in backend/docker-compose.local.yml"
+            fi
+            ;;
+        3|[kK]itsu*)
+            read -r -p "  Kitsu URL (e.g. https://kitsu.yourstudio.com): " kitsu_url
+            read -r -p "  Kitsu API token: " kitsu_token
+            if [[ -n "$kitsu_url" && -n "$kitsu_token" ]]; then
+                set_env_var "PRODTRACK_PROVIDER" "kitsu" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "KITSU_URL" "$kitsu_url" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "KITSU_API_TOKEN" "$kitsu_token" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "Kitsu configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set PRODTRACK_PROVIDER=kitsu and KITSU_URL, KITSU_API_TOKEN in backend/docker-compose.local.yml"
             fi
             ;;
         *)
