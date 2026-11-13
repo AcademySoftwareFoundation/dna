@@ -4,7 +4,7 @@
 #
 # Bootstrap script for new contributors.
 # Checks prerequisites, copies example configs, installs frontend dependencies,
-# configures transcription (Vexa bot or browser extension + WhisperLive),
+# configures LLM / auth / transcription / prodtrack providers,
 # and starts the full DNA stack.
 #
 # Usage:
@@ -239,6 +239,12 @@ current_prodtrack_label() {
     local provider
     provider="$(read_compose_value PRODTRACK_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
     echo "${provider:-mock}"
+}
+
+current_auth_label() {
+    local provider
+    provider="$(read_compose_value AUTH_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    echo "${provider:-none}"
 }
 
 current_feature_flags_label() {
@@ -772,6 +778,70 @@ apply_transcription_route() {
     fi
 }
 
+# ── step 5.5: authentication provider ─────────────────────────────────────────
+
+# Pair backend AUTH_PROVIDER with frontend VITE_AUTH_PROVIDER. Both sides must
+# match or protected routes return 401/403.
+configure_auth() {
+    echo ""
+    echo -e "${BOLD}Authentication provider${NC}"
+    echo "  Backend AUTH_PROVIDER and frontend VITE_AUTH_PROVIDER must match."
+    echo "  (Press Enter to skip and fill in manually later)"
+    echo ""
+    echo -e "  1) None  ${BOLD}(default — local email sign-in)${NC}"
+    echo "     No token validation; sign in with any email"
+    echo ""
+    echo "  2) Google"
+    echo "     Requires the same OAuth client ID on backend and frontend"
+    echo ""
+    echo "  3) ShotGrid"
+    echo "     Username + legacy password/PAT via /auth/login; needs SHOTGRID_URL"
+    echo ""
+    read -r -p "  Choice [1]: " auth_choice
+    auth_choice="${auth_choice:-1}"
+    echo ""
+
+    case "$auth_choice" in
+        2|[gG]oogle)
+            local google_client_id
+            read -r -p "  Google OAuth client ID: " google_client_id
+            if [[ -n "$google_client_id" ]]; then
+                set_env_var "AUTH_PROVIDER" "google" "$BACKEND_DIR/docker-compose.local.yml"
+                set_env_var "GOOGLE_CLIENT_ID" "$google_client_id" \
+                    "$BACKEND_DIR/docker-compose.local.yml"
+                set_feature_flag "VITE_AUTH_PROVIDER" "google" "$FRONTEND_ENV"
+                set_feature_flag "VITE_GOOGLE_CLIENT_ID" "$google_client_id" "$FRONTEND_ENV"
+                ok "Google auth configured (backend + frontend)"
+            else
+                warn "Skipped — set AUTH_PROVIDER=google and GOOGLE_CLIENT_ID in backend/docker-compose.local.yml, and VITE_AUTH_PROVIDER=google + VITE_GOOGLE_CLIENT_ID in frontend/packages/app/.env"
+            fi
+            ;;
+        3|[sS]hot*)
+            local sg_url
+            sg_url="$(read_compose_value SHOTGRID_URL "$BACKEND_DIR/docker-compose.local.yml")"
+            if [[ -z "$sg_url" || "$sg_url" == *"example"* ]]; then
+                read -r -p "  ShotGrid URL (e.g. https://yoursite.shotgrid.autodesk.com): " sg_url
+            else
+                info "Using existing SHOTGRID_URL=${sg_url}"
+            fi
+            if [[ -n "$sg_url" ]]; then
+                set_env_var "AUTH_PROVIDER" "shotgrid" "$BACKEND_DIR/docker-compose.local.yml"
+                set_env_var "SHOTGRID_URL" "$sg_url" "$BACKEND_DIR/docker-compose.local.yml"
+                set_feature_flag "VITE_AUTH_PROVIDER" "shotgrid" "$FRONTEND_ENV"
+                ok "ShotGrid auth configured (backend + frontend)"
+                info "Sign in with ShotGrid legacy username and password/PAT"
+            else
+                warn "Skipped — set AUTH_PROVIDER=shotgrid and SHOTGRID_URL in backend/docker-compose.local.yml, and VITE_AUTH_PROVIDER=shotgrid in frontend/packages/app/.env"
+            fi
+            ;;
+        *)
+            set_env_var "AUTH_PROVIDER" "none" "$BACKEND_DIR/docker-compose.local.yml"
+            set_feature_flag "VITE_AUTH_PROVIDER" "none" "$FRONTEND_ENV"
+            ok "Noop auth configured (sign in with any email)"
+            ;;
+    esac
+}
+
 # ── step 5: production tracking provider ──────────────────────────────────────
 
 configure_prodtrack() {
@@ -1142,6 +1212,7 @@ remind_restart() {
     echo ""
     info "Choose Done to reload the backend if it is already running."
     info "If the frontend dev server is running, restart it so it reloads .env."
+    info "Auth changes need both restarts — a shotgrid UI against a none backend accepts any password."
 }
 
 # docker restart keeps the env the container was created with. Recreate the api
@@ -1214,18 +1285,20 @@ change_settings() {
     echo ""
 
     while true; do
-        local llm_label route_label pt_label flags_label settings_choice
+        local llm_label route_label pt_label auth_label flags_label settings_choice
         llm_label="$(current_llm_label)"
         route_label="$(current_transcription_label)"
         pt_label="$(current_prodtrack_label)"
+        auth_label="$(current_auth_label)"
         flags_label="$(current_feature_flags_label)"
 
         echo -e "${BOLD}Settings${NC}"
         echo "  1) LLM provider            (${llm_label})"
         echo "  2) Transcription           (${route_label})"
         echo "  3) Production tracking     (${pt_label})"
-        echo "  4) Feature flags           (${flags_label})"
-        echo "  5) Done"
+        echo "  4) Auth provider           (${auth_label})"
+        echo "  5) Feature flags           (${flags_label})"
+        echo "  6) Done"
         echo ""
         if ! read -r -p "  Choice: " settings_choice; then
             echo ""
@@ -1251,16 +1324,20 @@ change_settings() {
                 remind_restart
                 ;;
             4)
+                configure_auth
+                remind_restart
+                ;;
+            5)
                 configure_feature_flags
                 remind_restart
                 ;;
-            5|[dD]one|[qQ]|[qQ]uit)
+            6|[dD]one|[qQ]|[qQ]uit)
                 ok "No further changes."
                 restart_backend_if_running
                 return 0
                 ;;
             *)
-                warn "Enter 1-5."
+                warn "Enter 1-6."
                 ;;
         esac
         echo ""
@@ -1306,6 +1383,7 @@ main() {
         configure_llm
         apply_transcription_route
         configure_prodtrack
+        configure_auth
         configure_feature_flags
         install_frontend
         echo ""

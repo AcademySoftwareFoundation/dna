@@ -7,18 +7,22 @@ import {
   type ReactNode,
 } from 'react';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
+import {
+  clearAuthSession,
+  readAuthSession,
+  writeAuthSession,
+  type AuthSessionUser,
+} from '@dna/core';
 import { apiHandler } from '../api';
 
-const STORAGE_KEY = 'dna-auth-token';
-const USER_STORAGE_KEY = 'dna-auth-user';
-
-export type AuthProviderType = 'none' | 'google';
+export type AuthProviderType = 'none' | 'google' | 'shotgrid';
 
 export interface AuthUser {
   id: string;
   email: string;
   name?: string;
   picture?: string;
+  login?: string;
 }
 
 interface AuthContextValue {
@@ -29,6 +33,7 @@ interface AuthContextValue {
   authProvider: AuthProviderType;
   signIn: () => void;
   signInWithEmail: (email: string) => void;
+  signInWithPassword: (username: string, password: string) => Promise<void>;
   signOut: () => void;
 }
 
@@ -36,10 +41,73 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function getAuthProvider(): AuthProviderType {
   const provider = import.meta.env.VITE_AUTH_PROVIDER || 'google';
-  if (provider === 'none' || provider === 'google') {
+  if (provider === 'none' || provider === 'google' || provider === 'shotgrid') {
     return provider;
   }
-  return 'google';
+  console.warn(
+    `Unknown VITE_AUTH_PROVIDER "${provider}". Falling back to noop auth.`
+  );
+  return 'none';
+}
+
+function toAuthUser(user: AuthSessionUser): AuthUser {
+  return {
+    id: user.id || user.email,
+    email: user.email,
+    name: user.name,
+    picture: user.picture,
+    login: user.login,
+  };
+}
+
+function applySessionToApi(token: string | null, user: AuthUser | null): void {
+  if (token && user) {
+    apiHandler.setUser({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      token,
+      login: user.login,
+    });
+  } else {
+    apiHandler.setUser(null);
+  }
+}
+
+function useStoredSession(): {
+  user: AuthUser | null;
+  token: string | null;
+  setSession: (token: string | null, user: AuthUser | null) => void;
+  clearSession: () => void;
+} {
+  const stored = readAuthSession();
+  const [user, setUser] = useState<AuthUser | null>(
+    stored ? toAuthUser(stored.user) : null
+  );
+  const [token, setToken] = useState<string | null>(stored?.token ?? null);
+
+  const setSession = useCallback(
+    (nextToken: string | null, nextUser: AuthUser | null) => {
+      setToken(nextToken);
+      setUser(nextUser);
+      applySessionToApi(nextToken, nextUser);
+    },
+    []
+  );
+
+  const clearSession = useCallback(() => {
+    clearAuthSession();
+    setToken(null);
+    setUser(null);
+    apiHandler.setUser(null);
+    apiHandler.setAuthRefreshHandler(null);
+  }, []);
+
+  useEffect(() => {
+    applySessionToApi(token, user);
+  }, [token, user]);
+
+  return { user, token, setSession, clearSession };
 }
 
 interface NoopAuthProviderInnerProps {
@@ -47,64 +115,39 @@ interface NoopAuthProviderInnerProps {
 }
 
 function NoopAuthProviderInner({ children }: NoopAuthProviderInnerProps) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem(USER_STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
-
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem(STORAGE_KEY);
-  });
+  const { user, token, setSession, clearSession } = useStoredSession();
 
   useEffect(() => {
     if (token !== 'noop-token' || !user?.email) return;
-    localStorage.setItem(STORAGE_KEY, user.email);
-    setToken(user.email);
-  }, [token, user?.email]);
-
-  useEffect(() => {
-    const authToken =
-      token === 'noop-token' && user?.email ? user.email : token;
-    if (authToken && user) {
-      apiHandler.setUser({
+    writeAuthSession({
+      token: user.email,
+      user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        token: authToken,
+        picture: user.picture,
+        login: user.login,
+      },
+    });
+    setSession(user.email, user);
+  }, [token, user, setSession]);
+
+  const handleSignInWithEmail = useCallback(
+    (email: string) => {
+      const authUser: AuthUser = {
+        id: email,
+        email,
+        name: email.split('@')[0],
+        login: email.split('@')[0],
+      };
+      writeAuthSession({
+        token: email,
+        user: authUser,
       });
-    } else {
-      apiHandler.setUser(null);
-    }
-  }, [token, user]);
-
-  const handleSignOut = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
-    setToken(null);
-    setUser(null);
-    apiHandler.setUser(null);
-  }, []);
-
-  const handleSignInWithEmail = useCallback((email: string) => {
-    const authUser: AuthUser = {
-      id: email,
-      email: email,
-      name: email.split('@')[0],
-    };
-
-    localStorage.setItem(STORAGE_KEY, email);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser));
-
-    setToken(email);
-    setUser(authUser);
-  }, []);
+      setSession(email, authUser);
+    },
+    [setSession]
+  );
 
   const value: AuthContextValue = {
     isAuthenticated: !!token && !!user,
@@ -114,7 +157,10 @@ function NoopAuthProviderInner({ children }: NoopAuthProviderInnerProps) {
     authProvider: 'none',
     signIn: () => console.warn('Use signInWithEmail for noop auth provider'),
     signInWithEmail: handleSignInWithEmail,
-    signOut: handleSignOut,
+    signInWithPassword: async () => {
+      console.warn('Use signInWithEmail for noop auth provider');
+    },
+    signOut: clearSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -125,44 +171,8 @@ interface GoogleAuthProviderInnerProps {
 }
 
 function GoogleAuthProviderInner({ children }: GoogleAuthProviderInnerProps) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem(USER_STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
-
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem(STORAGE_KEY);
-  });
-
+  const { user, token, setSession, clearSession } = useStoredSession();
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (token && user) {
-      apiHandler.setUser({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        token: token,
-      });
-    } else {
-      apiHandler.setUser(null);
-    }
-  }, [token, user]);
-
-  const handleSignOut = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
-    setToken(null);
-    setUser(null);
-    apiHandler.setUser(null);
-  }, []);
 
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -181,18 +191,18 @@ function GoogleAuthProviderInner({ children }: GoogleAuthProviderInnerProps) {
           email: userInfo.email,
           name: userInfo.name,
           picture: userInfo.picture,
+          login: String(userInfo.email || '').split('@')[0],
         };
 
         const accessToken = tokenResponse.access_token;
-
-        localStorage.setItem(STORAGE_KEY, accessToken);
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser));
-
-        setToken(accessToken);
-        setUser(authUser);
+        writeAuthSession({
+          token: accessToken,
+          user: authUser,
+        });
+        setSession(accessToken, authUser);
       } catch (error) {
         console.error('Failed to get user info:', error);
-        handleSignOut();
+        clearSession();
       } finally {
         setIsLoading(false);
       }
@@ -217,9 +227,111 @@ function GoogleAuthProviderInner({ children }: GoogleAuthProviderInnerProps) {
     token,
     authProvider: 'google',
     signIn: handleSignIn,
+    signInWithEmail: () => console.warn('Use signIn for Google auth provider'),
+    signInWithPassword: async () => {
+      console.warn('Use signIn for Google auth provider');
+    },
+    signOut: clearSession,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+interface ShotgridAuthProviderInnerProps {
+  children: ReactNode;
+}
+
+function ShotgridAuthProviderInner({
+  children,
+}: ShotgridAuthProviderInnerProps) {
+  const { user, token, setSession, clearSession } = useStoredSession();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const persistSession = useCallback(
+    (session: {
+      token: string;
+      refresh_token?: string | null;
+      expires_in?: number | null;
+      principal: {
+        email: string;
+        login: string;
+        name?: string | null;
+      };
+    }) => {
+      const authUser: AuthUser = {
+        id: session.principal.email,
+        email: session.principal.email,
+        name: session.principal.name || undefined,
+        login: session.principal.login,
+      };
+      writeAuthSession(
+        {
+          token: session.token,
+          refreshToken: session.refresh_token,
+          user: authUser,
+        },
+        session.expires_in
+      );
+      setSession(session.token, authUser);
+      return session.token;
+    },
+    [setSession]
+  );
+
+  useEffect(() => {
+    apiHandler.setAuthRefreshHandler(async () => {
+      const stored = readAuthSession();
+      if (!stored?.refreshToken) {
+        clearSession();
+        return null;
+      }
+      try {
+        const session = await apiHandler.refreshAuth(stored.refreshToken);
+        return persistSession(session);
+      } catch {
+        clearSession();
+        return null;
+      }
+    });
+    return () => {
+      apiHandler.setAuthRefreshHandler(null);
+    };
+  }, [clearSession, persistSession]);
+
+  const handleSignInWithPassword = useCallback(
+    async (username: string, password: string) => {
+      setIsLoading(true);
+      try {
+        const session = await apiHandler.login(username, password);
+        if (session.principal.provider !== 'shotgrid') {
+          clearSession();
+          throw new Error(
+            `Auth provider mismatch: frontend expects shotgrid but backend returned ${session.principal.provider}. Restart the backend after setting AUTH_PROVIDER=shotgrid.`
+          );
+        }
+        persistSession(session);
+      } catch (error) {
+        clearSession();
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clearSession, persistSession]
+  );
+
+  const value: AuthContextValue = {
+    isAuthenticated: !!token && !!user,
+    isLoading,
+    user,
+    token,
+    authProvider: 'shotgrid',
+    signIn: () =>
+      console.warn('Use signInWithPassword for ShotGrid auth provider'),
     signInWithEmail: () =>
-      console.warn('Use signIn for Google auth provider'),
-    signOut: handleSignOut,
+      console.warn('Use signInWithPassword for ShotGrid auth provider'),
+    signInWithPassword: handleSignInWithPassword,
+    signOut: clearSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -235,6 +347,10 @@ export function AuthProvider({ children, clientId }: AuthProviderProps) {
 
   if (authProviderType === 'none') {
     return <NoopAuthProviderInner>{children}</NoopAuthProviderInner>;
+  }
+
+  if (authProviderType === 'shotgrid') {
+    return <ShotgridAuthProviderInner>{children}</ShotgridAuthProviderInner>;
   }
 
   const googleClientId =

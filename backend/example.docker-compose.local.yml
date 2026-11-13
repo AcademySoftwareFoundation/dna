@@ -1,5 +1,6 @@
 # Local development override. Copy to docker-compose.local.yml and fill in secrets.
-# Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
+# Auth: AUTH_PROVIDER=none|google|shotgrid (must match frontend VITE_AUTH_PROVIDER).
+#   none = local email sign-in; google needs GOOGLE_CLIENT_ID; shotgrid needs SHOTGRID_URL.
 # Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
 # To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
 services:

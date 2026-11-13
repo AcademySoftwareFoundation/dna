@@ -1203,6 +1203,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         links: list[EntityBase],
         author_email: Optional[str] = None,
         version_status: Optional[str] = None,
+        author_login: Optional[str] = None,
     ) -> str:
         """Publish a note to ShotGrid.
 
@@ -1283,20 +1284,20 @@ class ShotgridProvider(ProdtrackProviderBase):
         }
 
         # 4. Handle Author / Sudo
-        author_login = None
-        if author_email:
+        sudo_login = author_login
+        if not sudo_login and author_email:
             try:
                 author_user = self.get_user_by_email(author_email)
                 if author_user and author_user.login:
-                    author_login = author_user.login
+                    sudo_login = author_user.login
             except ValueError as e:
                 # Wrap the ValueError in a specific UserNotFoundError
                 raise UserNotFoundError(
                     f"Author not found in ShotGrid: {author_email}"
                 ) from e
 
-        if author_login:
-            with self.sudo(author_login):
+        if sudo_login:
+            with self.sudo(sudo_login):
                 result = self._sg.create("Note", note_data)
         else:
             result = self._sg.create("Note", note_data)
@@ -1322,6 +1323,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         cc_users: list[str],
         links: list[EntityBase],
         author_email: Optional[str] = None,
+        author_login: Optional[str] = None,
     ) -> str:
         """Publish a note linked to a playlist (no version) in ShotGrid.
 
@@ -1392,19 +1394,19 @@ class ShotgridProvider(ProdtrackProviderBase):
         }
 
         # 4. Handle Author / Sudo
-        author_login = None
-        if author_email:
+        sudo_login = author_login
+        if not sudo_login and author_email:
             try:
                 author_user = self.get_user_by_email(author_email)
                 if author_user and author_user.login:
-                    author_login = author_user.login
+                    sudo_login = author_user.login
             except ValueError as e:
                 raise UserNotFoundError(
                     f"Author not found in ShotGrid: {author_email}"
                 ) from e
 
-        if author_login:
-            with self.sudo(author_login):
+        if sudo_login:
+            with self.sudo(sudo_login):
                 result = self._sg.create("Note", note_data)
         else:
             result = self._sg.create("Note", note_data)

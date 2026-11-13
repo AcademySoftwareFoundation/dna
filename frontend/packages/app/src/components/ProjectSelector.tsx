@@ -142,13 +142,15 @@ export function ProjectSelector({ onSelectionComplete }: ProjectSelectorProps) {
   const userEmail = user?.email || null;
 
   useEffect(() => {
-    if (isAuthLoading) {
-      setStep('loading');
+    if (!isAuthenticated || !userEmail) {
+      // Keep the sign-in form mounted while a login attempt is in flight so
+      // failures can show an error instead of remounting a blank form.
+      setStep('signin');
       return;
     }
 
-    if (!isAuthenticated || !userEmail) {
-      setStep('signin');
+    if (isAuthLoading) {
+      setStep('loading');
       return;
     }
 

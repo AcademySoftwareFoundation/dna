@@ -9,7 +9,14 @@ export * from './interfaces';
 export * from './mentionLookup';
 export * from './utils';
 export { ApiHandler, createApiHandler } from './apiHandler';
-export type { ApiHandlerConfig } from './apiHandler';
+export type {
+  ApiHandlerConfig,
+  AuthPrincipalDto,
+  AuthRefreshHandler,
+  AuthSessionDto,
+  User as ApiUser,
+} from './apiHandler';
+export * from './authSession';
 export * from './eventClient';
 export * from './aiSuggestionManager';
 export * from './extension';

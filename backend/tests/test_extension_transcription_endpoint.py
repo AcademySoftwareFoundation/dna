@@ -3,7 +3,7 @@
 Covers:
 - GET /transcription/extension/health (handshake, feature-flag gate)
 - WS  /transcription/extension/ingest (auth, handshake, ingest, acks)
-- helper functions _extension_transcription_enabled / _authenticate_ws_token
+- helper functions _extension_transcription_enabled / authenticate_ws_token
 """
 
 import os
@@ -238,48 +238,48 @@ class TestExtensionHelpers:
 
     def test_auth_none_without_token_is_anonymous(self):
         with mock.patch.dict(os.environ, {"AUTH_PROVIDER": "none"}):
-            assert main._authenticate_ws_token(None) == "anonymous@localhost"
+            assert main.authenticate_ws_token(None) == "anonymous@localhost"
 
     def test_auth_none_with_token_uses_provider_email(self):
         provider = mock.Mock()
         provider.get_user_email.return_value = "who@test.com"
         with (
             mock.patch.dict(os.environ, {"AUTH_PROVIDER": "none"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
+            mock.patch("auth_helpers.get_auth_provider_cached", return_value=provider),
         ):
-            assert main._authenticate_ws_token("tok") == "who@test.com"
+            assert main.authenticate_ws_token("tok") == "who@test.com"
 
     def test_auth_google_valid_token(self):
         provider = mock.Mock()
         provider.validate_token.return_value = {"email": "g@test.com"}
         with (
             mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
+            mock.patch("auth_helpers.get_auth_provider_cached", return_value=provider),
         ):
-            assert main._authenticate_ws_token("tok") == "g@test.com"
+            assert main.authenticate_ws_token("tok") == "g@test.com"
 
     def test_auth_google_missing_token(self):
         provider = mock.Mock()
         with (
             mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
+            mock.patch("auth_helpers.get_auth_provider_cached", return_value=provider),
         ):
-            assert main._authenticate_ws_token(None) is None
+            assert main.authenticate_ws_token(None) is None
 
     def test_auth_google_invalid_token(self):
         provider = mock.Mock()
         provider.validate_token.side_effect = ValueError("bad token")
         with (
             mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
+            mock.patch("auth_helpers.get_auth_provider_cached", return_value=provider),
         ):
-            assert main._authenticate_ws_token("tok") is None
+            assert main.authenticate_ws_token("tok") is None
 
     def test_auth_google_missing_email_claim(self):
         provider = mock.Mock()
         provider.validate_token.return_value = {"sub": "123"}
         with (
             mock.patch.dict(os.environ, {"AUTH_PROVIDER": "google"}),
-            mock.patch.object(main, "get_auth_provider_cached", return_value=provider),
+            mock.patch("auth_helpers.get_auth_provider_cached", return_value=provider),
         ):
-            assert main._authenticate_ws_token("tok") is None
+            assert main.authenticate_ws_token("tok") is None

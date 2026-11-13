@@ -266,6 +266,7 @@ class ProdtrackProviderBase:
         links: list["EntityBase"],
         author_email: str | None = None,
         version_status: str | None = None,
+        author_login: str | None = None,
     ) -> str:
         """Publish a note to the production tracking system.
 
@@ -279,6 +280,8 @@ class ProdtrackProviderBase:
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
             version_status: Optional status code to set on the version.
+            author_login: Optional tracking-system login for sudo. When set,
+                providers should prefer it over looking up ``author_email``.
 
         Returns:
             The ID of the created note
@@ -294,6 +297,7 @@ class ProdtrackProviderBase:
         cc_users: list[str],
         links: list["EntityBase"],
         author_email: str | None = None,
+        author_login: str | None = None,
     ) -> str:
         """Publish a note linked to a playlist rather than a version.
 
@@ -306,6 +310,8 @@ class ProdtrackProviderBase:
             links: List of additional entities to link
             author_email: Optional email of the author. If provided, the note
                 should be created on behalf of this user.
+            author_login: Optional tracking-system login for sudo. When set,
+                providers should prefer it over looking up ``author_email``.
 
         Returns:
             The ID of the created note

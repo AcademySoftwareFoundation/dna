@@ -105,9 +105,67 @@ const GoogleIcon = () => (
   </svg>
 );
 
+const ErrorBanner = styled.p`
+  margin: 0;
+  padding: 10px 12px;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  font-size: 13px;
+  line-height: 1.4;
+  color: ${({ theme }) => theme.colors.status.error};
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+const HelpText = styled.p`
+  margin: 0;
+  font-family: ${({ theme }) => theme.fonts.sans};
+  font-size: 12px;
+  line-height: 1.45;
+  color: ${({ theme }) => theme.colors.text.muted};
+`;
+
+const HelpLink = styled.a`
+  color: ${({ theme }) => theme.colors.accent.main};
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.accent.hover};
+  }
+`;
+
+const SHOTGRID_LEGACY_LOGIN_DOCS_URL =
+  'https://academysoftwarefoundation.github.io/dna/docs/2-account-setup';
+
+function extractLoginErrorDetail(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null;
+  const response = (err as { response?: { data?: { detail?: unknown } } })
+    .response;
+  const detail = response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail.trim();
+  }
+  if (err instanceof Error && err.message.trim()) {
+    // Prefer API detail over generic axios / mismatch messages when present.
+    if (!err.message.startsWith('Request failed')) {
+      return err.message.trim();
+    }
+  }
+  return null;
+}
+
 export function SignInForm() {
-  const { authProvider, isLoading, signIn, signInWithEmail } = useAuth();
+  const {
+    authProvider,
+    isLoading,
+    signIn,
+    signInWithEmail,
+    signInWithPassword,
+  } = useAuth();
   const [emailInput, setEmailInput] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   switch (authProvider) {
     case 'none':
@@ -142,6 +200,76 @@ export function SignInForm() {
             <GoogleIcon />
             Sign in with Google
           </GoogleButton>
+        </AuthFormSection>
+      );
+    case 'shotgrid':
+      return (
+        <AuthFormSection>
+          <StyledForm
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError(null);
+              try {
+                await signInWithPassword(
+                  usernameInput.trim(),
+                  passwordInput
+                );
+              } catch (err) {
+                const detail = extractLoginErrorDetail(err);
+                setError(
+                  detail ||
+                    'Invalid username or password. Use your Flow legacy login and legacy password, not your Autodesk Account password.'
+                );
+              }
+            }}
+          >
+            {error ? (
+              <ErrorBanner role="alert">{error}</ErrorBanner>
+            ) : null}
+            <AuthLabel>ShotGrid username</AuthLabel>
+            <StyledInput
+              type="text"
+              placeholder="legacy login"
+              value={usernameInput}
+              onChange={(e) => {
+                setError(null);
+                setUsernameInput(e.target.value);
+              }}
+              autoFocus
+              autoComplete="username"
+              aria-invalid={error ? true : undefined}
+            />
+            <AuthLabel>Password</AuthLabel>
+            <StyledInput
+              type="password"
+              placeholder="legacy password"
+              value={passwordInput}
+              onChange={(e) => {
+                setError(null);
+                setPasswordInput(e.target.value);
+              }}
+              autoComplete="current-password"
+              aria-invalid={error ? true : undefined}
+            />
+            <SubmitButton
+              type="submit"
+              disabled={
+                isLoading || !usernameInput.trim() || !passwordInput
+              }
+            >
+              {isLoading ? 'Signing in…' : 'Sign in'}
+            </SubmitButton>
+            <HelpText>
+              Need to enable legacy login?{' '}
+              <HelpLink
+                href={SHOTGRID_LEGACY_LOGIN_DOCS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Flow Account Setup
+              </HelpLink>
+            </HelpText>
+          </StyledForm>
         </AuthFormSection>
       );
     default: {

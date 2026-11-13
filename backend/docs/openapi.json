@@ -115,6 +115,143 @@
         "title": "Asset",
         "type": "object"
       },
+      "AuthLoginRequest": {
+        "description": "Credentials for password-based authentication providers.",
+        "examples": [
+          {
+            "password": "legacy-or-pat-password",
+            "username": "artist"
+          }
+        ],
+        "properties": {
+          "auth_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional 2FA token when the provider requires it",
+            "title": "Auth Token"
+          },
+          "password": {
+            "description": "Provider password or personal access token",
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "description": "Provider username / legacy login",
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "AuthLoginRequest",
+        "type": "object"
+      },
+      "AuthPrincipalResponse": {
+        "description": "Authenticated caller returned by auth endpoints.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "login": {
+            "title": "Login",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "login",
+          "provider"
+        ],
+        "title": "AuthPrincipalResponse",
+        "type": "object"
+      },
+      "AuthRefreshRequest": {
+        "description": "Refresh-token exchange for providers that support it.",
+        "examples": [
+          {
+            "refresh_token": "sg-refresh-token"
+          }
+        ],
+        "properties": {
+          "refresh_token": {
+            "description": "Refresh token from a prior login",
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "AuthRefreshRequest",
+        "type": "object"
+      },
+      "AuthSessionResponse": {
+        "description": "Session returned by login and refresh.",
+        "properties": {
+          "expires_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Access token lifetime in seconds",
+            "title": "Expires In"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/AuthPrincipalResponse"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refresh token when the provider issues one",
+            "title": "Refresh Token"
+          },
+          "token": {
+            "description": "Access token to send as Authorization Bearer",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "principal"
+        ],
+        "title": "AuthSessionResponse",
+        "type": "object"
+      },
       "Body_upload_attachment_api_attachments_post": {
         "properties": {
           "file": {
@@ -3668,7 +3805,7 @@
       "name": "DNA Project",
       "url": "https://github.com/AcademySoftwareFoundation/dna"
     },
-    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n\n### Authentication\nSend `Authorization: Bearer <token>` on every request except **Health**. The\nconfigured `AUTH_PROVIDER` validates the token (Google OAuth in production)\nand extracts the caller's email; most calls only return data when that email\nbelongs to a user in the tracking provider. Errors are `{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
+    "description": "\n## DNA Backend API\n\nHTTP API behind the DNA (Dailies Notes Assistant) web app. Build on it to\nread what is in review, write and publish notes, drive meeting transcription,\nor feed a transcript in from your own tool.\n\n### Two kinds of endpoint\n- **Production Tracking** endpoints proxy the configured provider (ShotGrid,\n  or a read-only mock). DNA stores nothing for them; IDs are the provider's\n  own, passed through as opaque strings.\n- **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist\n  review state, transcripts, user settings, QC checks and glossaries. The\n  **Publishing** endpoints push that data into the tracking provider.\n\n### Authentication\nSend `Authorization: Bearer <token>` and `X-User-Id: <email>` on every\nrequest except public probes and `/auth/login` / `/auth/refresh`. The\nconfigured `AUTH_PROVIDER` validates the token and requires the identity\nheader to match the token principal. Errors are `{\"detail\": \"...\"}`.\n\n### Real-time\nEvents stream out over the `/ws` WebSocket and the browser extension streams\ntranscripts in over `/transcription/extension/ingest`. WebSockets are not part\nof this document; they are described on the docs site.\n\n### Documentation\n- **Swagger UI**: Available at `/docs`\n- **ReDoc**: Available at `/redoc`\n- **OpenAPI JSON**: Available at `/openapi.json`\n",
     "title": "DNA Backend",
     "version": "0.1.0"
   },
@@ -4022,6 +4159,207 @@
         "summary": "Get an asset by ID",
         "tags": [
           "Assets"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "description": "Exchange username and password for an access token. Used by password providers such as ShotGrid. Nothing is stored server-side.",
+        "operationId": "auth_login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Configured production tracking provider does not support this operation"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream identity or tracking provider is unavailable"
+          }
+        },
+        "summary": "Authenticate with the configured auth provider",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "description": "Return the principal derived from the bearer token and identity header.",
+        "operationId": "auth_me_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthPrincipalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Authenticated user does not match the user in the path"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream identity or tracking provider is unavailable"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Return the authenticated principal",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "description": "Exchange a refresh token for a new access token. Used by providers such as ShotGrid that issue short-lived access tokens.",
+        "operationId": "auth_refresh_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid bearer token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Configured production tracking provider does not support this operation"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream identity or tracking provider is unavailable"
+          }
+        },
+        "summary": "Refresh an access token",
+        "tags": [
+          "Health"
         ]
       }
     },

@@ -73,12 +73,29 @@ export interface User {
   name?: string;
   email?: string;
   token?: string;
+  login?: string;
+}
+
+export interface AuthPrincipalDto {
+  email: string;
+  login: string;
+  provider: string;
+  name?: string | null;
+}
+
+export interface AuthSessionDto {
+  token: string;
+  refresh_token?: string | null;
+  expires_in?: number | null;
+  principal: AuthPrincipalDto;
 }
 
 export interface ApiHandlerConfig {
   baseURL: string;
   timeout?: number;
 }
+
+export type AuthRefreshHandler = () => Promise<string | null>;
 
 function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
   return {
@@ -90,6 +107,8 @@ function normalizeNoteQCCheck(raw: NoteQCCheck & { id?: string }): NoteQCCheck {
 class ApiHandler {
   private axiosInstance: AxiosInstance;
   private currentUser: User | null = null;
+  private refreshHandler: AuthRefreshHandler | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(config: ApiHandlerConfig) {
     this.axiosInstance = axios.create({
@@ -104,11 +123,44 @@ class ApiHandler {
       if (this.currentUser?.token) {
         requestConfig.headers.Authorization = `Bearer ${this.currentUser.token}`;
       }
-      if (this.currentUser?.id) {
-        requestConfig.headers['X-User-Id'] = this.currentUser.id;
+      const identity = this.currentUser?.email || this.currentUser?.id;
+      if (identity) {
+        requestConfig.headers['X-User-Id'] = identity;
       }
       return requestConfig;
     });
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const original = error.config as
+          | (AxiosRequestConfig & { _retry?: boolean })
+          | undefined;
+        if (
+          error.response?.status === 401 &&
+          original &&
+          !original._retry &&
+          this.refreshHandler &&
+          !String(original.url || '').includes('/auth/')
+        ) {
+          original._retry = true;
+          if (!this.refreshPromise) {
+            this.refreshPromise = this.refreshHandler().finally(() => {
+              this.refreshPromise = null;
+            });
+          }
+          const token = await this.refreshPromise;
+          if (token) {
+            original.headers = {
+              ...original.headers,
+              Authorization: `Bearer ${token}`,
+            };
+            return this.axiosInstance.request(original);
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   setUser(user: User | null): void {
@@ -117,6 +169,32 @@ class ApiHandler {
 
   getUser(): User | null {
     return this.currentUser;
+  }
+
+  setAuthRefreshHandler(handler: AuthRefreshHandler | null): void {
+    this.refreshHandler = handler;
+  }
+
+  async login(
+    username: string,
+    password: string,
+    authToken?: string
+  ): Promise<AuthSessionDto> {
+    return this.post<AuthSessionDto>('/auth/login', {
+      username,
+      password,
+      auth_token: authToken,
+    });
+  }
+
+  async refreshAuth(refreshToken: string): Promise<AuthSessionDto> {
+    return this.post<AuthSessionDto>('/auth/refresh', {
+      refresh_token: refreshToken,
+    });
+  }
+
+  async getMe(): Promise<AuthPrincipalDto> {
+    return this.get<AuthPrincipalDto>('/auth/me');
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {

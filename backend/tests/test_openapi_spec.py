@@ -28,6 +28,8 @@ UNAUTHENTICATED_PATHS = {
     ("get", "/api/mock-thumbnails/{version_id}"),
     # Extension handshake probe; returns only a feature-flag boolean or 404.
     ("get", "/transcription/extension/health"),
+    ("post", "/auth/login"),
+    ("post", "/auth/refresh"),
 }
 
 

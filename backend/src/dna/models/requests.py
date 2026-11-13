@@ -337,3 +337,51 @@ class PublishTranscriptResponse(BaseModel):
     outcome: str = Field(description="created | updated | skipped")
     skipped_reason: Optional[str] = None
     segments_count: int
+
+
+class AuthLoginRequest(BaseModel):
+    """Credentials for password-based authentication providers."""
+
+    model_config = _examples(
+        {
+            "username": "artist",
+            "password": "legacy-or-pat-password",
+        }
+    )
+
+    username: str = Field(description="Provider username / legacy login")
+    password: str = Field(description="Provider password or personal access token")
+    auth_token: Optional[str] = Field(
+        default=None,
+        description="Optional 2FA token when the provider requires it",
+    )
+
+
+class AuthRefreshRequest(BaseModel):
+    """Refresh-token exchange for providers that support it."""
+
+    model_config = _examples({"refresh_token": "sg-refresh-token"})
+
+    refresh_token: str = Field(description="Refresh token from a prior login")
+
+
+class AuthPrincipalResponse(BaseModel):
+    """Authenticated caller returned by auth endpoints."""
+
+    email: str
+    login: str
+    provider: str
+    name: Optional[str] = None
+
+
+class AuthSessionResponse(BaseModel):
+    """Session returned by login and refresh."""
+
+    token: str = Field(description="Access token to send as Authorization Bearer")
+    refresh_token: Optional[str] = Field(
+        default=None, description="Refresh token when the provider issues one"
+    )
+    expires_in: Optional[int] = Field(
+        default=None, description="Access token lifetime in seconds"
+    )
+    principal: AuthPrincipalResponse

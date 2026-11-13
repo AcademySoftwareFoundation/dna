@@ -9,6 +9,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Optional, cast
 
+from auth_helpers import (
+    CurrentUserDep,
+    SelfUserDep,
+    authenticate_ws_token,
+    get_auth_provider_cached,
+)
+from auth_helpers import router as auth_router
 from fastapi import (
     Depends,
     FastAPI,
@@ -22,10 +29,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from dna.auth.email import emails_match
-from dna.auth_providers.auth_provider_base import AuthProviderBase, get_auth_provider
 from dna.cors_settings import get_cors_middleware_kwargs
 from dna.events import EventType, get_event_publisher
 from dna.glossary_config import (
@@ -123,10 +127,10 @@ or feed a transcript in from your own tool.
   **Publishing** endpoints push that data into the tracking provider.
 
 ### Authentication
-Send `Authorization: Bearer <token>` on every request except **Health**. The
-configured `AUTH_PROVIDER` validates the token (Google OAuth in production)
-and extracts the caller's email; most calls only return data when that email
-belongs to a user in the tracking provider. Errors are `{"detail": "..."}`.
+Send `Authorization: Bearer <token>` and `X-User-Id: <email>` on every
+request except public probes and `/auth/login` / `/auth/refresh`. The
+configured `AUTH_PROVIDER` validates the token and requires the identity
+header to match the token principal. Errors are `{"detail": "..."}`.
 
 ### Real-time
 Events stream out over the `/ws` WebSocket and the browser extension streams
@@ -277,6 +281,7 @@ app = FastAPI(
     },
 )
 install_openapi_extras(app)
+app.include_router(auth_router)
 
 app.add_middleware(CORSMiddleware, **get_cors_middleware_kwargs())
 
@@ -350,71 +355,6 @@ def get_transcription_service_cached() -> TranscriptionService:
 TranscriptionServiceDep = Annotated[
     TranscriptionService, Depends(get_transcription_service_cached)
 ]
-
-
-# -----------------------------------------------------------------------------
-# Authentication
-# -----------------------------------------------------------------------------
-
-security = HTTPBearer(auto_error=False)
-
-
-@lru_cache
-def get_auth_provider_cached() -> Optional[AuthProviderBase]:
-    """Get or create the auth provider singleton."""
-    return get_auth_provider()
-
-
-AuthProviderDep = Annotated[
-    Optional[AuthProviderBase], Depends(get_auth_provider_cached)
-]
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    auth_provider: AuthProviderDep = None,
-) -> str:
-    """Validate the auth token and return the user's email.
-
-    Returns the user's email from the validated token.
-    Raises HTTPException 401 if token is missing or invalid.
-
-    When AUTH_PROVIDER=none, authentication is skipped and a placeholder
-    email is returned (for development/testing only).
-    """
-    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
-    if auth_provider_type == "none":
-        if credentials and credentials.credentials:
-            return auth_provider.get_user_email(credentials.credentials)
-        return "anonymous@localhost"
-
-    if credentials is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    try:
-        claims = auth_provider.validate_token(credentials.credentials)
-        # Safely access the email claim to avoid KeyError and return 401 on missing email
-        email = claims.get("email") if isinstance(claims, dict) else None
-        if not email:
-            raise HTTPException(
-                status_code=401,
-                detail="Missing email claim in authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return email
-    except ValueError as e:
-        raise HTTPException(
-            status_code=401,
-            detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-CurrentUserDep = Annotated[str, Depends(get_current_user)]
 
 
 # -----------------------------------------------------------------------------
@@ -1673,7 +1613,7 @@ async def publish_transcript(
                 entity_type=entity_type,
                 entity_id=entity_id,
                 name=name,
-                author_email=current_user,
+                author_email=current_user.email,
                 body_hash=payload.body_hash,
                 segments_count=payload.segments_count,
             )
@@ -2086,11 +2026,9 @@ def _empty_user_settings_response(user_email: str) -> UserSettingsResponse:
 async def get_user_settings(
     user_email: str,
     provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> UserSettingsResponse:
     """Get user settings."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     stored = await provider.get_user_settings(user_email)
     if stored is None:
         return _empty_user_settings_response(user_email)
@@ -2109,11 +2047,9 @@ async def upsert_user_settings(
     user_email: str,
     data: UserSettingsUpdate,
     provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> UserSettingsResponse:
     """Create or update user settings."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     updated = await provider.upsert_user_settings(user_email, data)
     return _user_settings_to_response(updated)
 
@@ -2129,11 +2065,9 @@ async def upsert_user_settings(
 async def delete_user_settings(
     user_email: str,
     provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> bool:
     """Delete user settings."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await provider.delete_user_settings(user_email)
     if not deleted:
         raise HTTPException(status_code=404, detail="User settings not found")
@@ -2150,11 +2084,9 @@ async def delete_user_settings(
 async def list_qc_checks(
     user_email: str,
     storage_provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> list[NoteQCCheck]:
     """Return the QC checks a user has defined for their draft notes."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.get_qc_checks(user_email)
 
 
@@ -2170,11 +2102,9 @@ async def create_qc_check(
     user_email: str,
     data: NoteQCCheckCreate,
     storage_provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> NoteQCCheck:
     """Create a QC check that runs against the user's draft notes at publish time."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     return await storage_provider.create_qc_check(user_email, data)
 
 
@@ -2190,11 +2120,9 @@ async def update_qc_check(
     check_id: str,
     data: NoteQCCheckUpdate,
     storage_provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> NoteQCCheck:
     """Update an existing QC check. Returns 404 if the check does not exist."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     updated = await storage_provider.update_qc_check(user_email, check_id, data)
     if updated is None:
         raise HTTPException(status_code=404, detail="QC check not found")
@@ -2212,11 +2140,9 @@ async def delete_qc_check(
     user_email: str,
     check_id: str,
     storage_provider: StorageProviderDep,
-    current_user: CurrentUserDep,
+    _current_user: SelfUserDep,
 ) -> None:
     """Delete a QC check. Returns 404 if the check does not exist."""
-    if not emails_match(user_email, current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await storage_provider.delete_qc_check(user_email, check_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="QC check not found")
@@ -2483,31 +2409,6 @@ def _extension_key_valid(key: Optional[str]) -> bool:
     return key is not None and hmac.compare_digest(key, expected)
 
 
-def _authenticate_ws_token(token: Optional[str]) -> Optional[str]:
-    """Validate a token for a WebSocket connection and return the user email.
-
-    Mirrors ``get_current_user`` but for WebSockets, which cannot use the
-    HTTPBearer/Depends flow. Returns ``None`` when authentication fails.
-    """
-    auth_provider = get_auth_provider_cached()
-    auth_provider_type = os.getenv("AUTH_PROVIDER", "none")
-
-    if auth_provider_type == "none":
-        if token and auth_provider is not None:
-            return auth_provider.get_user_email(token)
-        return "anonymous@localhost"
-
-    if not token or auth_provider is None:
-        return None
-
-    try:
-        claims = auth_provider.validate_token(token)
-        email = claims.get("email") if isinstance(claims, dict) else None
-        return email or None
-    except ValueError:
-        return None
-
-
 @app.get(
     "/transcription/extension/health",
     tags=["Transcription"],
@@ -2563,7 +2464,7 @@ async def extension_transcription_ingest(websocket: WebSocket):
         return
 
     token = websocket.query_params.get("token")
-    user_email = _authenticate_ws_token(token)
+    user_email = authenticate_ws_token(token)
     if user_email is None:
         await websocket.close(code=1008, reason="unauthorized")
         return

@@ -1,0 +1,37 @@
+---
+description: Keep bootstrap.sh in sync when adding or changing providers.
+alwaysApply: true
+---
+
+# Update bootstrap when providers change
+
+Whenever you add a new provider, a new provider type, or new required env vars
+for an existing provider, update [`bootstrap.sh`](bootstrap.sh) in the same
+change so local setup stays configurable.
+
+## What to update
+
+1. **Configure step** — add or extend the matching `configure_*` function
+   (prompts, defaults, backend compose + frontend `.env` when both sides need
+   the value).
+2. **Label helper** — add or update `current_*_label` so the Settings menu
+   shows the active choice.
+3. **Menus** — wire the step into first-time `main` setup and into
+   `change_settings` (renumber choices if needed).
+4. **Examples** — keep `backend/example.docker-compose.local.yml` and
+   `frontend/packages/app/.env.example` aligned with the new keys.
+
+## Pairing
+
+If a provider has both backend and frontend env vars (for example
+`AUTH_PROVIDER` / `VITE_AUTH_PROVIDER`), bootstrap must set **both**. Do not
+leave one side for the user to discover later.
+
+```bash
+# ❌ BAD — only backend
+set_env_var "AUTH_PROVIDER" "shotgrid" "$BACKEND_DIR/docker-compose.local.yml"
+
+# ✅ GOOD — backend + frontend
+set_env_var "AUTH_PROVIDER" "shotgrid" "$BACKEND_DIR/docker-compose.local.yml"
+set_feature_flag "VITE_AUTH_PROVIDER" "shotgrid" "$FRONTEND_ENV"
+```

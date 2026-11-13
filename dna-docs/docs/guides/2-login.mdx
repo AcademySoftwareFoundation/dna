@@ -1,14 +1,26 @@
 ---
-sidebar_position: 2
+sidebar_position: 2.5
 slug: /2-login
 title: Logging In
 ---
 
 import LiveLoginDemo from '@site/src/components/LiveLoginDemo';
 
-## Email Authentication: Flow Production Tracking
+## Signing in
 
-The current way to authenticate with DNA is to login with an email associated with your configured Flow Production Tracking site. 
-Once an email is entered, a dropdown list of projects and playlists shows up to choose from.
+How you sign in depends on how your studio configured DNA.
+
+| Mode | What you enter |
+| --- | --- |
+| Development (`none`) | Email associated with your Flow / ShotGrid user |
+| Google | Google account used by your studio |
+| ShotGrid / Flow (`shotgrid`) | Flow **legacy Login** and **legacy password** |
+
+For ShotGrid auth, complete the one-time
+[Flow Account Setup](/docs/2-account-setup) first (Autodesk PAT bound in Flow,
+plus Legacy Login enabled). After that, use those credentials on the DNA
+sign-in form — not your Autodesk Account password, and not the PAT string.
+
+Once you are signed in, choose a project and playlist to open.
 
 <LiveLoginDemo caption="The DNA login screen. Follow the steps to sign in and open a playlist from sample data." />

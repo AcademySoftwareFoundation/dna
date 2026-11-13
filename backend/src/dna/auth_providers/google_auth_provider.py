@@ -3,6 +3,8 @@
 Validates Google tokens (ID tokens or access tokens) using Google APIs.
 """
 
+from __future__ import annotations
+
 import os
 import time
 from typing import Optional
@@ -11,11 +13,17 @@ import requests as http_requests
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
-from dna.auth_providers.auth_provider_base import AuthProviderBase
+from dna.auth_providers.auth_provider_base import (
+    AuthPrincipal,
+    AuthProviderBase,
+    AuthUpstreamError,
+)
 
 
 class GoogleAuthProvider(AuthProviderBase):
     """Google authentication provider that validates Google tokens."""
+
+    provider_name = "google"
 
     def __init__(
         self,
@@ -31,6 +39,20 @@ class GoogleAuthProvider(AuthProviderBase):
         if not self.client_id:
             raise ValueError("Google client ID is required for token validation")
         self._request = requests.Request()
+
+    def _claims_to_principal(self, claims: dict) -> AuthPrincipal:
+        email = claims.get("email")
+        if not email:
+            raise ValueError("Token does not contain an email claim")
+        login = str(email).split("@", 1)[0]
+        return AuthPrincipal(
+            email=email,
+            login=login,
+            provider=self.provider_name,
+            name=claims.get("name"),
+            sub=claims.get("sub"),
+            claims=claims,
+        )
 
     def _validate_id_token(self, token: str) -> dict:
         """Validate a Google ID token (JWT format)."""
@@ -49,9 +71,14 @@ class GoogleAuthProvider(AuthProviderBase):
         Note: Google's tokeninfo API only supports GET with the token in the
         query string; avoid logging or proxying request URLs to prevent token leakage.
         """
-        response = http_requests.get(
-            f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
-        )
+        try:
+            response = http_requests.get(
+                f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
+            )
+        except http_requests.RequestException as exc:
+            raise AuthUpstreamError(f"Google tokeninfo unreachable: {exc}") from exc
+        if response.status_code >= 500:
+            raise AuthUpstreamError(f"Google tokeninfo failed: {response.status_code}")
         if response.status_code != 200:
             raise ValueError(f"Invalid access token: {response.text}")
 
@@ -69,10 +96,17 @@ class GoogleAuthProvider(AuthProviderBase):
         if self.client_id and token_info.get("aud") != self.client_id:
             raise ValueError("Invalid audience")
 
-        userinfo_response = http_requests.get(
-            "https://www.googleapis.com/oauth2/v3/userinfo",
-            headers={"Authorization": f"Bearer {token}"},
-        )
+        try:
+            userinfo_response = http_requests.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        except http_requests.RequestException as exc:
+            raise AuthUpstreamError(f"Google userinfo unreachable: {exc}") from exc
+        if userinfo_response.status_code >= 500:
+            raise AuthUpstreamError(
+                f"Google userinfo failed: {userinfo_response.status_code}"
+            )
         if userinfo_response.status_code != 200:
             raise ValueError("Failed to get user info")
 
@@ -86,30 +120,15 @@ class GoogleAuthProvider(AuthProviderBase):
             "picture": userinfo.get("picture"),
         }
 
-    def validate_token(self, token: str) -> dict:
-        """Validate a Google token (ID token or access token).
-
-        Automatically detects token type based on format:
-        - JWT (3 dot-separated parts) -> ID token validation
-        - Other -> Access token validation
-
-        Args:
-            token: The Google token to validate.
-
-        Returns:
-            A dictionary containing user info including:
-            - email: The user's email address
-            - sub: The user's unique Google ID
-            - name: The user's display name (if available)
-            - picture: URL to the user's profile picture (if available)
-
-        Raises:
-            ValueError: If the token is invalid or expired.
-        """
+    def validate_token(self, token: str) -> AuthPrincipal:
+        """Validate a Google token (ID token or access token)."""
         try:
             if token.count(".") == 2:
-                return self._validate_id_token(token)
+                claims = self._validate_id_token(token)
             else:
-                return self._validate_access_token(token)
+                claims = self._validate_access_token(token)
+            return self._claims_to_principal(claims)
+        except (AuthUpstreamError, ValueError):
+            raise
         except Exception as e:
-            raise ValueError(f"Invalid token: {e}")
+            raise ValueError(f"Invalid token: {e}") from e

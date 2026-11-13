@@ -13,8 +13,10 @@ describe('ApiHandler', () => {
     put: ReturnType<typeof vi.fn>;
     patch: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+    request: ReturnType<typeof vi.fn>;
     interceptors: {
       request: { use: ReturnType<typeof vi.fn> };
+      response: { use: ReturnType<typeof vi.fn> };
     };
   };
   let requestInterceptor: (
@@ -30,11 +32,15 @@ describe('ApiHandler', () => {
       put: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
+      request: vi.fn(),
       interceptors: {
         request: {
           use: vi.fn((interceptor) => {
             requestInterceptor = interceptor;
           }),
+        },
+        response: {
+          use: vi.fn(),
         },
       },
     };
@@ -106,18 +112,34 @@ describe('ApiHandler', () => {
   describe('request interceptor', () => {
     it('should add Authorization header when user has token', () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });
-      api.setUser({ id: '123', token: 'my-jwt-token' });
+      api.setUser({
+        id: '123',
+        email: 'artist@studio.com',
+        token: 'my-jwt-token',
+      });
 
       const config = { headers: {} as Record<string, string> };
       const result = requestInterceptor(config);
 
       expect(result.headers).toEqual({
         Authorization: 'Bearer my-jwt-token',
-        'X-User-Id': '123',
+        'X-User-Id': 'artist@studio.com',
       });
     });
 
-    it('should add X-User-Id header when user is set', () => {
+    it('should add X-User-Id header from email when available', () => {
+      const api = createApiHandler({ baseURL: 'http://localhost:8000' });
+      api.setUser({ id: 'user-456', email: 'artist@studio.com' });
+
+      const config = { headers: {} as Record<string, string> };
+      const result = requestInterceptor(config);
+
+      expect(result.headers).toEqual({
+        'X-User-Id': 'artist@studio.com',
+      });
+    });
+
+    it('should fall back to id for X-User-Id when email is missing', () => {
       const api = createApiHandler({ baseURL: 'http://localhost:8000' });
       api.setUser({ id: 'user-456' });
 

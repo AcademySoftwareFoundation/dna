@@ -98,6 +98,7 @@ _ERROR_DESCRIPTIONS: dict[int, str] = {
     500: "Tracking system was updated but DNA bookkeeping failed; do not retry blindly",
     501: "Configured production tracking provider does not support this operation",
     502: "Production tracking provider rejected the update",
+    503: "Upstream identity or tracking provider is unavailable",
 }
 
 _UNAUTHORIZED_RESPONSE: dict[str, Any] = {

@@ -668,6 +668,7 @@ class MockProdtrackProvider(ProdtrackProviderBase):
         links: list[EntityBase],
         author_email: Optional[str] = None,
         version_status: Optional[str] = None,
+        author_login: Optional[str] = None,
     ) -> str:
         raise NotImplementedError(
             "MockProdtrackProvider is read-only. publish_note is not supported."

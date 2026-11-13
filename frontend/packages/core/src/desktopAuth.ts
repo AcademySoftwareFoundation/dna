@@ -12,7 +12,7 @@ export const DESKTOP_SIGNIN_PATH = '/desktop-signin';
 export const DESKTOP_BRIDGE_READY_EVENT = 'dna-desktop-bridge-ready';
 export const DESKTOP_AUTH_PAYLOAD_VERSION = 2;
 
-export type DesktopAuthProvider = 'none' | 'google';
+export type DesktopAuthProvider = 'none' | 'google' | 'shotgrid';
 
 export interface DesktopAuthEntityRef {
   id: string;

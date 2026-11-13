@@ -8,20 +8,41 @@ alwaysApply: false
 
 ## Match frontend and backend auth in every environment
 
-Local dev uses noop auth; GCP production uses Google OAuth. Both sides must agree or you will see 401/403 on protected routes.
+Both sides must agree or you will see 401/403 on protected routes.
 
 | Environment | Backend `AUTH_PROVIDER` | Frontend `VITE_AUTH_PROVIDER` |
-|---------------|-------------------------|-------------------------------|
+|---|---|---|
 | Local (default) | `none` | `none` |
-| GCP / production | `google` | `google` (baked at Docker build; see `frontend/Dockerfile`) |
+| Google / GCP | `google` | `google` (baked at Docker build; see `frontend/Dockerfile`) |
+| ShotGrid | `shotgrid` | `shotgrid` |
 
-Also set `GOOGLE_CLIENT_ID` (backend) and `VITE_GOOGLE_CLIENT_ID` (frontend build) to the **same** OAuth client. The GCP deploy workflow passes the secret into the frontend image build.
+For Google also set `GOOGLE_CLIENT_ID` (backend) and `VITE_GOOGLE_CLIENT_ID`
+(frontend build) to the **same** OAuth client. For ShotGrid set `SHOTGRID_URL`
+(and the existing prodtrack script credentials for data access).
+
+Protected HTTP requests send:
+
+```http
+Authorization: Bearer <token>
+X-User-Id: <caller-email>
+```
+
+`X-User-Id` must match the token principal (case-insensitive via
+`emails_match`). DNA does not store auth tokens server-side.
 
 ## Two authorization patterns
 
-**User-scoped** (`/users/{user_email}/…`): settings, QC check definitions. The path `user_email` must match the authenticated user. Use `emails_match()` from `dna.auth.email` (case-insensitive); do not use raw `!=`.
+**Always:** validate bearer token + identity header via `CurrentUserDep`
+(returns `AuthPrincipal`).
 
-**Playlist / draft-scoped** (`/playlists/…`, `publish-notes`, `run-qc-checks`): any authenticated user may act on drafts in the playlist. Do **not** require `body.user_email == current_user` on `run-qc-checks`.
+**User-scoped** (`/users/{user_email}/…`): settings, QC check definitions. The
+path `user_email` must also match the authenticated principal. Use
+`emails_match()` from `dna.auth.email`; do not use raw `!=`.
+
+**Playlist / draft-scoped** (`/playlists/…`, `publish-notes`, `run-qc-checks`):
+any authenticated caller may act on drafts in the playlist. Do **not** require
+`body.user_email == current_user.email` on `run-qc-checks`. The caller's
+identity header is still checked against their token.
 
 ## Note QC: `user_email` means draft owner
 
@@ -32,8 +53,9 @@ Frontend: `useNoteQCChecks` correctly passes `d.user_email` from each `DraftNote
 
 ## Debugging 403 Forbidden on QC
 
-1. **Settings tab** (`GET /users/…/qc-checks`): path email ≠ token email (check case; use `emails_match` on the backend).
-2. **Publish dialog** (`run-qc-checks`): caller was wrongly required to own the draft — fixed by playlist-scoped auth above.
-3. **401** (not 403): missing Bearer token, wrong `AUTH_PROVIDER`, or invalid Google token / client ID mismatch.
+1. **Any protected route**: `X-User-Id` missing or not equal to the token email.
+2. **Settings tab** (`GET /users/…/qc-checks`): path email ≠ token email (check case; use `emails_match` on the backend).
+3. **Publish dialog** (`run-qc-checks`): caller was wrongly required to own the draft — playlist-scoped auth does not require that.
+4. **401** (not 403): missing Bearer token, wrong `AUTH_PROVIDER`, expired ShotGrid access token (refresh or re-login), or invalid Google token / client ID mismatch.
 
 When adding endpoints, copy the pattern from `publish_notes` (auth only) or user settings (auth + `emails_match`), never invent a third rule without documenting it here.

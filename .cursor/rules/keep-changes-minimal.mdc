@@ -1,0 +1,46 @@
+---
+name: keep-changes-minimal
+description: Keep changes short, stay inside existing architecture, and edit only what the task requires.
+alwaysApply: true
+---
+
+# Minimal, conservative changes
+
+Keep the diff as small as the task allows. Match the code that is already there.
+
+## Keep it short
+
+Write the smallest clear implementation of the requested behavior. Do not add handling for edge cases that have not been validated by a failing test, a reported bug, or an explicit requirement.
+
+```python
+# ❌ BAD — unvalidated edge case
+def parse_frame(value: str) -> int:
+    if value is None or value.strip() == "":
+        return 0
+    try:
+        return int(value)
+    except ValueError:
+        return 0
+
+# ✅ GOOD — only the behavior that was asked for
+def parse_frame(value: str) -> int:
+    return int(value)
+```
+
+## Stay inside the existing architecture
+
+Follow the modules, patterns, and boundaries already in the repo. Do not add a new layer, package, abstraction, or framework unless the user explicitly asks for it.
+
+```text
+❌ BAD — new notes/service.py plus a repository interface for one call site
+✅ GOOD — call the existing provider the same way neighboring code does
+```
+
+## Edit only what the task needs
+
+Change the lines required to satisfy the request. Leave unrelated formatting, renames, and refactors untouched.
+
+```text
+❌ BAD — reformat a file or rename helpers while fixing a one-line bug
+✅ GOOD — change the one line, and the tests that cover that line
+```

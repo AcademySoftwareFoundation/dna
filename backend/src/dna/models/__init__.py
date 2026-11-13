@@ -52,6 +52,10 @@ from dna.models.qc_check import (
 )
 from dna.models.requests import (
     AddVersionToPlaylistRequest,
+    AuthLoginRequest,
+    AuthPrincipalResponse,
+    AuthRefreshRequest,
+    AuthSessionResponse,
     CreateNoteRequest,
     CreatePlaylistRequest,
     EntityLink,
@@ -95,6 +99,10 @@ from dna.models.user_settings_response import UserSettingsResponse
 
 __all__ = [
     "AddVersionToPlaylistRequest",
+    "AuthLoginRequest",
+    "AuthPrincipalResponse",
+    "AuthRefreshRequest",
+    "AuthSessionResponse",
     "EntityBase",
     "Project",
     "Shot",

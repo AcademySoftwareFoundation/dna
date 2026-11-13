@@ -25,7 +25,7 @@ npm run dev
 
 This will start the Vite dev server for the app.
 
-For local development, use the noop auth provider so you can sign in with any email: copy `packages/app/.env.example` to `packages/app/.env` and keep `VITE_AUTH_PROVIDER=none`. The backend should also use `AUTH_PROVIDER=none` (see backend README).
+For local development, use the noop auth provider so you can sign in with any email: copy `packages/app/.env.example` to `packages/app/.env` and keep `VITE_AUTH_PROVIDER=none`. The backend should also use `AUTH_PROVIDER=none` (see backend README). Other values are `google` and `shotgrid`; they must match the backend `AUTH_PROVIDER`. ShotGrid login uses username + legacy password/PAT against `POST /auth/login` and stores the access token in a cookie.
 
 ### Build
 

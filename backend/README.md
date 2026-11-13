@@ -47,17 +47,19 @@ Transcription providers are the services that provide the transcription function
 
 ### Authentication
 
-Authentication is handled by pluggable auth providers, configured via the `AUTH_PROVIDER` environment variable:
+Authentication is handled by pluggable auth providers, configured via the `AUTH_PROVIDER` environment variable. DNA does not mint JWTs or store sessions; the frontend keeps tokens in a cookie and sends `Authorization: Bearer` plus `X-User-Id` (caller email) on each request.
 
-| Value   | Provider        | Use case                                      |
+| Value | Provider | Use case |
 |--------|------------------|-----------------------------------------------|
-| `none` | Noop (default)   | Local development and testing; no validation  |
-| `google` | Google OAuth   | Production; validates Google ID/access tokens  |
+| `none` | Noop (default) | Local development and testing |
+| `google` | Google OAuth | Validates Google ID/access tokens |
+| `shotgrid` | ShotGrid / Flow Production Tracking | Password/PAT login via `/auth/login`; validates SG access tokens |
 
-- **Local development:** Use the noop provider so you can sign in with any email and the backend accepts the token without validation. Set `AUTH_PROVIDER=none` in your override (the example local compose file does this).
-- **Production:** Set `AUTH_PROVIDER=google` and configure `GOOGLE_CLIENT_ID` (and optionally Google verification) as required.
+- **Local development:** Set `AUTH_PROVIDER=none` (the example local compose file does this).
+- **Google:** Set `AUTH_PROVIDER=google` and `GOOGLE_CLIENT_ID`.
+- **ShotGrid auth:** Set `AUTH_PROVIDER=shotgrid` and `SHOTGRID_URL`. This is separate from `PRODTRACK_PROVIDER=shotgrid` (script key + `sudo_as_login` for data).
 
-The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
+The frontend must match via `VITE_AUTH_PROVIDER`. See `dna-docs/api/authentication.mdx`.
 
 ## Setup
 

@@ -1,0 +1,116 @@
+---
+sidebar_position: 2
+slug: /2-account-setup
+title: Flow Account Setup
+---
+
+# Flow Account Setup
+
+When DNA is configured with ShotGrid / Flow Production Tracking auth
+(`AUTH_PROVIDER=shotgrid`), each person must complete this **once** before
+they can sign in. Day-to-day login is covered in [Logging In](/docs/2-login).
+
+DNA does not create Autodesk accounts or Flow users. Your studio must already
+have a Flow **HumanUser** for you, and DNA must point at that site.
+
+## What you are setting up
+
+Flow’s REST password login still uses a **legacy username** and **legacy
+password**. Autodesk also requires a **Personal Access Token (PAT)** from
+Autodesk Account to be **bound** to your Flow user. The PAT is not the password
+you type into DNA.
+
+| Piece | Where it lives | Used as |
+| --- | --- | --- |
+| Personal Access Token | Autodesk Account → bound in Flow | Prerequisite only (not the login password) |
+| Legacy Login | Flow Account Settings | Username in DNA |
+| Legacy password | Flow Account Settings | Password in DNA |
+
+Official Autodesk walkthrough:
+[How to set up Legacy Login and Personal Access Tokens in ShotGrid](https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/How-to-set-up-Legacy-Login-and-Personal-Access-Tokens-in-ShotGrid.html).
+
+## 1. Generate a Personal Access Token
+
+1. Open [Autodesk Account → Security → Personal Access Tokens](https://profile.autodesk.com).
+2. Choose **Generate New Token**.
+3. Give it a name you will recognize (for example `DNA`).
+4. Set the scope to **Flow Production Tracking**.
+5. Create the token and **copy it immediately**. Autodesk shows the value only
+   once.
+
+:::warning
+Treat the PAT like a password. Do not paste it into chat, tickets, or shared
+docs. If it leaks, revoke it in Autodesk Account and generate a new one.
+:::
+
+## 2. Bind the token in Flow
+
+1. Sign into your studio’s Flow / ShotGrid site with Autodesk Identity (browser
+   SSO), not with legacy login yet.
+2. Open **Account Settings** → **Legacy Login and Personal Access Token**.
+3. Under **Personal Access Token**, choose **Bind Token**.
+4. Paste the Autodesk PAT and confirm.
+
+The page should show the token as bound / in good standing. Generating a
+password in Flow without this bind step is not enough; the API will still
+return **No Personal Access Token found**.
+
+## 3. Enable Legacy Login
+
+On the same **Legacy Login and Personal Access Token** page:
+
+1. Enable **Legacy Login**.
+2. Set a **legacy password** (or use **Change Password** if it is already
+   enabled).
+3. Note the value of your **Login** field.
+
+The Login value is what DNA’s **ShotGrid username** field expects. It may be
+your email, or a short login such as `jsmith`. Check **People** → your user →
+**Login** if you are unsure.
+
+:::note
+The legacy password is **not** your Autodesk Account password, and it is
+**not** the PAT string. DNA’s password field is the legacy passphrase only.
+:::
+
+## 4. Sign in to DNA
+
+1. Open DNA.
+2. Enter your Flow **Login** as the username.
+3. Enter your **legacy password**.
+4. Continue to choose a project and playlist as usual.
+
+If sign-in fails, see [Troubleshooting](#troubleshooting) before resetting
+unrelated passwords.
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to do |
+| --- | --- | --- |
+| `No Personal Access Token found` | PAT never bound on this Flow user, or bound under a different Autodesk account | Repeat [step 2](#2-bind-the-token-in-flow) while signed into Flow as yourself |
+| `401` / invalid credentials | Wrong Login, wrong legacy password, or Autodesk Account password used by mistake | Confirm Login in People; reset legacy password on the Legacy Login page |
+| Works in curl / DNA for a colleague but not you | Their PAT is bound; yours is not | Each user must bind their own PAT |
+| Bound token earlier, login suddenly fails | Token expired or revoked in Autodesk Account | Generate a new PAT, bind it again, keep the same legacy Login |
+
+### Optional: verify against Flow directly
+
+Replace the site URL, login, and legacy password with yours:
+
+```bash
+curl -sS -X POST 'https://YOUR_SITE.shotgrid.autodesk.com/api/v1.1/auth/access_token' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'Accept: application/json' \
+  --data-urlencode 'grant_type=password' \
+  --data-urlencode 'username=YOUR_LEGACY_LOGIN' \
+  --data-urlencode 'password=YOUR_LEGACY_PASSWORD'
+```
+
+A successful response includes `access_token` and `refresh_token`. If this
+call fails, DNA login will fail for the same reason — fix the Flow account
+setup before changing DNA configuration.
+
+## After setup
+
+You only need to repeat this when Autodesk asks you to rotate the PAT, you
+revoke the token, or your studio moves you to a different Flow site. For
+everyday use, see [Logging In](/docs/2-login).
