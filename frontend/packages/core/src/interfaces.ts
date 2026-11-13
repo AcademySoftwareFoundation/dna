@@ -215,21 +215,86 @@ export interface GetAllDraftNotesParams {
 export interface PlaylistMetadata {
   _id: string;
   playlist_id: string;
-  in_review: string | null;
-  in_review_pinned: boolean;
-  meeting_id: string | null;
-  platform: Platform | null;
-  transcription_paused: boolean;
   has_scratch: boolean;
 }
 
 export interface PlaylistMetadataUpdate {
-  in_review?: string | null;
+  has_scratch?: boolean;
+}
+
+/** DNA-owned review session (source of truth for in-review and transcription). */
+export interface Session {
+  id: string;
+  external_id?: string | null;
+  name?: string | null;
+  project_id: string;
+  playlist_ids: string[];
+  in_review_playlist_id?: string | null;
+  in_review_version_id?: string | null;
   in_review_pinned?: boolean;
   meeting_id?: string | null;
   platform?: Platform | null;
+  vexa_meeting_id?: number | null;
   transcription_paused?: boolean;
-  has_scratch?: boolean;
+  transcription_resumed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** Convenience shape derived from Session.playlist_ids. */
+export interface SessionPlaylists {
+  session_id: string;
+  playlist_ids: string[];
+}
+
+export interface EnsureSessionForPlaylistParams {
+  projectId: string;
+  playlistId: string;
+}
+
+export interface UpdateSessionPlaylistsParams {
+  sessionId: string;
+  playlistIds: string[];
+}
+
+export interface SessionInReviewUpdate {
+  in_review_playlist_id?: string | null;
+  in_review_version_id?: string | null;
+  in_review_pinned?: boolean;
+  clear_in_review?: boolean;
+}
+
+export interface UpdateSessionInReviewParams {
+  sessionId: string;
+  data: SessionInReviewUpdate;
+}
+
+export interface SessionTranscriptionUpdate {
+  transcription_paused?: boolean;
+  clear_meeting?: boolean;
+  clear_resumed_at?: boolean;
+}
+
+export interface UpdateSessionTranscriptionParams {
+  sessionId: string;
+  data: SessionTranscriptionUpdate;
+}
+
+export interface GetSessionsForProjectParams {
+  projectId: string;
+}
+
+export interface CreateSessionParams {
+  projectId: string;
+  name: string;
+}
+
+export interface GetSessionParams {
+  sessionId: string;
+}
+
+export interface GetSessionPlaylistsParams {
+  sessionId: string;
 }
 
 export interface GetPlaylistMetadataParams {
@@ -260,7 +325,8 @@ export type BotStatusEnum =
 export interface DispatchBotRequest {
   platform: Platform;
   meeting_id: string;
-  playlist_id: string;
+  /** Optional; session-scoped dispatch prefers the session's in-review playlist. */
+  playlist_id?: string;
   passcode?: string;
   bot_name?: string;
   language?: string;
@@ -316,17 +382,16 @@ export interface TranscriptionLanguagesResponse {
 }
 
 export interface DispatchBotParams {
+  sessionId: string;
   request: DispatchBotRequest;
 }
 
 export interface StopBotParams {
-  platform: Platform;
-  meetingId: string;
+  sessionId: string;
 }
 
 export interface GetBotStatusParams {
-  platform: Platform;
-  meetingId: string;
+  sessionId: string;
 }
 
 export interface GetTranscriptParams {

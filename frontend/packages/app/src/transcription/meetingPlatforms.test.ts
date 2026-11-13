@@ -20,6 +20,15 @@ describe('parseMeetingUrl', () => {
         meetingId: 'abc-defg-hij',
       });
     });
+
+    it('parses the in-call URL Meet rewrites to after admission', () => {
+      expect(
+        parseMeetingUrl('https://meet.google.com/meet/hop-ngdy-epb?hl=en')
+      ).toEqual({
+        platform: 'google_meet',
+        meetingId: 'hop-ngdy-epb',
+      });
+    });
   });
 
   describe('teams', () => {

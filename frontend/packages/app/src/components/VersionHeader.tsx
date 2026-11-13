@@ -56,10 +56,25 @@ const HeaderWrapper = styled.div`
   gap: 16px;
 `;
 
+/*
+ * The buttons keep their shape and their one row whatever the width: none
+ * shrinks, no label wraps, and nothing moves to a second line. When the row
+ * runs out of room (a narrow window, or the sidebar expanded), it stays its
+ * full width and runs off the right edge, and the content area scrolls
+ * sideways to reach the rest.
+ */
 const TopBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  min-width: max-content;
+
+  button,
+  a {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 `;
 
 const BackButton = styled.button`
@@ -137,6 +152,10 @@ const syncProdtrackSurface = css`
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
   box-sizing: border-box;
+  /* As a link (no tab-sync extension) this inherits the page's taller line
+     height, where a button uses the font's own; that made it 2px taller
+     than the buttons beside it. */
+  line-height: normal;
 `;
 
 const SyncProdtrackButton = styled.button`

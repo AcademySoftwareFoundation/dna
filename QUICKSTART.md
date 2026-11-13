@@ -18,10 +18,11 @@ It will:
 2. Copy example config files into their working locations
 3. Prompt you to choose an LLM provider (OpenAI or Gemini) and enter your API key
 4. Prompt you to configure the transcription service (remote via vexa.ai, self-hosted, or skip)
-5. Install frontend npm dependencies
-6. Start the Vexa services, create a local dev user, and generate a Vexa API key automatically
-7. Start the full DNA stack with Docker Compose
-8. Poll the DNA API until it is ready and confirm all services are up
+5. Prompt you to choose a session provider (disabled, or the in-memory mock)
+6. Install frontend npm dependencies
+7. Start the Vexa services, create a local dev user, and generate a Vexa API key automatically
+8. Start the full DNA stack with Docker Compose
+9. Poll the DNA API until it is ready and confirm all services are up
 
 After the script finishes, start the frontend in a new terminal:
 
@@ -37,7 +38,7 @@ The app will be available at `http://localhost:5173`.
 ./bootstrap.sh --start
 ```
 
-**Change one setting:** once `backend/docker-compose.local.yml` and `frontend/packages/app/.env` exist, `./bootstrap.sh` opens a settings menu instead of repeating setup. Pick LLM provider, transcription, production tracking, or feature flags, and only that step runs. Choosing production tracking and then ShotGrid prompts for the ShotGrid URL, script name, and API key. Choosing Done recreates the backend container when it is already running, so the new settings load. Restart the frontend dev server separately if you changed a frontend feature flag or the transcription route.
+**Change one setting:** once `backend/docker-compose.local.yml` and `frontend/packages/app/.env` exist, `./bootstrap.sh` opens a settings menu instead of repeating setup. Pick LLM provider, transcription, production tracking, sessions, or feature flags, and only that step runs. Choosing production tracking and then ShotGrid prompts for the ShotGrid URL, script name, and API key. Choosing sessions and then Mock sets `SESSION_PROVIDER=mock` and locks `VITE_FEATURE_SESSIONS` on; Disabled sets `SESSION_PROVIDER=none` and locks that flag off. Choosing Done recreates the backend container when it is already running, so the new settings load. Restart the frontend dev server separately if you changed a frontend feature flag, the session UI, or the transcription route.
 
 ---
 
@@ -281,6 +282,7 @@ The React app will be available at `http://localhost:5173`.
 | `SHOTGRID_API_KEY` | Yes\* | - | ShotGrid API key (required when using ShotGrid) |
 | `SHOTGRID_SCRIPT_NAME` | Yes\* | - | ShotGrid script name (required when using ShotGrid) |
 | `PRODTRACK_PROVIDER` | No | `shotgrid` | `shotgrid` or `mock`; set to `mock` to use the read-only mock DB without ShotGrid |
+| `SESSION_PROVIDER` | No | `none` | `none` or `mock`. `none` makes session routes return 404. `mock` serves in-memory sessions for local development |
 | `MONGODB_URL` | No | `mongodb://mongo:27017` | MongoDB connection string |
 | `STORAGE_PROVIDER` | No | `mongodb` | Storage provider type |
 | `VEXA_API_KEY` | Yes | - | API key for Vexa transcription service |

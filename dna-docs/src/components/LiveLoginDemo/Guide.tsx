@@ -25,8 +25,9 @@ function findButton(root: Element, label: string): Element | null {
 /**
  * Works out the next thing to do from what the login screen is showing.
  * Tied to the app's markup and wording (frontend ProjectSelector): the
- * email input, the Radix Select triggers and their placeholders, and the
- * Continue buttons.
+ * email input, the project and playlist Radix Selects and the session
+ * picker with their placeholders, the session name field, and the Continue
+ * buttons.
  */
 function findStep(root: Element, press: string): GuideStep | null {
   const email = root.querySelector<HTMLInputElement>('input[type="email"]');
@@ -38,12 +39,25 @@ function findStep(root: Element, press: string): GuideStep | null {
 
   const select = root.querySelector('[role="combobox"]');
   // Out of the way while a dropdown is open.
-  if (!select || select.getAttribute('data-state') === 'open') return null;
+  if (select?.getAttribute('data-state') === 'open') return null;
 
-  if (select.hasAttribute('data-placeholder')) {
-    return select.textContent?.includes('project')
-      ? {target: select, title: 'Choose a project'}
-      : {target: select, title: 'Choose a playlist'};
+  // The Radix Selects carry the placeholder flag themselves; the session
+  // picker carries it on its label.
+  const unchosen =
+    select && (select.hasAttribute('data-placeholder') || select.querySelector('[data-placeholder]'));
+  if (select && unchosen) {
+    const text = select.textContent ?? '';
+    if (text.includes('project')) return {target: select, title: 'Choose a project'};
+    if (text.includes('session')) return {target: select, title: 'Choose a session'};
+    return {target: select, title: 'Choose a playlist'};
+  }
+
+  // Create New: no picker, a name to type.
+  const name = root.querySelector<HTMLInputElement>('input[placeholder="Session name"]');
+  if (name && !name.value.trim()) {
+    // A tap fills in a sample name on touch screens (LoginDemo).
+    const touch = press === 'Tap';
+    return {target: name, title: touch ? 'Tap to name the session' : 'Type a name for the session'};
   }
 
   const next = findButton(root, 'Continue');

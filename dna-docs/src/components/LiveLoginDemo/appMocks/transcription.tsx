@@ -1,10 +1,34 @@
-import {createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode} from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 // Stands in for frontend/packages/app/src/hooks when TranscriptionMenu
 // imports it in docs demos (see plugins/dna-app-embed.ts). Only the hooks the
 // menu uses, with the same return shapes, driven by timers instead of the
 // backend: Start joins a pretend meeting bot, which goes live a moment later;
-// pause/resume flips the playlist's paused flag; Stop ends the session.
+// pause/resume flips the session's paused flag; Stop ends the session.
+
+/** The pretend DNA session the demo's menu belongs to. */
+export const DEMO_SESSION_ID = 'demo-session';
+
+/**
+ * The menu pauses through the API handler, not a hook, so the fake handler
+ * (./api.ts) needs a way into the mounted provider's state: this holds its
+ * setter while a demo is on the page.
+ */
+const pauseSetter: {current: ((paused: boolean) => void) | null} = {current: null};
+
+/** Pause or resume the demo on the page; a no-op when none is mounted. */
+export function setDemoTranscriptionPaused(paused: boolean): void {
+  pauseSetter.current?.(paused);
+}
 
 /** The bot statuses the menu shows (BotStatusEnum in @dna/core). */
 export type DemoBotStatus = 'idle' | 'joining' | 'transcribing' | 'stopped';
@@ -40,6 +64,13 @@ export function TranscriptionDemoProvider({children}: {children: ReactNode}) {
   const later = (ms: number, fn: () => void) => {
     timers.current.push(setTimeout(fn, ms));
   };
+
+  useEffect(() => {
+    pauseSetter.current = setPaused;
+    return () => {
+      if (pauseSetter.current === setPaused) pauseSetter.current = null;
+    };
+  }, []);
 
   const dispatchBot = useCallback(
     (_meetingUrl: string) =>
@@ -87,7 +118,7 @@ export function useTranscriptionDemo(): TranscriptionDemoState {
   return ctx;
 }
 
-export function useTranscription(_options: {playlistId: string | null}) {
+export function useTranscription(_options: {sessionId?: string | null; playlistId: string | null}) {
   const {status, isDispatching, isStopping, dispatchBot, stopBot, clearSession} = useTranscriptionDemo();
   const session = status ? {status} : null;
   return {
@@ -101,6 +132,12 @@ export function useTranscription(_options: {playlistId: string | null}) {
     stopBot,
     clearSession,
   };
+}
+
+/** The DNA session the menu reads its paused flag from. */
+export function useSession(sessionId: string | null) {
+  const {paused} = useTranscriptionDemo();
+  return {data: sessionId ? {id: sessionId, transcription_paused: paused} : undefined};
 }
 
 export function usePlaylistMetadata(_playlistId: string | null) {

@@ -1,14 +1,14 @@
 import { useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
-import { SCRATCH_VERSION_ID } from '@dna/core';
+import { SCRATCH_VERSION_ID, sessionInReviewForPlaylist } from '@dna/core';
 import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
 import {
-  usePlaylistMetadata,
-  useSetInReview,
+  useSession,
+  useSessionSetInReview,
   useDraftNote,
   useProdtrackTabSync,
 } from '../hooks';
@@ -20,6 +20,7 @@ interface ContentAreaProps {
   version?: Version | null;
   versions?: Version[];
   playlistId?: string | null;
+  sessionId?: string | null;
   userEmail?: string | null;
   onVersionSelect?: (version: Version) => void;
   onRefresh?: () => void;
@@ -81,6 +82,7 @@ export function ContentArea({
   version,
   versions = [],
   playlistId,
+  sessionId = null,
   userEmail,
   onVersionSelect,
   onRefresh,
@@ -141,19 +143,20 @@ export function ContentArea({
   const canGoBack = currentIndex > 0;
   const canGoNext = currentIndex >= 0 && currentIndex < versions.length - 1;
 
-  const { data: playlistMetadata } = usePlaylistMetadata(playlistId ?? null);
+  const { data: dnaSession } = useSession(sessionId);
   const {
     setInReview,
     setInReviewPinned,
     isLoading: isSettingInReview,
-  } = useSetInReview(playlistId ?? null);
+  } = useSessionSetInReview(sessionId, playlistId ?? null);
 
-  const inReviewVersionId = playlistMetadata?.in_review;
+  const review = sessionInReviewForPlaylist(dnaSession, playlistId);
+  const inReviewVersionId = review.versionId;
   const inReviewVersion = inReviewVersionId
     ? versions.find((v) => v.id === inReviewVersionId)
     : versions.find((v) => v.status === IN_REVIEW_STATUS);
   const hasInReview = !!inReviewVersion;
-  const isInReviewPinned = !!playlistMetadata?.in_review_pinned;
+  const isInReviewPinned = review.pinned;
   const isCurrentVersionInReview =
     version && inReviewVersionId ? version.id === inReviewVersionId : false;
 

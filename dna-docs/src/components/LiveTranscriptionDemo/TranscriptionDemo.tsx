@@ -20,10 +20,7 @@ import {TranscriptionMenu} from '@dna-app/components/TranscriptionMenu';
 import {VersionCard} from '@dna-app/components/VersionCard';
 import {demoVersion} from '../LiveLoginDemo/appMocks/entities';
 import {DEMO_PLAYLISTS, DEMO_PLAYLIST_ID, thumbnailFor} from '../LiveLoginDemo/appMocks/playlists';
-import {
-  TranscriptionDemoProvider,
-  useTranscriptionDemo,
-} from '../LiveLoginDemo/appMocks/transcription';
+import {DEMO_SESSION_ID, TranscriptionDemoProvider, useTranscriptionDemo} from '../LiveLoginDemo/appMocks/transcription';
 import {TranscriptFeed} from '../LiveInReviewDemo/TranscriptFeed';
 import {ARTIST} from '../LiveUiDemo/data';
 import {Guide, type GuideStep, type Side} from '../LiveUiDemo/Guide';
@@ -363,7 +360,7 @@ function Session({
         </div>
         <div className={uiStyles.footer}>
           <div ref={menuRef}>
-            <TranscriptionMenu playlistId={DEMO_PLAYLIST_ID} />
+            <TranscriptionMenu sessionId={DEMO_SESSION_ID} playlistId={DEMO_PLAYLIST_ID} />
           </div>
           <button type="button" className={styles.settings} tabIndex={-1}>
             <I.Settings size={16} />

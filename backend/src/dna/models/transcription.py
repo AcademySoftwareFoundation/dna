@@ -49,7 +49,6 @@ class DispatchBotRequest(BaseModel):
             "examples": [
                 {
                     **_MEETING,
-                    "playlist_id": "45",
                     "bot_name": "DNA Notes",
                     "language": "en",
                 },
@@ -57,7 +56,6 @@ class DispatchBotRequest(BaseModel):
                     "platform": "zoom",
                     "meeting_id": "81234567890",
                     "meeting_url": "https://zoom.us/j/81234567890?pwd=abc123",
-                    "playlist_id": "45",
                 },
             ]
         }
@@ -65,8 +63,10 @@ class DispatchBotRequest(BaseModel):
 
     platform: Platform
     meeting_id: str = Field(..., description="Native meeting ID for the platform")
-    playlist_id: str = Field(
-        ..., description="Playlist ID to associate with this meeting"
+    playlist_id: Optional[str] = Field(
+        default=None,
+        description="Optional playlist hint for the bot session response. "
+        "When omitted, the DNA session's in-review or first linked playlist is used.",
     )
     passcode: Optional[str] = Field(
         default=None, description="Passcode for Teams or Zoom meetings"

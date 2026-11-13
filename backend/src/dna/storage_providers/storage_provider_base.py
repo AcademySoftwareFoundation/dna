@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         PublishedTranscriptUpdate,
     )
     from dna.models.qc_check import NoteQCCheck, NoteQCCheckCreate, NoteQCCheckUpdate
+    from dna.models.session import Session
     from dna.models.stored_segment import StoredSegment, StoredSegmentCreate
     from dna.models.user_settings import UserSettings, UserSettingsUpdate
 
@@ -80,20 +81,52 @@ class StorageProviderBase:
         """Get playlist metadata by playlist ID."""
         raise NotImplementedError()
 
-    async def get_playlist_metadata_by_meeting_id(
-        self, meeting_id: str
-    ) -> Optional["PlaylistMetadata"]:
-        """Get playlist metadata by meeting ID (reverse lookup)."""
-        raise NotImplementedError()
-
     async def upsert_playlist_metadata(
         self, playlist_id: str, data: "PlaylistMetadataUpdate"
     ) -> "PlaylistMetadata":
-        """Create or update playlist metadata."""
+        """Create or update playlist-local metadata."""
         raise NotImplementedError()
 
     async def delete_playlist_metadata(self, playlist_id: str) -> bool:
         """Delete playlist metadata. Returns True if deleted."""
+        raise NotImplementedError()
+
+    async def create_session(self, data: dict) -> "Session":
+        """Create a DNA session document."""
+        raise NotImplementedError()
+
+    async def get_session(self, session_id: str) -> Optional["Session"]:
+        """Get a DNA session by internal ID."""
+        raise NotImplementedError()
+
+    async def get_sessions_for_project(self, project_id: str) -> list["Session"]:
+        """List DNA sessions for a project."""
+        raise NotImplementedError()
+
+    async def get_session_by_external_id(self, external_id: str) -> Optional["Session"]:
+        """Get a DNA session by external provider ID."""
+        raise NotImplementedError()
+
+    async def get_session_by_meeting_id(self, meeting_id: str) -> Optional["Session"]:
+        """Get the DNA session that owns a meeting_id."""
+        raise NotImplementedError()
+
+    async def get_implicit_session_for_playlist(
+        self, project_id: str, playlist_id: str
+    ) -> Optional["Session"]:
+        """Find an implicit (external_id=null) session for exactly one playlist."""
+        raise NotImplementedError()
+
+    async def get_sessions_containing_playlist(
+        self, playlist_id: str
+    ) -> list["Session"]:
+        """List DNA sessions that include ``playlist_id`` in playlist_ids."""
+        raise NotImplementedError()
+
+    async def update_session(
+        self, session_id: str, update_fields: dict, unset_fields: Optional[dict] = None
+    ) -> Optional["Session"]:
+        """Patch a DNA session. Returns None if not found."""
         raise NotImplementedError()
 
     async def upsert_segment(

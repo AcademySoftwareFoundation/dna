@@ -44,6 +44,17 @@ export const DEMO_PLAYLISTS: DemoPlaylist[] = [
   },
 ];
 
+/**
+ * The session tabs demo's project and playlists: the same versions as the
+ * reviews above under short names, so several tabs fit the header.
+ */
+export const SESSION_TABS_PROJECT_ID = 'session-tabs';
+export const SESSION_TABS_PLAYLISTS: DemoPlaylist[] = [
+  {id: 'st-anim', code: 'Anim Dailies', versions: DEMO_PLAYLISTS[0].versions.slice(0, 3)},
+  {id: 'st-comp', code: 'Comp Dailies', versions: DEMO_PLAYLISTS[0].versions.slice(3, 6)},
+  {id: 'st-lighting', code: 'Lighting', versions: DEMO_PLAYLISTS[1].versions},
+];
+
 /** Today's review: what the demos open on. */
 export const DEMO_PLAYLIST_ID = DEMO_PLAYLISTS[0].id;
 

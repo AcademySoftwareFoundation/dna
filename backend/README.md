@@ -59,6 +59,20 @@ Authentication is handled by pluggable auth providers, configured via the `AUTH_
 
 The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
 
+### Sessions
+
+DNA owns the `Session` document: playlist links (`playlist_ids`), in-review (`in_review_playlist_id` / `in_review_version_id` / `in_review_pinned`), and transcription (`meeting_id`, `platform`, pause state). Playlist metadata is slim (`has_scratch` only).
+
+Session providers optionally supply an **external catalog** that DNA syncs into Sessions via `external_id`. Configure the catalog with `SESSION_PROVIDER`:
+
+| Value | Provider | Use case |
+|-------|----------|----------|
+| `none` | No external catalog (default) | DNA sessions still work; `POST /sessions/ensure-for-playlist` creates implicit one-playlist sessions when the UI is playlist-first |
+| `mock` | In-memory mock catalog | Local development. Seeds two sample sessions the first time a project's sessions are listed, and accepts creates |
+
+
+The frontend enables the multi-session UI separately with `VITE_FEATURE_SESSIONS`. When that flag is off, the app still ensures an implicit DNA session per playlist so in-review and transcription keep working. `./bootstrap.sh` sets both: Disabled writes `SESSION_PROVIDER=none` and locks the session UI off, and Mock writes `SESSION_PROVIDER=mock` and locks it on.
+
 ## Setup
 
 To setup the backend, you need to have the following:

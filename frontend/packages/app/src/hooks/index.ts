@@ -14,11 +14,26 @@ export type {
 export {
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
-  useSetInReview,
-  useInReviewChangedEvents,
 } from './usePlaylistMetadata';
 
+export {
+  useGetSessionsForProject,
+  useCreateSession,
+  useSession,
+  useEnsureSessionForPlaylist,
+  useSessionPlaylists,
+  useAddPlaylistToSession,
+  useRemovePlaylistFromSession,
+} from './useSessions';
+
+export {
+  useSessionInReviewEvents,
+  useSessionSetInReview,
+} from './useSessionInReview';
+
 export { useFollowInReview } from './useFollowInReview';
+
+export { usePrefetchPlaylistVersions } from './usePrefetchPlaylistVersions';
 
 export { useTranscription } from './useTranscription';
 export type {

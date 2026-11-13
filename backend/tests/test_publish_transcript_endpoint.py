@@ -8,8 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 from main import app, get_prodtrack_provider_cached, get_storage_provider_cached
 
-from dna.models.playlist_metadata import PlaylistMetadata
 from dna.models.published_transcript import PublishedTranscript
+from dna.models.session import Session
 from dna.models.stored_segment import StoredSegment
 
 ENABLE_FLAG = {"DNA_ENABLE_TRANSCRIPT_PUBLISH": "true"}
@@ -33,14 +33,15 @@ def _segment(start: str, text: str, speaker: str = "A") -> StoredSegment:
     )
 
 
-def _metadata(
-    meeting_id: str = "m-abc", platform: str = "google_meet"
-) -> PlaylistMetadata:
-    return PlaylistMetadata(
-        _id="meta-id",
-        playlist_id="42",
-        meeting_id=meeting_id,
-        platform=platform,
+def _session(meeting_id: str = "m-abc", platform: str = "google_meet") -> Session:
+    return Session(
+        _id="507f1f77bcf86cd799439011",
+        project_id="124",
+        playlist_ids=["42"],
+        meeting_id=meeting_id or None,
+        platform=platform or None,
+        in_review_playlist_id="42",
+        in_review_version_id="101",
     )
 
 
@@ -108,7 +109,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """First publish: create the row and persist the bookkeeping."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hello")
         ]
@@ -150,7 +151,7 @@ class TestPublishTranscriptEndpoint:
         seg = _segment("2026-04-15T10:00:00Z", "hello")
         payload = build_transcript_payload([seg])
 
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [seg]
         mock_storage.get_published_transcript.return_value = _published(
             payload.body_hash
@@ -173,7 +174,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """Changed body_hash: update the existing entity_id rather than create."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "new content")
         ]
@@ -201,7 +202,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """Updates don't rename the SG row, so the stored name must not change."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-16T10:00:00Z", "later content")
         ]
@@ -220,10 +221,10 @@ class TestPublishTranscriptEndpoint:
         stored = mock_storage.upsert_published_transcript.call_args.args[0]
         assert stored.name == "transcript-101-2026-04-15"
 
-    def test_missing_playlist_metadata_is_422(
+    def test_missing_session_meeting_is_422(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        mock_storage.get_playlist_metadata.return_value = None
+        mock_storage.get_sessions_containing_playlist.return_value = []
 
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
@@ -236,7 +237,7 @@ class TestPublishTranscriptEndpoint:
     def test_no_segments_is_422(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = []
 
         with mock.patch.dict(os.environ, ENABLE_FLAG):
@@ -251,7 +252,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """Provider raises NotImplementedError → endpoint returns 501."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
         ]
@@ -272,7 +273,7 @@ class TestPublishTranscriptEndpoint:
     def test_version_without_project_is_404(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
         ]
@@ -293,7 +294,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """get_entity raises ValueError for an unknown version → mapped to 404."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
         ]
@@ -314,7 +315,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """On a False update result: raise, and don't persist the new body_hash."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "new content")
         ]
@@ -330,11 +331,13 @@ class TestPublishTranscriptEndpoint:
         assert response.status_code == 502
         mock_storage.upsert_published_transcript.assert_not_awaited()
 
-    def test_metadata_without_platform_is_422(
+    def test_session_without_platform_is_422(
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """Empty / None platform is rejected so we don't push an invalid value to SG."""
-        mock_storage.get_playlist_metadata.return_value = _metadata(platform="")
+        mock_storage.get_sessions_containing_playlist.return_value = [
+            _session(platform="")
+        ]
 
         with mock.patch.dict(os.environ, ENABLE_FLAG):
             response = client.post(
@@ -349,7 +352,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """After env changes, update must still target the originally-created entity type."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "changed")
         ]
@@ -388,7 +391,7 @@ class TestPublishTranscriptEndpoint:
         self, client, mock_storage, mock_prodtrack, override_deps
     ):
         """Segments exist but are all whitespace; once build filters them out, refuse to publish."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "   "),
             _segment("2026-04-15T10:00:05Z", ""),
@@ -409,7 +412,7 @@ class TestPublishTranscriptEndpoint:
     ):
         """SG create succeeded but Mongo upsert failed: surface 500 with the
         entity_id so an operator can reconcile, and signal no blind retry."""
-        mock_storage.get_playlist_metadata.return_value = _metadata()
+        mock_storage.get_sessions_containing_playlist.return_value = [_session()]
         mock_storage.get_segments_for_version.return_value = [
             _segment("2026-04-15T10:00:00Z", "hi")
         ]

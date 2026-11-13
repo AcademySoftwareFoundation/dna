@@ -1,0 +1,133 @@
+/* Positioned for the guide bubble and checkmark, which render inside it. */
+.root {
+  position: relative;
+}
+
+/* Framed like the other demos. */
+.frame {
+  position: relative;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  font-family: inherit;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 430px;
+  overflow: hidden;
+  color: var(--c-text);
+  background: var(--c-bg-base);
+  border: 1px solid var(--dna-hairline);
+  border-radius: 12px;
+}
+
+.app button {
+  font-family: inherit;
+}
+
+/* ---------- The app's AppHeader: Bar, Brand and Playlists ---------- */
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 16px;
+  height: 64px;
+  padding: 0 16px;
+  background: var(--c-sidebar-bg);
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+
+.brand {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The session's name, which in the app opens the change-session menu. */
+.context {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--c-text-2);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+}
+
+.contextLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 24px;
+  background: var(--c-border);
+}
+
+/* Takes the room between; the tab strip inside scrolls when it runs out. */
+.tabs {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ---------- The active playlist's version cards ---------- */
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--c-text-muted);
+}
+
+/* The demo's height before it loads. */
+.placeholder {
+  height: 432px;
+}
+
+/* Narrow columns: no session name, so the whole header goes to the tabs. */
+@media (max-width: 720px) {
+  .header {
+    padding: 0 4px;
+  }
+
+  .brand {
+    display: none;
+  }
+}

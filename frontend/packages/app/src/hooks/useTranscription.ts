@@ -8,9 +8,10 @@ import type {
   Platform,
   BotStatusEventPayload,
   DNAEvent,
+  Session,
 } from '@dna/core';
 import { apiHandler } from '../api';
-import { usePlaylistMetadata } from './usePlaylistMetadata';
+import { useSession } from './useSessions';
 import { useEventClient, useNomenclature, useToast } from '../contexts';
 import {
   describeInvalidMeetingUrl,
@@ -18,7 +19,8 @@ import {
 } from '../transcription/meetingPlatforms';
 
 export interface UseTranscriptionOptions {
-  playlistId: string | null;
+  sessionId: string | null;
+  playlistId?: string | null;
 }
 
 export interface UseTranscriptionReturn {
@@ -38,7 +40,8 @@ export interface UseTranscriptionReturn {
 }
 
 export function useTranscription({
-  playlistId,
+  sessionId,
+  playlistId = null,
 }: UseTranscriptionOptions): UseTranscriptionReturn {
   const t = useNomenclature();
   const queryClient = useQueryClient();
@@ -49,12 +52,11 @@ export function useTranscription({
   const previousStatusRef = useRef<BotStatusEnum | null>(null);
   const waitingRoomToastIdRef = useRef<string | null>(null);
 
-  const { data: metadata, isLoading: isLoadingMetadata } =
-    usePlaylistMetadata(playlistId);
+  const { data: dnaSession } = useSession(sessionId);
 
   const meetingPlatform =
-    session?.platform ?? (metadata?.platform as Platform | null);
-  const meetingId = session?.meeting_id ?? metadata?.meeting_id;
+    session?.platform ?? (dnaSession?.platform as Platform | null | undefined) ?? null;
+  const meetingId = session?.meeting_id ?? dnaSession?.meeting_id ?? null;
 
   const isActiveStatus = (statusValue: BotStatusEnum): boolean => {
     return ['joining', 'waiting_room', 'in_call', 'transcribing'].includes(
@@ -62,41 +64,20 @@ export function useTranscription({
     );
   };
 
-  const shouldFetchInitialStatus = !!(
-    meetingPlatform &&
-    meetingId &&
-    !session
-  );
+  const shouldFetchInitialStatus = !!(sessionId && meetingPlatform && meetingId && !session);
 
   const {
     data: status,
     isLoading: isLoadingStatus,
   } = useQuery<BotStatus, Error>({
-    queryKey: ['botStatus', meetingPlatform, meetingId],
-    queryFn: () =>
-      apiHandler.getBotStatus({
-        platform: meetingPlatform!,
-        meetingId: meetingId!,
-      }),
+    queryKey: ['botStatus', sessionId],
+    queryFn: () => apiHandler.getBotStatus({ sessionId: sessionId! }),
     enabled: shouldFetchInitialStatus,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
   });
-
-  if (import.meta.env.DEV) {
-    console.log('[useTranscription]', {
-      playlistId,
-      metadata,
-      isLoadingMetadata,
-      meetingPlatform,
-      meetingId,
-      session,
-      status,
-      shouldFetchInitialStatus,
-    });
-  }
 
   useEffect(() => {
     const currentStatus = session?.status ?? status?.status;
@@ -126,12 +107,12 @@ export function useTranscription({
   }, [session?.status, status?.status, showToast, dismissToast]);
 
   useEffect(() => {
-    if (status && !session && meetingPlatform && meetingId) {
+    if (status && !session && meetingPlatform && meetingId && playlistId) {
       if (isActiveStatus(status.status)) {
         setSession({
           platform: meetingPlatform,
           meeting_id: meetingId,
-          playlist_id: playlistId!,
+          playlist_id: playlistId,
           status: status.status,
           created_at: new Date().toISOString(),
           updated_at: status.updated_at,
@@ -141,20 +122,19 @@ export function useTranscription({
   }, [status, session, meetingPlatform, meetingId, playlistId]);
 
   useEffect(() => {
-    if (!eventClient || !playlistId) return;
+    if (!eventClient || !sessionId) return;
 
     const handleBotStatusEvent = (event: DNAEvent<BotStatusEventPayload>) => {
       const payload = event.payload;
 
-      const matchesMeeting =
-        meetingPlatform &&
-        meetingId &&
-        payload.platform === meetingPlatform &&
-        payload.meeting_id === meetingId;
+      const matchesSession =
+        payload.session_id === sessionId ||
+        (meetingPlatform &&
+          meetingId &&
+          payload.platform === meetingPlatform &&
+          payload.meeting_id === meetingId);
 
-      const matchesPlaylist = payload.playlist_id === playlistId;
-
-      if (!matchesMeeting && !matchesPlaylist) {
+      if (!matchesSession) {
         return;
       }
 
@@ -170,7 +150,7 @@ export function useTranscription({
         setSession({
           platform: payload.platform as Platform,
           meeting_id: payload.meeting_id,
-          playlist_id: payload.playlist_id ?? playlistId,
+          playlist_id: payload.playlist_id ?? playlistId ?? '',
           status: newStatus,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -178,11 +158,13 @@ export function useTranscription({
       }
 
       queryClient.setQueryData<BotStatus>(
-        ['botStatus', payload.platform, payload.meeting_id],
+        ['botStatus', sessionId],
         (old) =>
           old
             ? { ...old, status: newStatus, updated_at: new Date().toISOString() }
             : {
+                platform: payload.platform as Platform,
+                meeting_id: payload.meeting_id,
                 status: newStatus,
                 updated_at: new Date().toISOString(),
               }
@@ -195,15 +177,16 @@ export function useTranscription({
     );
 
     return unsubscribe;
-  }, [eventClient, meetingPlatform, meetingId, playlistId, session, queryClient]);
+  }, [eventClient, meetingPlatform, meetingId, sessionId, playlistId, session, queryClient]);
 
   const dispatchMutation = useMutation<BotSession, Error, DispatchBotRequest>({
-    mutationFn: (request) => apiHandler.dispatchBot({ request }),
+    mutationFn: (request) =>
+      apiHandler.dispatchBot({ sessionId: sessionId!, request }),
     onMutate: (request) => {
       setSession({
         platform: request.platform,
         meeting_id: request.meeting_id,
-        playlist_id: request.playlist_id,
+        playlist_id: request.playlist_id ?? playlistId ?? '',
         status: 'joining',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -213,8 +196,9 @@ export function useTranscription({
     onSuccess: (newSession) => {
       setSession(newSession);
       setError(null);
-      queryClient.invalidateQueries({
-        queryKey: ['playlistMetadata', playlistId],
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      void queryClient.invalidateQueries({
+        queryKey: ['sessionPlaylists', sessionId],
       });
     },
     onError: (err) => {
@@ -225,16 +209,26 @@ export function useTranscription({
 
   const stopMutation = useMutation<boolean, Error, void>({
     mutationFn: async () => {
-      if (!meetingPlatform || !meetingId) throw new Error('No active session');
-      return apiHandler.stopBot({
-        platform: meetingPlatform,
-        meetingId: meetingId,
-      });
+      if (!sessionId) throw new Error('No active session');
+      return apiHandler.stopBot({ sessionId });
     },
     onSuccess: () => {
       if (session) {
         setSession({ ...session, status: 'stopped' });
       }
+      void queryClient.invalidateQueries({ queryKey: ['session', sessionId] });
+      queryClient.setQueryData<Session | undefined>(
+        ['session', sessionId],
+        (current) =>
+          current
+            ? {
+                ...current,
+                meeting_id: null,
+                platform: null,
+                vexa_meeting_id: null,
+              }
+            : current
+      );
     },
     onError: (err) => {
       setError(err);
@@ -247,8 +241,8 @@ export function useTranscription({
       passcode?: string,
       language?: string | null
     ): Promise<BotSession> => {
-      if (!playlistId) {
-        throw new Error(`No ${t.playlist.lower} selected`);
+      if (!sessionId) {
+        throw new Error(`No ${t.session.lower} selected`);
       }
 
       const parsed = parseMeetingUrl(meetingUrl);
@@ -261,17 +255,15 @@ export function useTranscription({
       const request: DispatchBotRequest = {
         platform: parsed.platform,
         meeting_id: parsed.meetingId,
-        playlist_id: playlistId,
-        // A passcode embedded in the link wins, matching Vexa's own precedence.
+        ...(playlistId ? { playlist_id: playlistId } : {}),
         passcode: parsed.passcode ?? passcode,
         meeting_url: parsed.meetingUrl,
-        // Omit when auto-detecting so Vexa falls back to per-window detection.
         ...(language ? { language } : {}),
       };
 
       return dispatchMutation.mutateAsync(request);
     },
-    [playlistId, dispatchMutation, t.playlist.lower]
+    [sessionId, playlistId, dispatchMutation, t.session.lower]
   );
 
   const stopBot = useCallback(async (): Promise<void> => {

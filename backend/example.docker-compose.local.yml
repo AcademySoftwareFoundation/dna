@@ -10,6 +10,8 @@ services:
       - SHOTGRID_API_KEY=************
       - SHOTGRID_SCRIPT_NAME=DNA_local_testing
       - PRODTRACK_PROVIDER=mock
+      # Sessions: none (default) disables session routes. mock seeds sample sessions.
+      - SESSION_PROVIDER=none
       - VEXA_API_KEY=**********
       - VEXA_API_URL=http://vexa:8056
       - OPENAI_API_KEY=your-openai-api-key

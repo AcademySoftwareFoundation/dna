@@ -42,6 +42,7 @@ TAG_GROUPS: list[dict[str, Any]] = [
             "Draft Notes",
             "Publishing",
             "Playlist Metadata",
+            "Sessions",
             "Project Glossary",
             "Transcription",
             "Note QC",
@@ -62,6 +63,10 @@ _OPAQUE_ID = (
 PARAM_DESCRIPTIONS: dict[str, str] = {
     "project_id": _OPAQUE_ID.format(what="Project"),
     "playlist_id": _OPAQUE_ID.format(what="Playlist"),
+    "session_id": (
+        "Session ID as issued by the session provider. Opaque string; DNA "
+        "passes it through without interpreting it."
+    ),
     "version_id": _OPAQUE_ID.format(what="Version")
     + " Draft-note routes also accept `-1`, the playlist-level scratch note.",
     "shot_id": _OPAQUE_ID.format(what="Shot"),

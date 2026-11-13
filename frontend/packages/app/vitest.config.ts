@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    env: { VITE_NOMENCLATURE: '' },
+    env: { VITE_NOMENCLATURE: '', VITE_FEATURE_SESSIONS: '' },
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     coverage: {

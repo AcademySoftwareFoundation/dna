@@ -12,6 +12,7 @@ interface ImportMetaEnv {
   readonly VITE_TRANSCRIPTION_EXTENSION_KEY?: string;
   readonly VITE_WHISPERLIVE_URL?: string;
   readonly VITE_FEATURE_EXTENSION_TRANSCRIPTION?: string;
+  readonly VITE_FEATURE_SESSIONS?: string;
   readonly VITE_REVIEW_CSV_COLUMNS?: string;
   readonly VITE_NOMENCLATURE?: string;
 }

@@ -1,6 +1,7 @@
 export const NOUN_KEYS = [
   'version',
   'playlist',
+  'session',
   'project',
   'shot',
   'asset',
@@ -33,6 +34,7 @@ export interface PublishForms {
 export interface NomenclatureConfig {
   version: NounForms;
   playlist: NounForms;
+  session: NounForms;
   project: NounForms;
   shot: NounForms;
   asset: NounForms;
@@ -65,6 +67,7 @@ export interface ResolvedPublish extends PublishForms {
 export interface ResolvedNomenclature {
   version: ResolvedNoun;
   playlist: ResolvedNoun;
+  session: ResolvedNoun;
   project: ResolvedNoun;
   shot: ResolvedNoun;
   asset: ResolvedNoun;
@@ -79,6 +82,7 @@ export interface ResolvedNomenclature {
 export const DEFAULT_NOMENCLATURE: NomenclatureConfig = {
   version: { singular: 'Version', plural: 'Versions' },
   playlist: { singular: 'Playlist', plural: 'Playlists' },
+  session: { singular: 'Session', plural: 'Sessions' },
   project: { singular: 'Project', plural: 'Projects' },
   shot: { singular: 'Shot', plural: 'Shots' },
   asset: { singular: 'Asset', plural: 'Assets' },
@@ -96,6 +100,7 @@ export const DEFAULT_NOMENCLATURE: NomenclatureConfig = {
 const ALLOWED_FIELDS: Record<TermKey, readonly string[]> = {
   version: ['singular', 'plural'],
   playlist: ['singular', 'plural'],
+  session: ['singular', 'plural'],
   project: ['singular', 'plural'],
   shot: ['singular', 'plural'],
   asset: ['singular', 'plural'],
@@ -256,6 +261,9 @@ export function resolveNomenclature(
     ),
     playlist: resolveNoun(
       mergeNoun(DEFAULT_NOMENCLATURE.playlist, overrides.playlist)
+    ),
+    session: resolveNoun(
+      mergeNoun(DEFAULT_NOMENCLATURE.session, overrides.session)
     ),
     project: resolveNoun(
       mergeNoun(DEFAULT_NOMENCLATURE.project, overrides.project)

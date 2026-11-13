@@ -41,9 +41,11 @@ from dna.models import (
     BotStatus,
     CreateNoteRequest,
     CreatePlaylistRequest,
+    CreateSessionRequest,
     DispatchBotRequest,
     DraftNote,
     DraftNoteUpdate,
+    EnsureSessionForPlaylistRequest,
     FindRequest,
     GenerateNoteRequest,
     GenerateNoteResponse,
@@ -69,6 +71,10 @@ from dna.models import (
     SchemaField,
     SearchRequest,
     SearchResult,
+    Session,
+    SessionInReviewUpdate,
+    SessionPlaylistsUpdate,
+    SessionTranscriptionUpdate,
     Shot,
     StatusOption,
     StoredSegment,
@@ -93,6 +99,15 @@ from dna.prodtrack_providers.prodtrack_provider_base import (
     get_prodtrack_provider,
 )
 from dna.qc.qc_runner import run_qc_checks_for_draft
+from dna.session_providers.session_provider_base import (
+    SessionProviderBase,
+    get_session_provider,
+)
+from dna.session_service import (
+    ensure_implicit_session_for_playlist,
+    ensure_session_for_external,
+    sync_project_sessions,
+)
 from dna.storage_providers.storage_provider_base import (
     StorageProviderBase,
     get_storage_provider,
@@ -121,6 +136,8 @@ or feed a transcript in from your own tool.
 - **DNA** endpoints read and write DNA's own storage: draft notes, per-playlist
   review state, transcripts, user settings, QC checks and glossaries. The
   **Publishing** endpoints push that data into the tracking provider.
+  **Sessions** read an external session provider (`SESSION_PROVIDER`; 404 when
+  it is `none`) and store which playlists belong to a session in DNA.
 
 ### Authentication
 Send `Authorization: Bearer <token>` on every request except **Health**. The
@@ -236,7 +253,15 @@ tags_metadata = [
         "name": "Playlist Metadata",
         "description": (
             "DNA's review state for a playlist: the version in review, the "
-            "linked meeting, and transcription flags."
+            "linked meeting, session links, and transcription flags."
+        ),
+    },
+    {
+        "name": "Sessions",
+        "description": (
+            "External review sessions from the session provider, and the "
+            "playlists DNA has linked to each session. Routes return 404 when "
+            "SESSION_PROVIDER is none."
         ),
     },
     {
@@ -339,6 +364,20 @@ TranscriptionProviderDep = Annotated[
 ]
 
 LLMProviderDep = Annotated[LLMProviderBase, Depends(get_llm_provider_cached)]
+
+
+@lru_cache
+def get_session_provider_cached() -> Optional[SessionProviderBase]:
+    """Get or create the session provider singleton.
+
+    Returns None when SESSION_PROVIDER is none (sessions disabled).
+    """
+    return get_session_provider()
+
+
+SessionProviderDep = Annotated[
+    Optional[SessionProviderBase], Depends(get_session_provider_cached)
+]
 
 
 @lru_cache
@@ -624,7 +663,7 @@ async def websocket_endpoint(websocket: WebSocket):
       Consumed by the frontend `TranscriptManager`.
     - bot.status_changed: Bot status updates
     - transcription.completed / transcription.error: Transcription lifecycle events
-    - playlist.in_review_changed: In-review version or its pin state changed
+    - session.in_review_changed: Session in-review version or pin state changed
 
     Most events use `{"type": "event.type", "payload": {...}}`. The
     `transcript` event is flat — the whole message IS the payload so it can
@@ -1567,18 +1606,19 @@ async def publish_transcript(
         transcript_entity_name,
     )
 
-    metadata = await storage.get_playlist_metadata(playlist_id)
-    if metadata is None or not metadata.meeting_id:
+    sessions = await storage.get_sessions_containing_playlist(playlist_id)
+    dna_session = next((s for s in sessions if s.meeting_id), None)
+    if dna_session is None or not dna_session.meeting_id:
         raise HTTPException(
             status_code=422,
             detail="Playlist has no meeting associated yet",
         )
-    if not metadata.platform:
+    if not dna_session.platform:
         # Empty platform would be rejected downstream as an opaque SG schema
         # fault; surface a clean 422 instead.
         raise HTTPException(
             status_code=422,
-            detail="Playlist metadata has no platform recorded",
+            detail="Session has no platform recorded",
         )
 
     segments = await storage.get_segments_for_version(playlist_id, request.version_id)
@@ -1598,7 +1638,7 @@ async def publish_transcript(
         )
 
     existing = await storage.get_published_transcript(
-        playlist_id, request.version_id, metadata.meeting_id
+        playlist_id, request.version_id, dna_session.meeting_id
     )
     if existing and existing.body_hash == payload.body_hash:
         return PublishTranscriptResponse(
@@ -1650,9 +1690,9 @@ async def publish_transcript(
                 project_id=project_id,
                 playlist_id=playlist_id,
                 version_id=request.version_id,
-                meeting_id=metadata.meeting_id,
+                meeting_id=dna_session.meeting_id,
                 meeting_date=payload.meeting_date,
-                platform=metadata.platform,
+                platform=dna_session.platform,
                 body=payload.body,
             )
             outcome = "created"
@@ -1669,7 +1709,7 @@ async def publish_transcript(
             PublishedTranscriptUpdate(
                 playlist_id=playlist_id,
                 version_id=request.version_id,
-                meeting_id=metadata.meeting_id,
+                meeting_id=dna_session.meeting_id,
                 entity_type=entity_type,
                 entity_id=entity_id,
                 name=name,
@@ -1928,7 +1968,7 @@ async def delete_draft_note(
     "/playlists/{playlist_id}/metadata",
     tags=["Playlist Metadata"],
     summary="Get playlist metadata",
-    description="Retrieve metadata for a playlist including in-review version and meeting ID.",
+    description="Retrieve playlist-local metadata (e.g. has_scratch).",
     response_model=Optional[PlaylistMetadata],
 )
 async def get_playlist_metadata(
@@ -1945,64 +1985,19 @@ async def get_playlist_metadata(
     tags=["Playlist Metadata"],
     summary="Create or update playlist metadata",
     description=(
-        "Create or update metadata for a playlist (in-review version and meeting ID). "
-        "When in_review or in_review_pinned is set, broadcasts "
-        "playlist.in_review_changed to connected clients. While the in-review "
-        "version is pinned, moving in_review to a different version is rejected "
-        "with 409 unless the same request sets in_review_pinned to false. "
-        "A non-null in_review must be a version on the playlist; null clears "
-        "in_review without a membership check."
+        "Create or update playlist-local metadata (currently ``has_scratch``). "
+        "In-review and transcription live on DNA sessions."
     ),
     response_model=PlaylistMetadata,
-    responses=error_responses(400, 404, 409),
 )
 async def upsert_playlist_metadata(
     playlist_id: str,
     data: PlaylistMetadataUpdate,
     provider: StorageProviderDep,
-    prodtrack: ProdtrackProviderDep,
     _: CurrentUserDep,
 ) -> PlaylistMetadata:
-    """Create or update playlist metadata.
-
-    When ``in_review`` or ``in_review_pinned`` is set, broadcasts
-    ``playlist.in_review_changed`` so connected clients can update the
-    in-review indicator and pin state.
-    """
-    if data.in_review is not None:
-        existing = await provider.get_playlist_metadata(playlist_id)
-        if (
-            existing is not None
-            and existing.in_review_pinned
-            and data.in_review != existing.in_review
-            and data.in_review_pinned is not False
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="The in-review version is pinned; unpin it to change it",
-            )
-        try:
-            versions = prodtrack.get_versions_for_playlist(playlist_id)
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        version_ids = {str(version.id) for version in versions}
-        if data.in_review not in version_ids:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Version {data.in_review} is not on playlist {playlist_id}"),
-            )
-    metadata = await provider.upsert_playlist_metadata(playlist_id, data)
-    if data.in_review is not None or data.in_review_pinned is not None:
-        event_publisher = get_event_publisher()
-        await event_publisher.publish(
-            EventType.PLAYLIST_IN_REVIEW_CHANGED,
-            {
-                "playlist_id": playlist_id,
-                "in_review": metadata.in_review,
-                "in_review_pinned": metadata.in_review_pinned,
-            },
-        )
-    return metadata
+    """Create or update playlist-local metadata."""
+    return await provider.upsert_playlist_metadata(playlist_id, data)
 
 
 @app.delete(
@@ -2023,6 +2018,245 @@ async def delete_playlist_metadata(
     if not deleted:
         raise HTTPException(status_code=404, detail="Playlist metadata not found")
     return True
+
+
+# -----------------------------------------------------------------------------
+# Session endpoints
+# -----------------------------------------------------------------------------
+
+
+async def _require_dna_session(
+    storage: StorageProviderBase, session_id: str
+) -> Session:
+    session = await storage.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+@app.get(
+    "/projects/{project_id}/sessions",
+    tags=["Sessions"],
+    summary="Get DNA sessions for a project",
+    description=(
+        "Return DNA sessions for the project. When an external session "
+        "provider is configured, catalog entries are synced into DNA first."
+    ),
+    response_model=list[Session],
+)
+async def get_sessions_for_project(
+    project_id: str,
+    provider: SessionProviderDep,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> list[Session]:
+    """Get DNA sessions for a project (optionally syncing the external catalog)."""
+    return await sync_project_sessions(storage, provider, project_id)
+
+
+@app.post(
+    "/projects/{project_id}/sessions",
+    tags=["Sessions"],
+    summary="Create a session",
+    description=(
+        "Create a session. With an external provider, creates in the catalog "
+        "then ensures a DNA session. Without a provider, creates a named DNA "
+        "session directly."
+    ),
+    response_model=Session,
+    status_code=201,
+    responses=error_responses(400, 501),
+)
+async def create_session(
+    project_id: str,
+    request: CreateSessionRequest,
+    provider: SessionProviderDep,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Create a DNA session (and external catalog entry when configured)."""
+    name = request.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Session name is required")
+    if provider is not None:
+        try:
+            external = provider.create_session(project_id, name)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e) or "Not implemented")
+        return await ensure_session_for_external(storage, external)
+    return await storage.create_session(
+        {
+            "external_id": None,
+            "project_id": project_id,
+            "name": name,
+            "playlist_ids": [],
+        }
+    )
+
+
+@app.post(
+    "/sessions/ensure-for-playlist",
+    tags=["Sessions"],
+    summary="Ensure an implicit DNA session for a playlist",
+    description=(
+        "Find or create a DNA session with ``external_id=null`` that contains "
+        "exactly this playlist. Used when the UI is playlist-first."
+    ),
+    response_model=Session,
+)
+async def ensure_session_for_playlist(
+    request: EnsureSessionForPlaylistRequest,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Ensure an implicit one-playlist DNA session."""
+    return await ensure_implicit_session_for_playlist(
+        storage, request.project_id, request.playlist_id
+    )
+
+
+@app.get(
+    "/sessions/{session_id}",
+    tags=["Sessions"],
+    summary="Get a DNA session",
+    description="Retrieve one DNA session by internal ID.",
+    response_model=Session,
+    responses=error_responses(404),
+)
+async def get_session(
+    session_id: str,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Get a DNA session by ID."""
+    return await _require_dna_session(storage, session_id)
+
+
+@app.put(
+    "/sessions/{session_id}/playlists",
+    tags=["Sessions"],
+    summary="Replace playlists linked to a session",
+    description="Replace the full playlist_ids list on a DNA session.",
+    response_model=Session,
+    responses=error_responses(404),
+)
+async def update_session_playlists(
+    session_id: str,
+    request: SessionPlaylistsUpdate,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Replace playlist links on a DNA session."""
+    await _require_dna_session(storage, session_id)
+    updated = await storage.update_session(
+        session_id, {"playlist_ids": list(request.playlist_ids)}
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return updated
+
+
+@app.put(
+    "/sessions/{session_id}/in-review",
+    tags=["Sessions"],
+    summary="Set or clear session in-review",
+    description=(
+        "Update the session in-review playlist/version/pin. While pinned, "
+        "moving or clearing in-review returns 409 unless the same request "
+        "sets in_review_pinned to false. Broadcasts session.in_review_changed."
+    ),
+    response_model=Session,
+    responses=error_responses(404, 409),
+)
+async def update_session_in_review(
+    session_id: str,
+    data: SessionInReviewUpdate,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Set or clear the in-review state on a DNA session."""
+    existing = await _require_dna_session(storage, session_id)
+    if data.clear_in_review or data.in_review_version_id is not None:
+        if existing.in_review_pinned and data.in_review_pinned is not False:
+            clears_or_moves = data.clear_in_review or (
+                data.in_review_version_id is not None
+                and (
+                    data.in_review_version_id != existing.in_review_version_id
+                    or data.in_review_playlist_id != existing.in_review_playlist_id
+                )
+            )
+            if clears_or_moves:
+                raise HTTPException(
+                    status_code=409,
+                    detail="The in-review version is pinned; unpin it to change it",
+                )
+
+    fields: dict = {}
+    if data.clear_in_review:
+        fields["in_review_playlist_id"] = None
+        fields["in_review_version_id"] = None
+        fields["in_review_pinned"] = False
+    else:
+        if data.in_review_playlist_id is not None:
+            fields["in_review_playlist_id"] = data.in_review_playlist_id
+        if data.in_review_version_id is not None:
+            fields["in_review_version_id"] = data.in_review_version_id
+        if data.in_review_pinned is not None:
+            fields["in_review_pinned"] = data.in_review_pinned
+
+    updated = await storage.update_session(session_id, fields) if fields else existing
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    event_publisher = get_event_publisher()
+    await event_publisher.publish(
+        EventType.SESSION_IN_REVIEW_CHANGED,
+        {
+            "session_id": updated.id,
+            "in_review_playlist_id": updated.in_review_playlist_id,
+            "in_review_version_id": updated.in_review_version_id,
+            "in_review_pinned": updated.in_review_pinned,
+        },
+    )
+    return updated
+
+
+@app.put(
+    "/sessions/{session_id}/transcription",
+    tags=["Sessions"],
+    summary="Update session transcription state",
+    description="Pause/resume transcription or clear meeting fields on a DNA session.",
+    response_model=Session,
+    responses=error_responses(404),
+)
+async def update_session_transcription(
+    session_id: str,
+    data: SessionTranscriptionUpdate,
+    storage: StorageProviderDep,
+    _: CurrentUserDep,
+) -> Session:
+    """Update transcription pause / meeting fields on a DNA session."""
+    await _require_dna_session(storage, session_id)
+    fields: dict = {}
+    unset: dict = {}
+    if data.transcription_paused is not None:
+        fields["transcription_paused"] = data.transcription_paused
+        if data.transcription_paused is False:
+            from datetime import datetime, timezone
+
+            fields["transcription_resumed_at"] = datetime.now(timezone.utc)
+    if data.clear_resumed_at:
+        unset["transcription_resumed_at"] = ""
+    if data.clear_meeting:
+        fields["meeting_id"] = None
+        fields["platform"] = None
+        fields["vexa_meeting_id"] = None
+    updated = await storage.update_session(
+        session_id, fields, unset_fields=unset or None
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return updated
 
 
 # -----------------------------------------------------------------------------
@@ -2278,52 +2512,62 @@ async def run_qc_checks(
 
 
 @app.post(
-    "/transcription/bot",
+    "/sessions/{session_id}/transcription/bot",
     tags=["Transcription"],
-    summary="Dispatch a bot to a meeting",
+    summary="Dispatch a bot for a DNA session",
     description=(
-        "Start a transcription bot that joins the specified meeting. Zoom "
+        "Start a transcription bot and bind the meeting to this DNA session. "
+        "Segments route to the session's in-review playlist/version. Zoom "
         "requires `meeting_url`; a passcode is only honoured as the link's "
         "`pwd` parameter."
     ),
     response_model=BotSession,
     status_code=201,
-    responses=error_responses(400),
+    responses=error_responses(400, 404),
 )
-async def dispatch_bot(
+async def dispatch_session_bot(
+    session_id: str,
     request: DispatchBotRequest,
     transcription_provider: TranscriptionProviderDep,
     storage_provider: StorageProviderDep,
     transcription_service: TranscriptionServiceDep,
     _: CurrentUserDep,
 ) -> BotSession:
-    """Dispatch a transcription bot to a meeting."""
+    """Dispatch a transcription bot bound to a DNA session."""
+    dna_session = await _require_dna_session(storage_provider, session_id)
+    playlist_id = (
+        request.playlist_id
+        or dna_session.in_review_playlist_id
+        or (dna_session.playlist_ids[0] if dna_session.playlist_ids else session_id)
+    )
     try:
-        session = await transcription_provider.dispatch_bot(
+        bot_session = await transcription_provider.dispatch_bot(
             platform=request.platform,
             meeting_id=request.meeting_id,
-            playlist_id=request.playlist_id,
+            playlist_id=playlist_id,
             passcode=request.passcode,
             bot_name=request.bot_name,
             language=request.language,
             meeting_url=request.meeting_url,
         )
 
-        await storage_provider.upsert_playlist_metadata(
-            request.playlist_id,
-            PlaylistMetadataUpdate(
-                meeting_id=request.meeting_id,
-                platform=request.platform.value,
-                vexa_meeting_id=session.vexa_meeting_id,
-                transcription_paused=False,
-                clear_resumed_at=True,
-            ),
+        updated = await storage_provider.update_session(
+            session_id,
+            {
+                "meeting_id": request.meeting_id,
+                "platform": request.platform.value,
+                "vexa_meeting_id": bot_session.vexa_meeting_id,
+                "transcription_paused": False,
+                "transcription_resumed_at": None,
+            },
         )
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Session not found")
 
         await transcription_service.subscribe_to_meeting(
             platform=request.platform.value,
             meeting_id=request.meeting_id,
-            playlist_id=request.playlist_id,
+            session_id=session_id,
         )
 
         event_publisher = get_event_publisher()
@@ -2332,32 +2576,42 @@ async def dispatch_bot(
             {
                 "platform": request.platform.value,
                 "meeting_id": request.meeting_id,
-                "playlist_id": request.playlist_id,
+                "session_id": session_id,
+                "playlist_id": playlist_id,
                 "status": "joining",
-                "vexa_meeting_id": session.vexa_meeting_id,
+                "vexa_meeting_id": bot_session.vexa_meeting_id,
             },
         )
 
-        return session
+        return bot_session
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.delete(
-    "/transcription/bot/{platform}/{meeting_id}",
+    "/sessions/{session_id}/transcription/bot",
     tags=["Transcription"],
-    summary="Stop a transcription bot",
-    description="Stop a transcription bot that is currently in a meeting.",
+    summary="Stop the transcription bot for a DNA session",
+    description="Stop the bot for this session's meeting and clear meeting fields.",
     response_model=bool,
-    responses=error_responses(400),
+    responses=error_responses(400, 404),
 )
-async def stop_bot(
-    platform: Platform,
-    meeting_id: str,
+async def stop_session_bot(
+    session_id: str,
     transcription_provider: TranscriptionProviderDep,
+    storage_provider: StorageProviderDep,
     _: CurrentUserDep,
 ) -> bool:
-    """Stop a transcription bot."""
+    """Stop a transcription bot bound to a DNA session."""
+    dna_session = await _require_dna_session(storage_provider, session_id)
+    if not dna_session.meeting_id or not dna_session.platform:
+        raise HTTPException(
+            status_code=400, detail="Session has no active transcription meeting"
+        )
+    platform = Platform(dna_session.platform)
+    meeting_id = dna_session.meeting_id
     try:
         event_publisher = get_event_publisher()
         await event_publisher.publish(
@@ -2365,32 +2619,48 @@ async def stop_bot(
             {
                 "platform": platform.value,
                 "meeting_id": meeting_id,
+                "session_id": session_id,
                 "status": "stopping",
             },
         )
-
-        return await transcription_provider.stop_bot(platform, meeting_id)
+        stopped = await transcription_provider.stop_bot(platform, meeting_id)
+        await storage_provider.update_session(
+            session_id,
+            {
+                "meeting_id": None,
+                "platform": None,
+                "vexa_meeting_id": None,
+            },
+        )
+        return stopped
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get(
-    "/transcription/bot/{platform}/{meeting_id}/status",
+    "/sessions/{session_id}/transcription/bot/status",
     tags=["Transcription"],
-    summary="Get bot status",
-    description="Get the current status of a transcription bot.",
+    summary="Get bot status for a DNA session",
+    description="Get the current status of the transcription bot for this session.",
     response_model=BotStatus,
-    responses=error_responses(400),
+    responses=error_responses(400, 404),
 )
-async def get_bot_status(
-    platform: Platform,
-    meeting_id: str,
+async def get_session_bot_status(
+    session_id: str,
     transcription_provider: TranscriptionProviderDep,
+    storage_provider: StorageProviderDep,
     _: CurrentUserDep,
 ) -> BotStatus:
-    """Get the status of a transcription bot."""
+    """Get the status of a transcription bot for a DNA session."""
+    dna_session = await _require_dna_session(storage_provider, session_id)
+    if not dna_session.meeting_id or not dna_session.platform:
+        raise HTTPException(
+            status_code=400, detail="Session has no active transcription meeting"
+        )
     try:
-        return await transcription_provider.get_bot_status(platform, meeting_id)
+        return await transcription_provider.get_bot_status(
+            Platform(dna_session.platform), dna_session.meeting_id
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
