@@ -117,11 +117,31 @@ declare module '@dna-app/components/VersionCard' {
   }): ReactNode;
 }
 
+declare module '@dna-app/components/SessionTabs' {
+  import type {ReactNode} from 'react';
+
+  interface TabPlaylist {
+    type: 'Playlist';
+    id: string;
+    code?: string;
+  }
+
+  /** The header's playlist tabs for a session, with + Add playlist. */
+  export function SessionTabs(props: {
+    sessionId: string;
+    projectId: string;
+    activePlaylist: TabPlaylist;
+    onPlaylistChange: (playlist: TabPlaylist) => void;
+  }): ReactNode;
+}
+
 declare module '@dna-app/components/TranscriptionMenu' {
   import type {ReactNode} from 'react';
 
   /** The sidebar's Transcription button and its meeting-bot menu. */
   export function TranscriptionMenu(props: {
+    /** The DNA session whose bot and paused flag the menu drives. */
+    sessionId: string | null;
     playlistId: string | null;
     collapsed?: boolean;
   }): ReactNode;

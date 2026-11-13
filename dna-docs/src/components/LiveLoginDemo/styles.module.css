@@ -254,3 +254,17 @@
     stroke-dashoffset: 0;
   }
 }
+
+/*
+ * A demo's popover pinned to the page on touch screens (./pinPopover.ts):
+ * the sessions demo's picker list and the session tabs demo's add-playlist
+ * menu. Radix keeps writing a fixed position and a transform inline
+ * as the page scrolls; these win over them, so the list holds the page
+ * position it opened at.
+ */
+:global([data-radix-popper-content-wrapper][data-dna-demo-pinned]) {
+  position: absolute !important;
+  top: var(--dna-pin-top) !important;
+  left: var(--dna-pin-left) !important;
+  transform: none !important;
+}

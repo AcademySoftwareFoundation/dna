@@ -10,7 +10,6 @@ import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {SplitButton} from '@dna-app/components/SplitButton';
 import {AddVersionInput} from '@dna-app/components/AddVersionInput';
-import {ChangePlaylistInput} from '@dna-app/components/ChangePlaylistInput';
 import {VersionCard} from '@dna-app/components/VersionCard';
 import {DEMO_PROJECT_ID, demoVersion} from '../LiveLoginDemo/appMocks/entities';
 import {DEMO_PLAYLISTS, DEMO_PLAYLIST_ID, thumbnailFor} from '../LiveLoginDemo/appMocks/playlists';
@@ -24,7 +23,7 @@ import uiStyles from '../LiveUiDemo/styles.module.css';
 import styles from './styles.module.css';
 
 type Version = ReturnType<typeof demoVersion>;
-type ToolbarInput = 'none' | 'add-version' | 'change-playlist';
+type ToolbarInput = 'none' | 'add-version';
 /** none -> (last step) success -> fading -> none, with the demo reset. */
 type Overlay = 'none' | 'success' | 'fading';
 
@@ -46,8 +45,8 @@ const INITIALS = ARTIST.split(' ')
 const freshVersions = (): Record<string, Version[]> =>
   Object.fromEntries(DEMO_PLAYLISTS.map((p) => [p.id, p.versions.map(demoVersion)]));
 
-// The top of the app's sidebar over sample playlists: the real playlist
-// menu, Add Version and Change Playlist inputs and version cards, inside
+// The top of the app's sidebar over a sample playlist: the real playlist
+// menu, Add Version input and version cards, inside
 // the UI demo's header and toolbar chrome. Browser-only: loaded by
 // ./index.tsx inside <BrowserOnly>.
 export default function MenusDemo() {
@@ -67,23 +66,14 @@ export default function MenusDemo() {
   const [versions, setVersions] = useState<Record<string, Version[]>>(freshVersions);
   const [toolbarInput, setToolbarInput] = useState<ToolbarInput>('none');
   const [added, setAdded] = useState(false);
-  const [changed, setChanged] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>('none');
   // Bumped to remount the sidebar on reset.
   const [run, setRun] = useState(0);
   const current = versions[playlistId] ?? [];
 
-  // The app's playlist menu, minus Add Scratch Pad. The guide goes Add
-  // Version first, then Change Playlist; picking the other one just closes
-  // the menu and the guide points the way again.
+  // The app's playlist menu, minus Add Scratch Pad.
   const menuItems = useMemo(
     () => [
-      {
-        label: 'Change Playlist',
-        onSelect: () => {
-          if (added) setToolbarInput('change-playlist');
-        },
-      },
       {
         label: 'Add Version',
         onSelect: () => {
@@ -103,8 +93,8 @@ export default function MenusDemo() {
     if (added && list) list.scrollTop = list.scrollHeight;
   }, [added, current.length]);
 
-  // Guide steps: open the menu, add a version, open it again, change the
-  // playlist. The targets come and go (the inputs replace the split button),
+  // Guide steps: open the menu, choose Add Version, add a version. The
+  // targets come and go (the input replaces the split button),
   // so keep watching the markup for them; the menu trigger's data-state says
   // whether the menu is open.
   const rootRef = useRef<HTMLDivElement>(null);
@@ -114,14 +104,12 @@ export default function MenusDemo() {
     /** The open menu's items by label; the menu renders in a portal outside the root. */
     menuItems: Record<string, HTMLElement>;
     addInput: Element | null;
-    changeInput: Element | null;
   }
   const [targets, setTargets] = useState<Targets>({
     trigger: null,
     menuOpen: false,
     menuItems: {},
     addInput: null,
-    changeInput: null,
   });
   useEffect(() => {
     const root = rootRef.current;
@@ -140,13 +128,11 @@ export default function MenusDemo() {
         menuOpen,
         menuItems,
         addInput: root.querySelector('input[placeholder="Add version..."]'),
-        changeInput: root.querySelector('input[placeholder="Change playlist..."]'),
       };
       setTargets((prev) =>
         prev.trigger === next.trigger &&
         prev.menuOpen === next.menuOpen &&
         prev.addInput === next.addInput &&
-        prev.changeInput === next.changeInput &&
         Object.keys(next.menuItems).every((label) => prev.menuItems[label] === next.menuItems[label])
           ? prev
           : next,
@@ -161,7 +147,7 @@ export default function MenusDemo() {
   // With the menu open, highlight the item to choose: Radix highlights the
   // focused item, so focus it. Its popper settles into place over a few
   // frames, so re-place the bubble a couple of times.
-  const wantedItem = added ? 'Change Playlist' : 'Add Version';
+  const wantedItem = 'Add Version';
   const menuItem = targets.menuOpen ? (targets.menuItems[wantedItem] ?? null) : null;
   const [settle, setSettle] = useState(0);
   useEffect(() => {
@@ -171,7 +157,7 @@ export default function MenusDemo() {
     return () => timers.forEach(clearTimeout);
   }, [menuItem]);
 
-  const finished = added && changed && toolbarInput === 'none';
+  const finished = added && toolbarInput === 'none';
   const step = useMemo((): GuideStep | null => {
     const press = window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click';
     if (targets.addInput) {
@@ -182,9 +168,6 @@ export default function MenusDemo() {
         align: 'start',
       };
     }
-    if (targets.changeInput) {
-      return {target: targets.changeInput, title: 'Pick another playlist', sides: ['above'], align: 'start'};
-    }
     if (finished || !targets.trigger) return null;
     if (targets.menuOpen) {
       // The item is highlighted by focus; `settle` re-places the bubble.
@@ -194,7 +177,7 @@ export default function MenusDemo() {
         ? {
             target: menuItem,
             title: `Choose ${wantedItem}`,
-            sides: added ? ['right', 'left', 'above', 'below'] : ['right', 'left', 'below', 'above'],
+            sides: ['right', 'left', 'below', 'above'],
             noRing: true,
           }
         : null;
@@ -222,7 +205,6 @@ export default function MenusDemo() {
             setVersions(freshVersions());
             setToolbarInput('none');
             setAdded(false);
-            setChanged(false);
             setRun((n) => n + 1);
             setOverlay('fading');
           }, SUCCESS_MS)
@@ -263,18 +245,6 @@ export default function MenusDemo() {
                       }));
                       setAdded(true);
                     }}
-                  />
-                ) : toolbarInput === 'change-playlist' ? (
-                  <ChangePlaylistInput
-                    projectId={DEMO_PROJECT_ID}
-                    currentPlaylistId={playlistId}
-                    onSelect={(playlist) => {
-                      setVersions((prev) => (prev[playlist.id] ? prev : {...prev, [playlist.id]: []}));
-                      setPlaylistId(playlist.id);
-                      setChanged(true);
-                      setToolbarInput('none');
-                    }}
-                    onClose={() => setToolbarInput('none')}
                   />
                 ) : (
                   <>
