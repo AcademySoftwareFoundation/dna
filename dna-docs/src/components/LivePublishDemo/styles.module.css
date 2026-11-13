@@ -1,0 +1,489 @@
+/* The Publish Notes dialog on its own, framed like the other demos. */
+.frame {
+  position: relative;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  font-family: inherit;
+}
+
+/* Positioned for the guide bubble and checkmark, which render inside it. */
+.root {
+  position: relative;
+}
+
+/* Radix's Dialog.Content with the app's padding: 0 and column layout. */
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 560px;
+  overflow: hidden;
+  color: var(--c-text);
+  background: var(--color-panel-solid);
+  border: 1px solid var(--dna-hairline);
+  border-radius: 12px;
+}
+
+.dialog button,
+.dialog select {
+  font-family: inherit;
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--gray-a6);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.iconButton {
+  display: inline-flex;
+  color: var(--c-text-muted);
+}
+
+/* The app's ScrollBody. */
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+/* The app's VersionCard and VersionCardHeader. */
+.card {
+  background: var(--c-bg-surface);
+  border: 1px solid var(--c-border-subtle);
+  border-radius: 12px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--c-bg-hover);
+  border-bottom: 1px solid var(--c-border-subtle);
+  border-radius: 12px 12px 0 0;
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  background: var(--c-bg-base);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.versionName {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submitter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rowLabel {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--c-text-muted);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+/* The app's StatusSelect. */
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.select {
+  height: 26px;
+  padding: 4px 28px 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text);
+  background: var(--c-bg-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.select:focus {
+  border-color: var(--c-accent);
+}
+
+.selectIcon {
+  position: absolute;
+  right: 8px;
+  color: var(--c-text-muted);
+  pointer-events: none;
+}
+
+/* The app's Note QC pill (NoteQCResultPill), with its check list below it. */
+.pillWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-panel);
+  border: 1px solid;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pillText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pillWarn {
+  color: var(--amber-11);
+  border-color: var(--amber-9);
+}
+
+.pillOk {
+  color: var(--green-11);
+  border-color: var(--green-9);
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  max-width: calc(100vw - 48px);
+  padding: 12px 14px;
+  background: var(--color-panel-solid);
+  border: 1px solid var(--gray-a6);
+  border-radius: 8px;
+  box-shadow: var(--shadow-5);
+}
+
+.popoverTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.warning {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--amber-11);
+}
+
+.checkIssue {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--c-text-muted);
+}
+
+.checkActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* The note's fields and text, indented under its checkbox like the app's. */
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 26px;
+}
+
+/* Unchecked: still shown, but it won't be published. */
+.excluded {
+  opacity: 0.5;
+}
+
+.editorArea {
+  min-height: 0;
+}
+
+.transcriptRow {
+  padding-top: 12px;
+  border-top: 1px solid var(--c-border-subtle);
+}
+
+/* The app's ToggleTranscriptButton. */
+.toggle {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--c-text-muted);
+  background: transparent;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--c-text);
+  border-color: var(--c-border-strong);
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.segmentFirst {
+  padding-top: 8px;
+}
+
+.speaker {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.segmentText {
+  margin: 0;
+  font-size: 14px;
+  color: var(--c-text-2);
+}
+
+/* The app's FooterBar. */
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--c-border-subtle);
+}
+
+/* The Apply QC suggestion dialog's overlay, over the demo only. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  padding: 24px;
+  background: var(--color-panel-solid);
+  border-radius: 12px;
+  box-shadow: var(--shadow-6);
+}
+
+.diffTitle {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.diffDescription {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--c-text-muted);
+}
+
+.diffField {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diffColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.diffLabel {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.diffText {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.diffText ins {
+  color: var(--green-11);
+  text-decoration: none;
+  background: var(--green-a3);
+}
+
+.diffHint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.diffActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/*
+ * Narrow columns. A 560px window scrolling inside the page hid the guide's
+ * targets below its fold (the bubble then landed outside the frame), so the
+ * dialog takes its natural height instead and everything is on screen. The
+ * note's text and the transcript, which nothing points at, scroll in short
+ * boxes of their own to keep the dialog about a screen tall.
+ */
+@media (max-width: 720px) {
+  .dialog {
+    height: auto;
+  }
+
+  .body {
+    flex: none;
+    padding: 12px;
+    overflow-y: visible;
+  }
+
+  /* Full width: no room to indent the note under its label. */
+  .note {
+    padding-left: 0;
+  }
+
+  /* To and Links on lines of their own, the second link under the first. */
+  .chips {
+    flex-wrap: wrap;
+  }
+
+  .linksChip {
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    height: auto;
+    min-height: 30px;
+    padding-block: 3px;
+  }
+
+  .editorArea {
+    max-height: 136px;
+    overflow-y: auto;
+  }
+
+  .transcript {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* The pill wraps to the row's left edge here, so open rightward from it. */
+  .popover {
+    right: auto;
+    left: 0;
+    width: min(320px, calc(100vw - 96px));
+  }
+
+  .diff {
+    padding: 16px;
+  }
+
+  .diffColumns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The demo's height before it loads. */
+.placeholder {
+  height: 562px;
+}

@@ -4,7 +4,7 @@ export { ToastProvider, useToast } from './ToastContext';
 export { ThemeModeProvider, useThemeMode } from './ThemeContext';
 export type { ThemeMode } from './ThemeContext';
 export { AuthProvider, useAuth } from './AuthContext';
-export type { AuthUser } from './AuthContext';
+export type { AuthUser, AuthProviderType } from './AuthContext';
 export { FeatureFlagsProvider, useFeatureFlags } from './FeatureFlagsContext';
 export { NoteFocusProvider, useNoteFocus } from './NoteFocusContext';
 export { NomenclatureProvider, useNomenclature } from '../nomenclature';

@@ -6,6 +6,7 @@ import '@radix-ui/themes/styles.css';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {SplitButton} from '@dna-app/components/SplitButton';
 import {AddVersionInput} from '@dna-app/components/AddVersionInput';
@@ -51,8 +52,9 @@ const freshVersions = (): Record<string, Version[]> =>
 // ./index.tsx inside <BrowserOnly>.
 export default function MenusDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
-  const vars = useMemo(() => themeVars(colorMode), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
+  const vars = useMemo(() => themeVars(colorMode, accent), [colorMode, accent]);
   const logo = useBaseUrl(
     colorMode === 'light' ? 'img/logo-full-light.svg' : 'img/logo-full-dark.svg',
   );
@@ -232,7 +234,7 @@ export default function MenusDemo() {
     <div ref={rootRef} className={styles.root} style={vars as CSSProperties}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
-          <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+          <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
             <aside key={run} className={styles.panel}>
               <div className={uiStyles.sidebarHeader}>
                 <img className={uiStyles.logo} src={logo} alt="DNA - Dailies Notes Assistant" />

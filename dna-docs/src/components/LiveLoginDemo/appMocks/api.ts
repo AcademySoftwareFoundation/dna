@@ -6,8 +6,8 @@ import {DEMO_PLAYLISTS} from './playlists';
 // React Query hooks and API handler, without a backend.
 
 const PROJECTS = [
-  {type: 'Project' as const, id: '101', name: 'Griffin'},
-  {type: 'Project' as const, id: '102', name: 'Hidden Satellite'},
+  {type: 'Project' as const, id: '101', name: 'Hyperspace'},
+  {type: 'Project' as const, id: '102', name: 'Demo Dune'},
 ];
 
 const PLAYLISTS: Record<string, {id: string; code: string}[]> = {
@@ -26,7 +26,11 @@ export function useGetProjectsForUser(userEmail: string | null) {
   return result(userEmail ? PROJECTS : undefined);
 }
 
-/** The notes editor's calls: entity search, and attachments that "upload" instantly. */
+/**
+ * The notes editor's calls: entity search, and attachments that "upload"
+ * instantly; the menus demo's add-version and create-playlist; and the
+ * transcription menu's user settings (the default language).
+ */
 export const apiHandler = {
   searchEntities: async ({
     query,
@@ -52,6 +56,7 @@ export const apiHandler = {
     code: name,
     versions: [],
   }),
+  getUserSettings: async (_: {userEmail: string}) => ({transcription_language: 'en'}),
 };
 
 export function useGetPlaylistsForProject(projectId: string | null) {

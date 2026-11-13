@@ -9,6 +9,7 @@ import HomepageShowcase from '@site/src/components/HomepageShowcase';
 import HomepageDeveloperShowcase from '@site/src/components/HomepageDeveloperShowcase';
 import HomepageIntegrations from '@site/src/components/HomepageIntegrations';
 import HomepageTranscription from '@site/src/components/HomepageTranscription';
+import HomepagePlayerSync from '@site/src/components/HomepagePlayerSync';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
@@ -25,12 +26,12 @@ function HomepageHeader() {
         <p className={styles.subtitle}>{siteConfig.tagline}</p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs">
-            Frontend Docs
+            User Guides
           </Link>
           <Link
             className="button button--outline button--secondary button--lg"
-            to="/api">
-            Backend API
+            to="/developers">
+            Developer Docs
           </Link>
         </div>
       </div>
@@ -43,7 +44,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={siteConfig.title}
-      description="Frontend guides and backend API reference for DNA, an Academy Software Foundation project.">
+      description="User guides, deployment docs and backend API reference for DNA, an Academy Software Foundation project.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
@@ -52,6 +53,7 @@ export default function Home(): ReactNode {
         <HomepageDeveloperShowcase />
         <HomepageIntegrations />
         <HomepageTranscription />
+        <HomepagePlayerSync />
       </main>
     </Layout>
   );

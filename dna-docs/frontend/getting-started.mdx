@@ -1,0 +1,61 @@
+---
+sidebar_position: 2
+title: Getting Started
+---
+
+This page covers running the frontend by itself. To bring up the backend, database and transcription service as well, do the [quick start](/developers) first.
+
+## Prerequisites
+
+- Node.js 18 or newer. The Docker build uses 20.
+- A running DNA backend, which the [quick start](/developers) sets up. The frontend expects it at `http://localhost:8000` unless you configure another address.
+
+## Install
+
+Run every command on this page from the `frontend/` directory. Installing there covers both packages:
+
+```bash
+cd frontend
+npm install
+```
+
+## Configure
+
+Copy the example environment file:
+
+```bash
+cp packages/app/.env.example packages/app/.env
+```
+
+The copy already has what local development needs:
+
+```bash title="packages/app/.env"
+VITE_API_BASE_URL=http://localhost:8000
+VITE_WS_URL=ws://localhost:8000/ws
+VITE_AUTH_PROVIDER=none
+```
+
+`VITE_AUTH_PROVIDER=none` lets you sign in with any email, as long as the backend runs with `AUTH_PROVIDER=none` too. The rest of the file is optional settings, described in [Configuration](./configuration).
+
+## Run
+
+```bash
+npm run dev
+```
+
+This starts the Vite dev server. Open the URL it prints, usually `http://localhost:5173`, enter any email, then pick a project and a playlist.
+
+In development, Vite reads `@dna/core` from its source in `packages/core/src`. A change in either package reloads in the browser, and you don't need to build `@dna/core` first.
+
+## Scripts
+
+Each script runs across both packages unless the table says otherwise.
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Starts the app's dev server. |
+| `npm run build` | Builds both packages. `build:core` and `build:app` build one each. |
+| `npm run test` | Runs the tests in watch mode. `test:run` runs them once. |
+| `npm run typecheck` | Type-checks both packages. |
+| `npm run lint` | Lints both packages. |
+| `npm run format` | Formats with Prettier. `format:check` reports without changing files. |

@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { ThemeProvider } from 'styled-components';
 import { Theme } from '@radix-ui/themes';
+import { isDesktopSignInPath } from '@dna/core';
 import App from './App';
+import { DesktopSignIn } from './components/DesktopSignIn';
 import { ACCENTS, getTheme, GlobalStyles } from './styles';
 import {
   EventProvider,
@@ -20,15 +22,19 @@ export function ThemedApp() {
       <Theme appearance={mode} accentColor={ACCENTS[accent].radix}>
         <GlobalStyles />
         <AuthProvider>
-          <HotkeysProvider>
-            <ToastProvider>
-              <EventProvider>
-                <NoteFocusProvider>
-                  <App />
-                </NoteFocusProvider>
-              </EventProvider>
-            </ToastProvider>
-          </HotkeysProvider>
+          {isDesktopSignInPath(window.location.pathname) ? (
+            <DesktopSignIn />
+          ) : (
+            <HotkeysProvider>
+              <ToastProvider>
+                <EventProvider>
+                  <NoteFocusProvider>
+                    <App />
+                  </NoteFocusProvider>
+                </EventProvider>
+              </ToastProvider>
+            </HotkeysProvider>
+          )}
         </AuthProvider>
       </Theme>
     </ThemeProvider>

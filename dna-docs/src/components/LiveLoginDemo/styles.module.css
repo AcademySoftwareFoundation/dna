@@ -93,10 +93,10 @@
 
 @keyframes guidePulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(62, 99, 221, 0.55);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dna-accent) 55%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 10px rgba(62, 99, 221, 0);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--dna-accent) 0%, transparent);
   }
 }
 

@@ -1,0 +1,47 @@
+.team {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem 1rem;
+  margin: 1.25rem 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  text-align: center;
+}
+
+/* Square with generously rounded corners. The photos are cut from tiles
+   with rounded corners of their own on white; this radius is larger than
+   theirs, so none of that white shows on either theme. */
+.photo {
+  width: 100%;
+  max-width: 72px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--dna-hairline);
+  border-radius: 22%;
+}
+
+.name {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.org {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ifm-color-emphasis-700);
+}
+
+@media (max-width: 996px) {
+  .team {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

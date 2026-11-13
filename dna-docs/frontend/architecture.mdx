@@ -1,0 +1,90 @@
+---
+sidebar_position: 4
+title: Architecture
+---
+
+## Provider tree
+
+`main.tsx` and `ThemedApp.tsx` wrap the app in its providers. From the outside in:
+
+1. `QueryClientProvider` holds React Query's cache for server data.
+2. `ThemeModeProvider` holds light or dark mode and the accent color.
+3. `FeatureFlagsProvider` says whether In Review, Transcription and AI are on.
+4. `NomenclatureProvider` supplies the studio's terminology. See [Customizing Terminology](./customizing-terminology).
+5. The styled-components `ThemeProvider` and Radix `Theme` pass theme tokens to DNA's styled components and to Radix's own.
+6. `AuthProvider` holds the signed-in user.
+7. `HotkeysProvider` holds the keyboard shortcuts and their bindings.
+8. `ToastProvider`, `EventProvider` (WebSocket events) and `NoteFocusProvider` come last.
+
+Components read from these with hooks: `useAuth()`, `useFeatureFlags()`, `useThemeMode()`, `useNomenclature()` and so on.
+
+## Talking to the backend
+
+Every HTTP call goes through `ApiHandler` in `@dna/core`, a thin wrapper around axios. The app creates one instance in `src/api/index.ts` from `VITE_API_BASE_URL`. When a user signs in, `AuthProvider` calls `apiHandler.setUser(...)`, and from then on each request carries the user's token as `Authorization: Bearer …` and their id as `X-User-Id`.
+
+Components usually reach `ApiHandler` through React Query, either with `useQuery` inline or through a hook in `src/api/` or `src/hooks/`. That way responses are cached, shared between components and refetched when they go stale:
+
+```ts title="packages/app/src/api/index.ts"
+function useGetVersionsForPlaylist(playlistId: string | null) {
+  return useQuery<Version[], Error>({
+    queryKey: ['versions', playlistId],
+    queryFn: () => apiHandler.getVersionsForPlaylist({ playlistId: playlistId! }),
+    enabled: !!playlistId,
+  });
+}
+```
+
+The hooks in `src/hooks/` add mutations and local state on top of this. `useDraftNote`, for example, keeps a local copy of the note being edited and saves it to the backend on a debounce.
+
+### Adding a backend call
+
+1. Add the request and response types to `packages/core/src/interfaces.ts`.
+2. Add a method to `ApiHandler` that calls the route.
+3. Call it from the app through React Query, with a query key that names what it fetches.
+
+The routes are documented in the [Backend API reference](/api).
+
+## Real-time events
+
+The backend pushes changes over a WebSocket at `VITE_WS_URL`. `EventProvider` opens one connection using the event client from `@dna/core`, and components subscribe by event type.
+
+| Event | Sent when |
+| --- | --- |
+| `transcript` | Transcript segments arrive or change for a version. |
+| `bot.status_changed` | The meeting bot joins, waits, transcribes or leaves. |
+| `transcription.completed`, `transcription.error` | A transcription session ends or fails. |
+| `playlist.in_review_changed` | Someone sets a different version in review, or pins it. |
+
+```ts
+useEventSubscription<InReviewChangedEventPayload>('playlist.in_review_changed', (event) => {
+  // event.payload.playlist_id, event.payload.in_review
+});
+```
+
+`useConnectionStatus()` reports whether the socket is connected. The Transcript panel shows that in its status bar.
+
+## Authentication
+
+`VITE_AUTH_PROVIDER` sets how users sign in.
+
+With `none`, any email signs in. This is for local development, and the backend has to run with `AUTH_PROVIDER=none` as well.
+
+With `google`, users sign in with Google, and the app needs `VITE_GOOGLE_CLIENT_ID`. If that ID is missing, the app logs a warning and falls back to `none`.
+
+## Feature flags
+
+In Review, Transcription and AI can each be turned on or off. Users do this in Settings, unless a studio has locked a feature for everyone with an environment variable (see [Configuration](./configuration#feature-locks)).
+
+The three depend on each other: AI needs Transcription, and Transcription needs In Review. Turning on AI therefore turns on the other two and locks them on. Components read the result with `useFeatureFlags()`.
+
+## Styling
+
+DNA's own components use styled-components. They take colors, radii, fonts and transitions from the theme in `src/styles/theme.ts`, which `getTheme(mode, accent)` builds for light or dark mode. Buttons, dialogs, selects and similar controls come from Radix Themes, and their accent color follows the one the user picks in Settings.
+
+## Keyboard shortcuts
+
+Shortcuts are defined in `src/hotkeys/hotkeysConfig.ts`. Each has an id, a label, a description and default keys, and users can rebind them in Settings. A component registers a handler for a shortcut with `useHotkeyAction`:
+
+```ts
+useHotkeyAction('aiInsert', handleAiInsert, { enabled: !!suggestion });
+```

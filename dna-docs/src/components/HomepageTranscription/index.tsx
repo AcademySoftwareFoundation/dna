@@ -84,7 +84,7 @@ export default function HomepageTranscription(): ReactNode {
           </div>
           <div className={showcase.copy}>
             <Heading as="h2" className={showcase.heading}>
-              Transcribe meetings and match segments to versions.
+              Transcribe meetings and match segments to versions
             </Heading>
             <p>
               DNA can join Google, Teams, and Zoom meetings.

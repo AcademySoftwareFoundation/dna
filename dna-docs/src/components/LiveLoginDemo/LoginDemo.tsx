@@ -4,6 +4,7 @@ import {ThemeProvider} from 'styled-components';
 import {Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {
   ProjectSelector,
   STORAGE_KEYS,
@@ -28,7 +29,8 @@ type Phase = 'demo' | 'success' | 'fading';
 // ./index.tsx inside <BrowserOnly>.
 export default function LoginDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
   const [run, setRun] = useState(0);
   const [phase, setPhase] = useState<Phase>('demo');
   const [playlist, setPlaylist] = useState('');
@@ -135,7 +137,7 @@ export default function LoginDemo() {
           <ThemeProvider theme={theme}>
             <Theme
               appearance={colorMode}
-              accentColor={ACCENTS.blue.radix}
+              accentColor={ACCENTS[accent].radix}
               // The card sits straight on the docs page: no Radix background.
               hasBackground={false}>
               <ProjectSelector

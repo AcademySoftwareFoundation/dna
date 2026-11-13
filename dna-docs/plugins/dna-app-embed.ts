@@ -8,11 +8,13 @@ import type {LoadContext, Plugin} from '@docusaurus/types';
  * src/components/LiveLoginDemo.
  *
  * - `@dna-app/...` resolves to the app's source.
- * - The app's API, contexts, mention index and entity search modules are
- *   swapped for the fakes in src/components/LiveLoginDemo/appMocks when
- *   imported from the app's components folder, so demos need no backend,
- *   auth provider or React Query (the first two would also pull in Vite-only
- *   `import.meta.env`).
+ * - The app's API, contexts, nomenclature, mention index and entity search
+ *   modules are swapped for the fakes in src/components/LiveLoginDemo/appMocks
+ *   when imported from the app's components folder, so demos need no backend,
+ *   auth provider, terminology provider or React Query (the first three would
+ *   also pull in Vite-only `import.meta.env`). TranscriptionMenu alone also
+ *   gets fake transcription hooks and sign-in, and AssistantNote fake hotkey
+ *   labels; other components (NoteEditor) keep the real hooks module.
  * - SVGs under the app's source load as URLs, as they do in Vite, rather
  *   than as React components (Docusaurus' SVGR default for TSX imports).
  * - Shared libraries always resolve from dna-docs/node_modules: the app's
@@ -37,11 +39,25 @@ export default function dnaAppEmbed(context: LoadContext): Plugin {
     '../contexts': path.join(mocks, 'contexts.ts'),
     '../contexts/MentionIndexContext': path.join(mocks, 'mentionIndex.tsx'),
     '../hooks/useEntitySearch': path.join(mocks, 'useEntitySearch.ts'),
+    '../nomenclature': path.join(mocks, 'nomenclature.ts'),
   };
+  // Component file -> request -> fake module, for fakes only that component
+  // gets.
+  const componentReplacements: Record<string, Record<string, string>> = {
+    [path.join(appComponents, 'TranscriptionMenu.tsx')]: {
+      '../hooks': path.join(mocks, 'transcription.tsx'),
+      '../contexts/AuthContext': path.join(mocks, 'authContext.ts'),
+    },
+    [path.join(appComponents, 'AssistantNote.tsx')]: {
+      '../hotkeys': path.join(mocks, 'hotkeys.ts'),
+    },
+  };
+  const requests = [
+    ...Object.keys(replacements),
+    ...Object.values(componentReplacements).flatMap(Object.keys),
+  ];
   const replaced = new RegExp(
-    `^(${Object.keys(replacements)
-      .map((request) => request.replace(/[./]/g, '\\$&'))
-      .join('|')})$`,
+    `^(${requests.map((request) => request.replace(/[./]/g, '\\$&')).join('|')})$`,
   );
 
   return {
@@ -83,15 +99,23 @@ export default function dnaAppEmbed(context: LoadContext): Plugin {
             '@tiptap/pm': path.join(docsModules, '@tiptap/pm'),
             turndown: path.join(docsModules, 'turndown'),
             'lucide-react': path.join(docsModules, 'lucide-react'),
+            'react-markdown': path.join(docsModules, 'react-markdown'),
           },
         },
         plugins: [
           new NormalModuleReplacementPlugin(
             replaced,
-            (resource: {request: string; context: string}) => {
-              if (resource.context === appComponents) {
-                resource.request = replacements[resource.request];
-              }
+            (resource: {
+              request: string;
+              context: string;
+              contextInfo?: {issuer?: string};
+            }) => {
+              if (resource.context !== appComponents) return;
+              const issuer = resource.contextInfo?.issuer ?? '';
+              const fake =
+                componentReplacements[issuer]?.[resource.request] ??
+                replacements[resource.request];
+              if (fake) resource.request = fake;
             },
           ),
         ],

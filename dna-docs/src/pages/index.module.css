@@ -12,7 +12,7 @@
   background:
     radial-gradient(
       ellipse 60% 50% at 50% 0%,
-      rgba(62, 99, 221, 0.12),
+      color-mix(in srgb, var(--dna-accent) 12%, transparent),
       transparent 70%
     ),
     linear-gradient(180deg, #f3f4fb 0%, var(--ifm-background-color) 100%);
@@ -22,7 +22,7 @@
   background:
     radial-gradient(
       ellipse 60% 50% at 50% 0%,
-      rgba(62, 99, 221, 0.14),
+      color-mix(in srgb, var(--dna-accent) 14%, transparent),
       transparent 70%
     ),
     linear-gradient(180deg, #11141f 0%, var(--ifm-background-color) 100%);

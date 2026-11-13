@@ -4,6 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 import type {PluginOptions as SearchOptions} from '@easyops-cn/docusaurus-search-local';
 import dnaAppEmbed from './plugins/dna-app-embed';
+import defaultNotePrompt from './plugins/default-note-prompt';
 import searchHighlight from './plugins/search-highlight';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -45,21 +46,32 @@ function withEmeraldStrings(
 }
 
 const config: Config = {
-  title: 'DNA Docs',
+  title: 'Dailies Notes Assistant',
   tagline: 'A tool that combines live transcription and LLM integration to help VFX teams capture review feedback.',
   favicon: 'img/favicon.svg',
   // Safari (incl. iOS) doesn't take SVG favicons; it picks these PNGs, cut
   // from the SVG, while Chrome and Firefox keep the vector. Unlike `favicon`,
   // headTags aren't base-URL aware.
-  headTags: [32, 256].map((size) => ({
-    tagName: 'link',
-    attributes: {
-      rel: 'icon',
-      type: 'image/png',
-      sizes: `${size}x${size}`,
-      href: `${baseUrl}img/favicon-${size}.png`,
+  headTags: [
+    ...[32, 256].map((size) => ({
+      tagName: 'link',
+      attributes: {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: `${size}x${size}`,
+        href: `${baseUrl}img/favicon-${size}.png`,
+      },
+    })),
+    // The accent easter egg (src/accent.ts): restore a reader's chosen accent
+    // before first paint, so the page doesn't flash indigo on reload.
+    {
+      tagName: 'script',
+      attributes: {},
+      innerHTML:
+        "try{var a=localStorage.getItem('dna-docs-accent');" +
+        "if(a)document.documentElement.dataset.accent=a}catch(e){}",
     },
-  })),
+  ],
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -99,7 +111,7 @@ const config: Config = {
     [
       'classic',
       {
-        // Frontend docs: the default docs instance, plain MDX at /docs.
+        // User guides: the default docs instance, plain MDX at /docs.
         // Deliberately left on the stock doc item component - only the API
         // instance below opts into @theme/ApiItem.
         docs: {
@@ -117,6 +129,8 @@ const config: Config = {
   plugins: [
     // Lets guides embed real DNA app components as live demos.
     dnaAppEmbed,
+    // The backend's default note prompt, for the AI guide's prompt demo.
+    defaultNotePrompt,
     // On-page search highlights for in-body results only.
     searchHighlight,
     // Backend docs: a second content-docs instance at /api, rendered with the
@@ -129,6 +143,49 @@ const config: Config = {
         routeBasePath: 'api',
         sidebarPath: './sidebarsApi.ts',
         docItemComponent: '@theme/ApiItem',
+      },
+    ],
+    // Deployment docs: a third content-docs instance at /deployment, plain
+    // MDX like the user guides.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'deployment',
+        path: 'deployment',
+        routeBasePath: 'deployment',
+        sidebarPath: './sidebarsDeployment.ts',
+      },
+    ],
+    // Integrations docs: connecting review players and other tools to DNA,
+    // at /integrations.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'integrations',
+        path: 'integrations',
+        routeBasePath: 'integrations',
+        sidebarPath: './sidebarsIntegrations.ts',
+      },
+    ],
+    // Frontend developer docs: how the web app is built, at /frontend.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'frontend',
+        path: 'frontend',
+        routeBasePath: 'frontend',
+        sidebarPath: './sidebarsFrontend.ts',
+      },
+    ],
+    // Contributing docs: the contribution process and how this site works,
+    // at /contributing.
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'contributing',
+        path: 'contributing',
+        routeBasePath: 'contributing',
+        sidebarPath: './sidebarsContributing.ts',
       },
     ],
     [
@@ -167,9 +224,10 @@ const config: Config = {
     [
       '@easyops-cn/docusaurus-search-local',
       {
-        // Both docs instances: frontend guides and the backend API.
-        docsRouteBasePath: ['docs', 'api'],
-        docsDir: ['docs', 'api'],
+        // All docs instances: user guides, frontend, the backend API,
+        // integrations, deployment and contributing.
+        docsRouteBasePath: ['docs', 'frontend', 'api', 'integrations', 'deployment', 'contributing'],
+        docsDir: ['docs', 'frontend', 'api', 'integrations', 'deployment', 'contributing'],
         indexBlog: false,
         hashed: true,
         explicitSearchResultPath: true,
@@ -200,19 +258,60 @@ const config: Config = {
       items: [
         {to: '/about', label: 'About', position: 'right'},
         // Lands on the Introduction rather than the generated Guides
-        // category index; stays highlighted anywhere in the frontend docs.
+        // category index; stays highlighted anywhere in the user guides.
         {
           type: 'doc',
           docId: 'guides/introduction',
           position: 'right',
-          label: 'Frontend',
+          label: 'User Guides',
         },
+        // For people hosting or building on DNA. The label opens the
+        // /developers landing page; hovering shows the two sections.
+        // activeBasePath on the items lets the dropdown stay highlighted
+        // anywhere in either section (docSidebar items have no `to` for it to
+        // match on).
         {
-          type: 'docSidebar',
-          docsPluginId: 'api',
-          sidebarId: 'openApiSidebar',
+          type: 'dropdown',
+          label: 'Developer Docs',
+          to: '/developers',
           position: 'right',
-          label: 'Backend API',
+          items: [
+            {
+              type: 'docSidebar',
+              docsPluginId: 'frontend',
+              sidebarId: 'frontendSidebar',
+              label: 'Frontend',
+              activeBasePath: 'frontend',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'api',
+              sidebarId: 'openApiSidebar',
+              label: 'Backend API',
+              activeBasePath: 'api',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'integrations',
+              sidebarId: 'integrationsSidebar',
+              label: 'Integrations',
+              activeBasePath: 'integrations',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'deployment',
+              sidebarId: 'deploymentSidebar',
+              label: 'Deployment',
+              activeBasePath: 'deployment',
+            },
+            {
+              type: 'docSidebar',
+              docsPluginId: 'contributing',
+              sidebarId: 'contributingSidebar',
+              label: 'Contributing',
+              activeBasePath: 'contributing',
+            },
+          ],
         },
         {
           href: 'https://github.com/AcademySoftwareFoundation/dna',
@@ -230,15 +329,76 @@ const config: Config = {
       style: 'light',
       links: [
         {
-          title: 'Docs',
+          title: 'User Guides',
           items: [
             {
-              label: 'Frontend',
+              label: 'Introduction',
               to: '/docs',
+            },
+            {
+              label: 'Logging In',
+              to: '/docs/2-login',
+            },
+            {
+              label: 'User Interface',
+              to: '/docs/3-ui',
+            },
+            {
+              label: 'In-Review Workflow',
+              to: '/docs/4-in-reivew',
+            },
+            {
+              label: 'Transcription',
+              to: '/docs/5-transcription',
+            },
+            {
+              label: 'AI Integration',
+              to: '/docs/6-ai',
+            },
+            {
+              label: 'RV Integration',
+              to: '/docs/7-rv-integration',
+            },
+            {
+              label: 'Publishing',
+              to: '/docs/8-publishing',
+            },
+            {
+              label: 'Note Quality Control',
+              to: '/docs/9-note-qc',
+            },
+            {
+              label: 'Settings',
+              to: '/docs/10-settings',
+            },
+          ],
+        },
+        {
+          title: 'Developer Docs',
+          items: [
+            {
+              label: 'Overview',
+              to: '/developers',
+            },
+            {
+              label: 'Frontend',
+              to: '/frontend',
             },
             {
               label: 'Backend API',
               to: '/api',
+            },
+            {
+              label: 'Integrations',
+              to: '/integrations',
+            },
+            {
+              label: 'Deployment',
+              to: '/deployment',
+            },
+            {
+              label: 'Contributing',
+              to: '/contributing',
             },
           ],
         },
