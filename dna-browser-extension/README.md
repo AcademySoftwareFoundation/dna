@@ -14,7 +14,7 @@ in Firefox the popup only shows tab-sync setup.
 ### Chrome
 
 1. Open Chrome → **Extensions** → enable **Developer mode**.
-2. **Load unpacked** → select this folder `dna-chrome-extension/`.
+2. **Load unpacked** → select this folder `dna-browser-extension/`.
 3. Copy the extension **ID** from the card (32-char string).
 4. In DNA frontend, set `VITE_PRODTRACK_TAB_SYNC_EXTENSION_ID` to that ID in `frontend/packages/app/.env` and restart the dev server.
 
@@ -22,9 +22,41 @@ in Firefox the popup only shows tab-sync setup.
 
 ### Firefox (128+)
 
-1. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → select `manifest.json` in this folder.
+For a permanent install, use a signed build. See [Firefox: signed install](#firefox-signed-install). For quick development:
+
+1. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → select `manifest.json` in this folder. Temporary add-ons are removed when Firefox restarts.
 2. Open the extension popup, enter your **DNA app URL** (e.g. `http://localhost:5173`), click **Save** and allow access to that site.
 3. No extension ID is needed in DNA. Open DNA tabs pick the bridge up immediately.
+
+## Firefox: signed install
+
+Release Firefox only keeps add-ons installed across restarts if they are signed by Mozilla. The extension is signed as **unlisted** on [addons.mozilla.org](https://addons.mozilla.org/developers/) (AMO): automated validation only, no public listing. The result is a `.xpi` you install directly and can share with others.
+
+One-time setup:
+
+1. Sign in at [addons.mozilla.org/developers](https://addons.mozilla.org/developers/) and create API credentials under [**Manage API Keys**](https://addons.mozilla.org/developers/addon/api/key/).
+2. Export them in your shell (don't commit them):
+
+   ```bash
+   export AMO_JWT_ISSUER='user:12345:678'
+   export AMO_JWT_SECRET='…'
+   ```
+
+Each release:
+
+1. Bump `"version"` in [`manifest.json`](./manifest.json). AMO signs a given version only once.
+2. From the repository root:
+
+   ```bash
+   make lint-extension-firefox   # optional: run AMO's validator locally
+   make sign-extension-firefox   # upload, sign, download the .xpi into dist/
+   ```
+
+3. In Firefox, open the `.xpi` from `dist/` (drag it onto a window, or `about:addons` → gear → **Install Add-on From File…**). Installing a higher version replaces the old one and keeps its settings.
+
+The add-on ID (`browser_specific_settings.gecko.id`, `dna-tab-sync@aswf.io`) ties every signed version to your AMO account. Don't change it, or Firefox will treat a new build as a different add-on.
+
+Both targets need Node.js. They run Mozilla's [`web-ext`](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/) through `npx` on the same stripped build as `package-extension-firefox`.
 
 ## Page bridge (Firefox)
 
@@ -46,9 +78,9 @@ make package-extension          # Chrome
 make package-extension-firefox  # Firefox
 ```
 
-`package-extension` writes `dist/dna-chrome-extension-<version>.zip` (version from `manifest.json`). Upload that zip to the Chrome Web Store, or unzip and load the folder unpacked for testing.
+`package-extension` writes `dist/dna-browser-extension-<version>.zip` (version from `manifest.json`). Upload that zip to the Chrome Web Store, or unzip and load the folder unpacked for testing.
 
-`package-extension-firefox` writes `dist/dna-firefox-extension-<version>.zip` with Chrome-only manifest keys and permissions (`service_worker`, `externally_connectable`, `offscreen`, `tabCapture`, the Meet content script) stripped by [`scripts/firefox_extension_manifest.py`](../scripts/firefox_extension_manifest.py). Upload it to [addons.mozilla.org](https://addons.mozilla.org/developers/) for signing. The add-on ID is `browser_specific_settings.gecko.id` in `manifest.json`.
+`package-extension-firefox` writes `dist/dna-firefox-extension-<version>.zip` with Chrome-only manifest keys and permissions (`service_worker`, `externally_connectable`, `offscreen`, `tabCapture`, the Meet content script) stripped by [`scripts/firefox_extension_manifest.py`](../scripts/firefox_extension_manifest.py). To sign it for a permanent install, use `make sign-extension-firefox` (see [Firefox: signed install](#firefox-signed-install)).
 
 ## Allow DNA origins
 
