@@ -5,13 +5,40 @@ Playlist-local metadata only. In-review and transcription live on Session.
 
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+# Fields this endpoint accepted before sessions, and where they live now.
+_MOVED_TO_SESSION = {
+    "in_review": "PUT /sessions/{session_id}/in-review",
+    "in_review_pinned": "PUT /sessions/{session_id}/in-review",
+    "meeting_id": "PUT /sessions/{session_id}/transcription",
+}
 
 
 class PlaylistMetadataUpdate(BaseModel):
-    """Model for updating playlist-local metadata."""
+    """Model for updating playlist-local metadata.
 
-    model_config = ConfigDict(json_schema_extra={"examples": [{"has_scratch": True}]})
+    Unknown fields are rejected (422) rather than ignored, so clients still
+    sending in-review here fail loudly instead of getting a no-op 200.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"has_scratch": True}]},
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_session_fields(cls, data):
+        if isinstance(data, dict):
+            moved = [key for key in _MOVED_TO_SESSION if key in data]
+            if moved:
+                routes = sorted({_MOVED_TO_SESSION[key] for key in moved})
+                raise ValueError(
+                    f"{', '.join(moved)} moved to DNA sessions; use "
+                    f"{' or '.join(routes)}"
+                )
+        return data
 
     has_scratch: Optional[bool] = Field(
         default=None,

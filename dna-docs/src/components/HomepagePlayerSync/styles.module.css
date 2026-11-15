@@ -211,9 +211,12 @@
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+  /* Illustration only: long paths and bodies are cut at the panel edge. */
+  overflow: hidden;
 }
 
 .method {
+  flex-shrink: 0;
   padding: 0 4px;
   font-weight: 700;
   color: var(--c-accent);
@@ -222,10 +225,14 @@
 }
 
 .logBody {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
   color: var(--c-text);
 }
 
 .status {
+  flex-shrink: 0;
   margin-left: auto;
   color: var(--c-text-muted);
 }

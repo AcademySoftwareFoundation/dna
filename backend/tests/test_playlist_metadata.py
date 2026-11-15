@@ -107,6 +107,39 @@ class TestPlaylistMetadataEndpoints:
         finally:
             app.dependency_overrides.clear()
 
+    @pytest.mark.parametrize(
+        "body, route",
+        [
+            ({"in_review": "6990"}, "/sessions/{session_id}/in-review"),
+            ({"in_review_pinned": True}, "/sessions/{session_id}/in-review"),
+            ({"meeting_id": "abc"}, "/sessions/{session_id}/transcription"),
+        ],
+    )
+    def test_upsert_rejects_fields_moved_to_sessions(
+        self, mock_storage_provider, body, route
+    ):
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        try:
+            response = client.put("/playlists/10/metadata", json=body)
+            assert response.status_code == 422
+            assert route in response.text
+            mock_storage_provider.upsert_playlist_metadata.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_upsert_rejects_unknown_fields(self, mock_storage_provider):
+        app.dependency_overrides[get_storage_provider_cached] = (
+            lambda: mock_storage_provider
+        )
+        try:
+            response = client.put("/playlists/10/metadata", json={"bogus": 1})
+            assert response.status_code == 422
+            mock_storage_provider.upsert_playlist_metadata.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
     def test_delete_playlist_metadata_returns_true(self, mock_storage_provider):
         mock_storage_provider.delete_playlist_metadata.return_value = True
 

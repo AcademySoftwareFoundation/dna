@@ -2163,15 +2163,18 @@ async def update_session_playlists(
     description=(
         "Update the session in-review playlist/version/pin. While pinned, "
         "moving or clearing in-review returns 409 unless the same request "
-        "sets in_review_pinned to false. Broadcasts session.in_review_changed."
+        "sets in_review_pinned to false. A version must be on its playlist "
+        "(in_review_playlist_id, or the session's current in-review playlist "
+        "when omitted); otherwise 400. Broadcasts session.in_review_changed."
     ),
     response_model=Session,
-    responses=error_responses(404, 409),
+    responses=error_responses(400, 404, 409),
 )
 async def update_session_in_review(
     session_id: str,
     data: SessionInReviewUpdate,
     storage: StorageProviderDep,
+    prodtrack: ProdtrackProviderDep,
     _: CurrentUserDep,
 ) -> Session:
     """Set or clear the in-review state on a DNA session."""
@@ -2190,6 +2193,26 @@ async def update_session_in_review(
                     status_code=409,
                     detail="The in-review version is pinned; unpin it to change it",
                 )
+
+    if data.in_review_version_id is not None and not data.clear_in_review:
+        playlist_id = data.in_review_playlist_id or existing.in_review_playlist_id
+        if not playlist_id:
+            raise HTTPException(
+                status_code=400,
+                detail="in_review_playlist_id is required to set in_review_version_id",
+            )
+        try:
+            versions = prodtrack.get_versions_for_playlist(playlist_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        if data.in_review_version_id not in {str(v.id) for v in versions}:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Version {data.in_review_version_id} is not on playlist "
+                    f"{playlist_id}"
+                ),
+            )
 
     fields: dict = {}
     if data.clear_in_review:

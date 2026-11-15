@@ -27,6 +27,13 @@ export interface DesktopAuthPayload {
   apiBaseUrl: string;
   project: DesktopAuthEntityRef;
   playlist: DesktopAuthEntityRef;
+  /**
+   * DNA session that holds the in-review version for the playlist. Desktop
+   * hosts set in-review with `PUT /sessions/{id}/in-review`. Omitted when the
+   * page could not resolve one; hosts then call
+   * `POST /sessions/ensure-for-playlist` themselves.
+   */
+  session?: DesktopAuthEntityRef;
 }
 
 export interface DesktopAuthBridge {

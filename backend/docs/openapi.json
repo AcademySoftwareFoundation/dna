@@ -1729,7 +1729,8 @@
         "type": "object"
       },
       "PlaylistMetadataUpdate": {
-        "description": "Model for updating playlist-local metadata.",
+        "additionalProperties": false,
+        "description": "Model for updating playlist-local metadata.\n\nUnknown fields are rejected (422) rather than ignored, so clients still\nsending in-review here fail loudly instead of getting a no-op 200.",
         "examples": [
           {
             "has_scratch": true
@@ -6620,7 +6621,7 @@
     },
     "/sessions/{session_id}/in-review": {
       "put": {
-        "description": "Update the session in-review playlist/version/pin. While pinned, moving or clearing in-review returns 409 unless the same request sets in_review_pinned to false. Broadcasts session.in_review_changed.",
+        "description": "Update the session in-review playlist/version/pin. While pinned, moving or clearing in-review returns 409 unless the same request sets in_review_pinned to false. A version must be on its playlist (in_review_playlist_id, or the session's current in-review playlist when omitted); otherwise 400. Broadcasts session.in_review_changed.",
         "operationId": "update_session_in_review_sessions__session_id__in_review_put",
         "parameters": [
           {
@@ -6654,6 +6655,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Rejected by the production tracking or transcription provider"
           },
           "401": {
             "content": {

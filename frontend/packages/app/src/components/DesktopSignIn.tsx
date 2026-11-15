@@ -7,8 +7,11 @@ import {
   type DesktopAuthPayload,
   type Playlist,
   type Project,
+  type Session,
 } from '@dna/core';
+import { apiHandler } from '../api';
 import { useAuth, type AuthUser, type AuthProviderType } from '../contexts';
+import { useAddPlaylistToSession } from '../hooks/useSessions';
 import { AuthCard, AuthFormSection } from './AuthCard';
 import { ProjectSelector } from './ProjectSelector';
 
@@ -31,12 +34,17 @@ function resolveApiBaseUrl(): string {
     .replace(/\/+$/, '');
 }
 
+interface DesktopSelection {
+  project: Project;
+  playlist: Playlist;
+  session: Session | null;
+}
+
 function buildPayload(
   token: string,
   user: AuthUser,
   authProvider: AuthProviderType,
-  project: Project,
-  playlist: Playlist
+  { project, playlist, session }: DesktopSelection
 ): DesktopAuthPayload {
   return {
     version: DESKTOP_AUTH_PAYLOAD_VERSION,
@@ -57,17 +65,49 @@ function buildPayload(
       id: String(playlist.id),
       name: playlist.code,
     },
+    ...(session && {
+      session: { id: session.id, name: session.name ?? undefined },
+    }),
   };
 }
 
 export function DesktopSignIn() {
   const { user, token, authProvider } = useAuth();
   const [delivered, setDelivered] = useState(false);
-  const [selection, setSelection] = useState<{
-    project: Project;
-    playlist: Playlist;
-  } | null>(null);
+  const [selection, setSelection] = useState<DesktopSelection | null>(null);
   const deliveredRef = useRef(false);
+  const resolvingRef = useRef(false);
+  const addPlaylistToSession = useAddPlaylistToSession();
+
+  // Resolve the DNA session the desktop app should drive, matching the web
+  // app: in session mode, the picked session (with the playlist added to it);
+  // in playlist mode, the playlist's implicit session. On failure the payload
+  // goes without a session and the desktop app looks it up itself.
+  const completeSelection = async (
+    project: Project,
+    playlist: Playlist,
+    pickedSession?: Session
+  ) => {
+    if (resolvingRef.current) return;
+    resolvingRef.current = true;
+    let session: Session | null = pickedSession ?? null;
+    try {
+      if (pickedSession) {
+        await addPlaylistToSession.mutateAsync({
+          sessionId: pickedSession.id,
+          playlistId: playlist.id,
+        });
+      } else {
+        session = await apiHandler.ensureSessionForPlaylist({
+          projectId: project.id,
+          playlistId: playlist.id,
+        });
+      }
+    } catch {
+      // Keep any picked session; otherwise deliver without one.
+    }
+    setSelection({ project, playlist, session });
+  };
 
   useEffect(() => {
     if (!selection || !user || !token) return;
@@ -76,7 +116,7 @@ export function DesktopSignIn() {
       if (deliveredRef.current) return;
       if (
         deliverDesktopAuth(
-          buildPayload(token, user, authProvider, selection.project, selection.playlist)
+          buildPayload(token, user, authProvider, selection)
         )
       ) {
         deliveredRef.current = true;
@@ -127,8 +167,8 @@ export function DesktopSignIn() {
 
   return (
     <ProjectSelector
-      onSelectionComplete={(project, playlist) => {
-        setSelection({ project, playlist });
+      onSelectionComplete={(project, playlist, _email, session) => {
+        void completeSelection(project, playlist, session);
       }}
     />
   );

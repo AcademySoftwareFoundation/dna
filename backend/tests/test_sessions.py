@@ -1,11 +1,17 @@
 """Tests for DNA Session API routes and helpers."""
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app, get_session_provider_cached, get_storage_provider_cached
+from main import (
+    app,
+    get_prodtrack_provider_cached,
+    get_session_provider_cached,
+    get_storage_provider_cached,
+)
 
 from dna.events import EventType, reset_event_publisher
 from dna.models.session import ExternalSession, Session
@@ -19,6 +25,20 @@ from dna.session_service import (
 client = TestClient(app)
 
 SESSION_ID = "507f1f77bcf86cd799439011"
+
+
+def use_playlist_versions(versions_by_playlist: dict) -> mock.Mock:
+    """Override prodtrack so playlists hold the given version ids."""
+    prodtrack = mock.Mock()
+
+    def get_versions_for_playlist(playlist_id):
+        if playlist_id not in versions_by_playlist:
+            raise ValueError(f"Playlist not found: {playlist_id}")
+        return [SimpleNamespace(id=int(v)) for v in versions_by_playlist[playlist_id]]
+
+    prodtrack.get_versions_for_playlist.side_effect = get_versions_for_playlist
+    app.dependency_overrides[get_prodtrack_provider_cached] = lambda: prodtrack
+    return prodtrack
 
 
 def make_session(**overrides) -> Session:
@@ -43,6 +63,10 @@ def make_session(**overrides) -> Session:
 
 class TestSessionRoutes:
     """Session-first CRUD and ensure/in-review/transcription routes."""
+
+    def setup_method(self):
+        # Routes that check playlist membership need a prodtrack provider.
+        use_playlist_versions({})
 
     def teardown_method(self):
         reset_event_publisher()
@@ -223,6 +247,7 @@ class TestSessionRoutes:
         )
         storage.update_session.return_value = updated
         app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        use_playlist_versions({"45": ["6990"]})
 
         with client.websocket_connect("/ws") as ws:
             response = client.put(
@@ -269,6 +294,7 @@ class TestSessionRoutes:
             in_review_pinned=False,
         )
         app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        use_playlist_versions({"45": ["200", "300"]})
 
         response = client.put(
             f"/sessions/{SESSION_ID}/in-review",
@@ -281,6 +307,106 @@ class TestSessionRoutes:
 
         assert response.status_code == 200
         storage.update_session.assert_awaited_once()
+
+    def test_update_in_review_rejects_version_not_on_playlist(self):
+        storage = mock.AsyncMock()
+        storage.get_session.return_value = make_session()
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        use_playlist_versions({"45": ["6990"]})
+
+        response = client.put(
+            f"/sessions/{SESSION_ID}/in-review",
+            json={"in_review_playlist_id": "45", "in_review_version_id": "999"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Version 999 is not on playlist 45"
+        storage.update_session.assert_not_awaited()
+
+    def test_update_in_review_404_when_playlist_unknown(self):
+        storage = mock.AsyncMock()
+        storage.get_session.return_value = make_session()
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        use_playlist_versions({})
+
+        response = client.put(
+            f"/sessions/{SESSION_ID}/in-review",
+            json={"in_review_playlist_id": "77", "in_review_version_id": "6990"},
+        )
+
+        assert response.status_code == 404
+        storage.update_session.assert_not_awaited()
+
+    def test_update_in_review_checks_current_playlist_when_omitted(self):
+        storage = mock.AsyncMock()
+        storage.get_session.return_value = make_session(
+            in_review_playlist_id="45", in_review_version_id="6990"
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        prodtrack = use_playlist_versions({"45": ["6990"]})
+
+        response = client.put(
+            f"/sessions/{SESSION_ID}/in-review",
+            json={"in_review_version_id": "999"},
+        )
+
+        assert response.status_code == 400
+        prodtrack.get_versions_for_playlist.assert_called_once_with("45")
+
+    def test_update_in_review_requires_a_playlist(self):
+        storage = mock.AsyncMock()
+        storage.get_session.return_value = make_session()
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        use_playlist_versions({"45": ["6990"]})
+
+        response = client.put(
+            f"/sessions/{SESSION_ID}/in-review",
+            json={"in_review_version_id": "6990"},
+        )
+
+        assert response.status_code == 400
+        assert "in_review_playlist_id is required" in response.json()["detail"]
+
+    def test_pinned_check_runs_before_playlist_check(self):
+        storage = mock.AsyncMock()
+        storage.get_session.return_value = make_session(
+            in_review_playlist_id="45",
+            in_review_version_id="200",
+            in_review_pinned=True,
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        prodtrack = use_playlist_versions({"45": ["200"]})
+
+        response = client.put(
+            f"/sessions/{SESSION_ID}/in-review",
+            json={"in_review_playlist_id": "45", "in_review_version_id": "999"},
+        )
+
+        assert response.status_code == 409
+        prodtrack.get_versions_for_playlist.assert_not_called()
+
+    def test_unpin_only_skips_playlist_check(self):
+        storage = mock.AsyncMock()
+        storage.get_session.return_value = make_session(
+            in_review_playlist_id="45",
+            in_review_version_id="200",
+            in_review_pinned=True,
+        )
+        storage.update_session.return_value = make_session(
+            in_review_playlist_id="45",
+            in_review_version_id="200",
+            in_review_pinned=False,
+        )
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        prodtrack = use_playlist_versions({})
+
+        response = client.put(
+            f"/sessions/{SESSION_ID}/in-review",
+            json={"in_review_pinned": False},
+        )
+
+        assert response.status_code == 200
+        prodtrack.get_versions_for_playlist.assert_not_called()
 
     def test_clear_in_review_unpins(self):
         storage = mock.AsyncMock()
