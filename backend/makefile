@@ -9,8 +9,8 @@ COMPOSE_LOCAL_VEXA := -f docker-compose.yml -f docker-compose.vexa.yml -f docker
 # Extension stack — browser extension + WhisperLive (no Vexa images or dashboard).
 COMPOSE_LOCAL_EXTENSION := -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml
 
-# Backward-compatible alias for the Vexa stack.
-COMPOSE_LOCAL := $(COMPOSE_LOCAL_VEXA)
+# Default local stack.
+COMPOSE_LOCAL := $(COMPOSE_LOCAL_EXTENSION)
 
 # If start-local fails with: blob sha256:... input/output error — Docker's local
 # image store is damaged. Run: make docker-fix-api-image, restart Docker Desktop,
@@ -63,17 +63,17 @@ restart-local-extension:
 build-extension:
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.whisperlive.yml build --no-cache
 
-# ── Backward-compatible aliases (Vexa stack) ──────────────────────────────────
+# ── Default local stack aliases (no local Vexa) ───────────────────────────────
 
-start-local: start-local-vexa
+start-local: start-local-extension
 
-stop-local: stop-local-vexa
+stop-local: stop-local-extension
 
-logs-local: logs-local-vexa
+logs-local: logs-local-extension
 
-restart-local: restart-local-vexa
+restart-local: restart-local-extension
 
-build: build-vexa
+build: build-extension
 
 # ── Shared / utility targets ──────────────────────────────────────────────────
 

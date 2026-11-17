@@ -14,13 +14,13 @@ The `bootstrap.sh` script handles all setup steps for you. Run it from the repo 
 
 It will:
 
-1. Check that Docker and Node.js v18+ are installed and that the Docker daemon is running
+1. Check that Docker and Node.js v18+ are installed and that the Docker daemon is running (older Node.js versions trigger a warning with an option to use the Docker frontend instead)
 2. Copy example config files into their working locations
-3. Prompt you to choose an LLM provider (OpenAI or Gemini) and enter your API key
-4. Prompt you to configure the transcription service (remote via vexa.ai, self-hosted, or skip)
+3. Prompt you to choose the transcription route, then immediately configure it; Vexa asks for its API URL (default `https://api.cloud.vexa.ai`) and API key
+4. Prompt you to choose an LLM provider (OpenAI or Gemini) and enter your API key
 5. Prompt you to choose a session provider (disabled, or the in-memory mock)
-6. Install frontend npm dependencies
-7. Start the Vexa services, create a local dev user, and generate a Vexa API key automatically
+6. Install frontend npm dependencies (skipped on the host when you choose the Docker frontend)
+7. For local Vexa only, start the Vexa services, create a local dev user, and generate a Vexa API key automatically
 8. Start the full DNA stack with Docker Compose
 9. Poll the DNA API until it is ready and confirm all services are up
 
@@ -30,7 +30,28 @@ After the script finishes, start the frontend in a new terminal:
 cd frontend && npm run dev
 ```
 
+If you bypassed the Node.js version check, start the frontend with Docker instead:
+
+```bash
+cd frontend && docker compose up -d
+```
+
+Docker installs the frontend dependencies and runs a current Node.js version, so
+the host's older Node.js is not used.
+
+If Docker is missing, its daemon is stopped, or your account cannot access it,
+bootstrap warns and continues configuration without generating a local Vexa API
+key, starting containers, or waiting for services. Backend restarts after settings
+changes are also skipped. Once Docker is available, choose Transcription in
+`./bootstrap.sh` to generate any missing local Vexa API key, then run
+`./bootstrap.sh --start` to start the services.
+
 The app will be available at `http://localhost:5173`.
+
+For local self-hosted Vexa, enter `http://vexa:8056` at the API URL prompt.
+This keeps the local transcription-backend setup and automatic API key
+generation. Cloud and other external Vexa URLs use the API key you provide and
+do not start local Vexa containers.
 
 **Day-to-day use:** once you have run the bootstrap once, use `--start` to bring the stack up without repeating the interactive setup:
 
@@ -39,6 +60,12 @@ The app will be available at `http://localhost:5173`.
 ```
 
 **Change one setting:** once `backend/docker-compose.local.yml` and `frontend/packages/app/.env` exist, `./bootstrap.sh` opens a settings menu instead of repeating setup. Pick LLM provider, transcription, production tracking, sessions, or feature flags, and only that step runs. Choosing production tracking and then ShotGrid prompts for the ShotGrid URL, script name, and API key. Choosing sessions and then Mock sets `SESSION_PROVIDER=mock` and locks `VITE_FEATURE_SESSIONS` on; Disabled sets `SESSION_PROVIDER=none` and locks that flag off. Choosing Done recreates the backend container when it is already running, so the new settings load. Restart the frontend dev server separately if you changed a frontend feature flag, the session UI, or the transcription route.
+
+**Reset setup:** choose `7) Reset` above Done in the settings menu and confirm with
+`y` or `yes`. This deletes `backend/docker-compose.local.yml`,
+`backend/docker-compose.local.vexa.yml`, and `frontend/packages/app/.env`, then
+exits without restarting services. Rerun `./bootstrap.sh` for first-time setup.
+Example configs, backups, containers, and Docker volumes are left untouched.
 
 ---
 
@@ -224,31 +251,28 @@ In `backend/docker-compose.local.yml`, set:
 
 Alternatively, you can retrieve a key from the Vexa Dashboard UI at http://localhost:3001 once the stack is running.
 
-### 7. Start the Full Stack
+### 7. Start the Local Stack
 
 ```bash
 cd backend
 make start-local
 ```
 
-This runs:
+This starts the DNA API, MongoDB, and WhisperLive for the browser extension. It
+does not start local Vexa or the Vexa Dashboard. To start the local Vexa stack
+and dashboard instead, run:
 
 ```bash
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.vexa.yml \
-  -f docker-compose.debug.yml \
-  -f docker-compose.local.yml \
-  -f docker-compose.local.vexa.yml \
-  up --build -d
+make start-local-vexa
 ```
 
 Services started:
 
 - **MongoDB** — database (port 27017)
 - **DNA API** — FastAPI backend (port 8000)
-- **Vexa** — transcription service (port 8056)
-- **Vexa Dashboard** — admin UI (port 3001)
+- **WhisperLive** — browser-extension transcription service (port 9090)
+
+The Vexa stack adds **Vexa** (port 8056) and the **Vexa Dashboard** (port 3001).
 
 ### 8. Start the Frontend
 
@@ -452,21 +476,15 @@ The backend uses multiple compose files that are layered together:
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Base configuration with all services |
-| `docker-compose.vexa.yml` | Vexa transcription service |
-| `docker-compose.debug.yml` | Additional debug services |
+| `docker-compose.whisperlive.yml` | WhisperLive transcription service for the browser extension |
+| `docker-compose.vexa.yml` | Local Vexa transcription service and dashboard |
+| `docker-compose.debug.yml` | Additional Vexa debug services |
 | `docker-compose.local.yml` | **Your local overrides** (API keys, LLM credentials) |
 | `docker-compose.local.vexa.yml` | **Your local Vexa overrides** (transcription API key) |
 
-The `make start-local` command combines these:
-
-```bash
-docker compose -f docker-compose.yml \
-               -f docker-compose.vexa.yml \
-               -f docker-compose.debug.yml \
-               -f docker-compose.local.yml \
-               -f docker-compose.local.vexa.yml \
-               up --build -d
-```
+`make start-local` uses the base, local, and WhisperLive files; it does not start
+local Vexa or the dashboard. Use `make start-local-vexa` to start the Vexa stack
+and dashboard.
 
 ---
 
