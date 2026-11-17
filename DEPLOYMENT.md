@@ -297,6 +297,33 @@ environment:
 
 Set the frontend to match: `VITE_AUTH_PROVIDER=none` in the app `.env` (see `packages/app/.env.example`).
 
+## Email
+
+`POST /playlists/{playlist_id}/send-summary-email` sends a playlist summary through the provider named by `EMAIL_PROVIDER`. `./bootstrap.sh` asks for the provider on first-time setup and from the settings menu, then writes the values into `backend/docker-compose.local.yml`.
+
+| Value | What it needs |
+| --- | --- |
+| `noop` | Nothing. The API logs the message and does not send it. This is the local default. |
+| `smtp` | `SMTP_HOST`, `SMTP_PORT`, `SMTP_START_TLS`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`. |
+| `resend` | `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (a verified Resend sender). |
+| `sendgrid` | `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` (a verified SendGrid sender). |
+
+Gmail is SMTP at `smtp.gmail.com` on port `587` with STARTTLS. `SMTP_PASSWORD` is a Google App Password from Account → Security → 2-Step Verification → App passwords, not the normal Gmail password. `SMTP_FROM_EMAIL` must be the same address as `SMTP_USERNAME`. The full walkthrough is in [dna-docs/deployment/email.mdx](dna-docs/deployment/email.mdx).
+
+```yaml
+# docker-compose.local.yml – Gmail
+environment:
+  - EMAIL_PROVIDER=smtp
+  - SMTP_HOST=smtp.gmail.com
+  - SMTP_PORT=587
+  - SMTP_START_TLS=true
+  - SMTP_USERNAME=YOUR_GMAIL_ADDRESS
+  - SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD
+  - SMTP_FROM_EMAIL=YOUR_GMAIL_ADDRESS
+```
+
+The same placeholders are in `backend/example.docker-compose.local.yml`. `docker-compose.local.yml` is gitignored.
+
 To test with Google auth locally:
 1. Set `AUTH_PROVIDER=google` in docker-compose.local.yml
 2. Add `GOOGLE_CLIENT_ID=your-client-id`
@@ -329,6 +356,17 @@ The following secrets must be configured in GitHub repository settings:
 | `LLM_PROVIDER` | openai |
 | `AUTH_PROVIDER` | `none` (noop) for local dev; `google` for production |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins |
+| `EMAIL_PROVIDER` | `noop` (local default), `smtp`, `resend`, or `sendgrid` |
+| `SMTP_HOST` | SMTP server. `smtp.gmail.com` for Gmail |
+| `SMTP_PORT` | SMTP port. `587` for Gmail |
+| `SMTP_START_TLS` | `true` to upgrade the connection with STARTTLS |
+| `SMTP_USERNAME` | SMTP username. The Gmail address when using Gmail |
+| `SMTP_PASSWORD` | SMTP password. A Google App Password when using Gmail |
+| `SMTP_FROM_EMAIL` | From address. Must match `SMTP_USERNAME` for Gmail |
+| `RESEND_API_KEY` | Resend API key, when `EMAIL_PROVIDER=resend` |
+| `RESEND_FROM_EMAIL` | Verified Resend sender |
+| `SENDGRID_API_KEY` | SendGrid API key, when `EMAIL_PROVIDER=sendgrid` |
+| `SENDGRID_FROM_EMAIL` | Verified SendGrid sender |
 
 ### Frontend (Build-time)
 

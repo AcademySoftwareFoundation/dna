@@ -1,0 +1,5 @@
+/* Same shape as the picture's canvas (DESIGN_* in ./index.tsx), which is
+   scaled to fill it. */
+.frame {
+  aspect-ratio: 1010 / 620;
+}

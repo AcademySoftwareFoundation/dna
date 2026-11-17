@@ -1,0 +1,36 @@
+---
+sidebar_position: 1
+slug: /
+title: Frontend
+---
+
+The DNA frontend is the web app coordinators use in dailies to pick a playlist, take notes on each version, run transcription, review AI suggestions and publish to production tracking. These pages are for developers working on that app. If you want to know how to use it, read the [User Guides](/docs) instead.
+
+:::note
+These pages are a first pass and don't cover everything. Where they disagree with the code in [`frontend/`](https://github.com/AcademySoftwareFoundation/dna/tree/main/frontend), trust the code.
+:::
+
+## The stack
+
+| Area | What DNA uses |
+| --- | --- |
+| Language | TypeScript |
+| UI | React 19 |
+| Build and dev server | Vite |
+| Components | Radix Themes, with styled-components for DNA's own styling |
+| Server state | TanStack Query (React Query) |
+| HTTP | axios, wrapped in `ApiHandler` from `@dna/core` |
+| Real-time updates | A WebSocket event client from `@dna/core` |
+| Note editor | Tiptap |
+| Icons | lucide-react |
+| Tests | Vitest and Testing Library |
+
+## Two packages
+
+The frontend is an npm workspace with two packages.
+
+`@dna/core` (in `packages/core`) is plain TypeScript with no React. It has the API client, the WebSocket event client, the shared types, and logic that doesn't need a UI, such as debouncing AI suggestions and building review exports. A script or another tool can use it by itself to talk to the backend.
+
+`@dna/app` (in `packages/app`) is the React application. It imports `@dna/core` and adds the components, React Query hooks, contexts and styling.
+
+If you're new to the code, read [Getting Started](./getting-started) and then [Architecture](./architecture).

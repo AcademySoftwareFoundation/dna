@@ -11,17 +11,17 @@ import {
   Play,
 } from 'lucide-react';
 import { Button, TextField, Popover, Text } from '@radix-ui/themes';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BotStatusEnum,
   ExtensionConnectionStatus,
+  Session,
   UserSettings,
 } from '@dna/core';
 import { DEFAULT_TRANSCRIPTION_LANGUAGE } from '@dna/core';
 import {
   useTranscription,
-  usePlaylistMetadata,
-  useUpsertPlaylistMetadata,
+  useSession,
   useTranscriptionExtension,
 } from '../hooks';
 import {
@@ -31,8 +31,10 @@ import {
 import { apiHandler } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { SplitButton } from './SplitButton';
+import { useNomenclature } from '../nomenclature';
 
 interface TranscriptionMenuProps {
+  sessionId: string | null;
   playlistId: string | null;
   collapsed?: boolean;
 }
@@ -354,9 +356,12 @@ function getStatusIcon(status: BotStatusEnum) {
 }
 
 export function TranscriptionMenu({
+  sessionId,
   playlistId,
   collapsed = false,
 }: TranscriptionMenuProps) {
+  const t = useNomenclature();
+  const queryClient = useQueryClient();
   const [meetingUrl, setMeetingUrl] = useState('');
   const [passcode, setPasscode] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -385,10 +390,9 @@ export function TranscriptionMenu({
     dispatchBot,
     stopBot,
     clearSession,
-  } = useTranscription({ playlistId });
+  } = useTranscription({ sessionId, playlistId });
 
-  const { data: metadata } = usePlaylistMetadata(playlistId);
-  const { mutate: upsertMetadata } = useUpsertPlaylistMetadata(playlistId);
+  const { data: dnaSession } = useSession(sessionId);
 
   const {
     available: extAvailable,
@@ -429,7 +433,7 @@ export function TranscriptionMenu({
     !!parsedMeeting &&
     MEETING_PLATFORMS[parsedMeeting.platform].acceptsPasscode &&
     !parsedMeeting.passcode;
-  const isPaused = metadata?.transcription_paused ?? false;
+  const isPaused = dnaSession?.transcription_paused ?? false;
   const isLiveButPaused =
     isPaused && ['in_call', 'transcribing'].includes(currentStatus);
   const isAwaitingAdmission = currentStatus === 'waiting_room';
@@ -469,8 +473,16 @@ export function TranscriptionMenu({
   const phoneIconColor = getPhoneIconColor();
 
   const handlePauseToggle = useCallback(() => {
-    upsertMetadata({ transcription_paused: !isPaused });
-  }, [upsertMetadata, isPaused]);
+    if (!sessionId) return;
+    void apiHandler
+      .updateSessionTranscription({
+        sessionId,
+        data: { transcription_paused: !isPaused },
+      })
+      .then((updated) => {
+        queryClient.setQueryData<Session>(['session', sessionId], updated);
+      });
+  }, [sessionId, isPaused, queryClient]);
 
   const handleDispatch = useCallback(async () => {
     if (!meetingUrl.trim()) return;
@@ -736,7 +748,7 @@ export function TranscriptionMenu({
 
           {!playlistId && (
             <Text size="1" color="gray">
-              Select a playlist to enable transcription
+              Select a {t.playlist.lower} to enable transcription
             </Text>
           )}
         </MenuContainer>

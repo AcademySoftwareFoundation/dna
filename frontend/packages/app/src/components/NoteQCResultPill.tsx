@@ -9,6 +9,7 @@ import {
   mergeQCResultPatches,
   normalizeQCResult,
 } from '../qc/noteQcPatch';
+import { useNomenclature } from '../nomenclature';
 
 type PillTone = 'ok' | 'warn' | 'err' | 'loading' | 'ignored';
 
@@ -122,6 +123,8 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
   localDraft,
   onFixAll,
 }) => {
+  const t = useNomenclature();
+  const qcName = `${t.note.singular} QC`;
   const failedResults = useMemo(
     () => results.filter((r) => !r.passed),
     [results]
@@ -133,24 +136,24 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
   );
 
   const fixAllBlockReason = useMemo(
-    () => fixAllDisabledReason(localDraft, activeFailures),
-    [localDraft, activeFailures]
+    () => fixAllDisabledReason(localDraft, activeFailures, t),
+    [localDraft, activeFailures, t]
   );
 
   const fixAllEnabled = activeFailures.length >= 2 && fixAllBlockReason === null;
 
   const { label, tone } = useMemo(() => {
-    if (loading) return { label: 'Note QC: Running…', tone: 'loading' as const };
-    if (results.length === 0) return { label: 'Note QC: —', tone: 'loading' as const };
+    if (loading) return { label: `${qcName}: Running…`, tone: 'loading' as const };
+    if (results.length === 0) return { label: `${qcName}: —`, tone: 'loading' as const };
     if (failedResults.length === 0) {
-      return { label: 'Note QC: All checks pass', tone: 'ok' as const };
+      return { label: `${qcName}: All checks pass`, tone: 'ok' as const };
     }
     const unresolvedErr = failedResults.find(
       (r) => r.severity === 'error' && !ignored.has(ignoreKey(draftKey, r.check_id))
     );
     if (unresolvedErr) {
       return {
-        label: `Note QC: ${unresolvedErr.issue ?? 'Error'}`,
+        label: `${qcName}: ${unresolvedErr.issue ?? 'Error'}`,
         tone: 'err' as const,
       };
     }
@@ -159,16 +162,16 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
     );
     if (unresolvedWarn) {
       return {
-        label: `Note QC: ${unresolvedWarn.issue ?? 'Warning'}`,
+        label: `${qcName}: ${unresolvedWarn.issue ?? 'Warning'}`,
         tone: 'warn' as const,
       };
     }
     const firstFailed = failedResults[0];
     return {
-      label: `Note QC: ${firstFailed?.issue ?? 'Ignored'}`,
+      label: `${qcName}: ${firstFailed?.issue ?? 'Ignored'}`,
       tone: 'ignored' as const,
     };
-  }, [loading, results, failedResults, ignored, draftKey]);
+  }, [loading, results, failedResults, ignored, draftKey, qcName]);
 
   const [open, setOpen] = useState(false);
 
@@ -179,7 +182,7 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <PillButton type="button" $tone={tone} aria-label="Note QC status">
+        <PillButton type="button" $tone={tone} aria-label={`${qcName} status`}>
           {loading ? <Spin size={12} /> : null}
           <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {label}
@@ -191,7 +194,7 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
         <Flex direction="column" gap="2">
           <Flex align="center" justify="between" gap="2" wrap="wrap" mb="1">
             <Text size="2" weight="bold">
-              Note QC
+              {qcName}
             </Text>
             {!loading && activeFailures.length >= 2 ? (
               <Tooltip
@@ -225,7 +228,7 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
             </Text>
           ) : failedResults.length === 0 ? (
             <Text size="2" color="gray">
-              All checks pass for this note.
+              All checks pass for this {t.note.lower}.
             </Text>
           ) : (
             failedResults.map((r) => {
@@ -260,7 +263,7 @@ export const NoteQCResultPill: React.FC<NoteQCResultPillProps> = ({
                     ) : null}
                     {qcNormalized.note_suggestion ? (
                       <Text as="p" size="1" style={{ marginTop: 6, lineHeight: 1.4 }}>
-                        <strong>Suggested note:</strong>{' '}
+                        <strong>Suggested {t.note.lower}:</strong>{' '}
                         {qcNormalized.note_suggestion.slice(0, 400)}
                         {qcNormalized.note_suggestion.length > 400 ? '…' : ''}
                       </Text>

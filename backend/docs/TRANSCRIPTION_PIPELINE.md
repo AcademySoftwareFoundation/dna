@@ -126,11 +126,13 @@ The frontend never captures audio directly. It dispatches bots to meetings and r
 - `frontend/packages/core/src/eventClient.ts` — `DNAEventClient` WebSocket client
 - `frontend/packages/core/src/apiHandler.ts` — REST API client
 - `frontend/packages/core/src/interfaces.ts` — Shared TypeScript types
-- `frontend/packages/app/src/hooks/useTranscription.ts` — Bot lifecycle hook
+- `frontend/packages/app/src/hooks/useTranscription.ts` — Bot lifecycle hook (`sessionId` + optional `playlistId`)
 - `frontend/packages/app/src/transcription/meetingPlatforms.ts` — Per-platform URL parsing and passcode rules
 - `frontend/packages/app/src/hooks/useSegments.ts` — Segment data hook
 - `frontend/packages/app/src/hooks/useDNAEvents.ts` — Event subscription hooks
-- `frontend/packages/app/src/hooks/usePlaylistMetadata.ts` — Playlist metadata hook
+- `frontend/packages/app/src/hooks/useSessions.ts` — DNA session queries/mutations
+- `frontend/packages/app/src/hooks/useSessionInReview.ts` — Session in-review mutations + `session.in_review_changed`
+- `frontend/packages/app/src/hooks/usePlaylistMetadata.ts` — Slim playlist metadata (`has_scratch`)
 - `frontend/packages/app/src/components/TranscriptionMenu.tsx` — Bot dispatch/stop UI
 - `frontend/packages/app/src/components/TranscriptPanel.tsx` — Segment display UI
 - `frontend/packages/app/src/contexts/EventContext.tsx` — WebSocket connection provider
@@ -138,17 +140,18 @@ The frontend never captures audio directly. It dispatches bots to meetings and r
 **How it works:**
 
 1. The `EventProvider` context creates a `DNAEventClient` and connects to the backend WebSocket at `/ws` on mount.
-2. The `useTranscription` hook manages bot state. When the user enters a meeting URL:
+2. The app resolves a DNA `sessionId` (explicit session UI, or `POST /sessions/ensure-for-playlist` when sessions are disabled).
+3. The `useTranscription({ sessionId, playlistId })` hook manages bot state. When the user enters a meeting URL:
    - `parseMeetingUrl()` extracts the `platform`, `meetingId` and any passcode embedded in the link (Zoom `?pwd=`), using the per-platform descriptors in `MEETING_PLATFORMS`
-   - `dispatchBot()` sends a `POST /transcription/bot` via `apiHandler`
-   - An optimistic local session is created with `status: "joining"`
-   - On success the session is updated with the server response
-3. The hook subscribes to `bot.status_changed` events via `eventClient.subscribe()` and updates React state on each status change.
-4. The `useSegments` hook subscribes to `segment.created` and `segment.updated` events, filtering by `playlistId` and `versionId`, and updates the React Query cache.
-5. When the user stops transcription, `stopBot()` calls `DELETE /transcription/bot/{platform}/{meetingId}`.
+   - `dispatchBot()` sends a `POST /sessions/{session_id}/transcription/bot` via `apiHandler`
+   - An optimistic local bot session is created with `status: "joining"`
+   - On success the bot session is updated with the server response and the DNA session cache is invalidated
+4. The hook subscribes to `bot.status_changed` events via `eventClient.subscribe()` and updates React state on each status change.
+5. The `useSegments` hook subscribes to `segment.created` and `segment.updated` events, filtering by `playlistId` and `versionId`, and updates the React Query cache.
+6. When the user stops transcription, `stopBot()` calls `DELETE /sessions/{session_id}/transcription/bot`.
 
 **State management:**
-- **React Query (TanStack Query)** for server state (bot status, segments, playlist metadata)
+- **React Query (TanStack Query)** for server state (DNA session, bot status, segments, playlist metadata)
 - **Local state** (`useState`) for the current `BotSession`
 - **WebSocket events** update the React Query cache in real time
 
@@ -162,19 +165,20 @@ The API layer exposes REST endpoints and the WebSocket endpoint. It orchestrates
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/transcription/bot` | Dispatch a bot to a meeting |
-| `DELETE` | `/transcription/bot/{platform}/{meeting_id}` | Stop a bot |
-| `GET` | `/transcription/bot/{platform}/{meeting_id}/status` | Get current bot status |
+| `POST` | `/sessions/{session_id}/transcription/bot` | Dispatch a bot for a DNA session |
+| `DELETE` | `/sessions/{session_id}/transcription/bot` | Stop the session's bot |
+| `GET` | `/sessions/{session_id}/transcription/bot/status` | Get current bot status |
+| `PUT` | `/sessions/{session_id}/transcription` | Pause/resume or clear meeting fields on the session |
 | `GET` | `/transcription/transcript/{platform}/{meeting_id}` | Get full transcript |
 | `GET` | `/transcription/segments/{playlist_id}/{version_id}` | Get stored segments |
 | `WS` | `/ws` | Real-time event streaming |
 
 **Dispatch flow in the API layer:**
-1. Validate the `DispatchBotRequest`
+1. Validate the `DispatchBotRequest` and load the DNA session
 2. Call `transcription_provider.dispatch_bot()` → Vexa REST API
 3. Receive `BotSession` with `vexa_meeting_id`
-4. Update `playlist_metadata` in MongoDB with `vexa_meeting_id`, `meeting_id`, `platform`
-5. Call `transcription_service.subscribe_to_meeting()` to start receiving WebSocket events
+4. Update the DNA session in MongoDB with `vexa_meeting_id`, `meeting_id`, `platform`
+5. Call `transcription_service.subscribe_to_meeting(platform, meeting_id, session_id)` to start receiving WebSocket events
 6. Publish `bot.status_changed` event with status `"joining"`
 7. Return `BotSession` (HTTP 201)
 
@@ -189,16 +193,17 @@ The central orchestrator for transcription logic. It bridges the Vexa provider w
 
 **Responsibilities:**
 - Manage the set of subscribed meetings (`_subscribed_meetings`)
-- Maintain the mapping from `platform:meeting_id` to `playlist_id` (`_meeting_to_playlist`)
+- Maintain the mapping from `platform:meeting_id` to DNA session id (`_meeting_to_session`)
+- Route segments to the session's current `in_review_playlist_id` / `in_review_version_id`
 - Process raw Vexa events into stored segments
-- Enforce pause/resume filtering
+- Enforce pause/resume filtering from the session document
 - Publish domain events
 - Recover subscriptions on startup
 
 **Internal state:**
 ```
-_subscribed_meetings: set[str]          # e.g. {"google_meet:abc-def-ghi"}
-_meeting_to_playlist: dict[str, str]    # e.g. {"google_meet:abc-def-ghi": "42"}
+_subscribed_meetings: set[str]               # e.g. {"google_meet:abc-def-ghi"}
+_meeting_to_session: dict[str, str]          # e.g. {"google_meet:abc-def-ghi": "67f0…"}
 ```
 
 **Key methods:**
@@ -206,11 +211,11 @@ _meeting_to_playlist: dict[str, str]    # e.g. {"google_meet:abc-def-ghi": "42"}
 | Method | Purpose |
 |--------|---------|
 | `init_providers()` | Lazy-initialize the transcription provider, storage provider, and event publisher |
-| `subscribe_to_meeting(platform, meeting_id, playlist_id)` | Register a meeting subscription and connect to the Vexa WebSocket |
+| `subscribe_to_meeting(platform, meeting_id, session_id)` | Register a meeting subscription bound to a DNA session and connect to the Vexa WebSocket |
 | `_on_vexa_event(event_type, payload)` | Callback invoked by the Vexa provider for every WebSocket message. Routes to `on_transcription_updated()` or publishes status/completion events |
-| `on_transcription_updated(payload)` | Core segment processing: validate, check pause state, generate IDs, upsert to storage, publish events |
+| `on_transcription_updated(payload)` | Look up the DNA session by `meeting_id`; if not paused and in-review is set, store + broadcast |
 | `on_transcription_completed(payload)` | Clean up subscription state and unsubscribe from Vexa |
-| `resubscribe_to_active_meetings()` | Recovery on startup: query Vexa for active bots, restore mappings, resubscribe |
+| `resubscribe_to_active_meetings()` | Recovery on startup: query Vexa for active bots, restore session mappings, resubscribe |
 | `close()` | Tear down provider connections and clear state |
 
 ### Layer 4: Transcription Provider (VexaTranscriptionProvider)
@@ -280,7 +285,7 @@ Vexa uses numeric internal meeting IDs in WebSocket messages, but DNA uses `plat
 
 ### Layer 5: Storage (MongoDBStorageProvider)
 
-Handles all persistence for playlist metadata and transcript segments.
+Handles all persistence for DNA sessions, slim playlist metadata, and transcript segments.
 
 **Key Files:**
 - `backend/src/dna/storage_providers/storage_provider_base.py` — Abstract base class
@@ -290,7 +295,8 @@ Handles all persistence for playlist metadata and transcript segments.
 
 | Collection | Purpose | Key Operations |
 |------------|---------|----------------|
-| `playlist_metadata` | Links playlists to meetings, versions, and pause state | `get_playlist_metadata()`, `upsert_playlist_metadata()`, `get_playlist_metadata_by_meeting_id()` |
+| `sessions` | DNA session source of truth for playlist links, in-review, and meeting/transcription state | `get_session()`, `get_session_by_meeting_id()`, `create_session()`, `update_session()` |
+| `playlist_metadata` | Playlist-local flags only (`has_scratch`) | `get_playlist_metadata()`, `upsert_playlist_metadata()` |
 | `segments` | Stores transcript segments | `upsert_segment()`, `get_segments()` |
 
 **`upsert_segment()` behavior:**
@@ -372,12 +378,12 @@ class BotStatusEnum(str, Enum):
 | State | Description | Triggered By |
 |-------|-------------|--------------|
 | `idle` | No bot is active. The default/initial state. | Bot not dispatched, or session cleared. |
-| `joining` | Bot has been dispatched and is attempting to join the meeting. | `POST /transcription/bot` response. Vexa statuses `requested` and `joining` map here. |
+| `joining` | Bot has been dispatched and is attempting to join the meeting. | `POST /sessions/{session_id}/transcription/bot` response. Vexa statuses `requested` and `joining` map here. |
 | `waiting_room` | Bot is in the meeting's waiting/lobby room, awaiting admission by a meeting participant. | Vexa status `awaiting_admission`. A toast notification is shown to the user. |
 | `in_call` | Bot has joined the meeting but transcription has not started yet. | Vexa statuses `active` and `in_call`. The waiting room toast is dismissed. |
 | `transcribing` | Bot is actively transcribing audio. Segments are being received and stored. | Vexa statuses `transcribing` and `recording`. |
 | `failed` | An error occurred. The bot could not join or encountered an unrecoverable error. | Vexa status `failed`. Triggers `transcription.error` event. |
-| `stopped` | The user manually stopped the bot. | User calls `DELETE /transcription/bot/{platform}/{meeting_id}`. Triggers `transcription.error` event (terminal state). |
+| `stopped` | The user manually stopped the bot. | User calls `DELETE /sessions/{session_id}/transcription/bot`. Triggers `transcription.error` event (terminal state). |
 | `completed` | The meeting ended naturally and transcription is finished. | Vexa statuses `completed` and `ended`. Triggers `transcription.completed` event. |
 
 ### Lifecycle: Dispatch (Start)
@@ -394,13 +400,13 @@ sequenceDiagram
 
     User->>UI: Enter meeting URL, click Start
     UI->>UI: parseMeetingUrl() → {platform, meetingId}
-    UI->>UI: Optimistic update: session.status = "joining"
-    UI->>API: POST /transcription/bot {platform, meeting_id, playlist_id}
+    UI->>UI: Optimistic update: botSession.status = "joining"
+    UI->>API: POST /sessions/{session_id}/transcription/bot {platform, meeting_id}
     API->>Vexa: POST /bots {platform, native_meeting_id}
     Vexa-->>API: 201 {meeting_id: 123}
-    API->>Mongo: upsert playlist_metadata {vexa_meeting_id: 123, meeting_id, platform}
-    API->>TS: subscribe_to_meeting(platform, meeting_id, playlist_id)
-    TS->>TS: Store meeting_key → playlist_id mapping
+    API->>Mongo: update DNA session meeting fields
+    API->>TS: subscribe_to_meeting(platform, meeting_id, session_id)
+    TS->>TS: Store meeting_key → session_id mapping
     TS->>Vexa: WebSocket: {"action": "subscribe", "meetings": [...]}
     Vexa-->>TS: {"type": "subscribed", "meetings": [123]}
     TS->>TS: Map internal ID 123 → "platform:meeting_id"
@@ -434,8 +440,8 @@ sequenceDiagram
         VTP->>TS: callback("transcript.updated", {platform, meeting_id, segments})
         TS->>EP: publish(TRANSCRIPTION_UPDATED, {segments}) [internal only]
         TS->>TS: on_transcription_updated()
-        TS->>Mongo: get_playlist_metadata(playlist_id)
-        Note over TS: Check: has in_review? is paused? resumed_at filter?
+        TS->>Mongo: get_session_by_meeting_id(meeting_id)
+        Note over TS: Use session in_review playlist/version if not paused
 
         loop For each segment
             TS->>TS: Validate text and absolute_start_time
@@ -460,12 +466,12 @@ sequenceDiagram
     participant EP as EventPublisher
 
     User->>UI: Click Stop
-    UI->>API: DELETE /transcription/bot/{platform}/{meeting_id}
+    UI->>API: DELETE /sessions/{session_id}/transcription/bot
     API->>EP: publish(BOT_STATUS_CHANGED, {status: "stopping"})
     API->>Vexa: DELETE /bots/{platform}/{meeting_id}
     Vexa-->>API: 200
     API-->>UI: 200 true
-    UI->>UI: Set session.status = "stopped"
+    UI->>UI: Set botSession.status = "stopped"
 ```
 
 ### Lifecycle: Completion (Meeting Ends)
@@ -484,7 +490,7 @@ sequenceDiagram
     TS->>EP: publish(TRANSCRIPTION_COMPLETED, {platform, meeting_id})
     TS->>TS: on_transcription_completed()
     TS->>TS: Remove from _subscribed_meetings
-    TS->>TS: Remove from _meeting_to_playlist
+    TS->>TS: Remove from _meeting_to_session
     TS->>VTP: unsubscribe_from_meeting(platform, meeting_id)
     VTP->>Vexa: WebSocket: {"action": "unsubscribe", ...}
     EP->>UI: {"type": "transcription.completed", ...}
@@ -503,10 +509,10 @@ When Vexa reports a `failed` status:
 
 The `useTranscription` hook implements several UX behaviors tied to status transitions:
 
-- **Optimistic joining:** When `dispatchBot()` is called, a local session is created immediately with `status: "joining"` before the API responds.
+- **Optimistic joining:** When `dispatchBot()` is called, a local bot session is created immediately with `status: "joining"` before the API responds.
 - **Waiting room toast:** When status transitions to `waiting_room`, a warning toast is shown: *"The transcription agent is waiting to be admitted to the call."* The toast is automatically dismissed when status moves to `in_call` or `transcribing`.
-- **Recovery detection:** On mount, if `playlistMetadata` has a `meeting_id` and `platform` but no local session exists, the hook fetches the bot status from the API. If the status is active, it creates a local session to resume the UI state.
-- **Event-driven updates:** The hook subscribes to `bot.status_changed` events and matches them by `platform + meeting_id` or `playlist_id`.
+- **Recovery detection:** On mount, if the DNA session has a `meeting_id` and `platform` but no local bot session exists, the hook fetches the bot status from `GET /sessions/{session_id}/transcription/bot/status`. If the status is active, it creates a local bot session to resume the UI state.
+- **Event-driven updates:** The hook subscribes to `bot.status_changed` events and matches them by `session_id` or `platform + meeting_id`.
 
 ---
 
@@ -518,31 +524,13 @@ All events are defined in `backend/src/dna/events/event_types.py`:
 
 ```python
 class EventType(str, Enum):
-    TRANSCRIPTION_SUBSCRIBE = "transcription.subscribe"
-    TRANSCRIPTION_STARTED = "transcription.started"
-    TRANSCRIPTION_UPDATED = "transcription.updated"
     TRANSCRIPTION_COMPLETED = "transcription.completed"
     TRANSCRIPTION_ERROR = "transcription.error"
-    SEGMENT_CREATED = "segment.created"
-    SEGMENT_UPDATED = "segment.updated"
     BOT_STATUS_CHANGED = "bot.status_changed"
-    PLAYLIST_UPDATED = "playlist.updated"
-    VERSION_UPDATED = "version.updated"
-    DRAFT_NOTE_UPDATED = "draft_note.updated"
+    SESSION_IN_REVIEW_CHANGED = "session.in_review_changed"
 ```
 
-The frontend `EventType` union mirrors the subset of events that are broadcast to clients:
-
-```typescript
-export type EventType =
-  | 'segment.created'
-  | 'segment.updated'
-  | 'playlist.updated'
-  | 'version.updated'
-  | 'bot.status_changed'
-  | 'transcription.completed'
-  | 'transcription.error';
-```
+In-review state lives on the DNA session; clients listen for `session.in_review_changed`.
 
 ### Complete Event Reference
 
@@ -868,14 +856,14 @@ The pipeline supports pausing and resuming segment storage without stopping the 
 
 ### How Pause Works
 
-1. The frontend updates `playlist_metadata.transcription_paused = true` via the API
-2. `TranscriptionService.on_transcription_updated()` checks `metadata.transcription_paused` on every incoming batch
+1. The frontend updates the DNA session via `PUT /sessions/{session_id}/transcription` with `transcription_paused: true`
+2. `TranscriptionService.on_transcription_updated()` checks `session.transcription_paused` on every incoming batch
 3. When paused, the method returns immediately without processing or storing any segments
 4. The bot continues to receive `transcript.mutable` messages from Vexa (they are simply discarded)
 
 ### How Resume Works
 
-1. The frontend updates `playlist_metadata.transcription_paused = false` and the backend sets `transcription_resumed_at` to the current UTC time
+1. The frontend updates the DNA session with `transcription_paused: false` and the backend sets `transcription_resumed_at` to the current UTC time
 2. On the next `transcript.mutable` batch, the pause check passes
 3. However, a **resume timestamp filter** is applied: any segment whose `absolute_start_time` is before `transcription_resumed_at` is discarded
 4. This prevents "replay" of segments from the paused period, since Vexa may resend older segments in the mutable transcript
@@ -925,13 +913,13 @@ flowchart TD
 
     G --> H{Status = completed/failed/stopped?}
     H -->|Yes| I[Skip bot]
-    H -->|No| J[Lookup playlist_metadata by meeting_id]
+    H -->|No| J[Lookup DNA session by meeting_id]
 
-    J --> K{Found metadata?}
+    J --> K{Found session?}
     K -->|No| L[Log warning, skip]
     K -->|Yes| M[Restore vexa_meeting_id mapping]
 
-    M --> N[Restore meeting_key → playlist_id mapping]
+    M --> N[Restore meeting_key → session_id mapping]
     N --> O[Subscribe to Vexa WebSocket]
     O --> P[Publish bot.status_changed with recovered=true]
     P --> G
@@ -940,8 +928,8 @@ flowchart TD
 **Recovery steps in detail:**
 1. Query Vexa `GET /bots/status` to get all running bots
 2. For each active bot (status not in `completed`, `failed`, `stopped`):
-   a. Look up `playlist_metadata` by `meeting_id` in MongoDB
-   b. Restore `_meeting_to_playlist` mapping (`meeting_key → playlist_id`)
+   a. Look up the DNA session by `meeting_id` in MongoDB
+   b. Restore `_meeting_to_session` mapping (`meeting_key → session_id`)
    c. Register `_meeting_id_to_key` mapping (`vexa_meeting_id → meeting_key`) in the provider
    d. Call `subscribe_to_meeting()` to reconnect the WebSocket subscription
    e. Publish `bot.status_changed` with `recovered: true` so the frontend knows the backend recovered
@@ -956,7 +944,7 @@ The `DNAEventClient` handles WebSocket disconnections automatically:
 ### Internal Meeting ID Mapping Recovery
 
 The `vexa_meeting_id → platform:native_id` mapping is critical for routing transcript messages. It is restored from:
-1. `playlist_metadata.vexa_meeting_id` stored in MongoDB
+1. DNA session `vexa_meeting_id` stored in MongoDB
 2. Vexa bot status response (fallback: `meeting_id` or `id` field)
 3. At runtime: `subscribed` confirmation and `meeting.status` messages
 
@@ -964,34 +952,43 @@ The `vexa_meeting_id → platform:native_id` mapping is critical for routing tra
 
 ## Data Models
 
+### Session
+
+DNA-owned review session. Source of truth for playlist links, in-review, and transcription.
+
+```python
+class Session(BaseModel):
+    id: str                                  # MongoDB _id
+    external_id: str | None                  # External catalog id; null for implicit sessions
+    project_id: str
+    name: str | None
+    playlist_ids: list[str]                  # Linked playlists, in link order
+    in_review_playlist_id: str | None        # Playlist that holds in-review
+    in_review_version_id: str | None         # Version currently in review (segments target this)
+    in_review_pinned: bool                   # Pin blocks moves until unpinned
+    meeting_id: str | None                   # Native meeting ID (e.g., "abc-def-ghi")
+    platform: str | None                     # "google_meet", "teams" or "zoom"
+    vexa_meeting_id: int | None              # Vexa's internal meeting ID (for WebSocket routing)
+    transcription_paused: bool               # Whether segment storage is paused
+    transcription_resumed_at: datetime | None
+```
+
 ### PlaylistMetadata
 
-Links a playlist to its associated meeting and controls transcription behavior.
+Playlist-local metadata only. In-review and transcription live on `Session`.
 
 ```python
 class PlaylistMetadata(BaseModel):
     id: str                                  # MongoDB _id
     playlist_id: str                         # Unique playlist identifier
-    in_review: str | None                    # Version ID currently in review (segments target this version)
-    meeting_id: str | None                   # Native meeting ID (e.g., "abc-def-ghi", "81234567890")
-    platform: str | None                     # "google_meet", "teams" or "zoom"
-    vexa_meeting_id: int | None              # Vexa's internal meeting ID (for WebSocket routing)
-    transcription_paused: bool               # Whether segment storage is paused (default: False)
-    transcription_resumed_at: datetime | None # When transcription was last resumed (filter threshold)
+    has_scratch: bool                        # Scratch tile for playlist-level notes
 ```
 
 ### PlaylistMetadataUpdate
 
-Used when updating playlist metadata fields.
-
 ```python
 class PlaylistMetadataUpdate(BaseModel):
-    in_review: str | None
-    meeting_id: str | None
-    platform: str | None
-    vexa_meeting_id: int | None
-    transcription_paused: bool | None
-    clear_resumed_at: bool                   # If True, clears transcription_resumed_at
+    has_scratch: bool | None
 ```
 
 ### StoredSegment
@@ -1086,16 +1083,15 @@ class Platform(str, Enum):
 
 ## API Reference
 
-### POST /transcription/bot
+### POST /sessions/{session_id}/transcription/bot
 
-Dispatch a transcription bot to a meeting.
+Dispatch a transcription bot bound to a DNA session.
 
 **Request:**
 ```json
 {
   "platform": "google_meet",
   "meeting_id": "abc-def-ghi",
-  "playlist_id": "42",
   "passcode": null,
   "bot_name": "DNA Bot",
   "language": "en"
@@ -1117,15 +1113,15 @@ Dispatch a transcription bot to a meeting.
 }
 ```
 
-### DELETE /transcription/bot/{platform}/{meeting_id}
+### DELETE /sessions/{session_id}/transcription/bot
 
-Stop a transcription bot.
+Stop the transcription bot for a DNA session and clear meeting fields.
 
 **Response (200):** `true`
 
-### GET /transcription/bot/{platform}/{meeting_id}/status
+### GET /sessions/{session_id}/transcription/bot/status
 
-Get the current status of a bot.
+Get the current status of the bot bound to a DNA session.
 
 **Response (200):**
 ```json
@@ -1262,23 +1258,23 @@ pytest tests/providers/test_vexa_provider.py -v
 **Cause:** A `transcript.mutable` message arrived with an internal meeting ID that has no mapping in `_meeting_id_to_key`.
 
 **Solution:**
-1. Ensure `vexa_meeting_id` is stored in `playlist_metadata` at dispatch time
+1. Ensure `vexa_meeting_id` is stored on the DNA session at dispatch time
 2. Verify the `subscribed` response was received and processed before transcripts arrive
 3. On restart, `resubscribe_to_active_meetings()` should restore the mapping from metadata
 
-#### "No playlist_id found for meeting"
+#### "No playlist metadata found for meeting"
 
-**Cause:** The `_meeting_to_playlist` in-memory mapping is missing the `platform:meeting_id` key.
+**Cause:** No DNA session has this `meeting_id`. The bot was never associated with a session, or meeting fields were cleared.
 
 **Solution:**
-1. Ensure `subscribe_to_meeting()` is called with the correct `playlist_id`
-2. On restart, verify `resubscribe_to_active_meetings()` restores the mapping
+1. Ensure `POST /sessions/{session_id}/transcription/bot` wrote `meeting_id` onto the DNA session
+2. On restart, verify `resubscribe_to_active_meetings()` finds the session via `get_session_by_meeting_id`
 
-#### "No in_review version found for playlist"
+#### "Session … has no in_review playlist/version for meeting"
 
-**Cause:** The playlist's `in_review` field in `playlist_metadata` is `None`.
+**Cause:** The DNA session that owns the meeting has `in_review_version_id` null or `transcription_paused` true.
 
-**Solution:** Set `playlist_metadata.in_review` to a valid version ID before starting transcription. Segments cannot be stored without a target version.
+**Solution:** Set in-review on the session via `PUT /sessions/{session_id}/in-review` (or the session UI). Segments route to the session's current `in_review_playlist_id` / `in_review_version_id`.
 
 #### WebSocket not receiving events
 

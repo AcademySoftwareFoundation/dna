@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 
 from dna.models.draft_note import DraftNote, DraftNoteUpdate
-from dna.models.playlist_metadata import PlaylistMetadata, PlaylistMetadataUpdate
+from dna.models.playlist_metadata import PlaylistMetadataUpdate
 from dna.models.published_transcript import (
     PublishedTranscript,
     PublishedTranscriptUpdate,
@@ -72,17 +72,31 @@ class TestStorageProviderBase:
             await provider.get_playlist_metadata(1)
 
     @pytest.mark.asyncio
-    async def test_get_playlist_metadata_by_meeting_id_raises_not_implemented(self):
-        """Test that get_playlist_metadata_by_meeting_id raises NotImplementedError."""
+    async def test_session_methods_raise_not_implemented(self):
+        """DNA session abstract methods raise NotImplementedError."""
         provider = StorageProviderBase()
         with pytest.raises(NotImplementedError):
-            await provider.get_playlist_metadata_by_meeting_id("meeting-123")
+            await provider.get_session_by_meeting_id("meeting-123")
+        with pytest.raises(NotImplementedError):
+            await provider.create_session({"project_id": "124"})
+        with pytest.raises(NotImplementedError):
+            await provider.get_session("abc")
+        with pytest.raises(NotImplementedError):
+            await provider.get_sessions_for_project("124")
+        with pytest.raises(NotImplementedError):
+            await provider.get_session_by_external_id("ext")
+        with pytest.raises(NotImplementedError):
+            await provider.get_implicit_session_for_playlist("124", "45")
+        with pytest.raises(NotImplementedError):
+            await provider.get_sessions_containing_playlist("45")
+        with pytest.raises(NotImplementedError):
+            await provider.update_session("abc", {})
 
     @pytest.mark.asyncio
     async def test_upsert_playlist_metadata_raises_not_implemented(self):
         """Test that upsert_playlist_metadata raises NotImplementedError."""
         provider = StorageProviderBase()
-        data = PlaylistMetadataUpdate(meeting_id="abc-123")
+        data = PlaylistMetadataUpdate(has_scratch=True)
         with pytest.raises(NotImplementedError):
             await provider.upsert_playlist_metadata(1, data)
 
@@ -487,8 +501,7 @@ class TestMongoDBStorageProvider:
         doc = {
             "_id": "abc123",
             "playlist_id": "1",
-            "meeting_id": "abc-123",
-            "platform": "google_meet",
+            "has_scratch": True,
         }
 
         mock_collection.find_one = mock.AsyncMock(return_value=doc)
@@ -502,7 +515,7 @@ class TestMongoDBStorageProvider:
         result = await provider.get_playlist_metadata(1)
 
         assert result is not None
-        assert result.meeting_id == "abc-123"
+        assert result.has_scratch is True
 
     @pytest.mark.asyncio
     async def test_get_playlist_metadata_not_found(self, provider):
@@ -521,60 +534,212 @@ class TestMongoDBStorageProvider:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_playlist_metadata_by_meeting_id_found(self, provider):
-        """Test getting playlist metadata by meeting ID when found."""
-        mock_collection = mock.MagicMock()
+    async def test_get_session_by_meeting_id_found(self, provider):
+        """Meeting lookup resolves the owning DNA session."""
+        from bson import ObjectId
 
+        mock_collection = mock.MagicMock()
         doc = {
-            "_id": "abc123",
-            "playlist_id": "1",
+            "_id": ObjectId(),
+            "project_id": "124",
+            "playlist_ids": ["1"],
             "meeting_id": "abc-123",
             "platform": "google_meet",
         }
-
         mock_collection.find_one = mock.AsyncMock(return_value=doc)
 
         mock_client = mock.MagicMock()
         mock_db = mock.MagicMock()
         mock_client.dna = mock_db
-        mock_db.playlist_metadata = mock_collection
+        mock_db.sessions = mock_collection
         provider._client = mock_client
 
-        result = await provider.get_playlist_metadata_by_meeting_id("abc-123")
+        result = await provider.get_session_by_meeting_id("abc-123")
 
         assert result is not None
-        assert result.playlist_id == "1"
+        assert result.meeting_id == "abc-123"
+        assert result.playlist_ids == ["1"]
 
     @pytest.mark.asyncio
-    async def test_get_playlist_metadata_by_meeting_id_not_found(self, provider):
-        """Test getting playlist metadata by meeting ID when not found."""
+    async def test_get_session_by_meeting_id_not_found(self, provider):
         mock_collection = mock.MagicMock()
         mock_collection.find_one = mock.AsyncMock(return_value=None)
 
         mock_client = mock.MagicMock()
         mock_db = mock.MagicMock()
         mock_client.dna = mock_db
-        mock_db.playlist_metadata = mock_collection
+        mock_db.sessions = mock_collection
         provider._client = mock_client
 
-        result = await provider.get_playlist_metadata_by_meeting_id("unknown")
+        result = await provider.get_session_by_meeting_id("unknown")
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_upsert_playlist_metadata(self, provider):
-        """Test upserting playlist metadata."""
-        mock_collection = mock.MagicMock()
+    async def test_create_and_update_session(self, provider):
+        from bson import ObjectId
 
-        result_doc = {
-            "_id": "abc123",
-            "playlist_id": "1",
+        mock_collection = mock.MagicMock()
+        inserted_id = ObjectId()
+        insert_result = mock.MagicMock()
+        insert_result.inserted_id = inserted_id
+        mock_collection.insert_one = mock.AsyncMock(return_value=insert_result)
+
+        updated_doc = {
+            "_id": inserted_id,
+            "project_id": "124",
+            "playlist_ids": ["45"],
+            "name": "Morning",
             "meeting_id": "abc-123",
             "platform": "google_meet",
+            "in_review_pinned": False,
+            "transcription_paused": False,
+        }
+        mock_collection.find_one_and_update = mock.AsyncMock(return_value=updated_doc)
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.sessions = mock_collection
+        provider._client = mock_client
+
+        created = await provider.create_session(
+            {
+                "project_id": "124",
+                "name": "Morning",
+                "playlist_ids": ["45"],
+            }
+        )
+        assert created.project_id == "124"
+        assert created.playlist_ids == ["45"]
+
+        updated = await provider.update_session(
+            str(inserted_id),
+            {"meeting_id": "abc-123", "platform": "google_meet"},
+        )
+        assert updated.meeting_id == "abc-123"
+
+    @pytest.mark.asyncio
+    async def test_get_session_and_project_list(self, provider):
+        from bson import ObjectId
+
+        oid = ObjectId()
+        doc = {
+            "_id": oid,
+            "project_id": "124",
+            "external_id": "ext-1",
+            "playlist_ids": ["45"],
+            "name": "Morning",
+        }
+        mock_collection = mock.MagicMock()
+        mock_collection.find_one = mock.AsyncMock(return_value=doc)
+
+        async def async_docs():
+            yield doc
+
+        mock_cursor = mock.MagicMock()
+        mock_cursor.sort.return_value = async_docs()
+        mock_collection.find.return_value = mock_cursor
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.sessions = mock_collection
+        provider._client = mock_client
+
+        found = await provider.get_session(str(oid))
+        assert found is not None
+        assert found.external_id == "ext-1"
+
+        assert await provider.get_session("not-an-oid") is None
+
+        by_external = await provider.get_session_by_external_id("ext-1")
+        assert by_external is not None
+        assert by_external.project_id == "124"
+
+        listed = await provider.get_sessions_for_project("124")
+        assert len(listed) == 1
+        assert listed[0].playlist_ids == ["45"]
+
+    @pytest.mark.asyncio
+    async def test_implicit_and_containing_playlist_lookups(self, provider):
+        from bson import ObjectId
+
+        doc = {
+            "_id": ObjectId(),
+            "project_id": "124",
+            "external_id": None,
+            "playlist_ids": ["45"],
+            "name": "Playlist 45",
+        }
+        mock_collection = mock.MagicMock()
+        mock_collection.find_one = mock.AsyncMock(return_value=doc)
+
+        async def async_docs():
+            yield doc
+
+        mock_cursor = mock.MagicMock()
+        mock_cursor.sort.return_value = async_docs()
+        mock_collection.find.return_value = mock_cursor
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.sessions = mock_collection
+        provider._client = mock_client
+
+        implicit = await provider.get_implicit_session_for_playlist("124", "45")
+        assert implicit is not None
+        assert implicit.playlist_ids == ["45"]
+
+        containing = await provider.get_sessions_containing_playlist("45")
+        assert len(containing) == 1
+
+    @pytest.mark.asyncio
+    async def test_update_session_invalid_id_and_unset(self, provider):
+        from bson import ObjectId
+
+        mock_collection = mock.MagicMock()
+        mock_collection.find_one_and_update = mock.AsyncMock(return_value=None)
+
+        mock_client = mock.MagicMock()
+        mock_db = mock.MagicMock()
+        mock_client.dna = mock_db
+        mock_db.sessions = mock_collection
+        provider._client = mock_client
+
+        assert await provider.update_session("bad-id", {"name": "x"}) is None
+
+        oid = ObjectId()
+        mock_collection.find_one_and_update = mock.AsyncMock(
+            return_value={
+                "_id": oid,
+                "project_id": "124",
+                "playlist_ids": [],
+                "transcription_resumed_at": None,
+            }
+        )
+        updated = await provider.update_session(
+            str(oid),
+            {"transcription_paused": False},
+            unset_fields={"transcription_resumed_at": ""},
+        )
+        assert updated is not None
+        call_update = mock_collection.find_one_and_update.call_args[0][1]
+        assert "$unset" in call_update
+
+    @pytest.mark.asyncio
+    async def test_upsert_playlist_metadata(self, provider):
+        """Test upserting playlist-local metadata."""
+        mock_collection = mock.MagicMock()
+
+        result_doc = {
+            "_id": "abc123",
+            "playlist_id": "1",
+            "has_scratch": True,
         }
 
         mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
-        mock_collection.find_one = mock.AsyncMock(return_value=None)
 
         mock_client = mock.MagicMock()
         mock_db = mock.MagicMock()
@@ -582,82 +747,11 @@ class TestMongoDBStorageProvider:
         mock_db.playlist_metadata = mock_collection
         provider._client = mock_client
 
-        data = PlaylistMetadataUpdate(meeting_id="abc-123", platform="google_meet")
+        data = PlaylistMetadataUpdate(has_scratch=True)
         result = await provider.upsert_playlist_metadata(1, data)
 
-        assert result.meeting_id == "abc-123"
+        assert result.has_scratch is True
         mock_collection.find_one_and_update.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_upsert_playlist_metadata_sets_resumed_at_on_unpause(self, provider):
-        """Test that transcription_resumed_at is set when unpausing."""
-        from datetime import datetime, timezone
-
-        mock_collection = mock.MagicMock()
-
-        existing_doc = {
-            "_id": "abc123",
-            "playlist_id": "1",
-            "transcription_paused": True,
-        }
-
-        result_doc = {
-            "_id": "abc123",
-            "playlist_id": "1",
-            "transcription_paused": False,
-            "transcription_resumed_at": datetime.now(timezone.utc),
-        }
-
-        mock_collection.find_one = mock.AsyncMock(return_value=existing_doc)
-        mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
-
-        mock_client = mock.MagicMock()
-        mock_db = mock.MagicMock()
-        mock_client.dna = mock_db
-        mock_db.playlist_metadata = mock_collection
-        provider._client = mock_client
-
-        data = PlaylistMetadataUpdate(transcription_paused=False)
-        await provider.upsert_playlist_metadata(1, data)
-
-        call_args = mock_collection.find_one_and_update.call_args
-        update_dict = call_args[0][1]
-        assert "transcription_resumed_at" in update_dict["$set"]
-
-    @pytest.mark.asyncio
-    async def test_upsert_playlist_metadata_no_resumed_at_when_not_previously_paused(
-        self, provider
-    ):
-        """Test that transcription_resumed_at is not set when not previously paused."""
-        mock_collection = mock.MagicMock()
-
-        existing_doc = {
-            "_id": "abc123",
-            "playlist_id": "1",
-            "transcription_paused": False,
-        }
-
-        result_doc = {
-            "_id": "abc123",
-            "playlist_id": "1",
-            "transcription_paused": False,
-        }
-
-        mock_collection.find_one = mock.AsyncMock(return_value=existing_doc)
-        mock_collection.find_one_and_update = mock.AsyncMock(return_value=result_doc)
-
-        mock_client = mock.MagicMock()
-        mock_db = mock.MagicMock()
-        mock_client.dna = mock_db
-        mock_db.playlist_metadata = mock_collection
-        provider._client = mock_client
-
-        data = PlaylistMetadataUpdate(transcription_paused=False)
-        await provider.upsert_playlist_metadata(1, data)
-
-        call_args = mock_collection.find_one_and_update.call_args
-        update_dict = call_args[0][1]
-        assert "transcription_resumed_at" not in update_dict["$set"]
 
     @pytest.mark.asyncio
     async def test_delete_playlist_metadata_success(self, provider):

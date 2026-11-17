@@ -16,6 +16,8 @@ class ResendProvider(EmailProviderBase):
         self.from_email = os.getenv("RESEND_FROM_EMAIL", "noreply@example.com")
 
     def _get_provider_client(self):
+        if not self.api_key:
+            raise ValueError("RESEND_API_KEY is not configured.")
         return httpx.AsyncClient(base_url="https://api.resend.com")
 
     async def _post_email(self, payload: dict) -> str:

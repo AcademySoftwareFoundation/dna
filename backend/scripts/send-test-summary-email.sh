@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Temporary manual test for POST /playlists/{playlist_id}/send-summary-email.
-# Delete this file when you are done.
+# Send one playlist summary email through POST /playlists/{playlist_id}/send-summary-email.
+# The API uses whichever EMAIL_PROVIDER is configured. See dna-docs/deployment/email.mdx.
 
 set -euo pipefail
 

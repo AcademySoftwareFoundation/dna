@@ -4,4 +4,61 @@ slug: /7-rv-integration
 title: RV Integration
 ---
 
-## PLACEHOLDER
+import LiveRvSyncDemo from '@site/src/components/LiveRvSyncDemo';
+
+With the DNA package for RV, DNA stays on the version that is playing in RV. The version [in review](./4-in-review.mdx) changes as you step through the playlist, so notes and transcript segments land on the right version without anyone setting it by hand. It works with both RV and OpenRV.
+
+<LiveRvSyncDemo caption="As you change source in RV, DNA moves the version in review to match." />
+
+## Turn On the DNA Package
+
+The DNA package should be set up in RV for you, but RV leaves it switched off until you turn it on. You only do this once.
+
+:::info
+If DNA is not in the list, the package has not been installed yet. If you need to install it yourself, follow [Installing the Package](/integrations/rv#installing-the-package) in the developer docs.
+:::
+
+1. In RV, open **RV > Preferences > Packages**.
+2. Find **DNA** in the list and tick **Load** next to it.
+3. Restart RV.
+
+<Figure
+  src="img/7-rv-integration/rv-packages.png"
+  alt="RV's Preferences window on the Packages tab, with Installed and Load both ticked for the DNA package."
+  caption="The DNA package in RV's Packages preferences, with Load ticked."
+/>
+
+After the restart, RV has a **DNA** menu in its menu bar.
+
+## Sign In From RV
+
+1. In RV, choose **DNA > Sign In...**. The first time, RV asks for your DNA URL, which is the address you open DNA at in your browser.
+2. DNA's sign-in page opens in a window inside RV. Sign in the same way you do in the browser.
+3. Choose your project, then the playlist you are reviewing.
+4. The window closes, and the DNA menu shows **Signed in as** with your email and the playlist.
+
+RV remembers this when you quit, so you only sign in once per playlist.
+
+## Review
+
+1. In DNA, open the same playlist and switch on **Follow In Review** at the top of the sidebar.
+2. In RV, load the playlist's media and review as usual.
+
+Each time you move to another version in RV, DNA sets it in review and jumps to it. Everyone else with the playlist open sees the in-review marker move too.
+
+If someone has [pinned](./4-in-review.mdx#pinning) a version in DNA, it stays in review until it is unpinned, whatever RV is playing.
+
+## Change Playlist or Sign Out
+
+- To review a different playlist, choose **DNA > Switch show/playlist...** in RV.
+- When you finish on a shared workstation, choose **DNA > Sign Out**.
+
+## If DNA Is Not Following
+
+1. **There is no DNA menu in RV.** The package is not switched on. See [Turn On the DNA Package](#turn-on-the-dna-package) above.
+2. **Follow In Review is off.** Switch it on at the top of DNA's sidebar.
+3. **RV is on a different playlist.** The DNA menu in RV names the playlist it is driving. It has to be the one you have open in DNA.
+4. **A version is pinned.** Unpin it in DNA.
+5. **It worked, then stopped.** Choose **DNA > Sign In...** again. A Google sign-in lasts about an hour.
+
+If none of those fix it, the [developer guide](/integrations/rv#troubleshooting) has a debug mode that shows what RV is sending.

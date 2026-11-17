@@ -1,0 +1,71 @@
+/* The screenshot, pinned top-left and cropped by the stage like the UI mock. */
+.screenshot {
+  display: block;
+  width: 100%;
+  min-width: 900px;
+  height: auto;
+}
+
+.platforms {
+  margin-top: 3rem;
+}
+
+/* Logo over its tag line, so a "Planned" tag never shifts the row. */
+.platformItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Logo row, matching the "Backed by" carousel. Shipped platforms at full
+   strength, so colour logos keep their true colours. */
+.platform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  padding: 0 1.5rem;
+  transition: opacity var(--ifm-transition-fast);
+}
+
+/* On the roadmap: dimmed until hovered. */
+.planned .platform {
+  opacity: 0.5;
+}
+
+.planned .platform:hover {
+  opacity: 0.85;
+}
+
+/* Small caps like the section labels. */
+.tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ifm-color-content-secondary);
+}
+
+.logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Single white-on-transparent logos (no colour pair): flip for light mode. */
+[data-theme='light'] .logoInvert {
+  filter: invert(1);
+}
+
+@media (max-width: 996px) {
+  .screenshot {
+    min-width: 640px;
+  }
+
+  .platform {
+    height: 52px;
+  }
+}

@@ -44,6 +44,17 @@ export const DEMO_PLAYLISTS: DemoPlaylist[] = [
   },
 ];
 
+/**
+ * The session tabs demo's project and playlists: the same versions as the
+ * reviews above under short names, so several tabs fit the header.
+ */
+export const SESSION_TABS_PROJECT_ID = 'session-tabs';
+export const SESSION_TABS_PLAYLISTS: DemoPlaylist[] = [
+  {id: 'st-anim', code: 'Anim Dailies', versions: DEMO_PLAYLISTS[0].versions.slice(0, 3)},
+  {id: 'st-comp', code: 'Comp Dailies', versions: DEMO_PLAYLISTS[0].versions.slice(3, 6)},
+  {id: 'st-lighting', code: 'Lighting', versions: DEMO_PLAYLISTS[1].versions},
+];
+
 /** Today's review: what the demos open on. */
 export const DEMO_PLAYLIST_ID = DEMO_PLAYLISTS[0].id;
 
@@ -57,8 +68,12 @@ const THUMBNAILED_SHOTS = new Set([
   'TST_020_0020',
 ]);
 
-/** Path under static/ of a version's thumbnail, if its shot has one. */
+/** Versions outside the TST shots with a frame of their own, by name. */
+const THUMBNAILED_VERSIONS = new Set(['spaceship_rigged_001']);
+
+/** Path under static/ of a version's thumbnail, if it or its shot has one. */
 export function thumbnailFor(versionName: string): string | undefined {
+  if (THUMBNAILED_VERSIONS.has(versionName)) return `img/demo/${versionName}.png`;
   const shot = versionName.match(/^TST_\d{3}_\d{4}/)?.[0];
   return shot && THUMBNAILED_SHOTS.has(shot) ? `img/demo/${shot}.png` : undefined;
 }

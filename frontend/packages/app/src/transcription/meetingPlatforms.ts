@@ -52,8 +52,9 @@ export const MEETING_PLATFORMS: Record<Platform, MeetingPlatform> = {
   google_meet: {
     acceptsPasscode: false,
     parse: (input) => {
+      // After admission Meet rewrites the tab to /meet/<code>.
       const urlMatch = input.match(
-        /meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})/i
+        /meet\.google\.com\/(?:meet\/)?([a-z]{3}-[a-z]{4}-[a-z]{3})/i
       );
       if (urlMatch) return { meetingId: urlMatch[1].toLowerCase() };
       if (MEET_CODE.test(input)) return { meetingId: input.toLowerCase() };

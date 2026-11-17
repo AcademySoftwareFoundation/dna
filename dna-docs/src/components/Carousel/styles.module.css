@@ -47,6 +47,10 @@
     margin: 0 calc(-1 * var(--ifm-spacing-horizontal));
     padding: 0 10vw;
     overflow-x: auto;
+    /* Swipes sideways only: overflow-x: auto would otherwise make any
+       slide content poking out of the row (a nudged logo) scroll vertically. */
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     scrollbar-width: none;

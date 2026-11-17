@@ -6,6 +6,8 @@ import {
   ChevronRight,
   RotateCw,
   Target,
+  Pin,
+  PinOff,
   ChevronDown,
   ExternalLink,
 } from 'lucide-react';
@@ -14,7 +16,7 @@ import { UserAvatar } from './UserAvatar';
 import { VersionFieldEditor } from './VersionFieldEditor';
 import { useHotkeyConfig } from '../hotkeys';
 import { useVersionStatuses } from '../hooks';
-import { useFeatureFlags } from '../contexts';
+import { useFeatureFlags, useNomenclature } from '../contexts';
 
 interface VersionHeaderProps {
   shotCode?: string;
@@ -41,6 +43,8 @@ interface VersionHeaderProps {
   canGoNext?: boolean;
   hasInReview?: boolean;
   isCurrentVersionInReview?: boolean;
+  /** The in-review version is pinned; setting another version unpins it. */
+  isInReviewPinned?: boolean;
   isSettingInReview?: boolean;
   version?: Version | null;
   playlistId?: string | null;
@@ -52,10 +56,25 @@ const HeaderWrapper = styled.div`
   gap: 16px;
 `;
 
+/*
+ * The buttons keep their shape and their one row whatever the width: none
+ * shrinks, no label wraps, and nothing moves to a second line. When the row
+ * runs out of room (a narrow window, or the sidebar expanded), it stays its
+ * full width and runs off the right edge, and the content area scrolls
+ * sideways to reach the rest.
+ */
 const TopBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  min-width: max-content;
+
+  button,
+  a {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 `;
 
 const BackButton = styled.button`
@@ -133,6 +152,10 @@ const syncProdtrackSurface = css`
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
   box-sizing: border-box;
+  /* As a link (no tab-sync extension) this inherits the page's taller line
+     height, where a button uses the font's own; that made it 2px taller
+     than the buttons beside it. */
+  line-height: normal;
 `;
 
 const SyncProdtrackButton = styled.button`
@@ -254,7 +277,7 @@ const SetInReviewButton = styled.button<{ $isInReview?: boolean }>`
     ${({ theme, $isInReview }) =>
       $isInReview ? theme.colors.accent.main : theme.colors.border.default};
   border-radius: ${({ theme }) => theme.radii.md};
-  cursor: ${({ $isInReview }) => ($isInReview ? 'default' : 'pointer')};
+  cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
 
   &:hover:not(:disabled) {
@@ -268,9 +291,10 @@ const SetInReviewButton = styled.button<{ $isInReview?: boolean }>`
       $isInReview ? theme.colors.accent.main : theme.colors.border.strong};
   }
 
+  /* Only disabled while a request is in flight; requests are fast enough that
+     dimming would just read as a flicker. */
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    cursor: default;
   }
 `;
 
@@ -408,28 +432,33 @@ export function VersionHeader({
   prodtrackTabUsesExtension = false,
   onSyncProdtrackTab,
   syncProdtrackDisabled = false,
-  syncProdtrackTitle = 'Open current version in production tracking (browser tab)',
+  syncProdtrackTitle,
   canGoBack = true,
   canGoNext = true,
   hasInReview = true,
   isCurrentVersionInReview = false,
+  isInReviewPinned = false,
   isSettingInReview = false,
   version,
   playlistId,
 }: VersionHeaderProps) {
+  const t = useNomenclature();
   const { getLabel } = useHotkeyConfig();
+  const syncTitle =
+    syncProdtrackTitle ??
+    `Open current ${t.version.lower} in ${t.productionTracking.lower} (browser tab)`;
   const { inReviewEnabled } = useFeatureFlags();
   const { statuses, isLoading: isLoadingStatuses } = useVersionStatuses({ projectId });
   const displayTitle = shotCode && versionNumber ? `${shotCode} - ` : '';
-  const displayCode = versionNumber || shotCode || 'Untitled Version';
+  const displayCode = versionNumber || shotCode || `Untitled ${t.version.singular}`;
 
   return (
     <HeaderWrapper>
       <TopBar>
-        <Tooltip content={`Previous Version (${getLabel('previousVersion')})`}>
+        <Tooltip content={`Previous ${t.version.singular} (${getLabel('previousVersion')})`}>
           <BackButton onClick={onBack} disabled={!canGoBack}>
             <ChevronLeft size={16} />
-            Previous Version
+            Previous {t.version.singular}
           </BackButton>
         </Tooltip>
         <TopBarActions>
@@ -440,36 +469,36 @@ export function VersionHeader({
             </InReviewButton>
           )}
           {prodtrackDetailUrl && prodtrackTabUsesExtension && onSyncProdtrackTab && (
-            <Tooltip content={syncProdtrackTitle}>
+            <Tooltip content={syncTitle}>
               <SyncProdtrackButton
                 type="button"
                 onClick={() => void onSyncProdtrackTab()}
                 disabled={syncProdtrackDisabled}
               >
                 <ExternalLink size={14} />
-                PT tab
+                {t.productionTracking.short} tab
               </SyncProdtrackButton>
             </Tooltip>
           )}
           {prodtrackDetailUrl && !prodtrackTabUsesExtension && (
-            <Tooltip content={syncProdtrackTitle}>
+            <Tooltip content={syncTitle}>
               <SyncProdtrackLink
                 href={prodtrackDetailUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 <ExternalLink size={14} />
-                PT tab
+                {t.productionTracking.short} tab
               </SyncProdtrackLink>
             </Tooltip>
           )}
-          <Tooltip content={`Next Version (${getLabel('nextVersion')})`}>
+          <Tooltip content={`Next ${t.version.singular} (${getLabel('nextVersion')})`}>
             <NextVersionButton onClick={onNext} disabled={!canGoNext}>
-              Next Version
+              Next {t.version.singular}
               <ChevronRight size={16} />
             </NextVersionButton>
           </Tooltip>
-          <RefreshButton onClick={onRefresh} title="Refresh version info">
+          <RefreshButton onClick={onRefresh} title={`Refresh ${t.version.lower} info`}>
             <RotateCw size={16} />
           </RefreshButton>
         </TopBarActions>
@@ -480,18 +509,25 @@ export function VersionHeader({
             {thumbnailUrl && <img src={thumbnailUrl} alt={displayCode} />}
           </Thumbnail>
           {inReviewEnabled && (
-            <Tooltip content={`Set In Review (${getLabel('setInReview')})`}>
+            <Tooltip
+              content={
+                isCurrentVersionInReview
+                  ? `${isInReviewPinned ? 'Unpin from review' : 'Pin in review'} (${getLabel('setInReview')})`
+                  : isInReviewPinned
+                    ? `Set In Review and unpin the current ${t.version.lower} (${getLabel('setInReview')})`
+                    : `Set In Review (${getLabel('setInReview')})`
+              }
+            >
               <SetInReviewButton
                 $isInReview={isCurrentVersionInReview}
                 onClick={onSetInReview}
-                disabled={isCurrentVersionInReview || isSettingInReview}
+                disabled={isSettingInReview}
+                aria-busy={isSettingInReview}
               >
-                {isSettingInReview ? (
-                  <>Setting...</>
-                ) : isCurrentVersionInReview ? (
+                {isCurrentVersionInReview ? (
                   <>
-                    <Eye size={14} />
-                    In Review
+                    {isInReviewPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                    {isInReviewPinned ? 'Unpin' : 'Pin in Review'}
                   </>
                 ) : (
                   <>
@@ -524,7 +560,9 @@ export function VersionHeader({
             <MetadataValue>{dateSubmitted}</MetadataValue>
           </MetadataRow>
           <MetadataRow>
-            <MetadataLabel>Version Status:</MetadataLabel>
+            <MetadataLabel>
+              {t.version.singular} {t.status.singular}:
+            </MetadataLabel>
             <MetadataValue>
               <StatusSelectWrapper>
                 <StatusSelect

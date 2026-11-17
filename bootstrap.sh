@@ -5,7 +5,7 @@
 # Bootstrap script for new contributors.
 # Checks prerequisites, copies example configs, installs frontend dependencies,
 # configures transcription (Vexa bot or browser extension + WhisperLive),
-# and starts the full DNA stack.
+# the session provider, the email provider, and starts the full DNA stack.
 #
 # Usage:
 #   ./bootstrap.sh           # first-time setup, or change one setting if already configured
@@ -19,11 +19,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/backend"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 FRONTEND_ENV="$FRONTEND_DIR/packages/app/.env"
+USE_DOCKER_FRONTEND=false
+DOCKER_AVAILABLE=true
 
 VEXA_ADMIN_URL="http://localhost:8056"
 VEXA_ADMIN_TOKEN="your-admin-token"
 VEXA_LOCAL_EMAIL="dna-local@example.com"
-# Set to "true" when the user chooses hosted Vexa (api.cloud.vexa.ai); the
+# Set to "true" when the user chooses an external Vexa API; the
 # local Vexa container and transcription-backend setup are then skipped.
 VEXA_HOSTED=false
 VEXA_CLOUD_URL="https://api.cloud.vexa.ai"
@@ -221,14 +223,18 @@ current_llm_label() {
     echo "${provider:-openai}"
 }
 
+is_hosted_vexa() {
+    local url
+    url="$(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml")"
+    [[ -n "$url" && "${url%/}" != "$VEXA_LOCAL_URL" ]]
+}
+
 current_transcription_label() {
     if [[ "$(detect_transcription_route)" == "extension" ]]; then
         echo "browser extension"
         return 0
     fi
-    local url
-    url="$(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml")"
-    if [[ "$url" == "$VEXA_CLOUD_URL" ]]; then
+    if is_hosted_vexa; then
         echo "Vexa hosted"
     else
         echo "Vexa self-hosted"
@@ -239,6 +245,21 @@ current_prodtrack_label() {
     local provider
     provider="$(read_compose_value PRODTRACK_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
     echo "${provider:-mock}"
+}
+
+current_session_label() {
+    local provider
+    provider="$(read_compose_value SESSION_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    case "${provider:-none}" in
+        mock) echo "mock" ;;
+        *) echo "disabled" ;;
+    esac
+}
+
+current_email_label() {
+    local provider
+    provider="$(read_compose_value EMAIL_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    echo "${provider:-noop}"
 }
 
 current_feature_flags_label() {
@@ -369,6 +390,17 @@ apply_feature_flag() {
 
 # ── step 1: prerequisites ──────────────────────────────────────────────────────
 
+check_docker() {
+    if ! command -v docker &>/dev/null || ! docker info &>/dev/null; then
+        DOCKER_AVAILABLE=false
+        warn "Docker is unavailable (not installed, daemon stopped, or insufficient permissions). Skipping Docker-dependent steps."
+        return
+    fi
+    DOCKER_AVAILABLE=true
+    ok "Docker $(docker --version | awk '{gsub(/,/,"",$3); print $3}')"
+    ok "Docker daemon is running"
+}
+
 check_prerequisites() {
     info "Checking prerequisites..."
 
@@ -376,25 +408,31 @@ check_prerequisites() {
         || die "Node.js not found. Install Node.js v18+: https://nodejs.org/en/download"
     local node_major
     node_major="$(node --version | sed 's/v//' | cut -d. -f1)"
-    [[ "$node_major" -ge 18 ]] \
-        || die "Node.js v18+ required (found $(node --version)). Upgrade: https://nodejs.org/en/download"
-    ok "Node.js $(node --version)"
+    if [[ "$node_major" -lt 18 ]]; then
+        warn "Node.js v18+ required for the host frontend (found $(node --version))."
+        local use_docker
+        if ! read -r -p "  Bypass this check and use Docker for the frontend? (y/N): " use_docker; then
+            die "No answer received. Upgrade Node.js or rerun and choose the Docker frontend."
+        fi
+        case "$use_docker" in
+            y|Y|[yY][eE][sS]) USE_DOCKER_FRONTEND=true ;;
+            *) die "Upgrade Node.js: https://nodejs.org/en/download" ;;
+        esac
+    else
+        ok "Node.js $(node --version)"
+    fi
 
-    command -v npm &>/dev/null \
-        || die "npm not found. Install Node.js v18+: https://nodejs.org/en/download"
-    ok "npm $(npm --version)"
+    if [[ "$USE_DOCKER_FRONTEND" != "true" ]]; then
+        command -v npm &>/dev/null \
+            || die "npm not found. Install Node.js v18+: https://nodejs.org/en/download"
+        ok "npm $(npm --version)"
+    fi
 
     command -v python3 &>/dev/null \
         || die "python3 not found. Install Python 3: https://www.python.org/downloads/"
     ok "python3 $(python3 --version | awk '{print $2}')"
 
-    command -v docker &>/dev/null \
-        || die "Docker not found. Install Docker: https://docs.docker.com/get-docker/"
-    ok "Docker $(docker --version | awk '{gsub(/,/,"",$3); print $3}')"
-
-    docker info &>/dev/null \
-        || die "Docker daemon is not running. Start Docker Desktop (or the service) and try again."
-    ok "Docker daemon is running"
+    check_docker
 }
 
 # ── step 2: copy example config files ─────────────────────────────────────────
@@ -551,40 +589,33 @@ choose_transcription_route() {
 # ── step 3.6: Vexa deployment (self-hosted vs hosted cloud) ───────────────────
 
 configure_vexa() {
+    local vexa_url vexa_key
     echo ""
     echo -e "${BOLD}Vexa setup${NC}"
     echo "  Vexa provides the meeting bot and transcription that DNA consumes."
+    echo "  Use ${VEXA_LOCAL_URL} to run Vexa locally in Docker."
     echo ""
-    echo -e "  1) Self-hosted Vexa  ${BOLD}(default — runs locally in Docker)${NC}"
-    echo "  2) Hosted Vexa  (api.cloud.vexa.ai)"
-    echo ""
-    read -r -p "  Choice [1]: " vexa_choice
-    vexa_choice="${vexa_choice:-1}"
-    echo ""
+    read -r -p "  Vexa API URL [${VEXA_CLOUD_URL}]: " vexa_url
+    vexa_url="${vexa_url:-$VEXA_CLOUD_URL}"
+    ensure_env_var "VEXA_API_URL" "$vexa_url" \
+        "$BACKEND_DIR/docker-compose.local.yml"
+    ok "Vexa API URL set to ${vexa_url}"
 
-    case "$vexa_choice" in
-        2|[hH]osted|[cC]loud)
-            VEXA_HOSTED=true
-            set_env_var "VEXA_API_URL" "$VEXA_CLOUD_URL" \
+    if is_hosted_vexa; then
+        VEXA_HOSTED=true
+        read -r -p "  Vexa API key (from https://www.vexa.ai for cloud, or Enter to skip): " vexa_key
+        if [[ -n "$vexa_key" ]]; then
+            ensure_env_var "VEXA_API_KEY" "$vexa_key" \
                 "$BACKEND_DIR/docker-compose.local.yml"
-            ok "Vexa API URL set to ${VEXA_CLOUD_URL}"
-            read -r -p "  Vexa cloud API key (from https://www.vexa.ai, or Enter to skip): " vexa_cloud_key
-            if [[ -n "$vexa_cloud_key" ]]; then
-                set_env_var "VEXA_API_KEY" "$vexa_cloud_key" \
-                    "$BACKEND_DIR/docker-compose.local.yml"
-                ok "Vexa cloud API key written to backend/docker-compose.local.yml"
-            else
-                warn "Skipped — set VEXA_API_KEY in backend/docker-compose.local.yml"
-            fi
-            info "Local Vexa container and transcription-backend setup will be skipped."
-            ;;
-        *)
-            VEXA_HOSTED=false
-            ensure_env_var "VEXA_API_URL" "$VEXA_LOCAL_URL" \
-                "$BACKEND_DIR/docker-compose.local.yml"
-            ok "Vexa API URL set to ${VEXA_LOCAL_URL}"
-            ;;
-    esac
+            ok "Vexa API key written to backend/docker-compose.local.yml"
+        else
+            warn "Skipped — set VEXA_API_KEY in backend/docker-compose.local.yml"
+        fi
+        info "Local Vexa container and transcription-backend setup will be skipped."
+    else
+        VEXA_HOSTED=false
+        info "A local Vexa API key will be generated when Docker services start."
+    fi
 }
 
 detect_transcription_route() {
@@ -811,6 +842,122 @@ configure_prodtrack() {
     esac
 }
 
+# ── step 5.5: session provider ────────────────────────────────────────────────
+
+configure_session_provider() {
+    echo ""
+    echo -e "${BOLD}Session provider${NC}"
+    echo "  Sessions link several playlists for one review. DNA stores the"
+    echo "  links; the provider lists and creates the sessions."
+    echo ""
+    echo -e "  1) Disabled  ${BOLD}(default)${NC}"
+    echo "     Session routes return 404, and the session UI is locked off"
+    echo ""
+    echo "  2) Mock"
+    echo "     In-memory sessions for local development, and the session UI locked on"
+    echo ""
+    read -r -p "  Choice [1]: " session_choice
+    session_choice="${session_choice:-1}"
+    echo ""
+
+    case "$session_choice" in
+        2|[mM]ock)
+            ensure_env_var "SESSION_PROVIDER" "mock" "$BACKEND_DIR/docker-compose.local.yml"
+            set_feature_flag "VITE_FEATURE_SESSIONS" "true" "$FRONTEND_ENV"
+            ok "Mock session provider configured (SESSION_PROVIDER=mock, VITE_FEATURE_SESSIONS=true)"
+            ;;
+        *)
+            ensure_env_var "SESSION_PROVIDER" "none" "$BACKEND_DIR/docker-compose.local.yml"
+            set_feature_flag "VITE_FEATURE_SESSIONS" "false" "$FRONTEND_ENV"
+            ok "Sessions disabled (SESSION_PROVIDER=none, VITE_FEATURE_SESSIONS=false)"
+            ;;
+    esac
+}
+
+# ── step 5.6: email provider ──────────────────────────────────────────────────
+
+configure_email() {
+    echo ""
+    echo -e "${BOLD}Email provider${NC}"
+    echo "  Sends playlist summary email. Noop logs the message and does not send it."
+    echo ""
+    echo -e "  1) Noop  ${BOLD}(default)${NC}"
+    echo ""
+    echo "  2) SMTP"
+    echo "     Gmail: smtp.gmail.com, port 587, STARTTLS, and a Google App Password"
+    echo ""
+    echo "  3) Resend"
+    echo "     Requires a Resend API key and from address"
+    echo ""
+    echo "  4) SendGrid"
+    echo "     Requires a SendGrid API key and from address"
+    echo ""
+    read -r -p "  Choice [1]: " email_choice
+    email_choice="${email_choice:-1}"
+    echo ""
+
+    case "$email_choice" in
+        2|[sS][mM][tT][pP])
+            local smtp_host smtp_port smtp_starttls smtp_starttls_value smtp_user smtp_password smtp_from
+            read -r -p "  SMTP host [smtp.gmail.com]: " smtp_host
+            smtp_host="${smtp_host:-smtp.gmail.com}"
+            read -r -p "  SMTP port [587]: " smtp_port
+            smtp_port="${smtp_port:-587}"
+            read -r -p "  STARTTLS [Y/n]: " smtp_starttls
+            case "${smtp_starttls:-Y}" in
+                n|N|[nN][oO]) smtp_starttls_value="false" ;;
+                *) smtp_starttls_value="true" ;;
+            esac
+            read -r -p "  SMTP username (Gmail address): " smtp_user
+            read -r -p "  SMTP password (Google App Password, not the account password): " smtp_password
+            read -r -p "  From address [${smtp_user:-YOUR_GMAIL_ADDRESS}]: " smtp_from
+            smtp_from="${smtp_from:-$smtp_user}"
+            if [[ -n "$smtp_user" && -n "$smtp_password" && -n "$smtp_from" ]]; then
+                ensure_env_var "EMAIL_PROVIDER" "smtp" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_HOST" "$smtp_host" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_PORT" "$smtp_port" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_START_TLS" "$smtp_starttls_value" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_USERNAME" "$smtp_user" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_PASSWORD" "$smtp_password" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_FROM_EMAIL" "$smtp_from" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "SMTP email provider configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set EMAIL_PROVIDER=smtp and SMTP_HOST, SMTP_PORT, SMTP_START_TLS, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL in backend/docker-compose.local.yml"
+            fi
+            ;;
+        3|[rR]esend)
+            local resend_key resend_from
+            read -r -p "  Resend API key: " resend_key
+            read -r -p "  From address: " resend_from
+            if [[ -n "$resend_key" && -n "$resend_from" ]]; then
+                ensure_env_var "EMAIL_PROVIDER" "resend" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "RESEND_API_KEY" "$resend_key" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "RESEND_FROM_EMAIL" "$resend_from" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "Resend email provider configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set EMAIL_PROVIDER=resend, RESEND_API_KEY, and RESEND_FROM_EMAIL in backend/docker-compose.local.yml"
+            fi
+            ;;
+        4|[sS]end[gG]rid|[sS]endgrid)
+            local sendgrid_key sendgrid_from
+            read -r -p "  SendGrid API key: " sendgrid_key
+            read -r -p "  From address: " sendgrid_from
+            if [[ -n "$sendgrid_key" && -n "$sendgrid_from" ]]; then
+                ensure_env_var "EMAIL_PROVIDER" "sendgrid" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SENDGRID_API_KEY" "$sendgrid_key" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SENDGRID_FROM_EMAIL" "$sendgrid_from" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "SendGrid email provider configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set EMAIL_PROVIDER=sendgrid, SENDGRID_API_KEY, and SENDGRID_FROM_EMAIL in backend/docker-compose.local.yml"
+            fi
+            ;;
+        *)
+            ensure_env_var "EMAIL_PROVIDER" "noop" "$BACKEND_DIR/docker-compose.local.yml"
+            ok "Noop email provider configured (EMAIL_PROVIDER=noop)"
+            ;;
+    esac
+}
+
 # ── step 6: frontend feature flags ────────────────────────────────────────────
 
 # Walk In Review → Transcription → AI (outer doll to inner), enforcing the
@@ -894,6 +1041,10 @@ configure_feature_flags() {
 # ── step 7: frontend dependencies ─────────────────────────────────────────────
 
 install_frontend() {
+    if [[ "$USE_DOCKER_FRONTEND" == "true" ]]; then
+        info "Skipping host frontend dependencies; Docker will install them on startup."
+        return
+    fi
     info "Installing frontend dependencies..."
     (cd "$FRONTEND_DIR" && npm install)
     ok "Frontend dependencies installed"
@@ -1003,9 +1154,10 @@ start_full_stack() {
 
     # Re-derive hosting from the configured API URL so --start (which skips the
     # interactive prompts) starts the right set of containers.
-    if grep -qF "VEXA_API_URL=${VEXA_CLOUD_URL}" \
-            "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+    if is_hosted_vexa; then
         VEXA_HOSTED=true
+    else
+        VEXA_HOSTED=false
     fi
 
     # Hosted Vexa runs no local vexa/vexa-db/vexa-dashboard containers, so omit
@@ -1060,13 +1212,17 @@ print_summary() {
     if [[ "$route" == "extension" ]]; then
         echo "    WhisperLive  →  ws://localhost:9090"
     elif [[ "$VEXA_HOSTED" == "true" ]]; then
-        echo "    Vexa         →  ${VEXA_CLOUD_URL} (hosted)"
+        echo "    Vexa         →  $(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml") (hosted)"
     else
         echo "    Vexa Admin   →  http://localhost:3001"
     fi
     echo ""
     echo "  To start the frontend (in a new terminal):"
-    echo "    cd frontend && npm run dev"
+    if [[ "$USE_DOCKER_FRONTEND" == "true" ]]; then
+        echo "    cd frontend && docker compose up -d"
+    else
+        echo "    cd frontend && npm run dev"
+    fi
     echo "    App  →  http://localhost:5173"
     echo ""
     echo "  To follow backend logs:"
@@ -1106,6 +1262,38 @@ print_summary() {
         echo "    backend/docker-compose.local.yml"
         echo ""
     fi
+    local email_provider
+    email_provider="$(read_compose_value EMAIL_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    case "${email_provider:-noop}" in
+        smtp)
+            if grep -q 'SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD' \
+                    "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+                needs_attention=true
+                echo -e "  ${YELLOW}Action needed:${NC} set SMTP_PASSWORD to a Google App Password in:"
+                echo "    backend/docker-compose.local.yml"
+                echo "    Account → Security → 2-Step Verification → App passwords"
+                echo ""
+            fi
+            ;;
+        resend)
+            if grep -q 'RESEND_API_KEY=your-resend-api-key' \
+                    "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+                needs_attention=true
+                echo -e "  ${YELLOW}Action needed:${NC} fill in RESEND_API_KEY in:"
+                echo "    backend/docker-compose.local.yml"
+                echo ""
+            fi
+            ;;
+        sendgrid)
+            if grep -q 'SENDGRID_API_KEY=your-sendgrid-api-key' \
+                    "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+                needs_attention=true
+                echo -e "  ${YELLOW}Action needed:${NC} fill in SENDGRID_API_KEY in:"
+                echo "    backend/docker-compose.local.yml"
+                echo ""
+            fi
+            ;;
+    esac
     if [[ "$VEXA_HOSTED" == "true" ]]; then
         if grep -q 'VEXA_API_KEY=\*\*' \
                 "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
@@ -1147,6 +1335,11 @@ remind_restart() {
 # docker restart keeps the env the container was created with. Recreate the api
 # service from the current compose files so edited settings are what it loads.
 restart_backend_if_running() {
+    check_docker
+    if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
+        warn "Backend restart skipped. Once Docker is available, run ./bootstrap.sh --start to load the updated settings."
+        return
+    fi
     local container="${BACKEND_CONTAINER:-dna-backend}"
     local running
     running="$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)"
@@ -1158,8 +1351,7 @@ restart_backend_if_running() {
     local route compose_cmd
     route="$(detect_transcription_route)"
     compose_cmd="$(get_compose_cmd)"
-    if grep -qF "VEXA_API_URL=${VEXA_CLOUD_URL}" \
-            "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+    if is_hosted_vexa; then
         VEXA_HOSTED=true
     else
         VEXA_HOSTED=false
@@ -1195,7 +1387,7 @@ maybe_bootstrap_vexa_key() {
         return 0
     fi
     if ! docker info &>/dev/null; then
-        warn "VEXA_API_KEY is still a placeholder. Start Docker, then choose Transcription again to generate a local Vexa API key."
+        warn "Docker is unavailable; skipping Vexa API key generation. Once Docker is available, choose Transcription again to generate VEXA_API_KEY."
         return 0
     fi
     info "Local Vexa has no API key yet — generating one."
@@ -1214,18 +1406,23 @@ change_settings() {
     echo ""
 
     while true; do
-        local llm_label route_label pt_label flags_label settings_choice
+        local llm_label route_label pt_label session_label email_label flags_label settings_choice
         llm_label="$(current_llm_label)"
         route_label="$(current_transcription_label)"
         pt_label="$(current_prodtrack_label)"
+        session_label="$(current_session_label)"
+        email_label="$(current_email_label)"
         flags_label="$(current_feature_flags_label)"
 
         echo -e "${BOLD}Settings${NC}"
         echo "  1) LLM provider            (${llm_label})"
         echo "  2) Transcription           (${route_label})"
         echo "  3) Production tracking     (${pt_label})"
-        echo "  4) Feature flags           (${flags_label})"
-        echo "  5) Done"
+        echo "  4) Sessions                (${session_label})"
+        echo "  5) Email                   (${email_label})"
+        echo "  6) Feature flags           (${flags_label})"
+        echo "  7) Reset"
+        echo "  8) Done"
         echo ""
         if ! read -r -p "  Choice: " settings_choice; then
             echo ""
@@ -1251,16 +1448,49 @@ change_settings() {
                 remind_restart
                 ;;
             4)
+                configure_session_provider
+                remind_restart
+                ;;
+            5)
+                configure_email
+                remind_restart
+                ;;
+            6)
                 configure_feature_flags
                 remind_restart
                 ;;
-            5|[dD]one|[qQ]|[qQ]uit)
+            7|[rR]eset)
+                warn "Reset will delete these local configuration files:"
+                echo "    $BACKEND_DIR/docker-compose.local.yml"
+                echo "    $BACKEND_DIR/docker-compose.local.vexa.yml"
+                echo "    $FRONTEND_ENV"
+                local confirm_reset
+                if ! read -r -p "  Reset local configuration? (y/N): " confirm_reset; then
+                    warn "Reset cancelled."
+                    return 0
+                fi
+                case "$confirm_reset" in
+                    y|Y|[yY][eE][sS])
+                        rm -f -- \
+                            "$BACKEND_DIR/docker-compose.local.yml" \
+                            "$BACKEND_DIR/docker-compose.local.vexa.yml" \
+                            "$FRONTEND_ENV" \
+                            || die "Could not remove all local configuration files. Check permissions before retrying."
+                        ok "Local configuration reset. Rerun ./bootstrap.sh for first-time setup."
+                        return 0
+                        ;;
+                    *)
+                        info "Reset cancelled."
+                        ;;
+                esac
+                ;;
+            8|[dD]one|[qQ]|[qQ]uit)
                 ok "No further changes."
                 restart_backend_if_running
                 return 0
                 ;;
             *)
-                warn "Enter 1-5."
+                warn "Enter 1-8."
                 ;;
         esac
         echo ""
@@ -1285,6 +1515,10 @@ main() {
         echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
         check_prerequisites
+        if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
+            warn "Service startup skipped. Once Docker is available, rerun ./bootstrap.sh --start."
+            return
+        fi
         echo ""
         TRANSCRIPTION_ROUTE="$(detect_transcription_route)"
         start_full_stack "$TRANSCRIPTION_ROUTE"
@@ -1303,12 +1537,19 @@ main() {
         choose_transcription_route
         copy_config_files
         echo ""
-        configure_llm
         apply_transcription_route
+        configure_llm
         configure_prodtrack
+        configure_session_provider
+        configure_email
         configure_feature_flags
         install_frontend
         echo ""
+        if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
+            warn "Configuration complete; Vexa API key generation and service startup skipped."
+            warn "Once Docker is available, rerun ./bootstrap.sh to generate any missing Vexa API key via Transcription, then run ./bootstrap.sh --start."
+            return
+        fi
         if [[ "$TRANSCRIPTION_ROUTE" == "extension" ]]; then
             info "Skipping Vexa bootstrap (browser-extension transcription route)"
         elif [[ "$VEXA_HOSTED" != "true" ]]; then

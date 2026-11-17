@@ -6,6 +6,7 @@ import {
   type ExportFileType,
   type Exporter,
 } from '@dna/core';
+import type { ResolvedNomenclature } from '../nomenclature';
 
 export const PDF_FILE_TYPE: ExportFileType = {
   label: 'PDF',
@@ -15,13 +16,20 @@ export const PDF_FILE_TYPE: ExportFileType = {
 };
 
 /** PDF with thumbnails; @react-pdf/renderer loads only when this runs. */
-export function createPdfExporter({ accent }: { accent: string }): Exporter {
+export function createPdfExporter({
+  accent,
+  terms,
+}: {
+  accent: string;
+  terms: ResolvedNomenclature;
+}): Exporter {
   return {
     fileType: PDF_FILE_TYPE,
     export: async (data, destination) => {
       const { renderReviewPdf, loadThumbnails } = await import('./reviewPdf');
       const blob = await renderReviewPdf(data, {
         accent,
+        terms,
         thumbnails: await loadThumbnails(data.rows),
       });
       await destination(blob);
@@ -49,11 +57,13 @@ function csvColumnsFromEnv(): CsvColumn[] {
 /** Every export format offered under Publish, in menu order. */
 export function createReviewExporters({
   accent,
+  terms,
 }: {
   accent: string;
+  terms: ResolvedNomenclature;
 }): Exporter[] {
   return [
     createCsvExporter(csvColumnsFromEnv()),
-    createPdfExporter({ accent }),
+    createPdfExporter({ accent, terms }),
   ];
 }

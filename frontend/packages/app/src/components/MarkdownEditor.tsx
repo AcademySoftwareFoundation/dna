@@ -27,6 +27,7 @@ import {
 } from '../contexts/MentionIndexContext';
 import { useNoteFocus } from '../contexts/NoteFocusContext';
 import { MentionList, type MentionListHandle } from './MentionList';
+import { useNomenclature } from '../nomenclature';
 
 interface MarkdownEditorProps {
   value?: string;
@@ -389,11 +390,14 @@ export function MarkdownEditor({
   attachmentFlashKey = 0,
   animatePill = false,
   onToggleAttachmentTray,
-  placeholder = 'Write your notes here...',
+  placeholder: placeholderProp,
   minHeight = 80,
   projectId,
   onMentionInsert,
 }: MarkdownEditorProps) {
+  const t = useNomenclature();
+  const placeholder =
+    placeholderProp ?? `Write your ${t.note.lowerPlural} here...`;
   const isUpdatingRef = useRef(false);
   const lastValueRef = useRef(value);
   const fileInputRef = useRef<HTMLInputElement>(null);

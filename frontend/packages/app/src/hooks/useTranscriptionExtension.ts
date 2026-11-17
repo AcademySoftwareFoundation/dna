@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNomenclature } from '../nomenclature';
 import {
   activateTranscriptionExtension,
   deriveIngestWsUrl,
@@ -36,6 +37,7 @@ export interface UseTranscriptionExtensionResult {
 export function useTranscriptionExtension(
   playlistId: string | null
 ): UseTranscriptionExtensionResult {
+  const t = useNomenclature();
   const { token } = useAuth();
   const available = EXTENSION_ID.trim().length > 0;
 
@@ -63,7 +65,7 @@ export function useTranscriptionExtension(
       return false;
     }
     if (playlistId == null) {
-      setError('Select a playlist first.');
+      setError(`Select a ${t.playlist.lower} first.`);
       return false;
     }
     const ping = await pingTranscriptionExtension(EXTENSION_ID);
@@ -101,7 +103,7 @@ export function useTranscriptionExtension(
     } finally {
       setIsActivating(false);
     }
-  }, [available, playlistId, token]);
+  }, [available, playlistId, token, t.playlist.lower]);
 
   // Probe for the extension on mount and periodically so the UI reflects
   // install state without requiring an activation attempt first. The key gate

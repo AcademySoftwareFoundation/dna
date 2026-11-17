@@ -38,6 +38,15 @@
   font-family: inherit;
 }
 
+/* iOS zooms the page into any focused input smaller than 16px, and the
+   app's inputs focus themselves when they appear; keep them at 16px on
+   touch screens so the demo holds still. */
+@media (pointer: coarse) {
+  .panel input {
+    font-size: 16px;
+  }
+}
+
 /* A few cards' worth; the rest scrolls, and a new version scrolls into view. */
 .list {
   display: flex;

@@ -12,8 +12,8 @@ const MenusDemo = lazy(() => import('./MenusDemo'));
 
 /**
  * The top of the sidebar, live: the playlist menu behind the Reload
- * Playlist chevron, with its Add Version and Change Playlist options working
- * against sample data. Used in docs/guides/3-ui.mdx.
+ * Playlist chevron, with its Add Version option working against sample
+ * data. Used in docs/guides/3-ui.mdx.
  */
 export default function LiveMenusDemo({caption}: {caption?: ReactNode}): ReactNode {
   const placeholder = <div className={styles.placeholder} />;

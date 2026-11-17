@@ -18,6 +18,7 @@ import type {
   NoteQCSeverity,
 } from '@dna/core';
 import { apiHandler } from '../api';
+import { useNomenclature } from '../nomenclature';
 
 const Row = styled.div`
   display: flex;
@@ -32,6 +33,7 @@ interface NoteQCTabProps {
 }
 
 export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
+  const t = useNomenclature();
   const qc = useQuery({
     queryKey: ['qcChecks', userEmail],
     queryFn: () => apiHandler.getQCChecks({ userEmail }),
@@ -107,8 +109,8 @@ export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
   return (
     <Flex direction="column" gap="3">
       <Text size="2" color="gray">
-        Define LLM checks that run when you open Publish. Error-level failures block publishing
-        until you fix or ignore them.
+        Define LLM checks that run when you open {t.publish.verb}. Error-level failures block{' '}
+        {t.publish.lowerProgressive} until you fix or ignore them.
       </Text>
       <Flex justify="end">
         <Button type="button" size="2" onClick={openCreate}>
@@ -137,7 +139,7 @@ export const NoteQCTab: React.FC<NoteQCTabProps> = ({ userEmail }) => {
                   {c.name}
                 </Text>
                 <Text size="1" color="gray">
-                  {c.severity === 'error' ? 'Error (blocks publish)' : 'Warning'}
+                  {c.severity === 'error' ? `Error (blocks ${t.publish.lower})` : 'Warning'}
                 </Text>
               </Flex>
               <Button type="button" variant="ghost" size="1" onClick={() => openEdit(c)}>

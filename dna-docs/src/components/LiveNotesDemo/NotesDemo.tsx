@@ -4,6 +4,7 @@ import {Theme} from '@radix-ui/themes';
 import '@radix-ui/themes/styles.css';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
+import {useAccent} from '@site/src/accent';
 import {NoteEditor, type LocalDraftNote} from '@dna-app/components/NoteEditor';
 import {ACCENTS, getTheme} from '@dna-app/styles/theme';
 import {
@@ -53,7 +54,8 @@ const freshDraft = (): LocalDraftNote => ({
 // <BrowserOnly>.
 export default function NotesDemo() {
   const {colorMode} = useColorMode();
-  const theme = useMemo(() => getTheme(colorMode, 'blue'), [colorMode]);
+  const accent = useAccent();
+  const theme = useMemo(() => getTheme(colorMode, accent), [colorMode, accent]);
   const imageUrl = useBaseUrl(MARKUP_IMAGE);
 
   const [draft, setDraft] = useState<LocalDraftNote>(freshDraft);
@@ -234,7 +236,7 @@ export default function NotesDemo() {
   return (
     <div ref={appRef} className={styles.app}>
       <ThemeProvider theme={theme}>
-        <Theme appearance={colorMode} accentColor={ACCENTS.blue.radix} hasBackground={false}>
+        <Theme appearance={colorMode} accentColor={ACCENTS[accent].radix} hasBackground={false}>
           <NoteEditor
             key={run}
             projectId={DEMO_PROJECT_ID}

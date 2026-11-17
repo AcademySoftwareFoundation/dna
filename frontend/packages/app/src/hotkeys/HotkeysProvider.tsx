@@ -3,15 +3,16 @@ import {
   useContext,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from 'react';
 import { HotkeysProvider as RHHProvider } from 'react-hotkeys-hook';
 import {
-  HOTKEY_ACTIONS,
-  HOTKEY_ACTIONS_MAP,
   STORAGE_KEY,
+  buildHotkeyActions,
   type HotkeyAction,
 } from './hotkeysConfig';
+import { useNomenclature } from '../nomenclature';
 
 type KeyMap = Record<string, string>;
 
@@ -68,13 +69,18 @@ interface HotkeysProviderProps {
 export function HotkeysProvider({ children }: HotkeysProviderProps) {
   const [keyMap, setKeyMap] = useState<KeyMap>(loadKeyMap);
 
+  const terms = useNomenclature();
+  const actions = useMemo(() => buildHotkeyActions(terms), [terms]);
+  const actionsById = useMemo(
+    () => new Map(actions.map((a) => [a.id, a])),
+    [actions]
+  );
+
   const getKeysForAction = useCallback(
     (actionId: string): string => {
-      return (
-        keyMap[actionId] || HOTKEY_ACTIONS_MAP[actionId]?.defaultKeys || ''
-      );
+      return keyMap[actionId] || actionsById.get(actionId)?.defaultKeys || '';
     },
-    [keyMap]
+    [keyMap, actionsById]
   );
 
   const setKeysForAction = useCallback((actionId: string, keys: string) => {
@@ -90,7 +96,7 @@ export function HotkeysProvider({ children }: HotkeysProviderProps) {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  const getAllActions = useCallback(() => HOTKEY_ACTIONS, []);
+  const getAllActions = useCallback(() => actions, [actions]);
 
   const getLabel = useCallback(
     (actionId: string): string => {

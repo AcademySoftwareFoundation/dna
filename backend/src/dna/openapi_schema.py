@@ -42,6 +42,7 @@ TAG_GROUPS: list[dict[str, Any]] = [
             "Draft Notes",
             "Publishing",
             "Playlist Metadata",
+            "Sessions",
             "Project Glossary",
             "Transcription",
             "Note QC",
@@ -62,6 +63,10 @@ _OPAQUE_ID = (
 PARAM_DESCRIPTIONS: dict[str, str] = {
     "project_id": _OPAQUE_ID.format(what="Project"),
     "playlist_id": _OPAQUE_ID.format(what="Playlist"),
+    "session_id": (
+        "Session ID as issued by the session provider. Opaque string; DNA "
+        "passes it through without interpreting it."
+    ),
     "version_id": _OPAQUE_ID.format(what="Version")
     + " Draft-note routes also accept `-1`, the playlist-level scratch note.",
     "shot_id": _OPAQUE_ID.format(what="Shot"),
@@ -93,6 +98,7 @@ _ERROR_DESCRIPTIONS: dict[int, str] = {
     401: "Missing or invalid bearer token",
     403: "Authenticated user does not match the user in the path",
     404: "Not found",
+    409: "Conflicts with the current state (e.g. the in-review version is pinned)",
     422: "Request is well-formed but cannot be fulfilled in the current state",
     500: "Tracking system was updated but DNA bookkeeping failed; do not retry blindly",
     501: "Configured production tracking provider does not support this operation",

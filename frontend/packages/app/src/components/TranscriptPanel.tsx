@@ -3,6 +3,7 @@ import styled, { css } from 'styled-components';
 import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
 import { useSegments } from '../hooks';
 import { useConnectionStatus } from '../hooks/useDNAEvents';
+import { useNomenclature } from '../nomenclature';
 
 interface TranscriptPanelProps {
   playlistId: string | null;
@@ -111,6 +112,7 @@ export function TranscriptPanel({
   playlistId,
   versionId,
 }: TranscriptPanelProps) {
+  const t = useNomenclature();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { isConnected } = useConnectionStatus();
   const { segments, isLoading, isError, error } = useSegments({
@@ -128,7 +130,7 @@ export function TranscriptPanel({
     return (
       <StateContainer>
         <MessageSquare size={32} opacity={0.3} />
-        <StateText>Select a version to view transcript</StateText>
+        <StateText>Select a {t.version.lower} to view transcript</StateText>
       </StateContainer>
     );
   }

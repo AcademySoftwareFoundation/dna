@@ -1,25 +1,26 @@
 import { useRef, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useQuery } from '@tanstack/react-query';
-import { SCRATCH_VERSION_ID } from '@dna/core';
+import { SCRATCH_VERSION_ID, sessionInReviewForPlaylist } from '@dna/core';
 import type { Version, SearchResult, UserSettings } from '@dna/core';
 import { VersionHeader } from './VersionHeader';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { AssistantPanel } from './AssistantPanel';
 import {
-  usePlaylistMetadata,
-  useSetInReview,
+  useSession,
+  useSessionSetInReview,
   useDraftNote,
   useProdtrackTabSync,
 } from '../hooks';
 import { useHotkeyAction } from '../hotkeys';
 import { apiHandler, useGetUserByEmail } from '../api';
-import { useFeatureFlags } from '../contexts';
+import { useFeatureFlags, useNomenclature } from '../contexts';
 
 interface ContentAreaProps {
   version?: Version | null;
   versions?: Version[];
   playlistId?: string | null;
+  sessionId?: string | null;
   userEmail?: string | null;
   onVersionSelect?: (version: Version) => void;
   onRefresh?: () => void;
@@ -81,6 +82,7 @@ export function ContentArea({
   version,
   versions = [],
   playlistId,
+  sessionId = null,
   userEmail,
   onVersionSelect,
   onRefresh,
@@ -141,16 +143,20 @@ export function ContentArea({
   const canGoBack = currentIndex > 0;
   const canGoNext = currentIndex >= 0 && currentIndex < versions.length - 1;
 
-  const { data: playlistMetadata } = usePlaylistMetadata(playlistId ?? null);
-  const { setInReview, isLoading: isSettingInReview } = useSetInReview(
-    playlistId ?? null
-  );
+  const { data: dnaSession } = useSession(sessionId);
+  const {
+    setInReview,
+    setInReviewPinned,
+    isLoading: isSettingInReview,
+  } = useSessionSetInReview(sessionId, playlistId ?? null);
 
-  const inReviewVersionId = playlistMetadata?.in_review;
+  const review = sessionInReviewForPlaylist(dnaSession, playlistId);
+  const inReviewVersionId = review.versionId;
   const inReviewVersion = inReviewVersionId
     ? versions.find((v) => v.id === inReviewVersionId)
     : versions.find((v) => v.status === IN_REVIEW_STATUS);
   const hasInReview = !!inReviewVersion;
+  const isInReviewPinned = review.pinned;
   const isCurrentVersionInReview =
     version && inReviewVersionId ? version.id === inReviewVersionId : false;
 
@@ -172,9 +178,14 @@ export function ContentArea({
     }
   };
 
+  // Set in review → (on the version already in review) pin → unpin.
+  // Setting another version in review also unpins the current one.
   const handleSetInReview = async () => {
-    if (version && playlistId) {
-      await setInReview(version.id);
+    if (!version || !playlistId) return;
+    if (isCurrentVersionInReview) {
+      await setInReviewPinned(version.id, !isInReviewPinned);
+    } else {
+      await setInReview(version.id, isInReviewPinned);
     }
   };
 
@@ -214,11 +225,12 @@ export function ContentArea({
       autoSyncEnabled: shouldAutoSyncProdtrackTab,
     });
 
+  const t = useNomenclature();
   const syncProdtrackTitle = !activeProdtrackUrl
-    ? 'Production tracking URL is not available for this version.'
+    ? `${t.productionTracking.singular} URL is not available for this ${t.version.lower}.`
     : extensionAvailable
       ? 'Open in the tab sync extension when available; otherwise opens in a new tab.'
-      : 'Open production tracking in a new browser tab.';
+      : `Open ${t.productionTracking.lower} in a new browser tab.`;
 
   const syncProdtrackDisabled = !activeProdtrackUrl;
 
@@ -226,9 +238,9 @@ export function ContentArea({
     return (
       <ContentWrapper>
         <EmptyState>
-          <EmptyStateTitle>No version selected</EmptyStateTitle>
+          <EmptyStateTitle>No {t.version.lower} selected</EmptyStateTitle>
           <EmptyStateText>
-            Select a version from the sidebar to view its details
+            Select a {t.version.lower} from the sidebar to view its details
           </EmptyStateText>
         </EmptyState>
       </ContentWrapper>
@@ -295,6 +307,7 @@ export function ContentArea({
         canGoNext={canGoNext}
         hasInReview={hasInReview}
         isCurrentVersionInReview={isCurrentVersionInReview}
+        isInReviewPinned={isInReviewPinned}
         isSettingInReview={isSettingInReview}
         onRefresh={handleRefreshClick}
       />

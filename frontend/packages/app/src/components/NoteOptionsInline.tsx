@@ -4,6 +4,7 @@ import { Pencil, X } from 'lucide-react';
 import { SearchResult } from '@dna/core';
 import { EntitySearchInput } from './EntitySearchInput';
 import { EntityPill, type EntityType } from './EntityPill/EntityPill';
+import { useNomenclature } from '../nomenclature';
 
 interface NoteOptionsInlineProps {
   /** Selected users for To field */
@@ -206,6 +207,7 @@ export function NoteOptionsInline({
   onSubjectChange,
   onLinksChange,
 }: NoteOptionsInlineProps) {
+  const t = useNomenclature();
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing) {
@@ -213,7 +215,7 @@ export function NoteOptionsInline({
       <Wrapper>
         <EditForm>
           <EditHeader>
-            <EditTitle>Note Options</EditTitle>
+            <EditTitle>{t.note.singular} Options</EditTitle>
             <CloseButton onClick={() => setIsEditing(false)}>
               <X size={14} />
             </CloseButton>
@@ -268,7 +270,7 @@ export function NoteOptionsInline({
                 projectId={projectId}
                 value={linksValue}
                 onChange={(entities) => onLinksChange?.(entities)}
-                placeholder="Search shots, assets, tasks..."
+                placeholder={`Search ${t.shot.lowerPlural}, ${t.asset.lowerPlural}, ${t.task.lowerPlural}...`}
                 lockedEntities={currentVersion ? [currentVersion] : []}
               />
             </FieldGroup>
@@ -356,7 +358,7 @@ export function NoteOptionsInline({
         </OptionChip>
         <EditButton
           onClick={() => setIsEditing(true)}
-          title="Edit note options"
+          title={`Edit ${t.note.lower} options`}
         >
           <Pencil size={14} />
         </EditButton>

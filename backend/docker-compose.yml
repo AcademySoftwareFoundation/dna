@@ -35,6 +35,8 @@ services:
       - SHOTGRID_API_KEY=your-shotgrid-api-key
       - SHOTGRID_SCRIPT_NAME=your-shotgrid-script-name
       - PRODTRACK_PROVIDER=shotgrid
+      # Sessions: none disables session routes (404). mock enables the in-memory provider.
+      - SESSION_PROVIDER=none
       - MONGODB_URL=mongodb://mongo:27017
       - STORAGE_PROVIDER=mongodb
       # LLM provider: set LLM_PROVIDER to openai | anthropic | gemini.

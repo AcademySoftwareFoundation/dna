@@ -18,6 +18,21 @@ export function useAuth() {
   };
 }
 
+/**
+ * Sessions follow the demo: off for the login guide's, so sign-in goes from
+ * project straight to playlist; on for the sessions guide's, which shows the
+ * session step with the sample sessions from ./useSessions.ts.
+ */
+export function useFeatureFlags() {
+  const {sessions} = useDemoState();
+  return {
+    transcriptionEnabled: true,
+    aiEnabled: true,
+    inReviewEnabled: true,
+    sessionsEnabled: sessions,
+  };
+}
+
 /** Follows the docs' light/dark toggle; the accent matches the docs' indigo. */
 export function useThemeMode() {
   const {mode} = useDemoState();

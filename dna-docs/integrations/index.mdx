@@ -1,0 +1,25 @@
+---
+sidebar_position: 1
+slug: /
+title: Integrations
+---
+
+How other tools in a review connect to DNA, and how to set them up for your studio.
+
+## Review players
+
+A review player can tell DNA which version is on screen, so the version [in review](/docs/4-in-reivew) follows the player and notes and transcript segments land on the right version.
+
+| Player | Status | Setup |
+| --- | --- | --- |
+| RV and OpenRV | Supported | [RV Integration](/integrations/rv) |
+| xSTUDIO | Planned | |
+| cineSync | Planned | |
+
+## Building your own
+
+The RV package has no special access to DNA. It sets the version in review with one HTTP request, and any player that can send that request can do the same.
+
+- [Create or update playlist metadata](/api/reference/upsert-playlist-metadata-playlists-playlist-id-metadata-put) is the request: a `PUT` with the version ID as `in_review`.
+- [Real-time](/api/realtime) covers the event stream DNA uses to tell every open session about the change.
+- [Authentication](/api/authentication) covers the bearer token the request needs.

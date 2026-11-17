@@ -1,0 +1,70 @@
+/* The section on its own, framed like the other demos. */
+.frame {
+  position: relative;
+  /* What the app's GlobalStyles set on :root, scoped to the demo. */
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.frame :global(.radix-themes) {
+  min-height: 0 !important;
+  font-family: inherit;
+}
+
+/* The settings dialog's panel. */
+.root {
+  padding: 24px;
+  color: var(--c-text);
+  background: var(--c-bg-surface);
+  border: 1px solid var(--dna-hairline);
+  border-radius: 12px;
+}
+
+/* The app's AI tab Section, SectionTitle and SectionDescription. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.info {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: var(--c-text-muted);
+  cursor: help;
+}
+
+.description {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--c-text-muted);
+}
+
+/* A few paragraphs' worth; the rest scrolls. */
+.prompt {
+  height: 320px;
+  font-family: inherit;
+}
+
+.prompt textarea {
+  resize: none;
+  font-family: inherit;
+}
+
+/* The demo's height before it loads. */
+.placeholder {
+  height: 445px;
+}

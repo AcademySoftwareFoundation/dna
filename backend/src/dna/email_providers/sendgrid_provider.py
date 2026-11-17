@@ -62,12 +62,7 @@ class SendGridProvider(EmailProviderBase):
                 attachment.content_id = cid
                 message.add_attachment(attachment)
 
-        try:
-            response = self.client.send(message)
-        except Exception as e:
-            print(type(e).__name__)
-            print(e)
-            raise
+        response = self.client.send(message)
 
         if response.status_code >= 400:
             raise RuntimeError(

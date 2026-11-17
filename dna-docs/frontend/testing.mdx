@@ -1,0 +1,42 @@
+---
+sidebar_position: 7
+title: Testing and Code Quality
+---
+
+## Tests
+
+Both packages use [Vitest](https://vitest.dev/). The app's tests also use [Testing Library](https://testing-library.com/docs/react-testing-library/intro/) and run in jsdom. A test file sits next to the code it covers and is named `*.test.ts` or `*.test.tsx`.
+
+```bash
+npm run test          # watch mode, both packages
+npm run test:run      # run once
+npm run test:coverage
+npm run test --workspace=@dna/app   # one package
+```
+
+### Rendering components
+
+Most components only work inside the app's providers: React Query, theme, auth, events, feature flags and terminology. Import `render` from `src/test/render.tsx` instead of from Testing Library. It wraps the component in all of those providers and uses a React Query client that doesn't retry failed requests.
+
+```tsx
+import { render, screen } from '../test/render';
+
+it('shows the version name', () => {
+  render(<VersionCard version={version} />);
+  expect(screen.getByText('TST_010_0020_anim_v060')).toBeInTheDocument();
+});
+```
+
+The test config clears `VITE_NOMENCLATURE`, so tests always see DNA's default terms even if your `.env` renames them.
+
+## Formatting and type checks
+
+```bash
+npm run format        # format with Prettier
+npm run format:check  # check only
+npm run typecheck     # tsc across both packages
+```
+
+## In CI
+
+A push or pull request that changes a `.ts`, `.tsx`, `.json`, `.css` or `.md` file under `frontend/` runs the "Frontend Code Formatting and Type Checking" workflow. It runs `npm ci`, `npm run format:check` and `npm run typecheck`, so run the last two yourself before pushing. The workflow doesn't run the tests.

@@ -59,6 +59,20 @@ Authentication is handled by pluggable auth providers, configured via the `AUTH_
 
 The frontend must match: set `VITE_AUTH_PROVIDER=none` for local dev (email-based sign-in) or `VITE_AUTH_PROVIDER=google` when using Google OAuth.
 
+### Sessions
+
+DNA owns the `Session` document: playlist links (`playlist_ids`), in-review (`in_review_playlist_id` / `in_review_version_id` / `in_review_pinned`), and transcription (`meeting_id`, `platform`, pause state). Playlist metadata is slim (`has_scratch` only).
+
+Session providers optionally supply an **external catalog** that DNA syncs into Sessions via `external_id`. Configure the catalog with `SESSION_PROVIDER`:
+
+| Value | Provider | Use case |
+|-------|----------|----------|
+| `none` | No external catalog (default) | DNA sessions still work; `POST /sessions/ensure-for-playlist` creates implicit one-playlist sessions when the UI is playlist-first |
+| `mock` | In-memory mock catalog | Local development. Seeds two sample sessions the first time a project's sessions are listed, and accepts creates |
+
+
+The frontend enables the multi-session UI separately with `VITE_FEATURE_SESSIONS`. When that flag is off, the app still ensures an implicit DNA session per playlist so in-review and transcription keep working. `./bootstrap.sh` sets both: Disabled writes `SESSION_PROVIDER=none` and locks the session UI off, and Mock writes `SESSION_PROVIDER=mock` and locks it on.
+
 ## Setup
 
 To setup the backend, you need to have the following:
@@ -81,6 +95,7 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
 2. Edit `docker-compose.local.yml` and set at least:
    - **ShotGrid:** To use ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave unset) and set `SHOTGRID_URL`, `SHOTGRID_API_KEY`, and `SHOTGRID_SCRIPT_NAME`. To run without ShotGrid, set `PRODTRACK_PROVIDER=mock`; see [Mock production tracking](#mock-production-tracking).
    - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
+   - **Email:** `EMAIL_PROVIDER=noop` logs playlist summary email and does not send it. To send mail, set `smtp`, `resend`, or `sendgrid` and the matching credentials. Gmail setup is in [Email](../dna-docs/deployment/email.mdx). `./bootstrap.sh` writes this into the local compose file.
    - **LLM:** Choose an LLM provider and matching credentials. Examples:
 
      ```yaml

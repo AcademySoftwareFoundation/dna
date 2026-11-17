@@ -1,0 +1,354 @@
+/* The picture fills the stage; the canvas inside is scaled to fit it. */
+.picture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The design canvas; PlayerSyncPicture sets its size, colours and scale. */
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  color: var(--c-text);
+  background: var(--c-bg-base);
+}
+
+/* Radix's root theme sizes itself to the viewport. */
+.canvas :global(.radix-themes) {
+  min-height: 0 !important;
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+/* ---------- DNA ---------- */
+
+/* Reload Playlist over Follow In Review, as in the app. */
+.toolbar {
+  align-items: flex-start;
+}
+
+.toolbarLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.follow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-text-2);
+}
+
+/* ---------- The review player ---------- */
+
+/* A generic desktop window floating over DNA's content, like a player
+   beside the browser. Its chrome takes DNA's colours, so it follows the
+   docs' light/dark mode; the viewer itself stays black. */
+.player {
+  position: absolute;
+  top: 96px;
+  left: 394px;
+  display: flex;
+  flex-direction: column;
+  width: 600px;
+  height: 500px;
+  overflow: hidden;
+  font-size: 12px;
+  background: var(--c-bg-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+:global([data-theme='light']) .player {
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.titleBar {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  background: var(--c-bg-overlay);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.lights {
+  display: flex;
+  gap: 7px;
+}
+
+.lights i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.lights i:nth-child(2) {
+  background: #febc2e;
+}
+
+.lights i:nth-child(3) {
+  background: #28c840;
+}
+
+.windowTitle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--c-text-2);
+}
+
+.playerBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The source list, with the request log under it. */
+.sources {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 236px;
+  padding: 10px 0;
+  background: var(--c-sidebar-bg);
+  border-right: 1px solid var(--c-border);
+}
+
+.sourcesLabel {
+  padding: 0 12px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+.rows {
+  position: relative;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  white-space: nowrap;
+  color: var(--c-text);
+  transition: background-color 120ms, color 120ms;
+}
+
+.row svg {
+  flex-shrink: 0;
+  color: var(--c-text-muted);
+}
+
+.rowActive {
+  color: #fff;
+  background: var(--c-accent);
+}
+
+.rowActive svg {
+  color: inherit;
+}
+
+/* The pointer, gliding to the next row before each click. */
+.cursor {
+  position: absolute;
+  left: 150px;
+  width: 15px;
+  height: 21px;
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+  transition: top 450ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Right under the sources, clear of the stage's bottom fade. Newest
+   request on top. */
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--c-border);
+}
+
+.logEntry {
+  padding: 0 12px;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--c-text-2);
+  animation: logIn 250ms ease-out;
+}
+
+/* The older requests recede. */
+.logEntry + .logEntry {
+  opacity: 0.5;
+}
+
+.logLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.method {
+  padding: 0 4px;
+  font-weight: 700;
+  color: var(--c-accent);
+  background: var(--c-accent-subtle);
+  border-radius: 3px;
+}
+
+.logBody {
+  color: var(--c-text);
+}
+
+.status {
+  margin-left: auto;
+  color: var(--c-text-muted);
+}
+
+.statusDone {
+  font-weight: 700;
+  color: var(--c-success);
+}
+
+@keyframes logIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* The viewer: the playing source letterboxed on black, a timeline under it. */
+.viewer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  background: #000;
+}
+
+.frame {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-height: 0;
+}
+
+.frame img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 11px;
+  color: #9ca3af;
+  background: #111;
+  border-top: 1px solid #222;
+}
+
+.frameNumber {
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  background: #333;
+  border-radius: 2px;
+}
+
+/* Restarted on each source (keyed), running for one step. */
+.playhead {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #6b8afd;
+  animation: play 2600ms linear forwards;
+}
+
+@keyframes play {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* ---------- Supported players ---------- */
+
+.platforms {
+  margin-top: 3rem;
+}
+
+.logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Square icons rather than wordmarks, so taller than the other logo rows to
+   carry the same weight. Scoped to win over the shared row's mobile height. */
+.platforms .iconLink {
+  height: 64px;
+}
+
+/* The page background, so it follows light/dark mode. A little later than
+   the shared fade so the player's source list and request log read, as well
+   as DNA's sidebar, before it gives way to the copy. */
+.fadeRight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent 32%, var(--ifm-background-color) 52%);
+}
+
+@media (max-width: 996px) {
+  .fadeRight {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor,
+  .row {
+    transition: none;
+  }
+
+  .logEntry,
+  .playhead {
+    animation: none;
+  }
+}

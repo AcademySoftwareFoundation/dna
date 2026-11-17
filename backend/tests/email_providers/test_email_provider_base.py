@@ -11,7 +11,7 @@ from dna.models.entity import Playlist, Project, User
 class DummyEmailProvider(EmailProviderBase):
     """Concrete implementation used for testing the abstract base class."""
 
-    EMAIL_PROVIDER_NAME = "dummy"
+    EMAIL_PROVIDER_NAME = "DUMMY"
 
     def _get_provider_client(self):
         return None
@@ -185,3 +185,72 @@ class TestEmailBuilder:
         assert "Test Playlist" in html
         assert "Test Project" in html
         assert "https://example.com/playlist/1" in html
+
+    def test_build_message_returns_subject_text_and_html(self):
+        """build_message returns the subject, plain text, and HTML together."""
+        subject, text, html = EmailBuilder.build_message(
+            Playlist(id="1", code="Test Playlist"),
+            Project(id="1", name="Test Project"),
+            User(id="1", email="user@example.com"),
+            [],
+            [],
+            "https://example.com/playlist/1",
+        )
+        assert subject == "Dailies Summary: Test Playlist - Test Project"
+        assert "Test Playlist" in text
+        assert "Test Playlist" in html
+
+
+class TestEmailProviderBaseConfiguration:
+    """Tests for shared provider configuration."""
+
+    def test_missing_provider_name_raises(self):
+        """A provider class must set EMAIL_PROVIDER_NAME."""
+
+        class UnnamedProvider(EmailProviderBase):
+            def _get_provider_client(self):
+                return None
+
+            async def build_message(self, *args, **kwargs):
+                return ("", "", "")
+
+            async def send(self, *args, **kwargs):
+                return ""
+
+        with pytest.raises(NotImplementedError, match="missing EMAIL_PROVIDER_NAME"):
+            UnnamedProvider()
+
+    def test_reads_api_key_and_timeout_from_env(self):
+        """The base class loads the API key and timeout from provider env vars."""
+        with patch.dict(
+            "os.environ",
+            {"DUMMY_API_KEY": "env-key", "DUMMY_TIMEOUT": "9.5"},
+            clear=True,
+        ):
+            provider = DummyEmailProvider()
+
+        assert provider.api_key == "env-key"
+        assert provider.timeout == 9.5
+
+    def test_explicit_api_key_and_timeout_win(self):
+        """Constructor arguments override environment configuration."""
+        with patch.dict(
+            "os.environ",
+            {"DUMMY_API_KEY": "env-key", "DUMMY_TIMEOUT": "9.5"},
+            clear=True,
+        ):
+            provider = DummyEmailProvider(api_key="explicit", timeout=3)
+
+        assert provider.api_key == "explicit"
+        assert provider.timeout == 3
+
+    def test_client_is_created_once(self):
+        """The client property caches the provider client."""
+        provider = DummyEmailProvider(api_key="key")
+        with patch.object(
+            provider, "_get_provider_client", return_value="client"
+        ) as get_client:
+            assert provider.client == "client"
+            assert provider.client == "client"
+
+        get_client.assert_called_once()

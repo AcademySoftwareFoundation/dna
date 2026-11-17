@@ -1,60 +1,53 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import {
   PanelLeftClose,
   PanelLeft,
   Settings,
   Loader2,
   AlertCircle,
-  ChevronDown,
 } from 'lucide-react';
-import { Button, DropdownMenu, Switch, Tooltip } from '@radix-ui/themes';
-import { SCRATCH_VERSION_ID } from '@dna/core';
-import type { Version, DraftNote, Playlist, Exporter } from '@dna/core';
-import { Logo } from './Logo';
-import { UserAvatar } from './UserAvatar';
+import { Switch, Tooltip } from '@radix-ui/themes';
+import { SCRATCH_VERSION_ID, sessionInReviewForPlaylist } from '@dna/core';
+import type { Version } from '@dna/core';
 import { SplitButton } from './SplitButton';
 import { AddVersionInput } from './AddVersionInput';
-import { ChangePlaylistInput } from './ChangePlaylistInput';
 import { ExpandableSearch, type ExpandableSearchHandle } from './ExpandableSearch';
 import { SquareButton } from './SquareButton';
 import { VersionCard, NoteStatus } from './VersionCard';
 import { TranscriptionMenu } from './TranscriptionMenu';
 import { SettingsModal } from './SettingsModal';
-import { PublishDialog } from './PublishDialog';
-import { scopePublishToVersion } from './publishScope';
-import { createReviewExporters } from '../export/exporters';
-import { loadReviewExportData } from '../export/loadReviewExportData';
-import { chooseSaveDestination } from '../export/saveDestination';
-import { useGetVersionsForPlaylist, useGetUserByEmail, apiHandler } from '../api';
+import { useGetVersionsForPlaylist, apiHandler } from '../api';
 import {
   usePlaylistMetadata,
   useUpsertPlaylistMetadata,
   usePlaylistDraftNotes,
-  useSetInReview,
+  useSession,
+  useSessionSetInReview,
   useFollowInReview,
 } from '../hooks';
 import { useHotkeyAction, useHotkeyConfig } from '../hotkeys';
-import { useFeatureFlags, useNoteFocus, useToast } from '../contexts';
+import {
+  useFeatureFlags,
+  useNomenclature,
+  useNoteFocus,
+} from '../contexts';
 
 interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  onPlaylistChange?: (playlist: Playlist) => void;
   playlistId: string | null;
+  sessionId?: string | null;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
   userEmail: string;
-  onLogout?: () => void;
 }
 
 const SidebarWrapper = styled.aside<{ $collapsed: boolean }>`
-  position: fixed;
-  left: 0;
-  top: 0;
-  height: 100vh;
+  flex-shrink: 0;
+  height: 100%;
   width: ${({ theme, $collapsed }) =>
     $collapsed ? theme.sizes.sidebar.collapsed : theme.sizes.sidebar.expanded};
   background: ${({ theme }) => theme.colors.sidebar.bg};
@@ -62,69 +55,15 @@ const SidebarWrapper = styled.aside<{ $collapsed: boolean }>`
   display: flex;
   flex-direction: column;
   transition: width ${({ theme }) => theme.transitions.base};
-  z-index: 100;
   overflow: hidden;
 `;
 
-const Header = styled.div<{ $collapsed: boolean }>`
-  padding: ${({ $collapsed }) => ($collapsed ? '12px 8px' : '12px 16px')};
+const SidebarTop = styled.div<{ $collapsed: boolean }>`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: ${({ $collapsed }) => ($collapsed ? 'center' : 'flex-end')};
+  padding: ${({ $collapsed }) => ($collapsed ? '12px 8px' : '8px 12px')};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
-  min-height: 64px;
-  gap: ${({ $collapsed }) => ($collapsed ? '4px' : '0')};
-`;
-
-const HeaderActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-/**
- * Solid Publish button with a joined chevron, the same split shape as Reload
- * Playlist. `$vertical` folds the chevron underneath for the collapsed sidebar.
- */
-const PublishSplit = styled.div<{ $vertical?: boolean }>`
-  display: flex;
-
-  ${({ $vertical }) =>
-    $vertical
-      ? `
-    flex-direction: column;
-    width: 100%;
-
-    & > button {
-      width: 100%;
-      padding: 0;
-    }
-
-    & > button:first-child {
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    & > button:last-child {
-      border-top-left-radius: 0;
-      border-top-right-radius: 0;
-      height: 20px;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    }
-  `
-      : `
-    & > button:first-child {
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    & > button:last-child {
-      border-top-left-radius: 0;
-      border-bottom-left-radius: 0;
-      padding: 0 6px;
-      box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.25);
-    }
-  `}
 `;
 
 const CollapseButton = styled.button`
@@ -195,6 +134,16 @@ const ToolbarLeft = styled.div`
   flex-shrink: 0;
 `;
 
+const ToolbarRight = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-left: auto;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+`;
+
 const ScrollableContent = styled.div`
   flex: 1;
   overflow-y: auto;
@@ -239,13 +188,6 @@ const SettingsButton = styled.button`
   }
 `;
 
-const CollapsedToolbar = styled.div`
-  display: flex;
-  justify-content: center;
-  padding: 12px 8px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
-`;
-
 const CollapsedFooter = styled.div`
   display: flex;
   flex-direction: column;
@@ -264,16 +206,6 @@ const VersionCardList = styled.div`
 
 const VersionListContainer = styled.div`
   position: relative;
-`;
-
-const RefetchOverlay = styled.div`
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme }) => theme.colors.bg.base}cc;
-  z-index: 10;
 `;
 
 const StateContainer = styled.div`
@@ -316,21 +248,16 @@ const StateText = styled.span`
 export function Sidebar({
   collapsed,
   onCollapsedChange,
-  onPlaylistChange,
   playlistId,
+  sessionId = null,
   projectId,
   selectedVersionId,
   onVersionSelect,
   userEmail,
-  onLogout,
 }: SidebarProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const [toolbarInput, setToolbarInput] = useState<
-    'none' | 'add-version' | 'change-playlist'
-  >('none');
-  // null = closed; 'selected' limits the dialog to the selected version.
-  const [publishScope, setPublishScope] = useState<'all' | 'selected' | null>(
-    null
+  const [toolbarInput, setToolbarInput] = useState<'none' | 'add-version'>(
+    'none'
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const versionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -351,42 +278,22 @@ export function Sidebar({
   const {
     data: versions,
     isLoading,
-    isFetching,
     isError,
     error,
     refetch,
   } = useGetVersionsForPlaylist(playlistId);
 
-  const { data: user } = useGetUserByEmail(userEmail);
   const { data: playlistMetadata } = usePlaylistMetadata(playlistId);
   const { data: draftNotes } = usePlaylistDraftNotes(playlistId);
+  const { data: dnaSession } = useSession(sessionId);
 
-  const publishDialogNotes = useMemo(
-    () =>
-      (draftNotes ?? []).filter((n: DraftNote) => {
-        const hasContent =
-          Boolean(n.content?.trim()) || Boolean(n.attachment_ids?.length);
-        const needsPublishing =
-          !n.published || n.edited || Boolean(n.attachment_ids?.length);
-        return hasContent && needsPublishing;
-      }),
-    [draftNotes]
+  const review = sessionInReviewForPlaylist(dnaSession, playlistId);
+  const inReviewVersionId = review.versionId;
+  const inReviewPinned = review.pinned;
+  const { setInReview, setInReviewPinned } = useSessionSetInReview(
+    sessionId,
+    playlistId
   );
-
-  const publishDialogInput = useMemo(
-    () =>
-      publishScope === 'selected'
-        ? scopePublishToVersion(
-            publishDialogNotes,
-            versions ?? [],
-            selectedVersionId
-          )
-        : { notes: publishDialogNotes, versions: versions ?? [] },
-    [publishScope, publishDialogNotes, versions, selectedVersionId]
-  );
-
-  const inReviewVersionId = playlistMetadata?.in_review;
-  const { setInReview } = useSetInReview(playlistId);
   const noteFocus = useNoteFocus();
   const { follow, setFollow } = useFollowInReview({
     enabled: inReviewEnabled,
@@ -400,11 +307,8 @@ export function Sidebar({
   // Each is non-null only while its toolbar input should be showing.
   const addVersionPlaylistId =
     toolbarInput === 'add-version' ? playlistId : null;
-  const changePlaylistProjectId =
-    toolbarInput === 'change-playlist' ? projectId : null;
   // An open toolbar input owns the whole row, including the search slot.
-  const toolbarInputOpen =
-    addVersionPlaylistId !== null || changePlaylistProjectId !== null;
+  const toolbarInputOpen = addVersionPlaylistId !== null;
 
   const queryClient = useQueryClient();
   const upsertPlaylistMetadata = useUpsertPlaylistMetadata(playlistId);
@@ -434,79 +338,7 @@ export function Sidebar({
     onVersionSelect?.(scratchVersion);
   };
 
-  const { showToast } = useToast();
-  const theme = useTheme();
-  const exporters = useMemo(
-    () => createReviewExporters({ accent: theme.colors.accent.main }),
-    [theme.colors.accent.main]
-  );
-  const [exportingLabel, setExportingLabel] = useState<string | null>(null);
-
-  const handleExport = async (exporter: Exporter) => {
-    if (!playlistId) return;
-    const { label, extension } = exporter.fileType;
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-      // The save dialog needs the click's user gesture, so it goes first.
-      const destination = await chooseSaveDestination(
-        `dna-review-playlist-${playlistId}-${today}${extension}`,
-        exporter.fileType
-      );
-      if (!destination) return;
-      setExportingLabel(label);
-
-      const data = await loadReviewExportData({
-        playlistId,
-        projectId,
-        versions: [
-          ...(hasScratch ? [scratchVersion] : []),
-          ...(versions ?? []),
-        ],
-        userEmail,
-        transcriptionEnabled,
-        queryClient,
-      });
-      await exporter.export(data, destination);
-      const count = data.rows.length;
-      showToast({
-        title: `${label} exported`,
-        description: `${count} version${count === 1 ? '' : 's'} saved.`,
-        type: 'success',
-      });
-    } catch (err) {
-      showToast({
-        title: `${label} export failed`,
-        description: err instanceof Error ? err.message : String(err),
-        type: 'error',
-      });
-    } finally {
-      setExportingLabel(null);
-    }
-  };
-
-  // Shared by the expanded header and collapsed toolbar so the menus stay in sync.
-  const renderPublishMenuItems = () => (
-    <>
-      <DropdownMenu.Item
-        disabled={!selectedVersionId}
-        onSelect={() => setPublishScope('selected')}
-      >
-        Publish Selected
-      </DropdownMenu.Item>
-      {exporters.map((exporter) => {
-        const { label } = exporter.fileType;
-        return (
-          <DropdownMenu.Item
-            key={label}
-            disabled={!playlistId || exportingLabel !== null}
-            onSelect={() => void handleExport(exporter)}
-          >
-            {exportingLabel === label ? `Exporting ${label}…` : `Export ${label}`}
-          </DropdownMenu.Item>
-        );
-      })}
-    </>
-  );
+  const t = useNomenclature();
 
   const handleRemoveScratch = () => {
     if (!playlistId) return;
@@ -536,10 +368,9 @@ export function Sidebar({
 
   const playlistMenuItems = [
     {
-      label: 'Change Playlist',
-      onSelect: () => setToolbarInput('change-playlist'),
+      label: `Add ${t.version.singular}`,
+      onSelect: () => setToolbarInput('add-version'),
     },
-    { label: 'Add Version', onSelect: () => setToolbarInput('add-version') },
     { label: 'Add Scratch Pad', onSelect: handleAddScratch },
   ];
 
@@ -570,7 +401,7 @@ export function Sidebar({
     if (!playlistId) {
       return (
         <StateContainer>
-          <StateText>Select a playlist to view versions</StateText>
+          <StateText>Select a {t.playlist.lower} to view {t.version.lowerPlural}</StateText>
         </StateContainer>
       );
     }
@@ -579,7 +410,7 @@ export function Sidebar({
       return (
         <StateContainer>
           <LoadingSpinner />
-          <StateText>Loading versions...</StateText>
+          <StateText>Loading {t.version.lowerPlural}...</StateText>
         </StateContainer>
       );
     }
@@ -588,7 +419,7 @@ export function Sidebar({
       return (
         <StateContainer>
           <ErrorIcon />
-          <StateText>{error?.message || 'Failed to load versions'}</StateText>
+          <StateText>{error?.message || `Failed to load ${t.version.lowerPlural}`}</StateText>
         </StateContainer>
       );
     }
@@ -596,20 +427,13 @@ export function Sidebar({
     if ((!versions || versions.length === 0) && !hasScratch) {
       return (
         <StateContainer>
-          <StateText>No versions in this playlist</StateText>
+          <StateText>No {t.version.lowerPlural} in this {t.playlist.lower}</StateText>
         </StateContainer>
       );
     }
 
-    const isRefetching = isFetching && !isLoading;
-
     return (
       <VersionListContainer>
-        {isRefetching && (
-          <RefetchOverlay>
-            <LoadingSpinner />
-          </RefetchOverlay>
-        )}
         <VersionCardList>
           {hasScratch && (
             <div
@@ -648,11 +472,22 @@ export function Sidebar({
                 thumbnailUrl={version.thumbnail}
                 selected={version.id === selectedVersionId}
                 inReview={inReviewEnabled && inReviewVersionId === version.id}
+                inReviewPinned={
+                  inReviewEnabled &&
+                  inReviewPinned &&
+                  inReviewVersionId === version.id
+                }
                 noteStatus={noteStatusFor(version.id)}
                 onClick={() => onVersionSelect?.(version)}
+                // Taking over from a pinned version also unpins it.
                 onSetInReview={
                   inReviewEnabled
-                    ? () => void setInReview(version.id)
+                    ? () => void setInReview(version.id, inReviewPinned)
+                    : undefined
+                }
+                onTogglePin={
+                  inReviewEnabled && inReviewVersionId === version.id
+                    ? () => void setInReviewPinned(version.id, !inReviewPinned)
                     : undefined
                 }
               />
@@ -663,72 +498,21 @@ export function Sidebar({
     );
   };
 
+  const collapseControl = (
+    <Tooltip content={`${collapsed ? 'Expand' : 'Collapse'} Sidebar (${getLabel('toggleSidebar')})`}>
+      <CollapseButton
+        onClick={() => onCollapsedChange(!collapsed)}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {collapsed ? <PanelLeft /> : <PanelLeftClose />}
+      </CollapseButton>
+    </Tooltip>
+  );
+
   return (
     <SidebarWrapper $collapsed={collapsed}>
-      <Header $collapsed={collapsed}>
-        <Logo showText={!collapsed} width={collapsed ? 32 : 120} />
-        <HeaderActions>
-          {!collapsed && (
-            <>
-              <PublishSplit>
-                <Button
-                  size="2"
-                  variant="solid"
-                  onClick={() => setPublishScope('all')}
-                >
-                  Publish
-                </Button>
-                <DropdownMenu.Root>
-                  <DropdownMenu.Trigger>
-                    <Button size="2" variant="solid" aria-label="More publish options">
-                      <ChevronDown size={14} />
-                    </Button>
-                  </DropdownMenu.Trigger>
-                  <DropdownMenu.Content align="end">
-                    {renderPublishMenuItems()}
-                  </DropdownMenu.Content>
-                </DropdownMenu.Root>
-              </PublishSplit>
-              <UserAvatar
-                name={user?.name ?? userEmail}
-                size="2"
-                onLogout={onLogout}
-              />
-            </>
-          )}
-          <Tooltip content={`${collapsed ? 'Expand' : 'Collapse'} Sidebar (${getLabel('toggleSidebar')})`}>
-            <CollapseButton
-              onClick={() => onCollapsedChange(!collapsed)}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {collapsed ? <PanelLeft /> : <PanelLeftClose />}
-            </CollapseButton>
-          </Tooltip>
-        </HeaderActions>
-      </Header>
-
       {collapsed ? (
-        <CollapsedToolbar>
-          <PublishSplit $vertical>
-            <Button
-              size="2"
-              variant="solid"
-              onClick={() => setPublishScope('all')}
-            >
-              Publish
-            </Button>
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger>
-                <Button size="2" variant="solid" aria-label="More publish options">
-                  <ChevronDown size={14} />
-                </Button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content side="right" align="start">
-                {renderPublishMenuItems()}
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
-          </PublishSplit>
-        </CollapsedToolbar>
+        <SidebarTop $collapsed={collapsed}>{collapseControl}</SidebarTop>
       ) : (
         <Toolbar>
           {!isSearchExpanded &&
@@ -739,23 +523,13 @@ export function Sidebar({
                 existingVersionIds={(versions ?? []).map((v) => v.id)}
                 onClose={() => setToolbarInput('none')}
               />
-            ) : changePlaylistProjectId ? (
-              <ChangePlaylistInput
-                projectId={changePlaylistProjectId}
-                currentPlaylistId={playlistId ?? undefined}
-                onSelect={(playlist) => {
-                  setToolbarInput('none');
-                  onPlaylistChange?.(playlist);
-                }}
-                onClose={() => setToolbarInput('none')}
-              />
             ) : (
               <ToolbarLeft>
                 <SplitButton
                   menuItems={playlistMenuItems}
                   onClick={() => refetch()}
                 >
-                  Reload Playlist
+                  Reload {t.playlist.singular}
                 </SplitButton>
                 {inReviewEnabled && (
                   <FollowRow>
@@ -773,16 +547,19 @@ export function Sidebar({
               </ToolbarLeft>
             ))}
 
-          {!toolbarInputOpen && (
-            <ExpandableSearch
-              ref={searchRef}
-              placeholder="Search versions..."
-              versions={versions}
-              selectedVersionId={selectedVersionId}
-              onVersionSelect={handleSearchVersionSelect}
-              onExpandedChange={setIsSearchExpanded}
-            />
-          )}
+          <ToolbarRight>
+            {!toolbarInputOpen && (
+              <ExpandableSearch
+                ref={searchRef}
+                placeholder={`Search ${t.version.lowerPlural}...`}
+                versions={versions}
+                selectedVersionId={selectedVersionId}
+                onVersionSelect={handleSearchVersionSelect}
+                onExpandedChange={setIsSearchExpanded}
+              />
+            )}
+            {collapseControl}
+          </ToolbarRight>
         </Toolbar>
       )}
 
@@ -792,7 +569,13 @@ export function Sidebar({
 
       {collapsed ? (
         <CollapsedFooter>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} collapsed />}
+          {transcriptionEnabled && (
+            <TranscriptionMenu
+              sessionId={sessionId}
+              playlistId={playlistId}
+              collapsed
+            />
+          )}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SquareButton variant="neutral" onClick={toggleSettings}>
               <Settings />
@@ -808,7 +591,9 @@ export function Sidebar({
         </CollapsedFooter>
       ) : (
         <Footer $collapsed={collapsed}>
-          {transcriptionEnabled && <TranscriptionMenu playlistId={playlistId} />}
+          {transcriptionEnabled && (
+            <TranscriptionMenu sessionId={sessionId} playlistId={playlistId} />
+          )}
           <Tooltip content={`Settings (${getLabel('openSettings')})`}>
             <SettingsButton onClick={toggleSettings}>
               <Settings size={16} />
@@ -822,19 +607,6 @@ export function Sidebar({
             onOpenChange={setIsSettingsOpen}
           />
         </Footer>
-      )}
-
-
-
-      {playlistId && (
-        <PublishDialog
-          open={publishScope !== null}
-          onClose={() => setPublishScope(null)}
-          playlistId={playlistId}
-          userEmail={userEmail}
-          notes={publishDialogInput.notes}
-          versions={publishDialogInput.versions}
-        />
       )}
     </SidebarWrapper>
   );

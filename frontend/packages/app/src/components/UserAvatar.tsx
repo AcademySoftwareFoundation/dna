@@ -5,6 +5,7 @@ import {
   Flex,
   IconButton,
 } from '@radix-ui/themes';
+import { useNomenclature } from '../nomenclature';
 
 interface UserAvatarProps {
   name?: string;
@@ -19,6 +20,7 @@ export function UserAvatar({
   size = '2',
   onLogout,
 }: UserAvatarProps) {
+  const t = useNomenclature();
   const initials = name
     .split(' ')
     .map((n) => n[0])
@@ -57,8 +59,9 @@ export function UserAvatar({
       <AlertDialog.Content maxWidth="400px">
         <AlertDialog.Title>Log Out</AlertDialog.Title>
         <AlertDialog.Description size="2">
-          Are you sure you want to log out? You will need to select a project
-          and playlist again.
+          Are you sure you want to log out? You will need to select a{' '}
+          {t.project.lower}
+          and {t.playlist.lower} again.
         </AlertDialog.Description>
 
         <Flex gap="3" mt="4" justify="end">

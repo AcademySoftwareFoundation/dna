@@ -1,12 +1,21 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import styled from 'styled-components';
-import type { Playlist, Version } from '@dna/core';
+import type { Version } from '@dna/core';
 import { Sidebar } from './Sidebar';
+import { AppHeader, type HeaderContextMode } from './AppHeader';
+import type { RecentSessionEntry } from '../recentSessions';
 
 interface LayoutProps {
   children: ReactNode;
-  onPlaylistChange?: (playlist: Playlist) => void;
+  playlistTabs?: ReactNode;
+  contextName?: string | null;
+  contextMode?: HeaderContextMode | null;
+  currentContextId?: string | null;
+  changeContextLabel?: string | null;
+  onChangeContext?: () => void;
+  onSelectRecentContext?: (entry: RecentSessionEntry) => void;
   playlistId: string | null;
+  sessionId?: string | null;
   projectId: string | null;
   selectedVersionId?: string | null;
   onVersionSelect?: (version: Version) => void;
@@ -16,21 +25,36 @@ interface LayoutProps {
 
 const COLLAPSE_BREAKPOINT = 1024;
 
+/**
+ * The narrowest the app lays out. Below this the header's fixed parts (logo,
+ * session name, add-playlist, Publish, avatar) no longer fit beside each
+ * other, so the page scrolls sideways instead of squeezing them together.
+ * Leaves about 100px of playlist tabs with the longest session name.
+ */
+const MIN_APP_WIDTH = '760px';
+
 const LayoutWrapper = styled.div`
   display: flex;
+  flex-direction: column;
   width: 100%;
-  min-height: 100%;
+  min-width: ${MIN_APP_WIDTH};
+  height: 100vh;
+  overflow: hidden;
   background: ${({ theme }) => theme.colors.bg.base};
 `;
 
-const Main = styled.main<{ $sidebarCollapsed: boolean }>`
+const Workspace = styled.div`
+  display: flex;
   flex: 1;
-  margin-left: ${({ theme, $sidebarCollapsed }) =>
-    $sidebarCollapsed
-      ? theme.sizes.sidebar.collapsed
-      : theme.sizes.sidebar.expanded};
+  min-height: 0;
+  width: 100%;
+`;
+
+const Main = styled.main`
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
   padding: 24px 0 24px 32px;
-  transition: margin-left ${({ theme }) => theme.transitions.base};
   background:
     radial-gradient(
         ellipse 80% 50% at 50% -20%,
@@ -39,13 +63,19 @@ const Main = styled.main<{ $sidebarCollapsed: boolean }>`
       )
       fixed,
     ${({ theme }) => theme.colors.bg.base};
-  min-height: 100%;
 `;
 
 export function Layout({
   children,
-  onPlaylistChange,
+  playlistTabs,
+  contextName,
+  contextMode,
+  currentContextId,
+  changeContextLabel,
+  onChangeContext,
+  onSelectRecentContext,
   playlistId,
+  sessionId,
   projectId,
   selectedVersionId,
   onVersionSelect,
@@ -69,18 +99,33 @@ export function Layout({
 
   return (
     <LayoutWrapper>
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
-        onPlaylistChange={onPlaylistChange}
+      <AppHeader
+        playlistTabs={playlistTabs}
+        contextName={contextName}
+        contextMode={contextMode}
+        currentContextId={currentContextId}
+        changeContextLabel={changeContextLabel}
+        onChangeContext={onChangeContext}
+        onSelectRecentContext={onSelectRecentContext}
         playlistId={playlistId}
         projectId={projectId}
-        selectedVersionId={selectedVersionId}
-        onVersionSelect={onVersionSelect}
         userEmail={userEmail}
+        selectedVersionId={selectedVersionId}
         onLogout={onLogout}
       />
-      <Main $sidebarCollapsed={sidebarCollapsed}>{children}</Main>
+      <Workspace>
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+          playlistId={playlistId}
+          sessionId={sessionId}
+          projectId={projectId}
+          selectedVersionId={selectedVersionId}
+          onVersionSelect={onVersionSelect}
+          userEmail={userEmail}
+        />
+        <Main>{children}</Main>
+      </Workspace>
     </LayoutWrapper>
   );
 }

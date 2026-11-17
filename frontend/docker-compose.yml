@@ -1,0 +1,23 @@
+services:
+  frontend:
+    image: node:latest
+    working_dir: /app
+    init: true
+    ports:
+      - "5173:5173"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - app_node_modules:/app/packages/app/node_modules
+      - core_node_modules:/app/packages/core/node_modules
+    command:
+      - sh
+      - -c
+      - npm ci && npm run dev --workspace=@dna/app -- --host 0.0.0.0 --port 5173 --strictPort
+
+volumes:
+  node_modules:
+  app_node_modules:
+  core_node_modules:

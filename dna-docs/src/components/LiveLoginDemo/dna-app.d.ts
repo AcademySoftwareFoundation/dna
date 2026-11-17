@@ -103,9 +103,60 @@ declare module '@dna-app/components/VersionCard' {
   export function VersionCard(props: {
     version: {type: 'Version'; id: string; name?: string};
     artistName?: string;
+    /** Shown under the artist, e.g. "Comp". */
+    department?: string;
     thumbnailUrl?: string;
     selected?: boolean;
+    inReview?: boolean;
+    inReviewPinned?: boolean;
     onClick?: () => void;
+    /** The hover-revealed eye on versions not in review. */
+    onSetInReview?: () => void;
+    /** The pin beside the eye on the version in review. */
+    onTogglePin?: () => void;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/SessionTabs' {
+  import type {ReactNode} from 'react';
+
+  interface TabPlaylist {
+    type: 'Playlist';
+    id: string;
+    code?: string;
+  }
+
+  /** The header's playlist tabs for a session, with + Add playlist. */
+  export function SessionTabs(props: {
+    sessionId: string;
+    projectId: string;
+    activePlaylist: TabPlaylist;
+    onPlaylistChange: (playlist: TabPlaylist) => void;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/TranscriptionMenu' {
+  import type {ReactNode} from 'react';
+
+  /** The sidebar's Transcription button and its meeting-bot menu. */
+  export function TranscriptionMenu(props: {
+    /** The DNA session whose bot and paused flag the menu drives. */
+    sessionId: string | null;
+    playlistId: string | null;
+    collapsed?: boolean;
+  }): ReactNode;
+}
+
+declare module '@dna-app/components/AssistantNote' {
+  import type {ReactNode} from 'react';
+
+  /** The AI Assistant tab's card: the suggested note, Regenerate, Copy and Insert. */
+  export function AssistantNote(props: {
+    suggestion?: string | null;
+    isLoading?: boolean;
+    error?: Error | null;
+    onRegenerate?: (additionalInstructions?: string) => void;
+    onInsertNote?: (content: string) => void;
   }): ReactNode;
 }
 
@@ -116,8 +167,10 @@ declare module '@dna-app/styles/theme' {
 
   export const ACCENTS: Record<
     AccentName,
-    {label: string; radix: NonNullable<ThemeProps['accentColor']>}
+    {label: string; radix: NonNullable<ThemeProps['accentColor']>; colors: {main: string}}
   >;
+
+  export const ACCENT_NAMES: AccentName[];
 
   /** The parts of the app's theme the docs demos read directly. */
   export interface Theme {
@@ -132,4 +185,24 @@ declare module '@dna-app/styles/theme' {
   }
 
   export function getTheme(mode: 'dark' | 'light', accent?: AccentName): Theme;
+}
+
+declare module '@dna-app/nomenclature/nomenclature' {
+  /**
+   * The app's default terminology, which appMocks/nomenclature hands to the
+   * demoed components. Only passed through, so its shape isn't spelled out.
+   */
+  export const DEFAULT_RESOLVED_NOMENCLATURE: Readonly<Record<string, unknown>>;
+}
+
+declare module '@dna-app/hotkeys/hotkeysConfig' {
+  export interface HotkeyAction {
+    id: string;
+    label: string;
+    description: string;
+    defaultKeys: string;
+  }
+
+  /** The app's shortcuts with their default keys, in the given terminology. */
+  export function buildHotkeyActions(terms: unknown): HotkeyAction[];
 }
