@@ -27,6 +27,36 @@ This will start the Vite dev server for the app.
 
 For local development, use the noop auth provider so you can sign in with any email: copy `packages/app/.env.example` to `packages/app/.env` and keep `VITE_AUTH_PROVIDER=none`. The backend should also use `AUTH_PROVIDER=none` (see backend README).
 
+### Development With Docker
+
+From `frontend/`, run:
+
+```bash
+docker compose up -d
+docker compose logs -f frontend
+```
+
+Open http://localhost:5173 after dependency installation finishes. This uses
+`node:latest` directly, not the deployment Dockerfile, and runs `npm ci` followed
+by the app workspace's `npm run dev`. No host Node.js installation is needed.
+The frontend directory is bind-mounted for live editing, while dependencies
+stay in Docker volumes. File polling supports network-mounted checkouts.
+
+To run `npm i` inside the running frontend container:
+
+```bash
+docker compose exec frontend npm i
+```
+
+Configure the app using `packages/app/.env` as above. API and WebSocket URLs
+must be reachable from your browser, not just from the container. Start the
+backend separately; the default URLs use `localhost:8000`.
+
+After changing dependencies, run `docker compose restart frontend` to reinstall
+them. To fetch a newer Node image, run `docker compose pull` followed by
+`docker compose up -d`. Stop the dev environment with `docker compose down`;
+add `--volumes` to also remove its installed dependencies.
+
 ### Build
 
 Build all packages:

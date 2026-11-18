@@ -19,11 +19,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/backend"
 FRONTEND_DIR="$SCRIPT_DIR/frontend"
 FRONTEND_ENV="$FRONTEND_DIR/packages/app/.env"
+USE_DOCKER_FRONTEND=false
+DOCKER_AVAILABLE=true
 
 VEXA_ADMIN_URL="http://localhost:8056"
 VEXA_ADMIN_TOKEN="your-admin-token"
 VEXA_LOCAL_EMAIL="dna-local@example.com"
-# Set to "true" when the user chooses hosted Vexa (api.cloud.vexa.ai); the
+# Set to "true" when the user chooses an external Vexa API; the
 # local Vexa container and transcription-backend setup are then skipped.
 VEXA_HOSTED=false
 VEXA_CLOUD_URL="https://api.cloud.vexa.ai"
@@ -221,14 +223,18 @@ current_llm_label() {
     echo "${provider:-openai}"
 }
 
+is_hosted_vexa() {
+    local url
+    url="$(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml")"
+    [[ -n "$url" && "${url%/}" != "$VEXA_LOCAL_URL" ]]
+}
+
 current_transcription_label() {
     if [[ "$(detect_transcription_route)" == "extension" ]]; then
         echo "browser extension"
         return 0
     fi
-    local url
-    url="$(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml")"
-    if [[ "$url" == "$VEXA_CLOUD_URL" ]]; then
+    if is_hosted_vexa; then
         echo "Vexa hosted"
     else
         echo "Vexa self-hosted"
@@ -378,6 +384,17 @@ apply_feature_flag() {
 
 # ── step 1: prerequisites ──────────────────────────────────────────────────────
 
+check_docker() {
+    if ! command -v docker &>/dev/null || ! docker info &>/dev/null; then
+        DOCKER_AVAILABLE=false
+        warn "Docker is unavailable (not installed, daemon stopped, or insufficient permissions). Skipping Docker-dependent steps."
+        return
+    fi
+    DOCKER_AVAILABLE=true
+    ok "Docker $(docker --version | awk '{gsub(/,/,"",$3); print $3}')"
+    ok "Docker daemon is running"
+}
+
 check_prerequisites() {
     info "Checking prerequisites..."
 
@@ -385,25 +402,31 @@ check_prerequisites() {
         || die "Node.js not found. Install Node.js v18+: https://nodejs.org/en/download"
     local node_major
     node_major="$(node --version | sed 's/v//' | cut -d. -f1)"
-    [[ "$node_major" -ge 18 ]] \
-        || die "Node.js v18+ required (found $(node --version)). Upgrade: https://nodejs.org/en/download"
-    ok "Node.js $(node --version)"
+    if [[ "$node_major" -lt 18 ]]; then
+        warn "Node.js v18+ required for the host frontend (found $(node --version))."
+        local use_docker
+        if ! read -r -p "  Bypass this check and use Docker for the frontend? (y/N): " use_docker; then
+            die "No answer received. Upgrade Node.js or rerun and choose the Docker frontend."
+        fi
+        case "$use_docker" in
+            y|Y|[yY][eE][sS]) USE_DOCKER_FRONTEND=true ;;
+            *) die "Upgrade Node.js: https://nodejs.org/en/download" ;;
+        esac
+    else
+        ok "Node.js $(node --version)"
+    fi
 
-    command -v npm &>/dev/null \
-        || die "npm not found. Install Node.js v18+: https://nodejs.org/en/download"
-    ok "npm $(npm --version)"
+    if [[ "$USE_DOCKER_FRONTEND" != "true" ]]; then
+        command -v npm &>/dev/null \
+            || die "npm not found. Install Node.js v18+: https://nodejs.org/en/download"
+        ok "npm $(npm --version)"
+    fi
 
     command -v python3 &>/dev/null \
         || die "python3 not found. Install Python 3: https://www.python.org/downloads/"
     ok "python3 $(python3 --version | awk '{print $2}')"
 
-    command -v docker &>/dev/null \
-        || die "Docker not found. Install Docker: https://docs.docker.com/get-docker/"
-    ok "Docker $(docker --version | awk '{gsub(/,/,"",$3); print $3}')"
-
-    docker info &>/dev/null \
-        || die "Docker daemon is not running. Start Docker Desktop (or the service) and try again."
-    ok "Docker daemon is running"
+    check_docker
 }
 
 # ── step 2: copy example config files ─────────────────────────────────────────
@@ -560,40 +583,33 @@ choose_transcription_route() {
 # ── step 3.6: Vexa deployment (self-hosted vs hosted cloud) ───────────────────
 
 configure_vexa() {
+    local vexa_url vexa_key
     echo ""
     echo -e "${BOLD}Vexa setup${NC}"
     echo "  Vexa provides the meeting bot and transcription that DNA consumes."
+    echo "  Use ${VEXA_LOCAL_URL} to run Vexa locally in Docker."
     echo ""
-    echo -e "  1) Self-hosted Vexa  ${BOLD}(default — runs locally in Docker)${NC}"
-    echo "  2) Hosted Vexa  (api.cloud.vexa.ai)"
-    echo ""
-    read -r -p "  Choice [1]: " vexa_choice
-    vexa_choice="${vexa_choice:-1}"
-    echo ""
+    read -r -p "  Vexa API URL [${VEXA_CLOUD_URL}]: " vexa_url
+    vexa_url="${vexa_url:-$VEXA_CLOUD_URL}"
+    ensure_env_var "VEXA_API_URL" "$vexa_url" \
+        "$BACKEND_DIR/docker-compose.local.yml"
+    ok "Vexa API URL set to ${vexa_url}"
 
-    case "$vexa_choice" in
-        2|[hH]osted|[cC]loud)
-            VEXA_HOSTED=true
-            set_env_var "VEXA_API_URL" "$VEXA_CLOUD_URL" \
+    if is_hosted_vexa; then
+        VEXA_HOSTED=true
+        read -r -p "  Vexa API key (from https://www.vexa.ai for cloud, or Enter to skip): " vexa_key
+        if [[ -n "$vexa_key" ]]; then
+            ensure_env_var "VEXA_API_KEY" "$vexa_key" \
                 "$BACKEND_DIR/docker-compose.local.yml"
-            ok "Vexa API URL set to ${VEXA_CLOUD_URL}"
-            read -r -p "  Vexa cloud API key (from https://www.vexa.ai, or Enter to skip): " vexa_cloud_key
-            if [[ -n "$vexa_cloud_key" ]]; then
-                set_env_var "VEXA_API_KEY" "$vexa_cloud_key" \
-                    "$BACKEND_DIR/docker-compose.local.yml"
-                ok "Vexa cloud API key written to backend/docker-compose.local.yml"
-            else
-                warn "Skipped — set VEXA_API_KEY in backend/docker-compose.local.yml"
-            fi
-            info "Local Vexa container and transcription-backend setup will be skipped."
-            ;;
-        *)
-            VEXA_HOSTED=false
-            ensure_env_var "VEXA_API_URL" "$VEXA_LOCAL_URL" \
-                "$BACKEND_DIR/docker-compose.local.yml"
-            ok "Vexa API URL set to ${VEXA_LOCAL_URL}"
-            ;;
-    esac
+            ok "Vexa API key written to backend/docker-compose.local.yml"
+        else
+            warn "Skipped — set VEXA_API_KEY in backend/docker-compose.local.yml"
+        fi
+        info "Local Vexa container and transcription-backend setup will be skipped."
+    else
+        VEXA_HOSTED=false
+        info "A local Vexa API key will be generated when Docker services start."
+    fi
 }
 
 detect_transcription_route() {
@@ -935,6 +951,10 @@ configure_feature_flags() {
 # ── step 7: frontend dependencies ─────────────────────────────────────────────
 
 install_frontend() {
+    if [[ "$USE_DOCKER_FRONTEND" == "true" ]]; then
+        info "Skipping host frontend dependencies; Docker will install them on startup."
+        return
+    fi
     info "Installing frontend dependencies..."
     (cd "$FRONTEND_DIR" && npm install)
     ok "Frontend dependencies installed"
@@ -1044,9 +1064,10 @@ start_full_stack() {
 
     # Re-derive hosting from the configured API URL so --start (which skips the
     # interactive prompts) starts the right set of containers.
-    if grep -qF "VEXA_API_URL=${VEXA_CLOUD_URL}" \
-            "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+    if is_hosted_vexa; then
         VEXA_HOSTED=true
+    else
+        VEXA_HOSTED=false
     fi
 
     # Hosted Vexa runs no local vexa/vexa-db/vexa-dashboard containers, so omit
@@ -1101,13 +1122,17 @@ print_summary() {
     if [[ "$route" == "extension" ]]; then
         echo "    WhisperLive  →  ws://localhost:9090"
     elif [[ "$VEXA_HOSTED" == "true" ]]; then
-        echo "    Vexa         →  ${VEXA_CLOUD_URL} (hosted)"
+        echo "    Vexa         →  $(read_compose_value VEXA_API_URL "$BACKEND_DIR/docker-compose.local.yml") (hosted)"
     else
         echo "    Vexa Admin   →  http://localhost:3001"
     fi
     echo ""
     echo "  To start the frontend (in a new terminal):"
-    echo "    cd frontend && npm run dev"
+    if [[ "$USE_DOCKER_FRONTEND" == "true" ]]; then
+        echo "    cd frontend && docker compose up -d"
+    else
+        echo "    cd frontend && npm run dev"
+    fi
     echo "    App  →  http://localhost:5173"
     echo ""
     echo "  To follow backend logs:"
@@ -1188,6 +1213,11 @@ remind_restart() {
 # docker restart keeps the env the container was created with. Recreate the api
 # service from the current compose files so edited settings are what it loads.
 restart_backend_if_running() {
+    check_docker
+    if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
+        warn "Backend restart skipped. Once Docker is available, run ./bootstrap.sh --start to load the updated settings."
+        return
+    fi
     local container="${BACKEND_CONTAINER:-dna-backend}"
     local running
     running="$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)"
@@ -1199,8 +1229,7 @@ restart_backend_if_running() {
     local route compose_cmd
     route="$(detect_transcription_route)"
     compose_cmd="$(get_compose_cmd)"
-    if grep -qF "VEXA_API_URL=${VEXA_CLOUD_URL}" \
-            "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+    if is_hosted_vexa; then
         VEXA_HOSTED=true
     else
         VEXA_HOSTED=false
@@ -1236,7 +1265,7 @@ maybe_bootstrap_vexa_key() {
         return 0
     fi
     if ! docker info &>/dev/null; then
-        warn "VEXA_API_KEY is still a placeholder. Start Docker, then choose Transcription again to generate a local Vexa API key."
+        warn "Docker is unavailable; skipping Vexa API key generation. Once Docker is available, choose Transcription again to generate VEXA_API_KEY."
         return 0
     fi
     info "Local Vexa has no API key yet — generating one."
@@ -1268,6 +1297,7 @@ change_settings() {
         echo "  3) Production tracking     (${pt_label})"
         echo "  4) Sessions                (${session_label})"
         echo "  5) Feature flags           (${flags_label})"
+        echo "  7) Reset"
         echo "  6) Done"
         echo ""
         if ! read -r -p "  Choice: " settings_choice; then
@@ -1301,13 +1331,38 @@ change_settings() {
                 configure_feature_flags
                 remind_restart
                 ;;
+            7|[rR]eset)
+                warn "Reset will delete these local configuration files:"
+                echo "    $BACKEND_DIR/docker-compose.local.yml"
+                echo "    $BACKEND_DIR/docker-compose.local.vexa.yml"
+                echo "    $FRONTEND_ENV"
+                local confirm_reset
+                if ! read -r -p "  Reset local configuration? (y/N): " confirm_reset; then
+                    warn "Reset cancelled."
+                    return 0
+                fi
+                case "$confirm_reset" in
+                    y|Y|[yY][eE][sS])
+                        rm -f -- \
+                            "$BACKEND_DIR/docker-compose.local.yml" \
+                            "$BACKEND_DIR/docker-compose.local.vexa.yml" \
+                            "$FRONTEND_ENV" \
+                            || die "Could not remove all local configuration files. Check permissions before retrying."
+                        ok "Local configuration reset. Rerun ./bootstrap.sh for first-time setup."
+                        return 0
+                        ;;
+                    *)
+                        info "Reset cancelled."
+                        ;;
+                esac
+                ;;
             6|[dD]one|[qQ]|[qQ]uit)
                 ok "No further changes."
                 restart_backend_if_running
                 return 0
                 ;;
             *)
-                warn "Enter 1-6."
+                warn "Enter 1-7."
                 ;;
         esac
         echo ""
@@ -1332,6 +1387,10 @@ main() {
         echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
         check_prerequisites
+        if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
+            warn "Service startup skipped. Once Docker is available, rerun ./bootstrap.sh --start."
+            return
+        fi
         echo ""
         TRANSCRIPTION_ROUTE="$(detect_transcription_route)"
         start_full_stack "$TRANSCRIPTION_ROUTE"
@@ -1350,13 +1409,18 @@ main() {
         choose_transcription_route
         copy_config_files
         echo ""
-        configure_llm
         apply_transcription_route
+        configure_llm
         configure_prodtrack
         configure_session_provider
         configure_feature_flags
         install_frontend
         echo ""
+        if [[ "$DOCKER_AVAILABLE" != "true" ]]; then
+            warn "Configuration complete; Vexa API key generation and service startup skipped."
+            warn "Once Docker is available, rerun ./bootstrap.sh to generate any missing Vexa API key via Transcription, then run ./bootstrap.sh --start."
+            return
+        fi
         if [[ "$TRANSCRIPTION_ROUTE" == "extension" ]]; then
             info "Skipping Vexa bootstrap (browser-extension transcription route)"
         elif [[ "$VEXA_HOSTED" != "true" ]]; then
