@@ -583,6 +583,7 @@ class TestSearchEndpoint:
                     "entity_types": ["user", "shot", "asset"],
                     "project_id": "123",
                     "limit": 5,
+                    "playlist_id": "7",
                 },
             )
 
@@ -591,6 +592,7 @@ class TestSearchEndpoint:
                 entity_types=["user", "shot", "asset"],
                 project_id="123",
                 limit=5,
+                playlist_id="7",
             )
         finally:
             app.dependency_overrides.clear()
@@ -643,6 +645,7 @@ class TestSearchEndpoint:
                 entity_types=["user"],
                 project_id=None,
                 limit=10,
+                playlist_id=None,
             )
         finally:
             app.dependency_overrides.clear()
@@ -993,6 +996,22 @@ class TestGetPlaylistsForProjectEndpoint:
             assert response.status_code == 200
             data = response.json()
             assert data == []
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_get_playlists_for_project_most_recent_first(self, mock_provider):
+        """Playlists come most recently updated first, undated ones last."""
+        from dna.models.entity import Playlist
+
+        mock_provider.get_playlists_for_project.return_value = [
+            Playlist(id="old", updated_at="2026-01-01T00:00:00+00:00"),
+            Playlist(id="undated"),
+            Playlist(id="new", updated_at="2026-06-01T00:00:00+00:00"),
+        ]
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: mock_provider
+        try:
+            response = client.get("/projects/42/playlists")
+            assert [p["id"] for p in response.json()] == ["new", "old", "undated"]
         finally:
             app.dependency_overrides.clear()
 
@@ -1351,6 +1370,39 @@ class TestMockThumbnailsEndpoint:
         with mock.patch("main.MOCK_THUMBNAILS_DIR", tmp_path):
             response = client.get("/api/mock-thumbnails/..%2Fsecret")
         assert response.status_code == 404
+
+
+class TestKitsuThumbnail:
+    """Tests for GET /api/kitsu-thumbnails/{version_id}."""
+
+    def teardown_method(self):
+        app.dependency_overrides.pop(get_prodtrack_provider_cached, None)
+
+    def _use(self, provider):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: provider
+
+    def test_200(self):
+        from dna.prodtrack_providers.kitsu import KitsuProvider
+
+        provider = mock.MagicMock(spec=KitsuProvider)
+        provider.get_thumbnail.return_value = b"PNG"
+        self._use(provider)
+        response = client.get("/api/kitsu-thumbnails/abc")
+        assert response.status_code == 200
+        assert response.content == b"PNG"
+        assert response.headers["content-type"] == "image/png"
+
+    def test_404_when_missing(self):
+        from dna.prodtrack_providers.kitsu import KitsuProvider
+
+        provider = mock.MagicMock(spec=KitsuProvider)
+        provider.get_thumbnail.side_effect = ValueError("nope")
+        self._use(provider)
+        assert client.get("/api/kitsu-thumbnails/abc").status_code == 404
+
+    def test_404_with_another_provider(self):
+        self._use(mock.MagicMock())
+        assert client.get("/api/kitsu-thumbnails/abc").status_code == 404
 
 
 def test_version_route_rejects_non_numeric_shotgrid_id():

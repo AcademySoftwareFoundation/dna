@@ -2,6 +2,7 @@
 # Auth: AUTH_PROVIDER=none uses the noop provider (sign in with any email; no token validation).
 # Prodtrack: Set PRODTRACK_PROVIDER=mock to use the read-only mock (no ShotGrid needed).
 # To use real ShotGrid, set PRODTRACK_PROVIDER=shotgrid and SHOTGRID_URL, SHOTGRID_SCRIPT_NAME, SHOTGRID_API_KEY.
+# To use Kitsu, set PRODTRACK_PROVIDER=kitsu and KITSU_URL, KITSU_API_TOKEN.
 services:
   api:
     environment:

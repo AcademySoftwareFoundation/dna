@@ -26,6 +26,7 @@ UNAUTHENTICATED_PATHS = {
     ("get", "/health"),
     ("get", "/version-statuses"),
     ("get", "/api/mock-thumbnails/{version_id}"),
+    ("get", "/api/kitsu-thumbnails/{version_id}"),
     # Extension handshake probe; returns only a feature-flag boolean or 404.
     ("get", "/transcription/extension/health"),
 }

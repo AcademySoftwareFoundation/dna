@@ -621,6 +621,7 @@ class ShotgridProvider(ProdtrackProviderBase):
         entity_types: list[str],
         project_id: str | None = None,
         limit: int = 10,
+        playlist_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Search for entities across multiple entity types.
 
