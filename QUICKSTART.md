@@ -321,6 +321,7 @@ The React app will be available at `http://localhost:5173`.
 | `GEMINI_URL` | No | `https://generativelanguage.googleapis.com/v1beta/openai/` | Override the Gemini OpenAI-compatible base URL |
 | `DNA_ENABLE_TRANSCRIPT_PUBLISH` | No | `false` | Set to `true` to enable `POST /playlists/{id}/publish-transcript`. When off, the endpoint returns 404. |
 | `SHOTGRID_TRANSCRIPT_ENTITY` | No | `CustomEntity01` | ShotGrid custom entity slot used when publishing transcripts. Match whichever `CustomEntityNN` the site admin has enabled. |
+| `PROJECT_ALLOWED_TYPES` | No | - | Comma-separated ShotGrid project `sg_type` values (for example `Feature,Commercial`). When set, only projects of those types are returned to users. Unset or blank returns all of a user's projects. |
 | `PYTHONUNBUFFERED` | No | `1` | Disable Python output buffering |
 
 ### Vexa Service (`vexa` service)
