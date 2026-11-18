@@ -12,9 +12,12 @@ The package tells DNA which version is on screen in RV, so the version [in revie
 
 <LiveRvSyncDemo caption="Each time the source changes in RV, the package sends DNA one request and DNA moves the version in review to match." />
 
+The version in review belongs to a DNA [session](/docs/sessions). RV drives the session you choose in its DNA menu and follows the playlist it has open in Flow Production Tracking, so a session can hold several playlists. Without a session, RV drives each playlist's own session, the same one the DNA web app uses.
+
 ## What You Need
 
-- RV or OpenRV built with Qt 6 and PySide6. The package has been tested with RV 2026.0.1 and OpenRV 4.0.2.
+- RV or OpenRV built with Qt 6 and PySide6. The package has been tested with RV 2025.1.0, RV 2026.0.1 and OpenRV 4.0.2.
+- Version 0.3 or later of the package. Earlier versions use a request DNA no longer acts on, so the version in review does not move.
 - The address of your studio's DNA web app, for example `https://dna.example.com`.
 - **Enable In Review** switched on in DNA's [settings](/docs/10-settings). It is already on if you use transcription.
 
@@ -50,9 +53,11 @@ To switch the package on for everyone who shares an RV support area, run `rvpkg 
 
 ## How RV Finds the Version
 
-Whenever the source on screen changes, RV works out which version it is and sets that version in review in DNA. A few rules decide whether the change reaches DNA:
+Whenever you open a version or the source on screen changes, RV works out which version it is and sets that version in review in DNA. A few rules decide whether the change reaches DNA:
 
-- **The version has to be on the playlist.** RV only sets versions from the playlist chosen at sign-in. Anything else loaded in RV is left alone.
+- **RV follows the playlist it has open.** It uses the playlist Screening Room reports as you browse Flow Production Tracking. Without Screening Room, it uses the playlist chosen at sign-in.
+- **The playlist has to be in the session.** If you chose a session and RV opens a playlist that is not in it, RV leaves DNA alone and says so. Add the playlist to the session in DNA first.
+- **The version has to be on the playlist.** Anything else loaded in RV is left alone.
 - **A pinned version stays put.** If someone has [pinned](/docs/4-in-reivew#pinning) the version in review, moving on in RV does not change it until it is unpinned.
 - **RV has to know which version a source is.** Sources it cannot identify are skipped.
 
@@ -68,11 +73,13 @@ Studios that track version IDs differently can edit that file before building th
 
 | Menu item | What it does |
 | --- | --- |
-| **Signed in as ...** / **Not signed in** | Shows who is signed in and which playlist RV is driving. |
+| **Signed in as ...** / **Not signed in** | Shows who is signed in and which DNA session RV drives. |
+| **Playlist: ...** | The playlist RV is following, from Screening Room or from sign-in. |
 | **Sign In...** / **Sign Out** | Opens DNA's sign-in window, or forgets the saved sign-in. |
-| **Switch show/playlist...** | Reopens the project and playlist picker without signing out. |
+| **Choose session...** | Picks the DNA session RV drives, or no session to drive each playlist's own. |
+| **Switch show/playlist...** | Reopens the sign-in window to change the show, or the playlist RV falls back to. |
 | **Set DNA URL...** | Changes the DNA web app address. Changing it signs you out. |
-| **Debug mode** | Shows each request to DNA, and DNA's answer, as a message over RV's viewer. |
+| **Debug mode** | Shows each request to DNA, and DNA's answer, as a message over RV's viewer, and prints them in full to RV's console. |
 
 ## Troubleshooting
 
@@ -83,17 +90,21 @@ Studios that track version IDs differently can edit that file before building th
 **DNA does not follow RV.** Work through these in order:
 
 1. In DNA, check that **Follow In Review** is on.
-2. In RV, check that the playlist named in the DNA menu is the one open in DNA.
+2. In RV, check the session and playlist named in the DNA menu. The playlist has to be in the session open in DNA.
 3. Check whether the version in review is pinned.
 4. Turn on **DNA > Debug mode** and change source in RV. RV shows the request it sent and what DNA answered, or says that it found no version ID for the source.
 
-**Syncing stops after about an hour.** With Google sign-in, the sign-in expires after about an hour and RV does not renew it. Choose **DNA > Sign In...** again.
+**RV shows "DNA sign-in expired".** With Google sign-in, the sign-in expires after about an hour and RV does not renew it. Choose **DNA > Sign In...** again.
+
+**RV shows "DNA session not found".** The session was deleted in DNA. Choose **DNA > Choose session...** and pick another.
+
+**RV shows "DNA unreachable" or "DNA rejected the in-review update".** RV could not reach DNA, or DNA refused the request. Check the address with **DNA > Set DNA URL...**, then turn on **DNA > Debug mode** to see DNA's answer.
 
 ## Known Limits
 
 - Signing in with Google from inside RV has not been tested yet, and Google may refuse to sign in from an embedded window.
 - RV stores the sign-in in its preferences as plain text. On shared workstations, ask people to choose **DNA > Sign Out** when they finish.
-- The playlist is chosen in DNA's sign-in window. RV does not work it out from the session it has loaded.
+- RV learns the playlist from Screening Room. Plain RV without Screening Room uses the playlist chosen at sign-in, or searches the session's playlists for the version.
 
 ## Other Review Players
 
