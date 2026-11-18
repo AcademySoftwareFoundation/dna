@@ -147,6 +147,18 @@ function findSplitViewPartnerTab(dnaAnchor, tabs, prodtrackUrl) {
   return [...others].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
 }
 
+/** Fire-and-forget: put the controlled tab in DNA's split view, if any. Never throws. */
+async function attachToDnaSplitInBackground(sender, tabId) {
+  try {
+    const dnaTab = await resolveDnaAnchorTab(sender);
+    if (dnaTab?.id != null) {
+      await tryAttachControlledToAnchorSplit(dnaTab.id, tabId);
+    }
+  } catch {
+    /* best-effort */
+  }
+}
+
 /**
  * @param {string} url
  * @param {chrome.runtime.MessageSender} sender
@@ -172,18 +184,9 @@ async function openOrUpdateControlledTab(url, sender, clientTabId) {
     const fromClient = await updateTabById(clientTabId);
     if (fromClient != null) {
       controlledTabId = fromClient;
-      const dnaTab = await resolveDnaAnchorTab(sender);
-      let dnaAnchorForSplit = dnaTab;
-      if (dnaTab?.id != null) {
-        try {
-          dnaAnchorForSplit = await chrome.tabs.get(dnaTab.id);
-        } catch {
-          /* use resolved */
-        }
-      }
-      if (dnaAnchorForSplit?.id != null) {
-        await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, fromClient);
-      }
+      // Reply as soon as the tab is navigating; split-view attach is Chrome-only
+      // best-effort and would otherwise delay the ack (notably on Firefox).
+      void attachToDnaSplitInBackground(sender, fromClient);
       return fromClient;
     }
   }
@@ -211,7 +214,7 @@ async function openOrUpdateControlledTab(url, sender, clientTabId) {
       await chrome.tabs.update(splitPartner.id, { url, active: false });
       controlledTabId = splitPartner.id;
       if (dnaAnchorForSplit?.id != null) {
-        await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, splitPartner.id);
+        void tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, splitPartner.id);
       }
       return splitPartner.id;
     } catch {
@@ -222,7 +225,7 @@ async function openOrUpdateControlledTab(url, sender, clientTabId) {
   const fromTracked = await updateTabById(controlledTabId);
   if (fromTracked != null) {
     if (dnaAnchorForSplit?.id != null) {
-      await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, fromTracked);
+      void tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, fromTracked);
     }
     return fromTracked;
   }
@@ -245,7 +248,7 @@ async function openOrUpdateControlledTab(url, sender, clientTabId) {
   if (created?.id != null) {
     controlledTabId = created.id;
     if (dnaAnchorForSplit?.id != null) {
-      await tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, created.id);
+      void tryAttachControlledToAnchorSplit(dnaAnchorForSplit.id, created.id);
     }
     return created.id;
   }

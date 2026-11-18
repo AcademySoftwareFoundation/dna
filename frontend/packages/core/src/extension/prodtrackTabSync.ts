@@ -99,13 +99,17 @@ export async function pingProdtrackTabExtension(
 }
 
 /**
- * @param timeoutOrOptions — A millisecond timeout (default 800) or open options
+ * @param timeoutOrOptions — A millisecond timeout (default 800, or 2000 over
+ *  the page bridge) or open options
  *  including `tabId` (last known controlled tab) and `timeoutMs`.
  */
+const DEFAULT_OPEN_TIMEOUT_MS = 800;
+const BRIDGE_OPEN_TIMEOUT_MS = 2000;
+
 export async function openProdtrackVersionInExtension(
   extensionId: string,
   url: string,
-  timeoutOrOptions: number | OpenVersionOptions = 800
+  timeoutOrOptions: number | OpenVersionOptions = {}
 ): Promise<ProdtrackTabSyncResult> {
   const transport = getExtensionTransport(extensionId);
   if (!transport && !extensionId.trim()) {
@@ -122,7 +126,12 @@ export async function openProdtrackVersionInExtension(
     typeof timeoutOrOptions === 'number'
       ? { timeoutMs: timeoutOrOptions }
       : timeoutOrOptions;
-  const timeoutMs = openOpts.timeoutMs ?? 800;
+  // The page bridge (Firefox) adds content-script hops; a too-short timeout
+  // reports failure even though the tab was steered, and the caller then
+  // opens a duplicate tab.
+  const timeoutMs =
+    openOpts.timeoutMs ??
+    (transport === 'bridge' ? BRIDGE_OPEN_TIMEOUT_MS : DEFAULT_OPEN_TIMEOUT_MS);
   const lastKnownTabId = openOpts.tabId;
 
   const message: { type: string; url: string; tabId?: number } = {
@@ -154,7 +163,7 @@ export async function openProdtrackVersionInExtension(
 export async function openProdtrackVersionViaExtensionOrNewTab(
   extensionId: string,
   url: string,
-  timeoutOrOptions: number | OpenVersionOptions = 800
+  timeoutOrOptions: number | OpenVersionOptions = {}
 ): Promise<ProdtrackTabSyncResult> {
   const result = await openProdtrackVersionInExtension(
     extensionId,
