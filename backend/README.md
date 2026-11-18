@@ -95,6 +95,7 @@ To configure ShotGrid and other local settings, create a local docker-compose ov
 2. Edit `docker-compose.local.yml` and set at least:
    - **ShotGrid:** To use ShotGrid, set `PRODTRACK_PROVIDER=shotgrid` (or leave unset) and set `SHOTGRID_URL`, `SHOTGRID_API_KEY`, and `SHOTGRID_SCRIPT_NAME`. To run without ShotGrid, set `PRODTRACK_PROVIDER=mock`; see [Mock production tracking](#mock-production-tracking).
    - **Auth (local dev):** Keep `AUTH_PROVIDER=none` so the noop provider is used and you can sign in with any email. Change to `AUTH_PROVIDER=google` only if you need to test Google OAuth locally.
+   - **Email:** `EMAIL_PROVIDER=noop` logs playlist summary email and does not send it. To send mail, set `smtp`, `resend`, or `sendgrid` and the matching credentials. Gmail setup is in [Email](../dna-docs/deployment/email.mdx). `./bootstrap.sh` writes this into the local compose file.
    - **LLM:** Choose an LLM provider and matching credentials. Examples:
 
      ```yaml
