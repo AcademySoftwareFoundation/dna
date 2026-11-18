@@ -1472,7 +1472,7 @@ offscreen documents, which Firefox doesn't provide. The same extension runs in
 Firefox for production-tracking tab sync only, and its popup hides the
 transcription controls there. The `PING_TRANSCRIPTION` / `ACTIVATE_TRANSCRIPTION`
 handshake goes only through `externally_connectable`; it is not relayed through
-the Firefox page bridge (see `dna-chrome-extension/README.md`).
+the Firefox page bridge (see `dna-browser-extension/README.md`).
 
 ### Data flow
 

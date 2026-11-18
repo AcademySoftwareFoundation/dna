@@ -190,7 +190,7 @@ once the engine reports ready.
 - **Transcription.** `TRANSCRIPTION_PROVIDER=vexa` with `VEXA_API_URL` pointing
   at `https://api.cloud.vexa.ai` by default, overridable to a studio-hosted
   Vexa. The bot-dispatch flow in `transcription_providers/vexa.py` is unchanged.
-- **Chrome extension on desktop.** The extension (`dna-chrome-extension/`)
+- **Chrome extension on desktop.** The extension (`dna-browser-extension/`)
   keeps running in the user's real Chrome — that is where the ShotGrid and
   Google Meet tabs it acts on live, so bundling it into the app (Electron or
   otherwise) would not help; Electron's `loadExtension` also lacks
