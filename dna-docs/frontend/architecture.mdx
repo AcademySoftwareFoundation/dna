@@ -53,11 +53,11 @@ The backend pushes changes over a WebSocket at `VITE_WS_URL`. `EventProvider` op
 | `transcript` | Transcript segments arrive or change for a version. |
 | `bot.status_changed` | The meeting bot joins, waits, transcribes or leaves. |
 | `transcription.completed`, `transcription.error` | A transcription session ends or fails. |
-| `playlist.in_review_changed` | Someone sets a different version in review, or pins it. |
+| `session.in_review_changed` | Someone sets a different version in review on a session, or pins it. |
 
 ```ts
-useEventSubscription<InReviewChangedEventPayload>('playlist.in_review_changed', (event) => {
-  // event.payload.playlist_id, event.payload.in_review
+useEventSubscription<SessionInReviewChangedEventPayload>('session.in_review_changed', (event) => {
+  // event.payload.session_id, event.payload.in_review_playlist_id, event.payload.in_review_version_id
 });
 ```
 

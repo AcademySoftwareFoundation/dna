@@ -20,6 +20,8 @@ A review player can tell DNA which version is on screen, so the version [in revi
 
 The RV package has no special access to DNA. It sets the version in review with one HTTP request, and any player that can send that request can do the same.
 
-- [Create or update playlist metadata](/api/reference/upsert-playlist-metadata-playlists-playlist-id-metadata-put) is the request: a `PUT` with the version ID as `in_review`.
+- [Set or clear session in-review](/api/reference/update-session-in-review-sessions-session-id-in-review-put) is the request: a `PUT` to the DNA session with the playlist ID as `in_review_playlist_id` and the version ID as `in_review_version_id`. While the version in review is pinned, DNA answers `409`.
+- [List sessions for a project](/api/reference/get-sessions-for-project-projects-project-id-sessions-get) lets the player offer a session to drive. Without sessions, [Ensure an implicit DNA session for a playlist](/api/reference/ensure-session-for-playlist-sessions-ensure-for-playlist-post) gives a playlist's own session.
+- DNA does not check that the version is on the playlist, so the player should. [Get versions for a playlist](/api/reference/get-versions-for-playlist-playlists-playlist-id-versions-get) lists them.
 - [Real-time](/api/realtime) covers the event stream DNA uses to tell every open session about the change.
 - [Authentication](/api/authentication) covers the bearer token the request needs.

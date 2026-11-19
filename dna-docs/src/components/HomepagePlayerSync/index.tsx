@@ -106,14 +106,14 @@ export default function HomepagePlayerSync(): ReactNode {
             <p>
               Any player that can make an HTTP call can do this, whether it&apos;s RV, a
               studio&apos;s in-house viewer or a web player. Desktop players sign in through DNA&apos;s
-              own sign-in page, which hands the session, show and playlist straight to the app.{' '}
+              own sign-in page, which hands the sign-in and show straight to the app.{' '}
               <Link to="/docs/7-rv-integration">An RV package</Link> has been built to link DNA with RV.
             </p>
             <p>
-              The request is a <code>PUT</code> to the playlist&apos;s metadata with the version ID as{' '}
-              <code>in_review</code>. DNA refuses a version that isn&apos;t on the playlist. If a
-              coordinator has pinned the version in review, DNA refuses the change until they unpin
-              it, so skipping ahead in the player doesn&apos;t move what's in review.
+              The request is a <code>PUT</code> to the review session&apos;s in-review with the
+              playlist and version IDs. If a coordinator has pinned the version in review, DNA
+              refuses the change until they unpin it, so skipping ahead in the player doesn&apos;t
+              move what's in review.
             </p>
           </div>
         </div>
