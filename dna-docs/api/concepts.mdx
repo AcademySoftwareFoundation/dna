@@ -129,6 +129,7 @@ in the chain as long as the data upstream exists.
 |---|---|
 | `AUTH_PROVIDER` | `google` validates tokens; `none` accepts anything (development). See [Authentication](/api/authentication). |
 | `PRODTRACK_PROVIDER` | `shotgrid` (default) or `mock`. The mock is **read-only**: publish and status writes raise. |
+| `EMAIL_PROVIDER` | `noop` (default), `smtp`, `resend`, or `sendgrid`. Selects the sender for `POST /playlists/{playlist_id}/send-summary-email`. See [Email](/deployment/email). |
 | `DNA_ENABLE_TRANSCRIPT_PUBLISH` | Enables `publish-transcript`; otherwise it returns 404. |
 | `DNA_ENABLE_EXTENSION_TRANSCRIPTION` | Enables the extension ingest socket and its `/health` probe. |
 | `DNA_EXTENSION_KEY` | Shared key the ingest socket requires when set. |

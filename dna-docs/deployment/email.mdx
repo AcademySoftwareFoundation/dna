@@ -1,0 +1,72 @@
+---
+sidebar_position: 2
+title: Email
+---
+
+Playlist summary email is sent by `POST /playlists/{playlist_id}/send-summary-email`. The backend picks a sender with `EMAIL_PROVIDER`.
+
+`./bootstrap.sh` asks which provider to use on first-time setup, and again from its settings menu (option 5, Email). It writes the values into `backend/docker-compose.local.yml`, which is gitignored. The placeholders below are also in `backend/example.docker-compose.local.yml`.
+
+## Providers
+
+| Provider | `EMAIL_PROVIDER` | Required settings |
+| --- | --- | --- |
+| Noop | `noop` | None. The API logs the message and does not send it. This is the local default. |
+| SMTP | `smtp` | `SMTP_HOST`, `SMTP_PORT`, `SMTP_START_TLS`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` |
+| Resend | `resend` | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` |
+| SendGrid | `sendgrid` | `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` |
+
+Restart the API after changing these. From the bootstrap settings menu, choose Done and it recreates the API container.
+
+## Gmail over SMTP
+
+1. Turn on 2-Step Verification for the Google account that will send mail.
+2. Create an App Password: Google Account → Security → 2-Step Verification → App passwords.
+3. Set these in `backend/docker-compose.local.yml`, or choose SMTP in `./bootstrap.sh` and enter the same values:
+
+```yaml
+- EMAIL_PROVIDER=smtp
+- SMTP_HOST=smtp.gmail.com
+- SMTP_PORT=587
+- SMTP_START_TLS=true
+- SMTP_USERNAME=YOUR_GMAIL_ADDRESS
+- SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD
+- SMTP_FROM_EMAIL=YOUR_GMAIL_ADDRESS
+```
+
+Use the same Gmail address for `SMTP_USERNAME` and `SMTP_FROM_EMAIL`. `SMTP_PASSWORD` is the 16-character App Password, not the normal Gmail password.
+
+Any other SMTP server uses the same variables with that server's host, port, and credentials. Set `SMTP_START_TLS=false` when the server does not use STARTTLS.
+
+## Resend
+
+`RESEND_FROM_EMAIL` has to be a sender Resend has verified for the account that owns the API key.
+
+```yaml
+- EMAIL_PROVIDER=resend
+- RESEND_API_KEY=your-resend-api-key
+- RESEND_FROM_EMAIL=notes@your-domain.example
+```
+
+## SendGrid
+
+`SENDGRID_FROM_EMAIL` has to be a verified SendGrid sender. The API key needs permission to send mail.
+
+```yaml
+- EMAIL_PROVIDER=sendgrid
+- SENDGRID_API_KEY=your-sendgrid-api-key
+- SENDGRID_FROM_EMAIL=notes@your-domain.example
+```
+
+## Send a test message
+
+With the API running and a playlist id from the tracking provider:
+
+```bash
+PLAYLIST_ID=45 TO_EMAIL=reviewer@studio.example \
+  backend/scripts/send-test-summary-email.sh
+```
+
+Optional variables: `CC_EMAIL`, `PLAYLIST_URL` (default `http://localhost:5173`), `SENDER_EMAIL` (default `anonymous@localhost`), and `API_BASE` (default `http://localhost:8000`).
+
+When `AUTH_PROVIDER=none`, the bearer token is the sender address. The script sends `SENDER_EMAIL` as that token, and the summary lists it as the person who sent the email.

@@ -5,7 +5,7 @@
 # Bootstrap script for new contributors.
 # Checks prerequisites, copies example configs, installs frontend dependencies,
 # configures transcription (Vexa bot or browser extension + WhisperLive),
-# the session provider, and starts the full DNA stack.
+# the session provider, the email provider, and starts the full DNA stack.
 #
 # Usage:
 #   ./bootstrap.sh           # first-time setup, or change one setting if already configured
@@ -254,6 +254,12 @@ current_session_label() {
         mock) echo "mock" ;;
         *) echo "disabled" ;;
     esac
+}
+
+current_email_label() {
+    local provider
+    provider="$(read_compose_value EMAIL_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    echo "${provider:-noop}"
 }
 
 current_feature_flags_label() {
@@ -868,6 +874,90 @@ configure_session_provider() {
     esac
 }
 
+# ── step 5.6: email provider ──────────────────────────────────────────────────
+
+configure_email() {
+    echo ""
+    echo -e "${BOLD}Email provider${NC}"
+    echo "  Sends playlist summary email. Noop logs the message and does not send it."
+    echo ""
+    echo -e "  1) Noop  ${BOLD}(default)${NC}"
+    echo ""
+    echo "  2) SMTP"
+    echo "     Gmail: smtp.gmail.com, port 587, STARTTLS, and a Google App Password"
+    echo ""
+    echo "  3) Resend"
+    echo "     Requires a Resend API key and from address"
+    echo ""
+    echo "  4) SendGrid"
+    echo "     Requires a SendGrid API key and from address"
+    echo ""
+    read -r -p "  Choice [1]: " email_choice
+    email_choice="${email_choice:-1}"
+    echo ""
+
+    case "$email_choice" in
+        2|[sS][mM][tT][pP])
+            local smtp_host smtp_port smtp_starttls smtp_starttls_value smtp_user smtp_password smtp_from
+            read -r -p "  SMTP host [smtp.gmail.com]: " smtp_host
+            smtp_host="${smtp_host:-smtp.gmail.com}"
+            read -r -p "  SMTP port [587]: " smtp_port
+            smtp_port="${smtp_port:-587}"
+            read -r -p "  STARTTLS [Y/n]: " smtp_starttls
+            case "${smtp_starttls:-Y}" in
+                n|N|[nN][oO]) smtp_starttls_value="false" ;;
+                *) smtp_starttls_value="true" ;;
+            esac
+            read -r -p "  SMTP username (Gmail address): " smtp_user
+            read -r -p "  SMTP password (Google App Password, not the account password): " smtp_password
+            read -r -p "  From address [${smtp_user:-YOUR_GMAIL_ADDRESS}]: " smtp_from
+            smtp_from="${smtp_from:-$smtp_user}"
+            if [[ -n "$smtp_user" && -n "$smtp_password" && -n "$smtp_from" ]]; then
+                ensure_env_var "EMAIL_PROVIDER" "smtp" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_HOST" "$smtp_host" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_PORT" "$smtp_port" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_START_TLS" "$smtp_starttls_value" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_USERNAME" "$smtp_user" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_PASSWORD" "$smtp_password" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SMTP_FROM_EMAIL" "$smtp_from" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "SMTP email provider configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set EMAIL_PROVIDER=smtp and SMTP_HOST, SMTP_PORT, SMTP_START_TLS, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL in backend/docker-compose.local.yml"
+            fi
+            ;;
+        3|[rR]esend)
+            local resend_key resend_from
+            read -r -p "  Resend API key: " resend_key
+            read -r -p "  From address: " resend_from
+            if [[ -n "$resend_key" && -n "$resend_from" ]]; then
+                ensure_env_var "EMAIL_PROVIDER" "resend" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "RESEND_API_KEY" "$resend_key" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "RESEND_FROM_EMAIL" "$resend_from" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "Resend email provider configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set EMAIL_PROVIDER=resend, RESEND_API_KEY, and RESEND_FROM_EMAIL in backend/docker-compose.local.yml"
+            fi
+            ;;
+        4|[sS]end[gG]rid|[sS]endgrid)
+            local sendgrid_key sendgrid_from
+            read -r -p "  SendGrid API key: " sendgrid_key
+            read -r -p "  From address: " sendgrid_from
+            if [[ -n "$sendgrid_key" && -n "$sendgrid_from" ]]; then
+                ensure_env_var "EMAIL_PROVIDER" "sendgrid" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SENDGRID_API_KEY" "$sendgrid_key" "$BACKEND_DIR/docker-compose.local.yml"
+                ensure_env_var "SENDGRID_FROM_EMAIL" "$sendgrid_from" "$BACKEND_DIR/docker-compose.local.yml"
+                ok "SendGrid email provider configured in backend/docker-compose.local.yml"
+            else
+                warn "Skipped — set EMAIL_PROVIDER=sendgrid, SENDGRID_API_KEY, and SENDGRID_FROM_EMAIL in backend/docker-compose.local.yml"
+            fi
+            ;;
+        *)
+            ensure_env_var "EMAIL_PROVIDER" "noop" "$BACKEND_DIR/docker-compose.local.yml"
+            ok "Noop email provider configured (EMAIL_PROVIDER=noop)"
+            ;;
+    esac
+}
+
 # ── step 6: frontend feature flags ────────────────────────────────────────────
 
 # Walk In Review → Transcription → AI (outer doll to inner), enforcing the
@@ -1172,6 +1262,38 @@ print_summary() {
         echo "    backend/docker-compose.local.yml"
         echo ""
     fi
+    local email_provider
+    email_provider="$(read_compose_value EMAIL_PROVIDER "$BACKEND_DIR/docker-compose.local.yml")"
+    case "${email_provider:-noop}" in
+        smtp)
+            if grep -q 'SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD' \
+                    "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+                needs_attention=true
+                echo -e "  ${YELLOW}Action needed:${NC} set SMTP_PASSWORD to a Google App Password in:"
+                echo "    backend/docker-compose.local.yml"
+                echo "    Account → Security → 2-Step Verification → App passwords"
+                echo ""
+            fi
+            ;;
+        resend)
+            if grep -q 'RESEND_API_KEY=your-resend-api-key' \
+                    "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+                needs_attention=true
+                echo -e "  ${YELLOW}Action needed:${NC} fill in RESEND_API_KEY in:"
+                echo "    backend/docker-compose.local.yml"
+                echo ""
+            fi
+            ;;
+        sendgrid)
+            if grep -q 'SENDGRID_API_KEY=your-sendgrid-api-key' \
+                    "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
+                needs_attention=true
+                echo -e "  ${YELLOW}Action needed:${NC} fill in SENDGRID_API_KEY in:"
+                echo "    backend/docker-compose.local.yml"
+                echo ""
+            fi
+            ;;
+    esac
     if [[ "$VEXA_HOSTED" == "true" ]]; then
         if grep -q 'VEXA_API_KEY=\*\*' \
                 "$BACKEND_DIR/docker-compose.local.yml" 2>/dev/null; then
@@ -1284,11 +1406,12 @@ change_settings() {
     echo ""
 
     while true; do
-        local llm_label route_label pt_label session_label flags_label settings_choice
+        local llm_label route_label pt_label session_label email_label flags_label settings_choice
         llm_label="$(current_llm_label)"
         route_label="$(current_transcription_label)"
         pt_label="$(current_prodtrack_label)"
         session_label="$(current_session_label)"
+        email_label="$(current_email_label)"
         flags_label="$(current_feature_flags_label)"
 
         echo -e "${BOLD}Settings${NC}"
@@ -1296,9 +1419,10 @@ change_settings() {
         echo "  2) Transcription           (${route_label})"
         echo "  3) Production tracking     (${pt_label})"
         echo "  4) Sessions                (${session_label})"
-        echo "  5) Feature flags           (${flags_label})"
+        echo "  5) Email                   (${email_label})"
+        echo "  6) Feature flags           (${flags_label})"
         echo "  7) Reset"
-        echo "  6) Done"
+        echo "  8) Done"
         echo ""
         if ! read -r -p "  Choice: " settings_choice; then
             echo ""
@@ -1328,6 +1452,10 @@ change_settings() {
                 remind_restart
                 ;;
             5)
+                configure_email
+                remind_restart
+                ;;
+            6)
                 configure_feature_flags
                 remind_restart
                 ;;
@@ -1356,13 +1484,13 @@ change_settings() {
                         ;;
                 esac
                 ;;
-            6|[dD]one|[qQ]|[qQ]uit)
+            8|[dD]one|[qQ]|[qQ]uit)
                 ok "No further changes."
                 restart_backend_if_running
                 return 0
                 ;;
             *)
-                warn "Enter 1-7."
+                warn "Enter 1-8."
                 ;;
         esac
         echo ""
@@ -1413,6 +1541,7 @@ main() {
         configure_llm
         configure_prodtrack
         configure_session_provider
+        configure_email
         configure_feature_flags
         install_frontend
         echo ""

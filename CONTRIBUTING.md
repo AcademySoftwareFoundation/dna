@@ -127,7 +127,7 @@ Coding standards and tests
 Layout of experimental files
 ----------------------------
 
-Production code lives in `backend/`, `frontend/`, and `dna-chrome-extension/`.
+Production code lives in `backend/`, `frontend/`, and `dna-browser-extension/`.
 Experimental prototypes may be shared under `experimental/`, with a further
 subdirectory specific to each organization. Experimental code is not a
 supported release surface.

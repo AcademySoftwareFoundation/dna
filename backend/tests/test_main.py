@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from main import (
     app,
+    get_email_provider_cached,
     get_llm_provider_cached,
     get_prodtrack_provider_cached,
     get_storage_provider_cached,
@@ -1508,3 +1509,103 @@ class TestCreatePlaylistEndpoint:
             assert response.status_code == 404
         finally:
             app.dependency_overrides.clear()
+
+
+class TestSendSummaryEmailEndpoint:
+    """Tests for POST /playlists/{playlist_id}/send-summary-email."""
+
+    def _override(self, prodtrack, storage, email):
+        app.dependency_overrides[get_prodtrack_provider_cached] = lambda: prodtrack
+        app.dependency_overrides[get_storage_provider_cached] = lambda: storage
+        app.dependency_overrides[get_email_provider_cached] = lambda: email
+
+    def test_sends_summary_for_playlist(self):
+        """The endpoint builds a summary from the playlist and sends it."""
+        from dna.models.entity import Playlist, Project
+
+        prodtrack = mock.MagicMock()
+        prodtrack.get_entity.side_effect = lambda entity_type, _entity_id: {
+            "playlist": Playlist(
+                id="45",
+                code="Dailies",
+                project={"type": "Project", "id": "124"},
+            ),
+            "project": Project(id="124", name="Show"),
+        }[entity_type]
+        prodtrack.get_versions_for_playlist.return_value = []
+        storage = mock.AsyncMock()
+        storage.get_draft_notes_for_playlist.return_value = []
+        email = mock.AsyncMock()
+        email.build_message.return_value = ("Subject", "text", "<p>html</p>")
+        email.send.return_value = "msg-1"
+        self._override(prodtrack, storage, email)
+        try:
+            response = client.post(
+                "/playlists/45/send-summary-email",
+                json={
+                    "to_email": "reviewer@studio.example",
+                    "playlist_url": "http://localhost:5173/playlist/45",
+                },
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["message_id"] == "msg-1"
+        assert body["sent_at"]
+        email.send.assert_awaited_once()
+        assert email.send.await_args.kwargs["to"] == "reviewer@studio.example"
+        assert email.send.await_args.kwargs["subject"] == "Subject"
+
+    def test_missing_playlist_returns_404(self):
+        """A missing playlist is a 404."""
+        prodtrack = mock.MagicMock()
+        prodtrack.get_entity.return_value = None
+        self._override(prodtrack, mock.AsyncMock(), mock.AsyncMock())
+        try:
+            response = client.post(
+                "/playlists/missing/send-summary-email",
+                json={
+                    "to_email": "reviewer@studio.example",
+                    "playlist_url": "http://localhost:5173",
+                },
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 404
+
+    def test_provider_error_returns_500(self):
+        """A provider failure becomes a 500."""
+        from dna.models.entity import Playlist, Project
+
+        prodtrack = mock.MagicMock()
+        prodtrack.get_entity.side_effect = lambda entity_type, _entity_id: {
+            "playlist": Playlist(
+                id="45",
+                code="Dailies",
+                project={"type": "Project", "id": "124"},
+            ),
+            "project": Project(id="124", name="Show"),
+        }[entity_type]
+        prodtrack.get_versions_for_playlist.return_value = []
+        storage = mock.AsyncMock()
+        storage.get_draft_notes_for_playlist.return_value = []
+        email = mock.AsyncMock()
+        email.build_message.return_value = ("Subject", "text", "<p>html</p>")
+        email.send.side_effect = RuntimeError("smtp down")
+        self._override(prodtrack, storage, email)
+        try:
+            response = client.post(
+                "/playlists/45/send-summary-email",
+                json={
+                    "to_email": "reviewer@studio.example",
+                    "playlist_url": "http://localhost:5173",
+                },
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 500
