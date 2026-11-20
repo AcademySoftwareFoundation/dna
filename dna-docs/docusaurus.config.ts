@@ -250,7 +250,7 @@ const config: Config = {
     },
     navbar: {
       logo: {
-        alt: 'DNA Docs Logo',
+        alt: 'Dailies Notes Assistant',
         src: 'img/logo-full-light.svg',   // light mode
         srcDark: 'img/logo-full-dark.svg', // dark mode
       },
