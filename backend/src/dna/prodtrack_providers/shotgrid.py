@@ -29,6 +29,18 @@ logger = logging.getLogger(__name__)
 # Site setup: backend/docs/SHOTGRID_SETUP.md, step 3.
 NOTE_TRANSCRIPT_FIELD = "sg_linked_transcript"
 
+
+def _get_allowed_project_types() -> list[str]:
+    """Return the project types allowed by PROJECT_ALLOWED_TYPES.
+
+    The variable is a comma-separated list of ShotGrid ``sg_type`` values.
+    Whitespace is trimmed and empty entries are dropped. An unset or blank
+    variable returns an empty list, meaning no type restriction.
+    """
+    raw = os.getenv("PROJECT_ALLOWED_TYPES", "")
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 # Field Mappings map the DNA entity to the SG entity.
 # Key: DNA entity Name
 #   Entity_id: The SG entity Type.
@@ -773,9 +785,16 @@ class ShotgridProvider(ProdtrackProviderBase):
             raise ValueError(f"User not found: {user_email}")
 
         # Find projects where this user is in the users list
+        project_filters: list[list[Any]] = [["users", "is", user]]
+
+        # Optionally restrict to the project types the studio allows
+        allowed_types = _get_allowed_project_types()
+        if allowed_types:
+            project_filters.append(["sg_type", "in", allowed_types])
+
         sg_projects = self._sg.find(
             "Project",
-            filters=[["users", "is", user]],
+            filters=project_filters,
             fields=["id", "name"],
         )
 

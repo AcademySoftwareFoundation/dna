@@ -672,3 +672,81 @@ class TestShotgridProviderNoteTranscriptLink:
             mock.call("Note", 505, {"content": "Body"}),
             mock.call("Note", 505, self.LINK),
         ]
+
+
+class TestShotgridProviderProjectAllowedTypes:
+    """Tests for PROJECT_ALLOWED_TYPES filtering in get_projects_for_user."""
+
+    @pytest.fixture
+    def mock_shotgun(self):
+        """Mock shotgun_api3.Shotgun class."""
+        with mock.patch("dna.prodtrack_providers.shotgrid.Shotgun") as mock_sg:
+            yield mock_sg
+
+    @pytest.fixture
+    def provider(self, mock_shotgun):
+        """Create a ShotgridProvider whose Shotgun client finds one user."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SHOTGRID_URL": "https://test.shotgunstudio.com",
+                "SHOTGRID_SCRIPT_NAME": "test_script",
+                "SHOTGRID_API_KEY": "test_key",
+            },
+        ):
+            provider = ShotgridProvider(connect=True)
+        provider.sg.find_one.return_value = {
+            "type": "HumanUser",
+            "id": 1,
+            "email": "artist@example.com",
+        }
+        provider.sg.find.return_value = []
+        return provider
+
+    @staticmethod
+    def _project_filters(provider):
+        """Return the filters passed to the Project query."""
+        return provider.sg.find.call_args.kwargs["filters"]
+
+    def test_no_filter_when_env_var_unset(self, provider):
+        """Without PROJECT_ALLOWED_TYPES the query only filters by user."""
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PROJECT_ALLOWED_TYPES", None)
+            provider.get_projects_for_user("artist@example.com")
+
+        filters = self._project_filters(provider)
+        assert not any(f[0] == "sg_type" for f in filters)
+
+    def test_no_filter_when_env_var_blank(self, provider):
+        """A blank or comma-only value is treated as not configured."""
+        with mock.patch.dict(os.environ, {"PROJECT_ALLOWED_TYPES": " , "}):
+            provider.get_projects_for_user("artist@example.com")
+
+        filters = self._project_filters(provider)
+        assert not any(f[0] == "sg_type" for f in filters)
+
+    def test_single_allowed_type_adds_sg_type_filter(self, provider):
+        """One configured type is passed as an sg_type 'in' filter."""
+        with mock.patch.dict(os.environ, {"PROJECT_ALLOWED_TYPES": "Feature"}):
+            provider.get_projects_for_user("artist@example.com")
+
+        filters = self._project_filters(provider)
+        assert ["sg_type", "in", ["Feature"]] in filters
+
+    def test_multiple_allowed_types_are_split_and_trimmed(self, provider):
+        """Comma-separated types are trimmed and all passed to the filter."""
+        with mock.patch.dict(
+            os.environ, {"PROJECT_ALLOWED_TYPES": "Feature, Commercial ,Episodic"}
+        ):
+            provider.get_projects_for_user("artist@example.com")
+
+        filters = self._project_filters(provider)
+        assert ["sg_type", "in", ["Feature", "Commercial", "Episodic"]] in filters
+
+    def test_user_filter_is_kept_when_types_configured(self, provider):
+        """The existing users filter still applies alongside the type filter."""
+        with mock.patch.dict(os.environ, {"PROJECT_ALLOWED_TYPES": "Feature"}):
+            provider.get_projects_for_user("artist@example.com")
+
+        filters = self._project_filters(provider)
+        assert any(f[0] == "users" and f[1] == "is" for f in filters)
