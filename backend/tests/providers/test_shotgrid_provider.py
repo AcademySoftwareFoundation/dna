@@ -1214,6 +1214,94 @@ class TestShotgridProviderGetProjectsForUser:
 
         assert results == []
 
+    def test_get_projects_for_user_no_allowed_types_filter(
+        self, shotgrid_provider, monkeypatch
+    ):
+        """Test that when PROJECT_ALLOWED_TYPES is not set, find() is called with only the user filter."""
+        monkeypatch.delenv("PROJECT_ALLOWED_TYPES", raising=False)
+
+        user_data = {"id": 42, "email": "test@example.com", "name": "Test User"}
+        shotgrid_provider.sg.find_one.return_value = user_data
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_projects_for_user("test@example.com")
+
+        shotgrid_provider.sg.find.assert_called_once_with(
+            "Project",
+            filters=[["users", "is", user_data]],
+            fields=["id", "name"],
+        )
+
+    def test_get_projects_for_user_single_allowed_type(
+        self, shotgrid_provider, monkeypatch
+    ):
+        """Adds a single allowed project type filter."""
+        monkeypatch.setenv("PROJECT_ALLOWED_TYPES", "Commercial")
+
+        user_data = {"id": 42, "email": "test@example.com", "name": "Test User"}
+        shotgrid_provider.sg.find_one.return_value = user_data
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_projects_for_user("test@example.com")
+
+        shotgrid_provider.sg.find.assert_called_once_with(
+            "Project",
+            filters=[
+                ["users", "is", user_data],
+                ["sg_type", "in", ["Commercial"]],
+            ],
+            fields=["id", "name"],
+        )
+
+    def test_get_projects_for_user_multiple_allowed_types(
+        self, shotgrid_provider, monkeypatch
+    ):
+        """Test that when PROJECT_ALLOWED_TYPES=Commercial,Feature, find() includes both types."""
+        monkeypatch.setenv("PROJECT_ALLOWED_TYPES", "Commercial,Feature")
+
+        user_data = {"id": 42, "email": "test@example.com", "name": "Test User"}
+        shotgrid_provider.sg.find_one.return_value = user_data
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_projects_for_user("test@example.com")
+
+        shotgrid_provider.sg.find.assert_called_once_with(
+            "Project",
+            filters=[
+                ["users", "is", user_data],
+                ["sg_type", "in", ["Commercial", "Feature"]],
+            ],
+            fields=["id", "name"],
+        )
+
+    def test_get_projects_for_user_allowed_types_trims_whitespace(
+        self, shotgrid_provider, monkeypatch
+    ):
+        """Test that PROJECT_ALLOWED_TYPES trims whitespace and ignores empty entries."""
+        monkeypatch.setenv(
+            "PROJECT_ALLOWED_TYPES",
+            " Commercial , Feature ,  , ",
+        )
+
+        user_data = {
+            "id": 42,
+            "email": "test@example.com",
+            "name": "Test User",
+        }
+        shotgrid_provider.sg.find_one.return_value = user_data
+        shotgrid_provider.sg.find.return_value = []
+
+        shotgrid_provider.get_projects_for_user("test@example.com")
+
+        shotgrid_provider.sg.find.assert_called_once_with(
+            "Project",
+            filters=[
+                ["users", "is", user_data],
+                ["sg_type", "in", ["Commercial", "Feature"]],
+            ],
+            fields=["id", "name"],
+        )
+
 
 # ============================================================================
 # ShotGrid get_playlists_for_project tests
