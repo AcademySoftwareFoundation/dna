@@ -47,7 +47,7 @@ function withEmeraldStrings(
 
 const config: Config = {
   title: 'Dailies Notes Assistant',
-  tagline: 'A tool that combines live transcription and LLM integration to help VFX teams capture review feedback.',
+  tagline: 'An open-source note-taking tool from the Academy Software Foundation that helps VFX teams capture review feedback.',
   favicon: 'img/favicon.svg',
   // Safari (incl. iOS) doesn't take SVG favicons; it picks these PNGs, cut
   // from the SVG, while Chrome and Firefox keep the vector. Unlike `favicon`,
