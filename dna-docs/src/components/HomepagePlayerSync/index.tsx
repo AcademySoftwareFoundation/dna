@@ -38,6 +38,12 @@ const Players: Player[] = [
     logo: 'img/players/openrv.svg',
   },
   {
+    // Hiero's app icon; the plugin covers Nuke Studio too.
+    name: 'Hiero',
+    href: 'https://www.foundry.com/products/hiero',
+    logo: 'img/players/hiero.png',
+  },
+  {
     name: 'xSTUDIO',
     href: 'https://github.com/AcademySoftwareFoundation/xstudio',
     logo: 'img/players/xstudio.svg',
@@ -107,7 +113,9 @@ export default function HomepagePlayerSync(): ReactNode {
               Any player that can make an HTTP call can do this, whether it&apos;s RV, a
               studio&apos;s in-house viewer or a web player. Desktop players sign in through DNA&apos;s
               own sign-in page, which hands the sign-in and show straight to the app.{' '}
-              <Link to="/docs/7-rv-integration">An RV package</Link> has been built to link DNA with RV.
+              <Link to="/docs/7-rv-integration">An RV package</Link> and{' '}
+              <Link to="/docs/hiero-integration">a Hiero plugin</Link> have been built to link DNA
+              with RV and Hiero.
             </p>
             <p>
               The request is a <code>PUT</code> to the review session&apos;s in-review with the

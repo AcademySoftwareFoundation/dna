@@ -1,0 +1,59 @@
+---
+sidebar_position: 7.5
+slug: /hiero-integration
+title: Hiero Integration
+---
+
+import VideoFigure from '@site/src/components/VideoFigure';
+
+With the DNA plugin for Hiero, DNA stays on the version under the playhead in Hiero. The version [in review](./4-in-review.mdx) changes as you move through a timeline, so notes and transcript segments land on the right version without anyone setting it by hand. It works with both Hiero and Nuke Studio.
+
+<VideoFigure
+  src="video/hiero-sync.mp4"
+  label="A screen recording of DNA beside a Hiero timeline. As the playhead moves to another clip on the timeline, the version in review in DNA changes to match."
+  caption="As you move to another clip in Hiero, DNA moves the version in review to match."
+/>
+
+:::info
+If Hiero has no **DNA** menu in its menu bar, the plugin has not been installed yet. If you need to install it yourself, follow [Installing the Plugin](/integrations/hiero#installing-the-plugin) in the developer docs.
+:::
+
+## Sign In From Hiero
+
+1. In Hiero, choose **DNA > Sign In...**. The first time, Hiero asks for your DNA URL, which is the address you open DNA at in your browser.
+2. Sign in, then choose your show and the playlist you are reviewing.
+3. If your show has DNA sessions, Hiero asks which session to drive.
+4. The DNA menu shows **Signed in as** with your email and the session, and the playlist you chose.
+
+The sign-in window depends on your version of Hiero. Some open DNA's own sign-in page inside Hiero. Others, including Nuke Studio 17, show a short form that asks for your email instead, which only works where DNA uses email sign-in.
+
+Hiero remembers this when you quit, so you only sign in once.
+
+## Review
+
+1. In DNA, open the same session and switch on **Follow In Review** at the top of the sidebar.
+2. In Hiero, open the timeline and review as usual.
+
+Each time the playhead moves onto another version, DNA sets it in review and jumps to it. Everyone else with the playlist open sees the in-review marker move too.
+
+Hiero only sets versions that are on your playlist. With a session chosen, it looks through all of the session's playlists. Other clips on the timeline are ignored.
+
+If someone has [pinned](./4-in-review.mdx#pinning) a version in DNA, it stays in review until it is unpinned, whatever Hiero is playing.
+
+If DNA misses a change, choose **DNA > Send current version now** to send the clip under the playhead again.
+
+## Change Playlist, Session or Sign Out
+
+- To review a different playlist, choose **DNA > Switch show/playlist...**. Hiero does not follow playlists you open elsewhere.
+- To drive a different DNA session, choose **DNA > Choose session...**.
+- When you finish on a shared workstation, choose **DNA > Sign Out**.
+
+## If DNA Is Not Following
+
+1. **There is no DNA menu in Hiero.** The plugin is not installed. See the [developer guide](/integrations/hiero#installing-the-plugin).
+2. **Follow In Review is off.** Switch it on at the top of DNA's sidebar.
+3. **Hiero is on a different session or playlist.** The DNA menu in Hiero names the session it drives and the playlist it uses. The version has to be on that playlist, or on a playlist in that session.
+4. **A version is pinned.** Unpin it in DNA.
+5. **It worked, then stopped.** Choose **DNA > Sign In...** again.
+
+If none of those fix it, the [developer guide](/integrations/hiero#troubleshooting) has a debug mode that shows what Hiero is sending.

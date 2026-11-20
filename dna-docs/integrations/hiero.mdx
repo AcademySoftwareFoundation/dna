@@ -1,0 +1,117 @@
+---
+sidebar_position: 3
+slug: /hiero
+title: Hiero Integration
+---
+
+import VideoFigure from '@site/src/components/VideoFigure';
+
+How to install the DNA plugin for Hiero and Nuke Studio, and tell it where to find version IDs. For the day-to-day steps once it is installed, see the [Hiero Integration user guide](/docs/hiero-integration).
+
+The plugin tells DNA which version is under the playhead in Hiero, so the version [in review](/docs/4-in-reivew) changes as a reviewer moves through a timeline. It works with both Hiero and Nuke Studio.
+
+<VideoFigure
+  src="video/hiero-sync.mp4"
+  label="A screen recording of DNA beside a Hiero timeline. As the playhead moves to another clip on the timeline, the version in review in DNA changes to match."
+  caption="Each time the clip under the playhead changes, the plugin sends DNA one request and DNA moves the version in review to match."
+/>
+
+The version in review belongs to a DNA [session](/docs/sessions). Hiero has no playlist of its own, so it uses the playlist chosen at sign-in. With a session chosen in its DNA menu, it searches the session's playlists for the version instead, starting with the one already in review. Without a session, Hiero drives the sign-in playlist's own session, the same one the DNA web app uses.
+
+## What You Need
+
+- Hiero or Nuke Studio. The plugin has been tested with Nuke Studio 17.0v3 on macOS, which uses PySide6. The code also supports PySide2 (Nuke 13 to 15), but that is untested.
+- The address of your studio's DNA web app, for example `https://dna.example.com`.
+- A DNA server with [sessions](/docs/sessions). To sign in through DNA's own sign-in page, the web app also needs its `/desktop-signin` page.
+- **Enable In Review** switched on in DNA's [settings](/docs/10-settings). It is already on if you use transcription.
+
+## Installing the Plugin
+
+The plugin lives in the [hiero-dna repository](https://github.com/camerontarget14/hiero-dna). Download or clone it, then load it in one of two ways.
+
+**A startup file.** Hiero only sees `HIERO_PLUGIN_PATH` when it is started from a shell that sets it, so the simplest install is a small file in your `.nuke` folder. Save this as `~/.nuke/Python/Startup/hiero_dna_bootstrap.py`, with the path to your copy of the repository:
+
+```python
+import sys
+
+sys.path.insert(0, "/path/to/hiero-dna/lib")
+
+from hiero_dna import plugin
+
+plugin.install()
+```
+
+**The plugin path.** Add the repository root to `HIERO_PLUGIN_PATH`. Hiero then runs `Python/StartupUI/hiero_dna_startup.py` from the repository, which does the same thing. This suits studios that launch Hiero from a wrapper that sets the environment:
+
+```sh
+export HIERO_PLUGIN_PATH="/path/to/hiero-dna:$HIERO_PLUGIN_PATH"
+```
+
+Restart Hiero. It now has a **DNA** menu in its menu bar.
+
+## Signing In
+
+**DNA > Sign In...** opens one of two windows, depending on the Hiero build:
+
+- **With QtWebEngine**, DNA's `/desktop-signin` page opens inside Hiero, the same page RV uses.
+- **Without QtWebEngine**, as in Nuke 17, a dialog asks for the DNA API URL and an email address, then lists the shows and playlists. For a local web app on port 5173 it guesses the API URL as `http://localhost:8000`. This dialog only works with DNA servers that use email sign-in (`VITE_AUTH_PROVIDER=none`). Google sign-in needs the web page.
+
+## How Hiero Finds the Version
+
+Whenever the clip under the playhead changes, Hiero works out which version it is and sets that version in review in DNA. It takes the top-most enabled track item at the playhead, or the clip when a clip is open in the viewer. A few rules decide whether the change reaches DNA:
+
+- **Hiero uses the sign-in playlist, or searches the session.** It never follows a playlist you open elsewhere.
+- **The version has to be on the playlist.** Anything else on the timeline is left alone.
+- **A pinned version stays put.** If someone has [pinned](/docs/4-in-reivew#pinning) the version in review, moving on in Hiero does not change it until it is unpinned.
+- **Hiero has to know which version a clip is.** Clips it cannot identify are skipped.
+
+Hiero looks for the version ID in the places listed in `lib/hiero_dna/version_id_paths.json`, in order. The defaults are:
+
+1. A `_sg_id` tag note, as set by the Nuke Timeline Loader.
+2. Media served by Flow Production Tracking, whose file path contains `/file_serve/version/<id>/`.
+3. A `version_id` metadata value.
+4. A `sg_version_id` metadata value.
+
+Values are read from the track item's tags, the media source, the clip and the clip's tags. A tag contributes its metadata, and its note under the tag's name. Tag metadata keys such as `tag.version_id` also match `version_id`.
+
+Studios that track version IDs differently can point the `HIERO_DNA_VERSION_ID_PATHS` environment variable at their own JSON file.
+
+## The DNA Menu
+
+| Menu item | What it does |
+| --- | --- |
+| **Signed in as ...** / **Not signed in** | Shows who is signed in and which DNA session Hiero drives. |
+| **Playlist: ...** | The playlist chosen at sign-in. |
+| **Sign In...** / **Sign Out** | Opens the sign-in window, or forgets the saved sign-in. |
+| **Choose session...** | Picks the DNA session Hiero drives, or no session to drive the playlist's own. |
+| **Switch show/playlist...** | Reopens the sign-in window without signing out. |
+| **Send current version now** | Sends the clip under the playhead to DNA again. |
+| **Set DNA URL...** | Changes the DNA web app address, for example `https://dna.example.com`. |
+| **Debug mode** | Logs each request to DNA, and DNA's answer, to the Script Editor and terminal with the prefix `hiero_dna:`, and shows them in the status bar. |
+
+## Troubleshooting
+
+**There is no DNA menu.** The plugin did not load. Check the path in the startup file, or that Hiero was started from a shell that sets `HIERO_PLUGIN_PATH`, and look in the Script Editor for an import error.
+
+**Sign-in fails.** Check the address with **DNA > Set DNA URL...**. It should be the same address DNA opens at in a browser. In the native dialog, also check the API URL, and that the DNA server uses email sign-in.
+
+**DNA does not follow Hiero.** Work through these in order:
+
+1. In DNA, check that **Follow In Review** is on.
+2. In Hiero, check the session and playlist named in the DNA menu. The version has to be on that playlist, or on a playlist in that session.
+3. Check whether the version in review is pinned.
+4. Turn on **DNA > Debug mode** and move to another clip. Hiero logs the request it sent and what DNA answered. Failures also show once in the status bar.
+
+**Hiero pauses when the clip changes.** Hiero waits for DNA to answer each request. If DNA cannot be reached, Hiero stops trying for 30 seconds.
+
+## Known Limits
+
+- Requests to DNA run on Hiero's interface thread, so each clip change waits for DNA to answer.
+- In Nuke Studio 17 the viewer does not report what it is playing, so the plugin reads the active timeline. A clip opened in the viewer from a bin, while a timeline is active, may be read as the timeline item at that frame.
+- The native sign-in dialog does not support Google sign-in.
+- Hiero has no playlist of its own. It never follows a playlist you open; it uses the sign-in playlist or searches the chosen session.
+- Hiero stores its settings with `QSettings("DNA", "hiero-dna")`, and the sign-in token in plain text. On shared workstations, ask people to choose **DNA > Sign Out** when they finish.
+
+## Other Review Players
+
+Hiero uses the same request as [RV](/integrations/rv). See [Building your own](/integrations#building-your-own) for the request any player can send.
