@@ -360,6 +360,10 @@ const config: Config = {
               to: '/docs/7-rv-integration',
             },
             {
+              label: 'Hiero Integration',
+              to: '/docs/hiero-integration',
+            },
+            {
               label: 'Publishing',
               to: '/docs/8-publishing',
             },
