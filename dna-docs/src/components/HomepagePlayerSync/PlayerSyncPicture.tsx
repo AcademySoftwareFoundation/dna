@@ -17,6 +17,9 @@ import * as I from '../LiveUiDemo/icons';
 import uiStyles from '../LiveUiDemo/styles.module.css';
 import styles from './styles.module.css';
 
+// Fictional DNA session id shown in the HTTP log.
+const DEMO_SESSION_ID = '67f0c31be4b0a1b2c3d4e7a1';
+
 /**
  * Laid out at the app's real sizes on this canvas, then scaled to the
  * stage's width (never below MIN_SCALE, so the stacked layout crops rather
@@ -303,11 +306,11 @@ export default function PlayerSyncPicture({
                       <div key={entry.id} className={styles.logEntry}>
                         <div className={styles.logLine}>
                           <span className={styles.method}>PUT</span>
-                          /playlists/{DEMO_PLAYLIST_ID}/metadata
+                          /sessions/{DEMO_SESSION_ID}/in-review
                         </div>
                         <div className={styles.logLine}>
                           <span className={styles.logBody}>
-                            {`{"in_review": "${trackingId(entry.index)}"}`}
+                            {`{"in_review_playlist_id": "${DEMO_PLAYLIST_ID}", "in_review_version_id": "${trackingId(entry.index)}"}`}
                           </span>
                           <span className={clsx(styles.status, entry.done && styles.statusDone)}>
                             {entry.done ? '200' : '···'}

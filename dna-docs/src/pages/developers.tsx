@@ -31,7 +31,7 @@ const sections: Section[] = [
     title: 'Integrations',
     to: '/integrations',
     description:
-      'How review players such as RV connect to DNA, and how to set them up for your studio.',
+      'How review players such as RV and Hiero connect to DNA, and how to set them up for your studio.',
   },
   {
     title: 'Deployment',
